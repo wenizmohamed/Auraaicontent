@@ -281,7 +281,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   };
 
   const logActivity = async (action: string, type: string) => {
-    const newLog = { id: crypto.randomUUID(), action, timestamp: new Date().toISOString(), type };
+    const newLog: ActivityLog = { id: crypto.randomUUID(), action, time: new Date().toISOString(), type };
     setState(prev => ({
       ...prev,
       activityLogs: [newLog, ...prev.activityLogs].slice(0, 20)

@@ -15,6 +15,8 @@
     "lint": "tsc --noEmit",
     "electron:dev": "concurrently -k \"vite --port=3000\" \"wait-on http://localhost:3000 && electron .\"",
     "electron:build": "vite build && electron-builder --win --x64",
+    "electron:build:mac": "vite build && electron-builder --mac --x64 --arm64",
+    "electron:build:all": "vite build && electron-builder --win --mac --x64 --arm64",
     "electron:pack": "vite build && electron-builder --dir"
   },
   "build": {
@@ -55,6 +57,31 @@
     },
     "portable": {
       "artifactName": "RADIX-Content-Planner-Portable.exe"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["x64", "arm64"]
+        }
+      ],
+      "icon": "public/radix-icon.png",
+      "category": "public.app-category.productivity",
+      "artifactName": "RADIX-Content-Planner-${version}-${arch}.${ext}",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false
+    },
+    "dmg": {
+      "title": "RADIX AI Content Planner",
+      "icon": "public/radix-icon.png",
+      "contents": [
+        { "x": 130, "y": 220 },
+        { "x": 410, "y": 220, "type": "link", "path": "/Applications" }
+      ]
     }
   },
   "dependencies": {
