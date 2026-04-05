@@ -303,6 +303,8 @@ export default function TopicDesk() {
       hashtags: [...topic.hashtags],
       status: topic.status,
       adAssignments: [...topic.adAssignments],
+      references: [...topic.references],
+      outlines: [...topic.outlines],
     });
     setHashtagInput('');
   }, []);
