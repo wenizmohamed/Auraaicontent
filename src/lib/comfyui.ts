@@ -1,7 +1,8 @@
 // ComfyUI API Client — Local (localhost:8188) + Cloud (cloud.comfy.org)
 // Uses your 5K ComfyUI credits for cloud, or free local GPU inference
 
-const LOCAL_URL = process.env.COMFYUI_API_URL || 'http://127.0.0.1:8188';
+// Use Vite proxy to avoid CORS (browser can't fetch localhost directly)
+const LOCAL_URL = '/comfyui-api';
 const CLOUD_URL = 'https://cloud.comfy.org';
 const CLOUD_KEY = process.env.COMFYUI_CLOUD_API_KEY || '';
 
