@@ -267,15 +267,8 @@
     font-size: 14pt;
   }
 
-  /* ── OPTIMIZATION LIST ──────────────────── */
-  .opt-item {
-    display: flex;
-    align-items: flex-start;
-    margin-bottom: 10px;
-    padding: 10px 14px;
-    background: #f8f8f8;
-    border: 1px solid #e0e0e0;
-  }
+  
+  
 
   .opt-num {
     font-weight: 700;
@@ -291,11 +284,7 @@
     margin-bottom: 2px;
   }
 
-  .opt-savings {
-    font-family: 'Consolas', 'Courier New', monospace;
-    color: #2a7a2a;
-    font-weight: 600;
-  }
+  
 
   /* ── APPROVAL SECTION ───────────────────── */
   .approval-grid {
@@ -741,36 +730,6 @@
     </tbody>
   </table>
 
-  <!-- ═══════════════════════════════════════ 6. COST OPTIMIZATION ═════════════════════════ -->
-  <h2><span class="section-num">06</span>Return on Investment</h2>
-
-  <p>The following analysis compares current manual content planning costs against the proposed API expenditure:</p>
-
-  <div class="roi-box">
-    <div class="roi-metric">
-      <span class="roi-label">Current Manual Cost (600+ hrs/mo &times; $25/hr avg)</span>
-      <span class="roi-value">$15,000+/month</span>
-    </div>
-    <div class="roi-metric">
-      <span class="roi-label">AI Content Planner API Cost (6 users)</span>
-      <span class="roi-value">~$62/month</span>
-    </div>
-    <div class="roi-metric">
-      <span class="roi-label">Monthly Cost Reduction</span>
-      <span class="roi-value">$14,938+</span>
-    </div>
-    <div class="roi-metric">
-      <span class="roi-label">Return on Investment</span>
-      <span class="roi-value highlight">241x</span>
-    </div>
-    <div class="roi-metric">
-      <span class="roi-label">Payback Period</span>
-      <span class="roi-value">Immediate</span>
-    </div>
-  </div>
-
-  <p>Note: The 241x ROI reflects API costs only. The tool reallocates content team hours toward higher-value activities (client strategy, campaign analysis, creative direction) rather than eliminating headcount. The net productivity gain across 13 clients is substantial.</p>
-
   <!-- ═══════════════════════════════════════ 8. APPROVAL ══════════════════════════════════ -->
   <h2><span class="section-num">07</span>Budget Approval</h2>
 
@@ -842,7 +801,6 @@
     <strong style="display: block; margin-bottom: 6px; color: #222;">Notes &amp; Disclaimers</strong>
     <ul>
       <li>All prices quoted as of April 2026. Anthropic and Google may adjust pricing at any time; the 15% budget buffer accounts for potential increases.</li>
-      <li>Video generation (Veo 3.1) is the dominant cost driver, accounting for approximately 73% of total monthly spend. This can be reduced by switching to Veo 3.1 Lite at 50% lower cost.</li>
       <li>Free-tier services (Wikimedia Commons) operate with generous rate limits (500 requests/hour) well above projected usage.</li>
       <li>API keys are stored securely within the application and access is restricted to authorized content team members only.</li>
       <li>No client data is stored by third-party API providers. All content generation is stateless and session-based.</li>
