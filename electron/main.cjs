@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, Menu, Tray, nativeImage } = require('electron');
+const { app, BrowserWindow, shell, Menu, Tray, nativeImage, ipcMain } = require('electron');
 const path = require('path');
 
 let mainWindow = null;
@@ -12,7 +12,7 @@ function createWindow() {
     minWidth: 1024,
     minHeight: 700,
     title: 'RADIX — AI Content Planner',
-    icon: path.join(__dirname, '..', 'public', 'radix-logo.jpg'),
+    icon: path.join(__dirname, '..', 'public', 'radix-icon.png'),
     backgroundColor: '#0a0a0a',
     titleBarStyle: 'hidden',
     titleBarOverlay: {
@@ -66,7 +66,7 @@ function createWindow() {
 }
 
 function createTray() {
-  const iconPath = path.join(__dirname, '..', 'public', 'radix-logo.jpg');
+  const iconPath = path.join(__dirname, '..', 'public', 'radix-icon.png');
   tray = new Tray(nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 }));
 
   const contextMenu = Menu.buildFromTemplate([
@@ -82,6 +82,14 @@ function createTray() {
   tray.setContextMenu(contextMenu);
   tray.on('click', () => { mainWindow?.show(); mainWindow?.focus(); });
 }
+
+// IPC handlers for window controls
+ipcMain.on('window-minimize', () => mainWindow?.minimize());
+ipcMain.on('window-maximize', () => {
+  if (mainWindow?.isMaximized()) mainWindow.unmaximize();
+  else mainWindow?.maximize();
+});
+ipcMain.on('window-close', () => mainWindow?.close());
 
 // App lifecycle
 app.whenReady().then(() => {

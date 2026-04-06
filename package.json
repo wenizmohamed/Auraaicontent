@@ -51,8 +51,8 @@
       "oneClick": false,
       "perMachine": true,
       "allowToChangeInstallationDirectory": true,
-      "installerIcon": "public/radix-logo.jpg",
-      "uninstallerIcon": "public/radix-logo.jpg",
+      "installerIcon": "public/radix-icon.png",
+      "uninstallerIcon": "public/radix-icon.png",
       "shortcutName": "RADIX Content Planner"
     },
     "portable": {

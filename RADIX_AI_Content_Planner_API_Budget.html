@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RADIX MEDIA — AI Content Planner API Budget Proposal</title>
+<style>
+  @page {
+    size: A4;
+    margin: 20mm 18mm 25mm 18mm;
+  }
+
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+    font-size: 10.5pt;
+    line-height: 1.55;
+    color: #1a1a1a;
+    background: #fff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .page {
+    max-width: 210mm;
+    margin: 0 auto;
+    padding: 0 10mm;
+  }
+
+  /* ── HEADER ─────────────────────────────── */
+  .doc-header {
+    border-bottom: 3px solid #000;
+    padding: 28px 0 18px 0;
+    margin-bottom: 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+
+  .doc-header-left {
+    flex: 1;
+  }
+
+  .brand-name {
+    font-size: 26pt;
+    font-weight: 800;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    color: #000;
+    line-height: 1.1;
+  }
+
+  .brand-sub {
+    font-size: 10pt;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #555;
+    margin-top: 2px;
+  }
+
+  .doc-header-right {
+    text-align: right;
+    font-size: 9pt;
+    color: #444;
+    line-height: 1.7;
+  }
+
+  .doc-header-right strong {
+    color: #000;
+  }
+
+  .doc-id {
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 8.5pt;
+    background: #f0f0f0;
+    padding: 2px 8px;
+    border: 1px solid #ddd;
+    display: inline-block;
+    margin-top: 4px;
+  }
+
+  /* ── GEOMETRIC ACCENT ───────────────────── */
+  .geo-accent {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 28px;
+  }
+
+  .geo-accent span {
+    height: 4px;
+    background: #000;
+  }
+
+  .geo-accent span:nth-child(1) { width: 60px; }
+  .geo-accent span:nth-child(2) { width: 30px; background: #666; }
+  .geo-accent span:nth-child(3) { width: 15px; background: #aaa; }
+
+  /* ── DOCUMENT TITLE ─────────────────────── */
+  .doc-title {
+    font-size: 18pt;
+    font-weight: 700;
+    color: #000;
+    margin-bottom: 4px;
+    letter-spacing: 0.5px;
+  }
+
+  .doc-subtitle {
+    font-size: 10pt;
+    color: #555;
+    margin-bottom: 24px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #e0e0e0;
+  }
+
+  /* ── SECTION HEADINGS ───────────────────── */
+  h2 {
+    font-size: 12pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #000;
+    margin-top: 28px;
+    margin-bottom: 12px;
+    padding-bottom: 6px;
+    border-bottom: 2px solid #000;
+  }
+
+  h2 .section-num {
+    font-weight: 400;
+    color: #888;
+    margin-right: 8px;
+    font-size: 10pt;
+  }
+
+  h3 {
+    font-size: 10.5pt;
+    font-weight: 700;
+    color: #222;
+    margin-top: 18px;
+    margin-bottom: 8px;
+  }
+
+  /* ── PARAGRAPHS ─────────────────────────── */
+  p {
+    margin-bottom: 10px;
+    text-align: justify;
+  }
+
+  .highlight-box {
+    background: #f8f8f8;
+    border-left: 4px solid #000;
+    padding: 14px 18px;
+    margin: 14px 0 18px 0;
+    font-size: 10pt;
+  }
+
+  .highlight-box strong {
+    color: #000;
+  }
+
+  /* ── TABLES ─────────────────────────────── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0 20px 0;
+    font-size: 9.5pt;
+  }
+
+  thead th {
+    background: #111;
+    color: #fff;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    font-size: 8.5pt;
+    padding: 10px 12px;
+    text-align: left;
+    border: 1px solid #000;
+  }
+
+  tbody td {
+    padding: 8px 12px;
+    border: 1px solid #d0d0d0;
+    vertical-align: top;
+  }
+
+  tbody tr:nth-child(even) {
+    background: #f9f9f9;
+  }
+
+  tbody tr:hover {
+    background: #f0f0f0;
+  }
+
+  .total-row td {
+    background: #111 !important;
+    color: #fff;
+    font-weight: 700;
+    font-size: 10pt;
+    border-color: #000;
+  }
+
+  .subtotal-row td {
+    background: #e8e8e8 !important;
+    font-weight: 600;
+    border-color: #bbb;
+  }
+
+  td.num, th.num {
+    text-align: right;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 9.5pt;
+  }
+
+  td.free {
+    color: #2a7a2a;
+    font-weight: 600;
+  }
+
+  /* ── LISTS ──────────────────────────────── */
+  ul, ol {
+    margin: 8px 0 14px 22px;
+  }
+
+  li {
+    margin-bottom: 5px;
+  }
+
+  /* ── ROI BOX ────────────────────────────── */
+  .roi-box {
+    border: 2px solid #000;
+    padding: 18px 22px;
+    margin: 16px 0 24px 0;
+    background: #fafafa;
+  }
+
+  .roi-box .roi-metric {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid #e0e0e0;
+  }
+
+  .roi-box .roi-metric:last-child {
+    border-bottom: none;
+  }
+
+  .roi-box .roi-label {
+    font-weight: 400;
+    color: #333;
+  }
+
+  .roi-box .roi-value {
+    font-weight: 700;
+    font-family: 'Consolas', 'Courier New', monospace;
+    color: #000;
+    font-size: 11pt;
+  }
+
+  .roi-box .roi-value.highlight {
+    color: #000;
+    font-size: 14pt;
+  }
+
+  /* ── OPTIMIZATION LIST ──────────────────── */
+  .opt-item {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 10px;
+    padding: 10px 14px;
+    background: #f8f8f8;
+    border: 1px solid #e0e0e0;
+  }
+
+  .opt-num {
+    font-weight: 700;
+    font-size: 14pt;
+    color: #000;
+    margin-right: 14px;
+    line-height: 1.2;
+    min-width: 24px;
+  }
+
+  .opt-content strong {
+    display: block;
+    margin-bottom: 2px;
+  }
+
+  .opt-savings {
+    font-family: 'Consolas', 'Courier New', monospace;
+    color: #2a7a2a;
+    font-weight: 600;
+  }
+
+  /* ── APPROVAL SECTION ───────────────────── */
+  .approval-grid {
+    margin-top: 16px;
+  }
+
+  .approval-row {
+    display: flex;
+    border: 1px solid #bbb;
+    border-bottom: none;
+    min-height: 72px;
+  }
+
+  .approval-row:last-child {
+    border-bottom: 1px solid #bbb;
+  }
+
+  .approval-role {
+    width: 180px;
+    padding: 12px 16px;
+    background: #f4f4f4;
+    border-right: 1px solid #bbb;
+    font-weight: 600;
+    font-size: 9.5pt;
+  }
+
+  .approval-role .role-title {
+    font-size: 8.5pt;
+    font-weight: 400;
+    color: #666;
+    display: block;
+    margin-top: 2px;
+  }
+
+  .approval-name {
+    flex: 1;
+    padding: 12px 16px;
+    border-right: 1px solid #bbb;
+  }
+
+  .approval-sig {
+    width: 160px;
+    padding: 12px 16px;
+    border-right: 1px solid #bbb;
+  }
+
+  .approval-date {
+    width: 120px;
+    padding: 12px 16px;
+  }
+
+  .approval-label {
+    font-size: 7.5pt;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #888;
+    margin-bottom: 4px;
+  }
+
+  .sig-line {
+    border-bottom: 1px solid #999;
+    margin-top: 28px;
+  }
+
+  /* ── NOTES / FOOTER ─────────────────────── */
+  .notes-section {
+    background: #f8f8f8;
+    border: 1px solid #e0e0e0;
+    padding: 14px 18px;
+    margin-top: 20px;
+    font-size: 9pt;
+    color: #444;
+  }
+
+  .notes-section ul {
+    margin-left: 16px;
+  }
+
+  .notes-section li {
+    margin-bottom: 4px;
+  }
+
+  .doc-footer {
+    margin-top: 30px;
+    padding-top: 12px;
+    border-top: 2px solid #000;
+    display: flex;
+    justify-content: space-between;
+    font-size: 8pt;
+    color: #888;
+  }
+
+  .doc-footer-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .footer-geo {
+    display: inline-flex;
+    gap: 3px;
+  }
+
+  .footer-geo span {
+    width: 8px;
+    height: 8px;
+    background: #000;
+  }
+
+  .footer-geo span:nth-child(2) { background: #666; }
+  .footer-geo span:nth-child(3) { background: #aaa; }
+
+  .confidential {
+    font-size: 7.5pt;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #aaa;
+    text-align: center;
+    margin-top: 16px;
+  }
+
+  /* ── PRINT ──────────────────────────────── */
+  .page-break {
+    page-break-before: always;
+    break-before: page;
+  }
+
+  @media print {
+    body {
+      font-size: 10pt;
+    }
+
+    .page {
+      padding: 0;
+      max-width: none;
+    }
+
+    .doc-header {
+      padding-top: 0;
+    }
+
+    tbody tr:hover {
+      background: inherit;
+    }
+
+    .no-print {
+      display: none;
+    }
+  }
+
+  /* ── USAGE ASSUMPTIONS ──────────────────── */
+  .assumptions-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin: 12px 0 18px 0;
+  }
+
+  .assumption-card {
+    padding: 10px 14px;
+    border: 1px solid #ddd;
+    background: #fafafa;
+  }
+
+  .assumption-card .a-value {
+    font-size: 16pt;
+    font-weight: 700;
+    color: #000;
+    font-family: 'Consolas', 'Courier New', monospace;
+  }
+
+  .assumption-card .a-label {
+    font-size: 8.5pt;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- ═══════════════════════════════════════ HEADER ═══════════════════════════════════════ -->
+  <div class="doc-header">
+    <div class="doc-header-left">
+      <div class="brand-name">RADIX MEDIA</div>
+      <div class="brand-sub">AI Content Planner</div>
+    </div>
+    <div class="doc-header-right">
+      <strong>API Usage Budget Proposal</strong><br>
+      Prepared by: Mohamed S.<br>
+      Head of Digital Transformation<br>
+      Date: April 2026<br>
+      <span class="doc-id">RADIX-DT-2026-001</span>
+    </div>
+  </div>
+
+  <div class="geo-accent">
+    <span></span><span></span><span></span>
+  </div>
+
+  <!-- ═══════════════════════════════════════ TITLE ════════════════════════════════════════ -->
+  <div class="doc-title">API Usage Budget Proposal</div>
+  <div class="doc-subtitle">RADIX AI Content Planner &mdash; Recurring API Costs for Finance Approval</div>
+
+  <!-- ═══════════════════════════════════════ 1. EXECUTIVE SUMMARY ═════════════════════════ -->
+  <h2><span class="section-num">01</span>Executive Summary</h2>
+
+  <p>The RADIX AI Content Planner automates social media content creation across our portfolio of <strong>13 active clients</strong>. The content team currently dedicates <strong>600+ manual hours per month</strong> to content planning, copywriting, visual direction, and scheduling. This tool compresses that workflow to minutes per client by leveraging AI-powered text generation, image creation, video production, and visual reference search.</p>
+
+  <p>API costs represent the <strong>only recurring operational expense</strong> for the tool. All infrastructure runs locally within the existing Radix technology stack. No additional headcount, hardware, or software licenses are required.</p>
+
+  <div class="highlight-box">
+    <strong>Total Annual Budget Request:</strong> $854 &ndash; $996 depending on team size (6&ndash;7 users), inclusive of a 15% cost buffer for API pricing fluctuations. This represents a <strong>241x return on investment</strong> against current manual labor costs.
+  </div>
+
+  <!-- ═══════════════════════════════════════ 2. API SERVICES ═════════════════════════════ -->
+  <h2><span class="section-num">02</span>API Services Overview</h2>
+
+  <p>The Content Planner integrates five API services across text, image, video, and reference search capabilities:</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Service</th>
+        <th>Provider</th>
+        <th>Model</th>
+        <th>Use Case</th>
+        <th class="num">Per-Unit Cost</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Text Content Generation</td>
+        <td>Anthropic</td>
+        <td>Claude Opus 4</td>
+        <td>Generate 18 content pieces from client brief</td>
+        <td class="num">$5/M input tokens<br>$25/M output tokens</td>
+      </tr>
+      <tr>
+        <td>Text Analysis &amp; Keywords</td>
+        <td>Google</td>
+        <td>Gemini 2.5 Flash</td>
+        <td>Keyword generation, prompt analysis</td>
+        <td class="num">$0.30/M input<br>$2.50/M output</td>
+      </tr>
+      <tr>
+        <td>Image Generation</td>
+        <td>Google</td>
+        <td>Gemini 3.1 Flash Image<br>(Nano Banana 2)</td>
+        <td>Visual references, social media images</td>
+        <td class="num">$0.067/image<br>(1K resolution)</td>
+      </tr>
+      <tr>
+        <td>Video Generation</td>
+        <td>Google</td>
+        <td>Veo 3.1</td>
+        <td>Short-form video content (10s)</td>
+        <td class="num">$1.50/video</td>
+      </tr>
+      <tr>
+        <td>Visual Reference Search</td>
+        <td>Wikimedia Foundation</td>
+        <td>Commons API</td>
+        <td>Stock photo references for designers</td>
+        <td class="num free">FREE<br>(500 req/hr)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ═══════════════════════════════════════ 3. USAGE ASSUMPTIONS ═════════════════════════ -->
+  <h2><span class="section-num">03</span>Usage Assumptions</h2>
+
+  <div class="assumptions-grid">
+    <div class="assumption-card">
+      <div class="a-value">6&ndash;7</div>
+      <div class="a-label">Active Users (Social Media Team)</div>
+    </div>
+    <div class="assumption-card">
+      <div class="a-value">~2</div>
+      <div class="a-label">Content Briefs per User / Month</div>
+    </div>
+    <div class="assumption-card">
+      <div class="a-value">18</div>
+      <div class="a-label">Content Pieces per Brief (36/user/mo)</div>
+    </div>
+    <div class="assumption-card">
+      <div class="a-value">~20</div>
+      <div class="a-label">AI-Generated Images per User / Month</div>
+    </div>
+    <div class="assumption-card">
+      <div class="a-value">~5</div>
+      <div class="a-label">AI-Generated Videos per User / Month</div>
+    </div>
+    <div class="assumption-card">
+      <div class="a-value">~70</div>
+      <div class="a-label">Visual Reference Lookups per User / Month</div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════ PAGE BREAK ═══════════════════════════════════ -->
+  <div class="page-break"></div>
+
+  <!-- ═══════════════════════════════════════ HEADER REPEAT (Print) ═════════════════════════ -->
+  <div class="doc-header" style="padding-top: 0;">
+    <div class="doc-header-left">
+      <div class="brand-name" style="font-size: 14pt; letter-spacing: 4px;">RADIX MEDIA</div>
+      <div class="brand-sub" style="font-size: 8pt;">API Budget Proposal &mdash; RADIX-DT-2026-001</div>
+    </div>
+    <div class="doc-header-right" style="font-size: 8pt;">
+      Page 2 of 3
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════ 4. MONTHLY COST ══════════════════════════════ -->
+  <h2><span class="section-num">04</span>Monthly Cost Breakdown</h2>
+
+  <h3>Scenario A &mdash; 6 Users</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Line Item</th>
+        <th>Quantity</th>
+        <th class="num">Unit Cost</th>
+        <th class="num">Monthly Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Claude Opus 4 &mdash; Content Generation</td>
+        <td>12 briefs (6 users &times; 2)</td>
+        <td class="num">$0.73/brief</td>
+        <td class="num">$8.76</td>
+      </tr>
+      <tr>
+        <td>Gemini 2.5 Flash &mdash; Text Analysis</td>
+        <td>12 briefs</td>
+        <td class="num">~$0.005/brief</td>
+        <td class="num">$0.06</td>
+      </tr>
+      <tr>
+        <td>Gemini 3.1 Flash Image &mdash; Image Generation</td>
+        <td>120 images (6 &times; 20)</td>
+        <td class="num">$0.067/image</td>
+        <td class="num">$8.04</td>
+      </tr>
+      <tr>
+        <td>Veo 3.1 &mdash; Video Generation</td>
+        <td>30 videos (6 &times; 5)</td>
+        <td class="num">$1.50/video</td>
+        <td class="num">$45.00</td>
+      </tr>
+      <tr>
+        <td>Wikimedia Commons &mdash; Visual References</td>
+        <td>~420 lookups</td>
+        <td class="num free">FREE</td>
+        <td class="num free">$0.00</td>
+      </tr>
+      <tr class="total-row">
+        <td colspan="3"><strong>TOTAL MONTHLY (6 USERS)</strong></td>
+        <td class="num"><strong>$61.86</strong></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Scenario B &mdash; 7 Users</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Line Item</th>
+        <th>Quantity</th>
+        <th class="num">Unit Cost</th>
+        <th class="num">Monthly Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Claude Opus 4 &mdash; Content Generation</td>
+        <td>14 briefs (7 users &times; 2)</td>
+        <td class="num">$0.73/brief</td>
+        <td class="num">$10.22</td>
+      </tr>
+      <tr>
+        <td>Gemini 2.5 Flash &mdash; Text Analysis</td>
+        <td>14 briefs</td>
+        <td class="num">~$0.005/brief</td>
+        <td class="num">$0.07</td>
+      </tr>
+      <tr>
+        <td>Gemini 3.1 Flash Image &mdash; Image Generation</td>
+        <td>140 images (7 &times; 20)</td>
+        <td class="num">$0.067/image</td>
+        <td class="num">$9.38</td>
+      </tr>
+      <tr>
+        <td>Veo 3.1 &mdash; Video Generation</td>
+        <td>35 videos (7 &times; 5)</td>
+        <td class="num">$1.50/video</td>
+        <td class="num">$52.50</td>
+      </tr>
+      <tr>
+        <td>Wikimedia Commons &mdash; Visual References</td>
+        <td>~490 lookups</td>
+        <td class="num free">FREE</td>
+        <td class="num free">$0.00</td>
+      </tr>
+      <tr class="total-row">
+        <td colspan="3"><strong>TOTAL MONTHLY (7 USERS)</strong></td>
+        <td class="num"><strong>$72.17</strong></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ═══════════════════════════════════════ 5. ANNUAL PROJECTIONS ═════════════════════════ -->
+  <h2><span class="section-num">05</span>Annual Projections</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Scenario</th>
+        <th class="num">Monthly</th>
+        <th class="num">Annual (12 mo)</th>
+        <th class="num">+ 15% Buffer</th>
+        <th class="num">Total Budget Request</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>6 Users</strong></td>
+        <td class="num">$61.86</td>
+        <td class="num">$742.32</td>
+        <td class="num">$111.35</td>
+        <td class="num"><strong>$854.00</strong></td>
+      </tr>
+      <tr>
+        <td><strong>7 Users</strong></td>
+        <td class="num">$72.17</td>
+        <td class="num">$866.04</td>
+        <td class="num">$129.91</td>
+        <td class="num"><strong>$996.00</strong></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ═══════════════════════════════════════ 6. COST OPTIMIZATION ═════════════════════════ -->
+  <h2><span class="section-num">06</span>Cost Optimization Options</h2>
+
+  <div class="opt-item">
+    <div class="opt-num">1</div>
+    <div class="opt-content">
+      <strong>Anthropic Batch API</strong>
+      50% discount on Claude token costs by batching non-urgent content generation requests.<br>
+      <span class="opt-savings">Estimated savings: ~$52/year</span>
+    </div>
+  </div>
+
+  <div class="opt-item">
+    <div class="opt-num">2</div>
+    <div class="opt-content">
+      <strong>Veo 3.1 Lite</strong>
+      50% cheaper video generation using the Lite variant for standard social media clips.<br>
+      <span class="opt-savings">Estimated savings: ~$270/year</span>
+    </div>
+  </div>
+
+  <div class="opt-item">
+    <div class="opt-num">3</div>
+    <div class="opt-content">
+      <strong>Lower Image Resolution (0.5K vs 1K)</strong>
+      33% reduction in image generation costs. Suitable for social media thumbnails and story formats.<br>
+      <span class="opt-savings">Estimated savings: ~$32/year</span>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════ PAGE BREAK ═══════════════════════════════════ -->
+  <div class="page-break"></div>
+
+  <!-- ═══════════════════════════════════════ HEADER REPEAT (Print) ═════════════════════════ -->
+  <div class="doc-header" style="padding-top: 0;">
+    <div class="doc-header-left">
+      <div class="brand-name" style="font-size: 14pt; letter-spacing: 4px;">RADIX MEDIA</div>
+      <div class="brand-sub" style="font-size: 8pt;">API Budget Proposal &mdash; RADIX-DT-2026-001</div>
+    </div>
+    <div class="doc-header-right" style="font-size: 8pt;">
+      Page 3 of 3
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════ 7. ROI ANALYSIS ══════════════════════════════ -->
+  <h2><span class="section-num">07</span>Return on Investment</h2>
+
+  <p>The following analysis compares current manual content planning costs against the proposed API expenditure:</p>
+
+  <div class="roi-box">
+    <div class="roi-metric">
+      <span class="roi-label">Current Manual Cost (600+ hrs/mo &times; $25/hr avg)</span>
+      <span class="roi-value">$15,000+/month</span>
+    </div>
+    <div class="roi-metric">
+      <span class="roi-label">AI Content Planner API Cost (6 users)</span>
+      <span class="roi-value">~$62/month</span>
+    </div>
+    <div class="roi-metric">
+      <span class="roi-label">Monthly Cost Reduction</span>
+      <span class="roi-value">$14,938+</span>
+    </div>
+    <div class="roi-metric">
+      <span class="roi-label">Return on Investment</span>
+      <span class="roi-value highlight">241x</span>
+    </div>
+    <div class="roi-metric">
+      <span class="roi-label">Payback Period</span>
+      <span class="roi-value">Immediate</span>
+    </div>
+  </div>
+
+  <p>Note: The 241x ROI reflects API costs only. The tool reallocates content team hours toward higher-value activities (client strategy, campaign analysis, creative direction) rather than eliminating headcount. The net productivity gain across 13 clients is substantial.</p>
+
+  <!-- ═══════════════════════════════════════ 8. APPROVAL ══════════════════════════════════ -->
+  <h2><span class="section-num">08</span>Budget Approval</h2>
+
+  <p>This document requests approval for a recurring annual API budget as outlined in Section 05. Signatories below confirm review and authorization of the stated expenditure.</p>
+
+  <div class="approval-grid">
+
+    <div class="approval-row">
+      <div class="approval-role">
+        Prepared by
+        <span class="role-title">Head of Digital Transformation</span>
+      </div>
+      <div class="approval-name">
+        <div class="approval-label">Name</div>
+        Mohamed S.
+      </div>
+      <div class="approval-sig">
+        <div class="approval-label">Signature</div>
+        <div class="sig-line"></div>
+      </div>
+      <div class="approval-date">
+        <div class="approval-label">Date</div>
+        <div class="sig-line"></div>
+      </div>
+    </div>
+
+    <div class="approval-row">
+      <div class="approval-role">
+        Reviewed by
+        <span class="role-title">Finance Manager</span>
+      </div>
+      <div class="approval-name">
+        <div class="approval-label">Name</div>
+        <div class="sig-line"></div>
+      </div>
+      <div class="approval-sig">
+        <div class="approval-label">Signature</div>
+        <div class="sig-line"></div>
+      </div>
+      <div class="approval-date">
+        <div class="approval-label">Date</div>
+        <div class="sig-line"></div>
+      </div>
+    </div>
+
+    <div class="approval-row">
+      <div class="approval-role">
+        Approved by
+        <span class="role-title">General Manager</span>
+      </div>
+      <div class="approval-name">
+        <div class="approval-label">Name</div>
+        <div class="sig-line"></div>
+      </div>
+      <div class="approval-sig">
+        <div class="approval-label">Signature</div>
+        <div class="sig-line"></div>
+      </div>
+      <div class="approval-date">
+        <div class="approval-label">Date</div>
+        <div class="sig-line"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ═══════════════════════════════════════ NOTES ═════════════════════════════════════════ -->
+  <div class="notes-section">
+    <strong style="display: block; margin-bottom: 6px; color: #222;">Notes &amp; Disclaimers</strong>
+    <ul>
+      <li>All prices quoted as of April 2026. Anthropic and Google may adjust pricing at any time; the 15% budget buffer accounts for potential increases.</li>
+      <li>Video generation (Veo 3.1) is the dominant cost driver, accounting for approximately 73% of total monthly spend. This can be reduced by switching to Veo 3.1 Lite at 50% lower cost.</li>
+      <li>Free-tier services (Wikimedia Commons) operate with generous rate limits (500 requests/hour) well above projected usage.</li>
+      <li>API keys are stored securely within the application and access is restricted to authorized content team members only.</li>
+      <li>No client data is stored by third-party API providers. All content generation is stateless and session-based.</li>
+    </ul>
+  </div>
+
+  <!-- ═══════════════════════════════════════ FOOTER ════════════════════════════════════════ -->
+  <div class="doc-footer">
+    <div class="doc-footer-left">
+      <span class="footer-geo"><span></span><span></span><span></span></span>
+      RADIX MEDIA &mdash; Digital Transformation Department
+    </div>
+    <div>
+      RADIX-DT-2026-001 &nbsp;|&nbsp; April 2026
+    </div>
+  </div>
+
+  <div class="confidential">CONFIDENTIAL &mdash; FOR INTERNAL USE ONLY</div>
+
+</div>
+
+</body>
+</html>
