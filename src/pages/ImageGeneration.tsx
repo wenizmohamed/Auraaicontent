@@ -1,10 +1,11 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { getGemini } from '../lib/gemini';
-import { Loader2, Download, Sparkles, Image as ImageIcon, Video, Wand2, Send, ArrowRight, Upload, X, Film, Type, RefreshCw } from 'lucide-react';
+import { Loader2, Download, Sparkles, Image as ImageIcon, Video, Wand2, Send, ArrowRight, Upload, X, Film, Type, RefreshCw, Cpu } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../lib/store';
+import { isComfyUIRunning, generateWithComfyUI, getLocalModels } from '../lib/comfyui';
 
-type Mode = 'text-to-image' | 'text-to-video' | 'image-to-video' | 'prompt-improver';
+type Mode = 'text-to-image' | 'text-to-video' | 'image-to-video' | 'prompt-improver' | 'comfyui';
 
 export default function ImageGeneration() {
   const [mode, setMode] = useState<Mode>('text-to-image');
@@ -21,12 +22,24 @@ export default function ImageGeneration() {
   const [videoPolling, setVideoPolling] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { addGeneratedImage, generatedImages } = useStore();
+  const [comfyAvailable, setComfyAvailable] = useState(false);
+  const [comfyModels, setComfyModels] = useState<string[]>([]);
+  const [selectedModel, setSelectedModel] = useState('');
+
+  // Check if ComfyUI is running on startup
+  useEffect(() => {
+    isComfyUIRunning().then(running => {
+      setComfyAvailable(running);
+      if (running) getLocalModels().then(models => { setComfyModels(models); if (models.length) setSelectedModel(models[0]); });
+    });
+  }, []);
 
   const modes: { id: Mode; label: string; icon: any; desc: string }[] = [
-    { id: 'text-to-image', label: 'Text to Image', icon: ImageIcon, desc: 'Generate images from text' },
-    { id: 'text-to-video', label: 'Text to Video', icon: Video, desc: 'Generate videos from text' },
-    { id: 'image-to-video', label: 'Image to Video', icon: Film, desc: 'Animate a static image' },
-    { id: 'prompt-improver', label: 'Prompt Improver', icon: Wand2, desc: 'Enhance any prompt' },
+    { id: 'text-to-image', label: 'Text to Image', icon: ImageIcon, desc: 'Nano Banana 2' },
+    { id: 'comfyui', label: 'ComfyUI', icon: Cpu, desc: comfyAvailable ? 'Local GPU' : '5K Credits' },
+    { id: 'text-to-video', label: 'Text to Video', icon: Video, desc: 'Veo 3.1' },
+    { id: 'image-to-video', label: 'Image to Video', icon: Film, desc: 'Animate image' },
+    { id: 'prompt-improver', label: 'Prompt Improver', icon: Wand2, desc: 'Enhance prompt' },
   ];
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -232,9 +245,37 @@ Return ONLY valid JSON:
     }
   };
 
+  // ─── COMFYUI GENERATION ──────────────────────────────────────────
+  const generateWithComfy = async () => {
+    if (!prompt.trim()) return;
+    setLoading(true);
+    setError('');
+    setResult('');
+    try {
+      const width = aspectRatio === '9:16' ? 768 : aspectRatio === '1:1' ? 1024 : 1216;
+      const height = aspectRatio === '9:16' ? 1344 : aspectRatio === '1:1' ? 1024 : 832;
+      const base64 = await generateWithComfyUI({
+        prompt,
+        model: selectedModel || undefined,
+        width,
+        height,
+        mode: comfyAvailable ? 'local' : 'cloud',
+      });
+      const imageUrl = `data:image/png;base64,${base64}`;
+      setResult(imageUrl);
+      setResultType('image');
+      addGeneratedImage({ base64, url: imageUrl, prompt });
+    } catch (err: any) {
+      setError(err.message || 'ComfyUI generation failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleGenerate = () => {
     switch (mode) {
       case 'text-to-image': return generateImage();
+      case 'comfyui': return generateWithComfy();
       case 'text-to-video': return generateVideo();
       case 'image-to-video': return imageToVideo();
       case 'prompt-improver': return improvePrompt();
@@ -352,6 +393,27 @@ Return ONLY valid JSON:
                 <option value="2K">2K</option>
                 <option value="4K">4K</option>
               </select>
+            </div>
+          )}
+
+          {/* ComfyUI Model Selector */}
+          {mode === 'comfyui' && comfyModels.length > 0 && (
+            <div className="flex-1 min-w-[180px]">
+              <label className="block text-[10px] font-semibold text-zinc-600 uppercase tracking-wider mb-1.5">Model</label>
+              <select value={selectedModel} onChange={(e) => setSelectedModel(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.08] text-white text-sm focus:ring-2 focus:ring-white/20 [&>option]:bg-zinc-900 cursor-pointer">
+                {comfyModels.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+          )}
+
+          {/* ComfyUI status badge */}
+          {mode === 'comfyui' && (
+            <div className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-medium ${
+              comfyAvailable ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+            }`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${comfyAvailable ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+              {comfyAvailable ? 'Local GPU Active' : 'Cloud Credits'}
             </div>
           )}
 

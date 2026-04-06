@@ -12,6 +12,8 @@ export default defineConfig(({mode}) => {
     define: {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
       'process.env.ANTHROPIC_API_KEY': JSON.stringify(env.ANTHROPIC_API_KEY),
+      'process.env.COMFYUI_API_URL': JSON.stringify(env.COMFYUI_API_URL || 'http://127.0.0.1:8188'),
+      'process.env.COMFYUI_CLOUD_API_KEY': JSON.stringify(env.COMFYUI_CLOUD_API_KEY || ''),
     },
     resolve: {
       alias: {
