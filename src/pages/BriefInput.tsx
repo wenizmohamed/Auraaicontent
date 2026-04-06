@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -126,6 +126,7 @@ export default function BriefInput() {
   const [toneNotes, setToneNotes] = useState('');
   const [aiProvider, setAiProvider] = useState<AIProvider>('claude');
   const [isGenerating, setIsGenerating] = useState(false);
+  const cancelledRef = useRef(false);
   const [generationProgress, setGenerationProgress] = useState('');
   const [customOccasionName, setCustomOccasionName] = useState('');
   const [customOccasionDate, setCustomOccasionDate] = useState('');
@@ -180,9 +181,18 @@ export default function BriefInput() {
     );
   }, []);
 
+  // ─── Cancel Generation ───────────────────────────────────────────
+
+  const handleCancel = useCallback(() => {
+    cancelledRef.current = true;
+    setIsGenerating(false);
+    setGenerationProgress('Cancelled.');
+  }, []);
+
   // ─── Generate ────────────────────────────────────────────────────
 
   const handleGenerate = useCallback(async () => {
+    cancelledRef.current = false;
     const client = getClientById(selectedClientId);
     if (!client) return;
     if (selectedPlatforms.length === 0) return;
@@ -229,6 +239,8 @@ export default function BriefInput() {
         provider: aiProvider,
       });
 
+      if (cancelledRef.current) { updateContentBrief(briefId, { pieces, status: 'review' }); setIsGenerating(false); navigate(`/content-review?briefId=${briefId}`); return; }
+
       updateContentBrief(briefId, { pieces, status: 'review' });
       setGenerationProgress('Fetching visual references...');
 
@@ -237,6 +249,7 @@ export default function BriefInput() {
       const updatedPieces = [...pieces];
 
       for (let i = 0; i < pieces.length; i += batchSize) {
+        if (cancelledRef.current) break;
         const batch = pieces.slice(i, i + batchSize);
         const results = await Promise.allSettled(
           batch.map(piece =>
@@ -321,6 +334,12 @@ export default function BriefInput() {
                   transition={{ duration: 30, ease: 'linear' }}
                 />
               </div>
+              <button
+                onClick={handleCancel}
+                className="mt-2 flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-6 py-2.5 text-sm font-medium text-red-400 transition-all hover:bg-red-500/20 hover:text-red-300 cursor-pointer"
+              >
+                Stop Generation
+              </button>
             </motion.div>
           </motion.div>
         )}

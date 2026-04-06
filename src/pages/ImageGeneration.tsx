@@ -20,6 +20,14 @@ export default function ImageGeneration() {
   const [uploadedImageBytes, setUploadedImageBytes] = useState<string | null>(null);
   const [improvedPrompt, setImprovedPrompt] = useState('');
   const [videoPolling, setVideoPolling] = useState(false);
+  const cancelRef = useRef(false);
+
+  const handleStop = () => {
+    cancelRef.current = true;
+    setLoading(false);
+    setVideoPolling(false);
+    setError('Generation cancelled.');
+  };
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { addGeneratedImage, generatedImages } = useStore();
   const [comfyAvailable, setComfyAvailable] = useState(false);
@@ -443,6 +451,12 @@ Return ONLY valid JSON:
             {loading ? (videoPolling ? 'Generating video...' : 'Generating...') :
               mode === 'prompt-improver' ? 'Improve Prompt' : 'Generate'}
           </button>
+          {loading && (
+            <button onClick={handleStop}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-red-500/20 bg-red-500/10 text-red-400 text-sm font-medium hover:bg-red-500/20 cursor-pointer">
+              <X className="w-4 h-4" /> Stop
+            </button>
+          )}
         </div>
 
         {/* Error */}
@@ -518,6 +532,10 @@ Return ONLY valid JSON:
             </div>
             <p className="text-zinc-400 text-sm mt-4">Generating video...</p>
             <p className="text-zinc-700 text-xs mt-1">This can take 30s–2min. Polling every 10s.</p>
+            <button onClick={handleStop}
+              className="mt-3 flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-5 py-2 text-sm font-medium text-red-400 hover:bg-red-500/20 cursor-pointer">
+              Stop
+            </button>
           </div>
         )}
       </motion.div>
