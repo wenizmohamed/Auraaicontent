@@ -21,7 +21,7 @@ async function generateWithClaude(prompt: string): Promise<string> {
       'anthropic-dangerous-direct-browser-access': 'true',
     },
     body: JSON.stringify({
-      model: 'claude-opus-4-0-20250514',
+      model: 'claude-opus-4-20250514',
       max_tokens: 4096,
       messages: [{ role: 'user', content: prompt }],
     }),
@@ -33,7 +33,7 @@ async function generateWithClaude(prompt: string): Promise<string> {
 
 export type AIProvider = 'gemini' | 'claude';
 
-export async function generateContent(prompt: string, provider: AIProvider = 'gemini'): Promise<string> {
+export async function generateContent(prompt: string, provider: AIProvider = 'claude'): Promise<string> {
   try {
     if (provider === 'claude') return await generateWithClaude(prompt);
     return await generateWithGemini(prompt);
@@ -51,7 +51,7 @@ export async function generateContent(prompt: string, provider: AIProvider = 'ge
 
 // ─── JSON helper ─────────────────────────────────────────────────
 
-async function generateJSON(prompt: string, provider: AIProvider = 'gemini'): Promise<any> {
+async function generateJSON(prompt: string, provider: AIProvider = 'claude'): Promise<any> {
   const text = await generateContent(prompt + '\n\nReturn ONLY valid JSON, no markdown formatting or code fences.', provider);
   const match = text.match(/[\[{][\s\S]*[\]}]/);
   if (match) return JSON.parse(match[0]);
@@ -62,7 +62,7 @@ async function generateJSON(prompt: string, provider: AIProvider = 'gemini'): Pr
 
 export async function expandTopicBrief(
   topic: { title: string; station: string; targetAudience?: string; description?: string },
-  provider: AIProvider = 'gemini'
+  provider: AIProvider = 'claude'
 ): Promise<{
   description: string;
   targetAudience: string;
@@ -92,7 +92,7 @@ Generate a JSON object with:
 export async function suggestTopics(
   station: string,
   context?: string,
-  provider: AIProvider = 'gemini'
+  provider: AIProvider = 'claude'
 ): Promise<{ title: string; description: string; audience: string }[]> {
   const prompt = `You are a content strategist for a media company. Suggest 5 fresh content topics for the ${station} station.
 ${context ? `Context: ${context}` : ''}
@@ -114,7 +114,7 @@ export async function generateTopicOutline(
   title: string,
   description: string,
   station: string,
-  provider: AIProvider = 'gemini'
+  provider: AIProvider = 'claude'
 ): Promise<string> {
   const prompt = `Create a detailed content outline for this topic:
 
@@ -138,7 +138,7 @@ export async function generateAdCopy(
   topicTitle: string,
   adNumber: number,
   station: string,
-  provider: AIProvider = 'gemini'
+  provider: AIProvider = 'claude'
 ): Promise<string> {
   const prompt = `Write a short ad copy (2-3 sentences) for Ad ${adNumber} about "${topicTitle}" for the ${station} station. Be compelling and platform-ready. Return just the copy text.`;
   return await generateContent(prompt, provider);
@@ -227,7 +227,7 @@ export interface VisualReference {
 
 export async function searchVisualReferences(
   visualIdea: string,
-  provider: AIProvider = 'gemini'
+  provider: AIProvider = 'claude'
 ): Promise<VisualReference[]> {
   // Step 1: AI generates diverse search keyword sets from the visual description
   const keywordsPrompt = `You are a creative director helping a graphic designer find reference images.
