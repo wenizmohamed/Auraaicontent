@@ -129,12 +129,24 @@ export default function ImageGeneration() {
 
       if (operation.done && operation.response?.generatedVideos?.[0]) {
         const video = operation.response.generatedVideos[0].video;
-        if (video?.videoBytes) {
+        if (video?.uri) {
+          // Veo returns a download URI — fetch the actual video
+          const ai2 = getGemini();
+          const videoRes = await fetch(video.uri + '&key=' + (process.env.GEMINI_API_KEY || ''));
+          if (videoRes.ok) {
+            const blob = await videoRes.blob();
+            const videoUrl = URL.createObjectURL(blob);
+            setResult(videoUrl);
+            setResultType('video');
+          } else {
+            throw new Error('Failed to download video from URI');
+          }
+        } else if (video?.videoBytes) {
           const videoUrl = `data:video/mp4;base64,${video.videoBytes}`;
           setResult(videoUrl);
           setResultType('video');
         } else {
-          throw new Error('Video generated but no data returned');
+          throw new Error('Video generated but no downloadable data');
         }
       } else {
         throw new Error('Video generation timed out or failed');
@@ -171,10 +183,22 @@ export default function ImageGeneration() {
 
       if (operation.done && operation.response?.generatedVideos?.[0]) {
         const video = operation.response.generatedVideos[0].video;
-        if (video?.videoBytes) {
+        if (video?.uri) {
+          const videoRes = await fetch(video.uri + '&key=' + (process.env.GEMINI_API_KEY || ''));
+          if (videoRes.ok) {
+            const blob = await videoRes.blob();
+            const videoUrl = URL.createObjectURL(blob);
+            setResult(videoUrl);
+            setResultType('video');
+          } else {
+            throw new Error('Failed to download video from URI');
+          }
+        } else if (video?.videoBytes) {
           const videoUrl = `data:video/mp4;base64,${video.videoBytes}`;
           setResult(videoUrl);
           setResultType('video');
+        } else {
+          throw new Error('Video generated but no downloadable data');
         }
       } else {
         throw new Error('Video generation timed out');
