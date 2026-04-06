@@ -19,7 +19,9 @@ interface GeneratedPiece {
   platform: string;
   format: string;
   creativeCopy: string;
+  keyMessage: string;
   caption: string;
+  cta: string;
   hashtags: string[];
   visualReference: string;
   visualRefImages: { imageUrl: string; sourceUrl: string; description: string }[];
@@ -592,70 +594,82 @@ export default function ContentReview() {
                   <div>
                     <div className="flex items-center gap-2 mb-1.5">
                       <Eye className="w-3.5 h-3.5 text-zinc-500" />
-                      <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-medium">Creative Copy (Art Direction)</span>
+                      <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-medium">Art Direction</span>
                     </div>
-                    {editingId === piece.id ? (
-                      <textarea
-                        value={editCreativeCopy}
-                        onChange={e => setEditCreativeCopy(e.target.value)}
-                        rows={3}
-                        className="w-full bg-zinc-900 border border-amber-500/30 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none resize-y"
-                      />
-                    ) : (
-                      <p className="text-sm text-zinc-300 leading-relaxed bg-white/[0.02] rounded-lg px-3 py-2 border border-white/5">
-                        {piece.creativeCopy || 'No creative copy provided'}
-                      </p>
-                    )}
+                    <p className="text-sm text-zinc-300 leading-relaxed bg-white/[0.02] rounded-lg px-3 py-2 border border-white/5">
+                      {piece.creativeCopy || 'No art direction'}
+                    </p>
                   </div>
 
-                  {/* Caption */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <div className="flex items-center gap-2">
-                        <Hash className="w-3.5 h-3.5 text-zinc-500" />
-                        <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-medium">Caption</span>
+                  {/* COPY SECTION — Key Message + Caption + CTA + Hashtags */}
+                  <div className="space-y-3 bg-white/[0.01] rounded-xl p-3 border border-white/[0.04]">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Hash className="w-3.5 h-3.5 text-zinc-500" />
+                      <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Copy</span>
+                      <div className="ml-auto">
+                        {editingId === piece.id ? (
+                          <CharCounter
+                            count={editCaption.length}
+                            limit={piece.charLimit}
+                            status={editCaption.length > piece.charLimit ? 'over' : editCaption.length > piece.charLimit * 0.8 ? 'warning' : 'good'}
+                          />
+                        ) : (
+                          <CharCounter count={piece.charCount} limit={piece.charLimit} status={piece.charStatus} />
+                        )}
                       </div>
+                    </div>
+
+                    {/* Key Message (goes ON the visual) */}
+                    {(piece.keyMessage || editingId === piece.id) && (
+                      <div>
+                        <span className="text-[9px] uppercase tracking-wider text-amber-400/60 font-semibold">Key Message (on visual)</span>
+                        <p className="text-sm text-amber-200/90 font-medium mt-0.5 bg-amber-500/[0.06] rounded-lg px-3 py-2 border border-amber-500/10">
+                          {piece.keyMessage || '—'}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Caption */}
+                    <div>
+                      <span className="text-[9px] uppercase tracking-wider text-zinc-600 font-semibold">Caption</span>
                       {editingId === piece.id ? (
-                        <CharCounter
-                          count={editCaption.length}
-                          limit={piece.charLimit}
-                          status={
-                            editCaption.length > piece.charLimit ? 'over'
-                            : editCaption.length > piece.charLimit * 0.8 ? 'warning'
-                            : 'good'
-                          }
+                        <textarea
+                          value={editCaption}
+                          onChange={e => setEditCaption(e.target.value)}
+                          rows={4}
+                          className="w-full bg-zinc-900 border border-amber-500/30 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none resize-y mt-0.5"
                         />
                       ) : (
-                        <CharCounter count={piece.charCount} limit={piece.charLimit} status={piece.charStatus} />
+                        <p className="text-sm text-zinc-300 leading-relaxed bg-white/[0.02] rounded-lg px-3 py-2 border border-white/5 whitespace-pre-wrap mt-0.5">
+                          {piece.caption || 'No caption'}
+                        </p>
                       )}
                     </div>
-                    {editingId === piece.id ? (
-                      <textarea
-                        value={editCaption}
-                        onChange={e => setEditCaption(e.target.value)}
-                        rows={4}
-                        className="w-full bg-zinc-900 border border-amber-500/30 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none resize-y"
-                      />
-                    ) : (
-                      <p className="text-sm text-zinc-300 leading-relaxed bg-white/[0.02] rounded-lg px-3 py-2 border border-white/5 whitespace-pre-wrap">
-                        {piece.caption || 'No caption'}
-                      </p>
+
+                    {/* CTA */}
+                    {(piece.cta || editingId === piece.id) && (
+                      <div>
+                        <span className="text-[9px] uppercase tracking-wider text-emerald-400/60 font-semibold">Call to Action</span>
+                        <p className="text-sm text-emerald-300/90 font-medium mt-0.5 bg-emerald-500/[0.06] rounded-lg px-3 py-2 border border-emerald-500/10">
+                          {piece.cta || '—'}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Hashtags */}
+                    {piece.hashtags?.length > 0 && (
+                      <div>
+                        <span className="text-[9px] uppercase tracking-wider text-zinc-600 font-semibold">Hashtags</span>
+                        <div className="flex flex-wrap gap-1.5 mt-1">
+                          {piece.hashtags.map((tag, i) => (
+                            <span key={i} className="px-2 py-0.5 rounded-md text-xs bg-white/5 text-zinc-400 border border-white/5">
+                              #{tag.replace(/^#/, '')}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
                     )}
                   </div>
-
-                  {/* Hashtags */}
-                  {piece.hashtags.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {piece.hashtags.map((tag, i) => (
-                        <span
-                          key={i}
-                          className="px-2 py-0.5 rounded-md text-xs bg-white/5 text-zinc-400 border border-white/5"
-                        >
-                          #{tag.replace(/^#/, '')}
-                        </span>
-                      ))}
-                    </div>
-                  )}
 
                   {/* Visual References */}
                   <div>

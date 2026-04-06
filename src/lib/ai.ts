@@ -155,7 +155,9 @@ export interface GeneratedPiece {
   platform: string;
   format: string;
   creativeCopy: string;
+  keyMessage: string;
   caption: string;
+  cta: string;
   hashtags: string[];
   visualReference: string;
   visualRefImages: { imageUrl: string; sourceUrl: string; description: string }[];
@@ -198,7 +200,9 @@ export async function generateContentFromBrief(params: {
       platform: piece.platform || 'Instagram',
       format: piece.format || 'Static',
       creativeCopy: piece.creativeCopy || '',
+      keyMessage: piece.keyMessage || '',
       caption,
+      cta: piece.cta || '',
       hashtags: piece.hashtags || [],
       visualReference: piece.visualReference || '',
       visualRefImages: [], // Will be populated by Wikimedia search after generation

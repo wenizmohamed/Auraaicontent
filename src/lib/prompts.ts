@@ -56,8 +56,10 @@ TASK: Generate exactly ${pieceCount} content pieces as a JSON array. Distribute 
 {
   "platform": "Instagram" (one of: ${platforms.join(', ')}),
   "format": "Static" (one of: Static, Reel, Carousel, Story, Video, Article),
-  "creativeCopy": "The creative direction / art direction for the designer (2-3 sentences describing what the visual should look like)",
-  "caption": "The actual platform-ready caption/copy the social media manager will post. MUST be within the platform's character limit. Include hashtags at the end.",
+  "creativeCopy": "The art direction for the designer — describe the visual composition, colors, mood, layout, elements (2-3 sentences)",
+  "keyMessage": "The key message / copy overlay that goes ON the visual itself (e.g. 'Send money to Syria. USD or Syrian Pound — you choose.')",
+  "caption": "The social media caption that goes BELOW the post. Platform-optimized, within character limits.",
+  "cta": "The call to action (e.g. 'Download AlfaPay today', 'Visit your nearest branch', 'Link in bio')",
   "hashtags": ["hashtag1", "hashtag2"] (array, within platform's hashtag limit),
   "visualReference": "A specific, searchable description for finding reference images (e.g. 'young professional using banking app Dubai skyline golden hour')",
   "targetAudience": "Who this post targets",

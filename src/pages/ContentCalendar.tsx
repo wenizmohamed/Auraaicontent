@@ -264,30 +264,45 @@ export default function ContentCalendar() {
                           </div>
                         </div>
 
-                        {/* Creative Copy (for designer) */}
+                        {/* Art Direction */}
                         {piece.creativeCopy && (
                           <div>
-                            <h4 className="text-[10px] font-bold text-zinc-600 uppercase tracking-wider mb-1">Creative Direction</h4>
+                            <h4 className="text-[10px] font-bold text-zinc-600 uppercase tracking-wider mb-1">Art Direction</h4>
                             <p className="text-xs text-zinc-400 leading-relaxed">{piece.creativeCopy}</p>
                           </div>
                         )}
 
-                        {/* Caption */}
-                        <div>
-                          <h4 className="text-[10px] font-bold text-zinc-600 uppercase tracking-wider mb-1">Caption</h4>
-                          <p className="text-sm text-zinc-200 bg-white/[0.02] p-3 rounded-xl border border-white/[0.04] whitespace-pre-wrap leading-relaxed">
-                            {piece.caption}
-                          </p>
-                        </div>
+                        {/* Copy Section */}
+                        <div className="space-y-2 bg-white/[0.01] rounded-lg p-3 border border-white/[0.03]">
+                          <h4 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Copy</h4>
 
-                        {/* Hashtags */}
-                        {piece.hashtags?.length > 0 && (
-                          <div className="flex flex-wrap gap-1">
-                            {piece.hashtags.map((h: string, j: number) => (
-                              <span key={j} className="text-[10px] text-violet-400/70 bg-violet-500/10 px-1.5 py-0.5 rounded">#{h.replace(/^#/, '')}</span>
-                            ))}
+                          {piece.keyMessage && (
+                            <div>
+                              <span className="text-[9px] text-amber-400/60 uppercase tracking-wider font-semibold">Key Message (on visual)</span>
+                              <p className="text-sm text-amber-200/90 font-medium bg-amber-500/[0.06] rounded-lg px-2 py-1.5 border border-amber-500/10 mt-0.5">{piece.keyMessage}</p>
+                            </div>
+                          )}
+
+                          <div>
+                            <span className="text-[9px] text-zinc-600 uppercase tracking-wider font-semibold">Caption</span>
+                            <p className="text-sm text-zinc-200 bg-white/[0.02] p-2 rounded-lg border border-white/[0.04] whitespace-pre-wrap leading-relaxed mt-0.5">{piece.caption}</p>
                           </div>
-                        )}
+
+                          {piece.cta && (
+                            <div>
+                              <span className="text-[9px] text-emerald-400/60 uppercase tracking-wider font-semibold">CTA</span>
+                              <p className="text-sm text-emerald-300/90 font-medium bg-emerald-500/[0.06] rounded-lg px-2 py-1.5 border border-emerald-500/10 mt-0.5">{piece.cta}</p>
+                            </div>
+                          )}
+
+                          {piece.hashtags?.length > 0 && (
+                            <div className="flex flex-wrap gap-1 pt-1">
+                              {piece.hashtags.map((h: string, j: number) => (
+                                <span key={j} className="text-[10px] text-violet-400/70 bg-violet-500/10 px-1.5 py-0.5 rounded">#{h.replace(/^#/, '')}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
 
                         {/* Visual References */}
                         {piece.visualRefImages?.length > 0 && (
