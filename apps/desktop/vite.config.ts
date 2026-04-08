@@ -4,7 +4,8 @@ import path from 'path';
 import {defineConfig, loadEnv} from 'vite';
 
 export default defineConfig(({mode}) => {
-  const env = loadEnv(mode, '.', '');
+  // Load .env from both desktop dir and root monorepo
+  const env = { ...loadEnv(mode, path.resolve(__dirname, '../..'), ''), ...loadEnv(mode, '.', '') };
   const isElectron = process.env.ELECTRON === 'true';
   const comfyUrl = env.COMFYUI_API_URL || 'http://127.0.0.1:8000';
   return {

@@ -5,5 +5,8 @@ release/
 .env
 .DS_Store
 *.log
-.env
-server/node_modules/
+.turbo/
+apps/desktop/dist/
+apps/desktop/release/
+apps/preview-web/dist/
+server/dist/
