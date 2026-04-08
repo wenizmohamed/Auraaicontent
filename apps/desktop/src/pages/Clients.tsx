@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { Plus, Building2, Check, X, Loader2 } from 'lucide-react';
 
 export default function Clients() {
-  const { clients, selectedClientId, setSelectedClientId, createClient, loading, serverOnline } = useClients();
+  const { clients, selectedClientId, setSelectedClientId, createClient, loading, serverOnline, authenticated, authError } = useClients();
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ name: '', industry: '', website: '' });
   const [creating, setCreating] = useState(false);
@@ -63,8 +63,20 @@ export default function Clients() {
         </motion.div>
       )}
 
+      {authError && (
+        <div className="rounded-2xl bg-red-500/10 border border-red-500/20 p-4 text-sm text-red-400">
+          {authError}
+        </div>
+      )}
+
       {loading ? (
         <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 text-zinc-600 animate-spin" /></div>
+      ) : !authenticated ? (
+        <div className="rounded-2xl bg-[#0c0c0c] border border-white/[0.06] py-16 text-center">
+          <Building2 className="w-10 h-10 text-red-800 mx-auto mb-3" />
+          <p className="text-zinc-400">Backend auth failed</p>
+          <p className="text-zinc-600 text-sm mt-1">Start the server: npm run dev:server</p>
+        </div>
       ) : clients.length === 0 ? (
         <div className="rounded-2xl bg-[#0c0c0c] border border-white/[0.06] py-16 text-center">
           <Building2 className="w-10 h-10 text-zinc-800 mx-auto mb-3" />
