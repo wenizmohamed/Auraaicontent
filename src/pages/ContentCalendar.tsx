@@ -26,15 +26,20 @@ const getPlatformColor = (platform: string) => {
 };
 
 // Extract day number from AI date formats
+// Handles: "2026-08-12", "August 12", "Aug 12, 2026", "12th August", "Day 12"
 function extractDay(dateStr: string): number | null {
   if (!dateStr) return null;
   const s = dateStr.trim();
   const iso = s.match(/^\d{4}-\d{2}-(\d{2})$/);
   if (iso) return parseInt(iso[1]);
+  const monthDay = s.match(/(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+(\d{1,2})/i);
+  if (monthDay) return parseInt(monthDay[1]);
+  const dayMonth = s.match(/^(\d{1,2})(?:st|nd|rd|th)?\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i);
+  if (dayMonth) return parseInt(dayMonth[1]);
   const dayN = s.match(/day\s+(\d+)/i);
   if (dayN) return parseInt(dayN[1]);
   const nums = s.match(/(\d{1,2})/g);
-  if (nums) return parseInt(nums[nums.length - 1]);
+  if (nums) { const last = parseInt(nums[nums.length - 1]); if (last >= 1 && last <= 31) return last; }
   return null;
 }
 

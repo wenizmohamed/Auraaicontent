@@ -183,6 +183,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     fetchAllData();
+    // Re-sync contentBriefs from localStorage on window focus (prevents stale data)
+    const onFocus = () => {
+      try {
+        const fresh = JSON.parse(localStorage.getItem('radix_content_briefs') || '[]');
+        setState(prev => ({ ...prev, contentBriefs: fresh }));
+      } catch {}
+    };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
   }, []);
 
   const addPipelineItem = async (item: Omit<PipelineItem, 'id' | 'comments'>) => {

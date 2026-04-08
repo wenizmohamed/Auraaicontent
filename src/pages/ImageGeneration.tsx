@@ -119,10 +119,13 @@ export default function ImageGeneration() {
         config: { aspectRatio: aspectRatio === '9:16' ? '9:16' : '16:9' },
       });
 
-      // Poll for completion
+      // Poll for completion (with cancel check)
+      cancelRef.current = false;
       let attempts = 0;
       while (!operation.done && attempts < 60) {
+        if (cancelRef.current) throw new Error('Cancelled by user');
         await new Promise(resolve => setTimeout(resolve, 10000));
+        if (cancelRef.current) throw new Error('Cancelled by user');
         operation = await ai.operations.getVideosOperation({ operation });
         attempts++;
       }
@@ -130,8 +133,6 @@ export default function ImageGeneration() {
       if (operation.done && operation.response?.generatedVideos?.[0]) {
         const video = operation.response.generatedVideos[0].video;
         if (video?.uri) {
-          // Veo returns a download URI — fetch the actual video
-          const ai2 = getGemini();
           const videoRes = await fetch(video.uri + '&key=' + (process.env.GEMINI_API_KEY || ''));
           if (videoRes.ok) {
             const blob = await videoRes.blob();
@@ -174,9 +175,12 @@ export default function ImageGeneration() {
         image: { imageBytes: uploadedImageBytes, mimeType: 'image/png' },
       });
 
+      cancelRef.current = false;
       let attempts = 0;
       while (!operation.done && attempts < 60) {
+        if (cancelRef.current) throw new Error('Cancelled by user');
         await new Promise(resolve => setTimeout(resolve, 10000));
+        if (cancelRef.current) throw new Error('Cancelled by user');
         operation = await ai.operations.getVideosOperation({ operation });
         attempts++;
       }
