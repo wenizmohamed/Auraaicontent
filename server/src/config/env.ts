@@ -21,5 +21,6 @@ export const env = {
   GEMINI_STRATEGIST_MODEL: optional('GEMINI_STRATEGIST_MODEL', 'gemini-3.1-pro-preview'),
   GEMINI_IMAGE_MODEL: optional('GEMINI_IMAGE_MODEL', 'gemini-3.1-flash-image-preview'),
   GEMINI_VIDEO_MODEL: optional('GEMINI_VIDEO_MODEL', 'veo-3.1-generate-preview'),
+  GEMINI_VIDEO_FAST_MODEL: optional('GEMINI_VIDEO_FAST_MODEL', 'veo-3.1-fast-generate-preview'),
   GEMINI_EMBEDDING_MODEL: optional('GEMINI_EMBEDDING_MODEL', 'gemini-embedding-2-preview'),
 } as const;
