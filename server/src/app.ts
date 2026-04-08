@@ -2,6 +2,8 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
 import { authRoutes } from './routes/auth.js';
+import { clientRoutes } from './routes/clients.js';
+import { briefRoutes } from './routes/briefs.js';
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -18,8 +20,10 @@ export async function buildApp() {
     timestamp: new Date().toISOString(),
   }));
 
-  // Auth routes
+  // Routes
   await app.register(authRoutes, { prefix: '/api/auth' });
+  await app.register(clientRoutes, { prefix: '/api/clients' });
+  await app.register(briefRoutes, { prefix: '/api' });
 
   return app;
 }
