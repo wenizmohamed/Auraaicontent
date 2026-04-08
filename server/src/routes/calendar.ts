@@ -1,0 +1,62 @@
+import { FastifyInstance } from 'fastify';
+import { db } from '../db/prisma.js';
+import { authGuard } from '../middleware/auth.js';
+import { briefService } from '../services/brief.service.js';
+import { createJob, processJob } from '../workers/queue.js';
+import { generateMonthWorker } from '../workers/generateMonth.worker.js';
+
+export async function calendarRoutes(app: FastifyInstance) {
+
+  app.addHook('preHandler', authGuard);
+
+  // POST /api/clients/:clientId/calendar/generate → { jobId }
+  app.post('/clients/:clientId/calendar/generate', async (request, reply) => {
+    const { clientId } = request.params as { clientId: string };
+    const { month, pieceCount } = (request.body as any) || {};
+
+    if (!month) return reply.status(400).send({ error: 'month is required (e.g. "August 2026")' });
+
+    // Validate brief completeness
+    const brief = await briefService.getByClientId(clientId);
+    const { score } = briefService.completeness(brief);
+    if (score < 50) {
+      return reply.status(422).send({ error: `Brief completeness too low (${score}%). Need at least 50%.` });
+    }
+
+    // Create and process job
+    const job = createJob('generate-month', { clientId, month, pieceCount: pieceCount || 18 });
+    processJob(job.id, generateMonthWorker);
+
+    return reply.status(202).send({ jobId: job.id });
+  });
+
+  // GET /api/clients/:clientId/calendar/:month
+  app.get('/clients/:clientId/calendar/:month', async (request, reply) => {
+    const { clientId, month } = request.params as { clientId: string; month: string };
+    const decodedMonth = decodeURIComponent(month);
+
+    const calendarMonth = await db.calendarMonth.findFirst({
+      where: { clientId, month: decodedMonth },
+      include: { posts: { orderBy: { date: 'asc' } } },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!calendarMonth) return reply.status(404).send({ error: 'Calendar month not found' });
+    return calendarMonth;
+  });
+
+  // PATCH /api/calendar-posts/:postId
+  app.patch('/calendar-posts/:postId', async (request) => {
+    const { postId } = request.params as { postId: string };
+    const updates = request.body as any;
+    const { id, calendarMonthId, createdAt, updatedAt, ...data } = updates;
+    return db.calendarPost.update({ where: { id: postId }, data });
+  });
+
+  // POST /api/calendar-posts/:postId/regenerate → { jobId } (stub)
+  app.post('/calendar-posts/:postId/regenerate', async (request, reply) => {
+    const { postId } = request.params as { postId: string };
+    // Stub — full single-post regeneration in a later commit
+    return reply.status(501).send({ error: 'Single post regeneration not yet implemented', postId });
+  });
+}
