@@ -13,7 +13,7 @@ const GEMINI_API_BASE = isDeployed ? '/gemini' : '';
 async function generateWithGemini(prompt: string): Promise<string> {
   if (isDeployed) {
     // Use server-side proxy (no CORS issues, keys on server)
-    const res = await fetch(`${GEMINI_API_BASE}/v1beta/models/gemini-2.5-flash:generateContent`, {
+    const res = await fetch(`${GEMINI_API_BASE}/v1beta/models/gemini-3-flash-preview:generateContent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
@@ -22,7 +22,7 @@ async function generateWithGemini(prompt: string): Promise<string> {
     return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
   }
   const ai = new GoogleGenAI({ apiKey: GEMINI_KEY });
-  const res = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
+  const res = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: prompt });
   return res.text || '';
 }
 
