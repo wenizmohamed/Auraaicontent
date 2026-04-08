@@ -110,12 +110,18 @@ export default function RadixAssistant() {
 
     try {
       const ai = getGemini();
+
+      // Add system context for Radix-specific responses
+      const systemContext = {
+        role: 'user',
+        parts: [{ text: 'You are RADIX AI, the intelligent assistant for Radix Media — a Dubai-based digital marketing agency managing 13 clients. You help the content team with: writing social media captions, suggesting campaign ideas, answering marketing strategy questions, explaining platform best practices (Instagram, TikTok, LinkedIn, X, Facebook), and providing creative direction. Be direct, concise, and actionable. When asked about the tool, explain: users create briefs in New Brief, AI generates 18 content pieces, team reviews in Review page, and approved content appears in Calendar. Keep responses under 200 words unless asked for detail.' }]
+      };
+
+      const fullHistory = [systemContext, ...currentHistory];
+
       const response = await ai.models.generateContent({
-        model: 'gemini-3.1-pro-preview',
-        contents: currentHistory,
-        config: {
-          tools: [{ googleSearch: {} }]
-        }
+        model: 'gemini-2.5-flash',
+        contents: fullHistory,
       });
 
       let responseText = response.text || '';
