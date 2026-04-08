@@ -10,6 +10,7 @@ import { calendarRoutes } from './routes/calendar.js';
 import { jobRoutes } from './routes/jobs.js';
 import { reviewRoutes } from './routes/review.js';
 import { assetRoutes } from './routes/assets.js';
+import { knowledgeRoutes } from './routes/knowledge.js';
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -35,6 +36,7 @@ export async function buildApp() {
   await app.register(jobRoutes, { prefix: '/api/jobs' });
   await app.register(reviewRoutes, { prefix: '/api' });
   await app.register(assetRoutes, { prefix: '/api' });
+  await app.register(knowledgeRoutes, { prefix: '/api' });
 
   return app;
 }
