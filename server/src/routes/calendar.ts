@@ -16,6 +16,12 @@ export async function calendarRoutes(app: FastifyInstance) {
 
     if (!month) return reply.status(400).send({ error: 'month is required (e.g. "August 2026")' });
 
+    // Block duplicate month generation
+    const existing = await db.calendarMonth.findFirst({ where: { clientId, month } });
+    if (existing) {
+      return reply.status(409).send({ error: `Calendar for "${month}" already exists. Delete it first or use a different month.`, existingId: existing.id });
+    }
+
     // Validate brief completeness
     const brief = await briefService.getByClientId(clientId);
     const { score } = briefService.completeness(brief);
