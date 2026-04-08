@@ -75,6 +75,30 @@ export const briefsApi = {
   promptPack: (clientId: string) => request<any>(`/api/clients/${clientId}/brief/prompt-pack`),
 };
 
+// ─── Calendar ────────────────────────────────────────────────────
+
+export const calendarApi = {
+  generate: (clientId: string, month: string, pieceCount = 18) =>
+    request<{ jobId: string }>(`/api/clients/${clientId}/calendar/generate`, { method: 'POST', body: JSON.stringify({ month, pieceCount }) }),
+  getMonth: (clientId: string, month: string) =>
+    request<any>(`/api/clients/${clientId}/calendar/${encodeURIComponent(month)}`),
+  updatePost: (postId: string, data: any) =>
+    request<any>(`/api/calendar-posts/${postId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+};
+
+// ─── Jobs ────────────────────────────────────────────────────────
+
+export const jobsApi = {
+  get: (jobId: string) => request<{ id: string; status: string; progress: number; result?: any; error?: string }>(`/api/jobs/${jobId}`),
+};
+
+// ─── Review Links ────────────────────────────────────────────────
+
+export const reviewApi = {
+  createLink: (clientId: string, month: string) =>
+    request<{ token: string; url: string; expiresAt: string | null }>(`/api/clients/${clientId}/calendar/${encodeURIComponent(month)}/review-links`, { method: 'POST', body: JSON.stringify({ expiresInDays: 30 }) }),
+};
+
 // ─── Server health check ─────────────────────────────────────────
 
 export async function isServerAvailable(): Promise<boolean> {

@@ -1,9 +1,11 @@
-import { useState, useMemo } from 'react';
-import { Calendar as CalendarIcon, X, ExternalLink, ChevronLeft, ChevronRight, Instagram, Linkedin, Twitter, Facebook, Video, Sparkles, FileText, ArrowRight } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { Calendar as CalendarIcon, X, ExternalLink, ChevronLeft, ChevronRight, Instagram, Linkedin, Twitter, Facebook, Video, Sparkles, FileText, ArrowRight, Share2, Loader2, Copy } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../lib/store';
 import { validateCaption } from '../lib/platform-limits';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
+import { useClients } from '../lib/client-context';
+import { calendarApi, reviewApi } from '../lib/backend-api';
 
 const getPlatformIcon = (platform: string) => {
   const p = platform.toLowerCase();
@@ -44,10 +46,43 @@ function extractDay(dateStr: string): number | null {
 }
 
 export default function ContentCalendar() {
+  const [searchParams] = useSearchParams();
+  const { selectedClientId, currentClient } = useClients();
   const { contentBriefs } = useStore();
+
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [platformFilter, setPlatformFilter] = useState('All');
   const [monthOffset, setMonthOffset] = useState(0);
+  const [backendMonth, setBackendMonth] = useState<any>(null);
+  const [loadingBackend, setLoadingBackend] = useState(false);
+  const [reviewLink, setReviewLink] = useState<string | null>(null);
+  const [copyNotice, setCopyNotice] = useState(false);
+
+  // Load backend month if URL params or selected client
+  const urlMonth = searchParams.get('month');
+  const urlClient = searchParams.get('client') || selectedClientId;
+
+  useEffect(() => {
+    if (urlClient && urlMonth) {
+      setLoadingBackend(true);
+      calendarApi.getMonth(urlClient, decodeURIComponent(urlMonth))
+        .then(setBackendMonth)
+        .catch(() => setBackendMonth(null))
+        .finally(() => setLoadingBackend(false));
+    }
+  }, [urlClient, urlMonth]);
+
+  const handleCreateReviewLink = async () => {
+    if (!urlClient || !backendMonth?.month) return;
+    try {
+      const { token } = await reviewApi.createLink(urlClient, backendMonth.month);
+      const url = `${window.location.origin}/review/${token}`;
+      setReviewLink(url);
+      navigator.clipboard.writeText(url).then(() => { setCopyNotice(true); setTimeout(() => setCopyNotice(false), 2000); });
+    } catch (err: any) {
+      alert('Failed to create review link: ' + err.message);
+    }
+  };
 
   // Current month display
   const now = new Date();
@@ -56,8 +91,12 @@ export default function ContentCalendar() {
   const daysInMonth = new Date(displayDate.getFullYear(), displayDate.getMonth() + 1, 0).getDate();
   const firstDayOffset = new Date(displayDate.getFullYear(), displayDate.getMonth(), 1).getDay();
 
-  // Collect ALL pieces from ALL briefs
+  // Collect pieces — prefer backend data, fall back to local briefs
   const allPieces = useMemo(() => {
+    if (backendMonth?.posts?.length) {
+      return backendMonth.posts.map((p: any) => ({ ...p, suggestedDate: p.date }));
+    }
+    // Fallback to local contentBriefs
     const pieces: any[] = [];
     for (const brief of contentBriefs || []) {
       for (const piece of brief.pieces || []) {
@@ -65,7 +104,7 @@ export default function ContentCalendar() {
       }
     }
     return pieces;
-  }, [contentBriefs]);
+  }, [backendMonth, contentBriefs]);
 
   // Map pieces to days
   const dayPieces = useMemo(() => {
@@ -99,13 +138,29 @@ export default function ContentCalendar() {
     <div className="max-w-[1400px] mx-auto space-y-5">
 
       {/* Header */}
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-3xl font-black text-white tracking-tight">Content Calendar</h1>
-        <p className="text-sm text-zinc-500 mt-1">
-          {totalPieces > 0
-            ? `${totalPieces} content pieces from ${contentBriefs?.length || 0} brief${(contentBriefs?.length || 0) > 1 ? 's' : ''}`
-            : 'No content yet — create a brief first'}
-        </p>
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+        className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-black text-white tracking-tight">Content Calendar</h1>
+          <p className="text-sm text-zinc-500 mt-1">
+            {loadingBackend ? 'Loading from server...' :
+              backendMonth ? `${currentClient?.name || 'Client'} — ${backendMonth.month} — ${totalPieces} posts (${backendMonth.status})` :
+              totalPieces > 0 ? `${totalPieces} content pieces` : 'No content yet — create a brief first'}
+          </p>
+        </div>
+        {backendMonth && (
+          <div className="flex items-center gap-2">
+            {reviewLink && (
+              <div className="text-[10px] text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-lg">
+                {copyNotice ? 'Copied!' : 'Link created'}
+              </div>
+            )}
+            <button onClick={handleCreateReviewLink}
+              className="flex items-center gap-2 bg-white/[0.06] border border-white/[0.1] text-zinc-300 px-4 py-2 rounded-xl text-sm font-medium hover:bg-white/[0.1] cursor-pointer">
+              <Share2 className="w-4 h-4" /> Share for Review
+            </button>
+          </div>
+        )}
       </motion.div>
 
       {/* Empty state */}

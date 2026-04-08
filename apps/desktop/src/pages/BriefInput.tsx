@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useStore, type ContentBrief } from '../lib/store';
 import { useClients } from '../lib/client-context';
+import { briefsApi, calendarApi, jobsApi } from '../lib/backend-api';
 import {
   getClientById,
   DEFAULT_CAMPAIGNS,
@@ -195,118 +196,64 @@ export default function BriefInput() {
 
   const handleGenerate = useCallback(async () => {
     cancelledRef.current = false;
-    // Try backend client first, fall back to local seed
-    const backendClient = clients.find(c => c.id === selectedClientId);
-    const localClient = getClientById(selectedClientId);
-    const client = localClient || (backendClient ? {
-      id: backendClient.id,
-      name: backendClient.name,
-      industry: backendClient.industry || '',
-      products: [],
-      brandGuidelines: '',
-      tone: '',
-      colors: [],
-      website: backendClient.website || '',
-      socialHandles: { instagram: backendClient.instagramHandle || '' },
-      keyMessages: [],
-      complianceNotes: '',
-    } : null);
-    if (!client) return;
+    if (!selectedClientId) return;
     if (selectedPlatforms.length === 0) return;
     if (campaigns.filter(c => c.name.trim()).length === 0) return;
 
     setIsGenerating(true);
-    setGenerationProgress('Creating brief...');
-
-    const briefId = crypto.randomUUID();
-    const enabledOccasions = occasions.filter(o => o.enabled).map(({ name, date }) => ({ name, date }));
-    const validCampaigns = campaigns.filter(c => c.name.trim()).map(c => ({
-      ...c,
-      duration: 'Monthly',
-    }));
-
-    const brief: ContentBrief = {
-      id: briefId,
-      clientId: selectedClientId,
-      month: selectedMonth,
-      campaigns: validCampaigns,
-      occasions: enabledOccasions,
-      platforms: selectedPlatforms,
-      pieceCount,
-      toneNotes,
-      status: 'generating',
-      pieces: [],
-      createdAt: new Date().toISOString(),
-    };
-
-    addContentBrief(brief);
+    const monthLabel = monthOptions.find(m => m.value === selectedMonth)?.label || selectedMonth;
 
     try {
-      setGenerationProgress(`Generating ${pieceCount} content pieces with ${aiProvider === 'claude' ? 'Claude Opus' : 'Gemini Flash'}...`);
+      // 1. Save brief to backend
+      setGenerationProgress('Saving brief...');
+      const enabledOccasions = occasions.filter(o => o.enabled).map(({ name, date }) => ({ name, date }));
+      const validCampaigns = campaigns.filter(c => c.name.trim()).map(c => ({ ...c, duration: 'Monthly' }));
 
-      const pieces = await generateContentFromBrief({
-        client,
-        month: monthOptions.find(m => m.value === selectedMonth)?.label || selectedMonth,
-        campaigns: validCampaigns,
-        occasions: enabledOccasions,
-        platforms: selectedPlatforms,
-        pieceCount,
-        toneNotes,
-        briefId,
-        provider: aiProvider,
+      await briefsApi.save(selectedClientId, {
+        objective: validCampaigns[0]?.keyMessage || 'Content generation',
+        audience: validCampaigns[0]?.targetAudience || 'General audience',
+        tone: toneNotes || 'Professional',
+        brandDo: 'Follow brand guidelines',
+        brandDont: 'No misleading claims',
+        products: validCampaigns.map(c => c.productFocus).filter(Boolean),
+        pillars: validCampaigns.map(c => c.name).filter(Boolean),
+        campaignMoments: enabledOccasions,
+        channels: selectedPlatforms,
+        approvers: [],
       });
 
-      if (cancelledRef.current) { updateContentBrief(briefId, { pieces, status: 'review' }); setIsGenerating(false); navigate(`/content-review?briefId=${briefId}`); return; }
+      // 2. Generate via backend (POST → jobId)
+      setGenerationProgress(`Generating ${pieceCount} content pieces with Gemini...`);
+      const { jobId } = await calendarApi.generate(selectedClientId, monthLabel, pieceCount);
 
-      updateContentBrief(briefId, { pieces, status: 'review' });
-      setGenerationProgress('Fetching visual references...');
+      // 3. Poll job until complete
+      let attempts = 0;
+      while (attempts < 60) {
+        if (cancelledRef.current) { setIsGenerating(false); return; }
+        await new Promise(r => setTimeout(r, 3000));
+        const job = await jobsApi.get(jobId);
+        setGenerationProgress(`Generating... ${job.progress}%`);
 
-      // Fetch visual references for each piece in parallel (batched)
-      const batchSize = 4;
-      const updatedPieces = [...pieces];
-
-      for (let i = 0; i < pieces.length; i += batchSize) {
-        if (cancelledRef.current) break;
-        const batch = pieces.slice(i, i + batchSize);
-        const results = await Promise.allSettled(
-          batch.map(piece =>
-            piece.visualReference
-              ? searchVisualReferences(piece.visualReference, aiProvider)
-              : Promise.resolve([])
-          )
-        );
-
-        results.forEach((result, j) => {
-          if (result.status === 'fulfilled' && result.value.length > 0) {
-            updatedPieces[i + j] = {
-              ...updatedPieces[i + j],
-              visualRefImages: result.value.map(ref => ({
-                imageUrl: ref.imageUrl,
-                sourceUrl: ref.sourceUrl,
-                description: ref.description,
-              })),
-            };
-          }
-        });
-
-        setGenerationProgress(`Visual references: ${Math.min(i + batchSize, pieces.length)}/${pieces.length}`);
+        if (job.status === 'completed') {
+          setGenerationProgress('Done!');
+          // Navigate to calendar with the generated month
+          navigate(`/calendar?client=${selectedClientId}&month=${encodeURIComponent(monthLabel)}`);
+          setIsGenerating(false);
+          return;
+        }
+        if (job.status === 'failed') {
+          throw new Error(job.error || 'Generation failed on server');
+        }
+        attempts++;
       }
-
-      updateContentBrief(briefId, { pieces: updatedPieces, status: 'review' });
-
-      navigate(`/content-review?briefId=${briefId}`);
+      throw new Error('Generation timed out');
     } catch (err: any) {
       console.error('Generation failed:', err);
-      updateContentBrief(briefId, { status: 'draft' });
       setGenerationProgress('');
       setIsGenerating(false);
       alert(`Generation failed: ${err.message}`);
     }
-  }, [
-    selectedClientId, selectedMonth, campaigns, occasions, selectedPlatforms,
-    pieceCount, toneNotes, aiProvider, addContentBrief, updateContentBrief,
-    navigate, monthOptions,
-  ]);
+  }, [selectedClientId, selectedMonth, campaigns, occasions, selectedPlatforms, pieceCount, toneNotes, navigate, monthOptions]);
 
   // ─── Render helpers ──────────────────────────────────────────────
 

@@ -10,6 +10,8 @@ import { useStore, ContentBrief } from '../lib/store';
 import { searchVisualReferences, type VisualReference } from '../lib/ai';
 import { validateCaption, PLATFORM_LIMITS } from '../lib/platform-limits';
 import { getClientById } from '../lib/clients';
+import { useClients } from '../lib/client-context';
+import { calendarApi, reviewApi } from '../lib/backend-api';
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -76,12 +78,27 @@ export default function ContentReview() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const briefId = searchParams.get('briefId') || '';
+  const urlMonth = searchParams.get('month') || '';
+  const urlClient = searchParams.get('client') || '';
 
   const { contentBriefs, updateContentBrief } = useStore();
+  const { selectedClientId, currentClient } = useClients();
 
-  // Find brief
-  const brief: ContentBrief | undefined = contentBriefs.find(b => b.id === briefId);
-  const client = brief ? getClientById(brief.clientId) : undefined;
+  // Try backend first, then local brief
+  const [backendMonth, setBackendMonth] = useState<any>(null);
+  useEffect(() => {
+    const cId = urlClient || selectedClientId;
+    if (cId && urlMonth) {
+      calendarApi.getMonth(cId, decodeURIComponent(urlMonth))
+        .then(setBackendMonth).catch(() => {});
+    }
+  }, [urlClient, urlMonth, selectedClientId]);
+
+  // Find brief — prefer backend, fall back to local
+  const brief: ContentBrief | undefined = backendMonth
+    ? { id: backendMonth.id, clientId: urlClient || selectedClientId || '', month: backendMonth.month, campaigns: [], occasions: [], platforms: [], pieceCount: backendMonth.posts?.length || 0, toneNotes: '', status: backendMonth.status, pieces: (backendMonth.posts || []).map((p: any) => ({ ...p, suggestedDate: p.date, creativeCopy: p.visualDirection || '', visualReference: p.referenceQuery || '', visualRefImages: [], hashtags: p.hashtags || [], charCount: (p.caption || '').length, charLimit: 2200, charStatus: 'good' as const, status: p.status || 'generated' })), createdAt: backendMonth.createdAt }
+    : contentBriefs.find(b => b.id === briefId);
+  const client = currentClient || (brief ? getClientById(brief.clientId) : undefined);
 
   // Local state
   const [pieces, setPieces] = useState<GeneratedPiece[]>([]);
