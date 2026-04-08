@@ -1,11 +1,8 @@
-// Server entry point — stub only for Commit 1A
-// Business logic comes in Commit 2+
+import 'dotenv/config';
+import { env } from './config/env.js';
+import { buildApp } from './app.js';
 
-import Fastify from 'fastify';
+const app = await buildApp();
 
-const app = Fastify({ logger: true });
-
-app.get('/api/health', async () => ({ status: 'ok', service: 'radix-server', version: '1.0.0' }));
-
-const port = Number(process.env.PORT || 8080);
-await app.listen({ port, host: '0.0.0.0' });
+await app.listen({ port: env.PORT, host: '0.0.0.0' });
+console.log(`Radix server running on http://localhost:${env.PORT}`);

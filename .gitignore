@@ -10,3 +10,4 @@ apps/desktop/dist/
 apps/desktop/release/
 apps/preview-web/dist/
 server/dist/
+server/.env
