@@ -6,6 +6,7 @@ import { clientRoutes } from './routes/clients.js';
 import { briefRoutes } from './routes/briefs.js';
 import { calendarRoutes } from './routes/calendar.js';
 import { jobRoutes } from './routes/jobs.js';
+import { reviewRoutes } from './routes/review.js';
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -28,6 +29,7 @@ export async function buildApp() {
   await app.register(briefRoutes, { prefix: '/api' });
   await app.register(calendarRoutes, { prefix: '/api' });
   await app.register(jobRoutes, { prefix: '/api/jobs' });
+  await app.register(reviewRoutes, { prefix: '/api' });
 
   return app;
 }
