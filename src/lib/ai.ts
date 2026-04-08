@@ -5,21 +5,37 @@ import { GoogleGenAI } from '@google/genai';
 const GEMINI_KEY = process.env.GEMINI_API_KEY || '';
 const CLAUDE_KEY = process.env.ANTHROPIC_API_KEY || '';
 
+// Detect if running on VPS (not localhost) — use server-side proxy to avoid CORS
+const isDeployed = typeof window !== 'undefined' && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1');
+const CLAUDE_API_BASE = isDeployed ? '/claude' : 'https://api.anthropic.com';
+const GEMINI_API_BASE = isDeployed ? '/gemini' : '';
+
 async function generateWithGemini(prompt: string): Promise<string> {
+  if (isDeployed) {
+    // Use server-side proxy (no CORS issues, keys on server)
+    const res = await fetch(`${GEMINI_API_BASE}/v1beta/models/gemini-2.5-flash:generateContent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+    });
+    const data = await res.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  }
   const ai = new GoogleGenAI({ apiKey: GEMINI_KEY });
   const res = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
   return res.text || '';
 }
 
 async function generateWithClaude(prompt: string): Promise<string> {
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (!isDeployed) {
+    headers['x-api-key'] = CLAUDE_KEY;
+    headers['anthropic-version'] = '2023-06-01';
+    headers['anthropic-dangerous-direct-browser-access'] = 'true';
+  }
+  const res = await fetch(`${CLAUDE_API_BASE}/v1/messages`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': CLAUDE_KEY,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
-    },
+    headers,
     body: JSON.stringify({
       model: 'claude-opus-4-20250514',
       max_tokens: 4096,

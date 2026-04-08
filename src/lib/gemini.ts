@@ -1,11 +1,31 @@
 import { GoogleGenAI } from '@google/genai';
 
+const isDeployed = typeof window !== 'undefined' && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1');
+
 export function getGemini(): GoogleGenAI {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
+  if (!apiKey && !isDeployed) {
     console.warn("GEMINI_API_KEY is not set in the environment.");
   }
-  return new GoogleGenAI({ apiKey: apiKey as string });
+  // When deployed, still pass the key — the SDK needs it even though
+  // actual calls may go through proxy for some endpoints.
+  // The SDK handles its own CORS for generateContent.
+  return new GoogleGenAI({
+    apiKey: apiKey || 'proxy-mode',
+    ...(isDeployed ? { httpOptions: { baseUrl: window.location.origin + '/gemini' } } : {}),
+  });
+}
+
+// Helper for deployed mode: direct REST call through proxy
+export async function geminiProxyCall(path: string, body: any): Promise<any> {
+  const base = isDeployed ? '/gemini' : 'https://generativelanguage.googleapis.com';
+  const keyParam = isDeployed ? '' : `?key=${process.env.GEMINI_API_KEY}`;
+  const res = await fetch(`${base}${path}${keyParam}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return res.json();
 }
 
 export async function generateDesignBrief(
