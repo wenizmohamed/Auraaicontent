@@ -22,8 +22,8 @@ import {
   Bot,
 } from 'lucide-react';
 import { useStore, type ContentBrief } from '../lib/store';
+import { useClients } from '../lib/client-context';
 import {
-  getClients,
   getClientById,
   DEFAULT_CAMPAIGNS,
   DEFAULT_OCCASIONS,
@@ -103,11 +103,13 @@ interface OccasionEntry {
 export default function BriefInput() {
   const navigate = useNavigate();
   const { addContentBrief, updateContentBrief } = useStore();
-  const clients = useMemo(() => getClients(), []);
+  const { clients: backendClients, selectedClientId: contextClientId } = useClients();
+  // Map backend clients to the shape BriefInput expects
+  const clients = backendClients.map(c => ({ id: c.id, name: c.name, industry: c.industry || '', ...c }));
   const monthOptions = useMemo(() => buildMonthOptions(), []);
 
   // ─── Form state ──────────────────────────────────────────────────
-  const [selectedClientId, setSelectedClientId] = useState(clients[0]?.id || '');
+  const [selectedClientId, setSelectedClientId] = useState(contextClientId || clients[0]?.id || '');
   const [selectedMonth, setSelectedMonth] = useState(monthOptions[0]?.value || '');
   const [campaigns, setCampaigns] = useState<CampaignEntry[]>(
     DEFAULT_CAMPAIGNS.map(c => ({
@@ -193,7 +195,22 @@ export default function BriefInput() {
 
   const handleGenerate = useCallback(async () => {
     cancelledRef.current = false;
-    const client = getClientById(selectedClientId);
+    // Try backend client first, fall back to local seed
+    const backendClient = clients.find(c => c.id === selectedClientId);
+    const localClient = getClientById(selectedClientId);
+    const client = localClient || (backendClient ? {
+      id: backendClient.id,
+      name: backendClient.name,
+      industry: backendClient.industry || '',
+      products: [],
+      brandGuidelines: '',
+      tone: '',
+      colors: [],
+      website: backendClient.website || '',
+      socialHandles: { instagram: backendClient.instagramHandle || '' },
+      keyMessages: [],
+      complianceNotes: '',
+    } : null);
     if (!client) return;
     if (selectedPlatforms.length === 0) return;
     if (campaigns.filter(c => c.name.trim()).length === 0) return;

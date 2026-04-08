@@ -5,12 +5,13 @@
 
 import { useState } from 'react';
 import { HashRouter, BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { ClientProvider } from './lib/client-context';
 
 // Use HashRouter for Electron (file:// protocol), BrowserRouter for web
 const isElectron = !!(window as any).electron?.isDesktop;
 const Router = isElectron ? HashRouter : BrowserRouter;
 import { StoreProvider, useStore } from './lib/store';
-import { LayoutDashboard, Calendar, ImagePlus, Image as ImageIcon, Video, Search, UserCircle, ChevronLeft, ChevronRight, FileText, Palette, Layers, Wand2, FolderOpen, Radio } from 'lucide-react';
+import { LayoutDashboard, Calendar, ImagePlus, Image as ImageIcon, Video, Search, UserCircle, ChevronLeft, ChevronRight, FileText, Palette, Layers, Wand2, FolderOpen, Radio, Building2 } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import ContentCalendar from './pages/ContentCalendar';
 import ImageGeneration from './pages/ImageGeneration';
@@ -27,6 +28,7 @@ import AIDesignGenerator from './pages/AIDesignGenerator';
 import VisualReferences from './pages/VisualReferences';
 import BriefInput from './pages/BriefInput';
 import ContentReview from './pages/ContentReview';
+import Clients from './pages/Clients';
 
 function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
@@ -36,6 +38,7 @@ function Layout({ children }: { children: React.ReactNode }) {
 
   const navigation = [
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+    { name: 'Clients', href: '/clients', icon: Building2 },
     { name: 'New Brief', href: '/brief', icon: FileText },
     { name: 'Review', href: '/content-review', icon: Layers },
     { name: 'Calendar', href: '/calendar', icon: Calendar },
@@ -108,7 +111,7 @@ function Layout({ children }: { children: React.ReactNode }) {
 
         {/* User Profile */}
         <div className="p-4 border-t border-white/5">
-          <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'} p-2 rounded-lg hover:bg-white/5 transition-colors cursor-pointer`}>
+          <Link to="/profile" className={`flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'} p-2 rounded-lg hover:bg-white/5 transition-colors cursor-pointer`}>
             <div className="h-9 w-9 rounded-full bg-white/10 flex items-center justify-center text-white font-bold shrink-0">
               MS
             </div>
@@ -118,7 +121,7 @@ function Layout({ children }: { children: React.ReactNode }) {
                 <p className="text-xs text-zinc-500 truncate">Radix Media</p>
               </div>
             )}
-          </div>
+          </Link>
         </div>
       </div>
       
@@ -151,10 +154,12 @@ function Layout({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <StoreProvider>
+      <ClientProvider>
       <Router>
         <Layout>
           <Routes>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/clients" element={<Clients />} />
             <Route path="/brief" element={<BriefInput />} />
             <Route path="/content-review" element={<ContentReview />} />
             <Route path="/topics" element={<TopicDesk />} />
@@ -172,6 +177,7 @@ export default function App() {
           </Routes>
         </Layout>
       </Router>
+      </ClientProvider>
     </StoreProvider>
   );
 }
