@@ -87,7 +87,7 @@ model KnowledgeChunk {
   id              String   @id @default(cuid())
   knowledgeItemId String
   chunkText       String
-  embedding       Unsupported("vector")?
+  // embedding    Unsupported("vector")?  // Requires pgvector — enabled in Commit 8
   metadata        Json?
 
   knowledgeItem   KnowledgeItem @relation(fields: [knowledgeItemId], references: [id], onDelete: Cascade)
