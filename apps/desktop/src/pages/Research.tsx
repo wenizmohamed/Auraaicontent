@@ -5,6 +5,18 @@ import { Loader2, Search as SearchIcon, ExternalLink, Sparkles, TrendingUp } fro
 import { useStore } from '../lib/store';
 
 export default function Research() {
+  // Guard: client-side AI keys removed for security — needs server-side routing
+  return (
+    <div className="max-w-2xl mx-auto mt-20 text-center">
+      <div className="bg-[#111] border border-white/10 rounded-2xl p-8">
+        <SearchIcon className="w-12 h-12 text-amber-400 mx-auto mb-4" />
+        <h2 className="text-2xl font-bold text-white mb-2">Research</h2>
+        <p className="text-zinc-400 mb-2">Server-side AI routing in progress.</p>
+        <p className="text-zinc-500 text-sm">This feature will use the backend AI provider router once migration is complete.</p>
+      </div>
+    </div>
+  );
+
   const [query, setQuery] = useState('');
   const [result, setResult] = useState('');
   const [loading, setLoading] = useState(false);

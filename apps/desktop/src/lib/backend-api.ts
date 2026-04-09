@@ -22,9 +22,12 @@ async function request<T>(
 ): Promise<T> {
   const timeoutMs = config?.timeoutMs ?? 30000;
   const headers: Record<string, string> = {
-    ...(config?.json === false ? {} : { 'Content-Type': 'application/json' }),
     ...(options.headers as any || {}),
   };
+  // Only set Content-Type when there's a body — Fastify 5 rejects bodyless requests with JSON content-type
+  if (options.body && config?.json !== false) {
+    headers['Content-Type'] = 'application/json';
+  }
   if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
 
   const res = await fetch(`${API_URL}${path}`, {

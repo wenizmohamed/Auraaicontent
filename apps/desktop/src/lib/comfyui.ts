@@ -15,6 +15,7 @@ export async function isComfyUIRunning(): Promise<boolean> {
     const res = await fetch(`${LOCAL_URL}/system_stats`, { signal: AbortSignal.timeout(2000) });
     return res.ok;
   } catch {
+    // Silently fail — ComfyUI is optional, no console spam
     return false;
   }
 }

@@ -8,6 +8,18 @@ import { isComfyUIRunning, generateWithComfyUI, getLocalModels } from '../lib/co
 type Mode = 'text-to-image' | 'text-to-video' | 'image-to-video' | 'prompt-improver' | 'comfyui';
 
 export default function ImageGeneration() {
+  // Guard: client-side AI keys removed for security — needs server-side routing (Commit 12+)
+  return (
+    <div className="max-w-2xl mx-auto mt-20 text-center">
+      <div className="bg-[#111] border border-white/10 rounded-2xl p-8">
+        <Sparkles className="w-12 h-12 text-amber-400 mx-auto mb-4" />
+        <h2 className="text-2xl font-bold text-white mb-2">Image Generation</h2>
+        <p className="text-zinc-400 mb-2">Server-side AI routing in progress.</p>
+        <p className="text-zinc-500 text-sm">This feature will use the backend AI provider router once migration is complete.</p>
+      </div>
+    </div>
+  );
+
   const [mode, setMode] = useState<Mode>('text-to-image');
   const [prompt, setPrompt] = useState('');
   const [aspectRatio, setAspectRatio] = useState('16:9');

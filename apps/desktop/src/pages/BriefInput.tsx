@@ -277,9 +277,21 @@ export default function BriefInput() {
     const { month, clientId } = conflict;
     try {
       setConflictAction('deleting');
-      await calendarApi.deleteMonth(clientId, month);
+      try {
+        await calendarApi.deleteMonth(clientId, month);
+      } catch (delErr: any) {
+        console.error('Delete step failed:', delErr);
+        throw new Error(`Delete failed: ${delErr.message}`);
+      }
       setConflictAction('regenerating');
-      const { jobId } = await calendarApi.generate(clientId, month, pieceCount);
+      let jobId: string;
+      try {
+        const res = await calendarApi.generate(clientId, month, pieceCount);
+        jobId = res.jobId;
+      } catch (genErr: any) {
+        console.error('Regenerate step failed:', genErr);
+        throw new Error(`Regenerate failed: ${genErr.message}`);
+      }
       let attempts = 0;
       while (attempts < 120) {
         await new Promise(r => setTimeout(r, 5000));
@@ -295,9 +307,10 @@ export default function BriefInput() {
       }
       throw new Error('Regeneration timed out');
     } catch (err: any) {
+      console.error('Delete and regenerate failed:', err);
       setConflictAction('idle');
       setConflict(null);
-      alert(`Failed: ${err.message}`);
+      alert(err.message);
     }
   };
 

@@ -277,7 +277,7 @@ export default function ContentReview() {
           {briefId ? `No brief with ID "${briefId}" exists.` : 'No brief ID provided in the URL.'}
         </p>
         <button
-          onClick={() => navigate('/content-pieces')}
+          onClick={() => navigate('/pieces')}
           className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-black font-medium rounded-xl transition-colors"
         >
           Back to Content Pieces
@@ -293,7 +293,7 @@ export default function ContentReview() {
         <h2 className="text-2xl font-bold text-white mb-4">No Content Generated Yet</h2>
         <p className="text-zinc-400 mb-8">This brief has no generated pieces to review.</p>
         <button
-          onClick={() => navigate('/content-pieces')}
+          onClick={() => navigate('/pieces')}
           className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-black font-medium rounded-xl transition-colors"
         >
           Back to Content Pieces
@@ -314,7 +314,7 @@ export default function ContentReview() {
         className="mb-8"
       >
         <button
-          onClick={() => navigate('/content-pieces')}
+          onClick={() => navigate('/pieces')}
           className="flex items-center gap-2 text-zinc-400 hover:text-white mb-4 transition-colors print:hidden"
         >
           <ArrowLeft className="w-4 h-4" />
