@@ -1,9 +1,9 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { Calendar as CalendarIcon, X, ExternalLink, ChevronLeft, ChevronRight, Instagram, Linkedin, Twitter, Facebook, Video, Sparkles, FileText, ArrowRight, Share2, Loader2, Copy, Download, Edit3, Check, Save } from 'lucide-react';
+import { Calendar as CalendarIcon, X, ExternalLink, ChevronLeft, ChevronRight, Instagram, Linkedin, Twitter, Facebook, Video, Sparkles, FileText, ArrowRight, Share2, Loader2, Copy, Download, Edit3, Check, Save, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../lib/store';
 import { validateCaption } from '../lib/platform-limits';
-import { Link, useSearchParams, useBlocker } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { useClients } from '../lib/client-context';
 import { calendarApi, reviewApi, exportsApi, jobsApi } from '../lib/backend-api';
 
@@ -62,6 +62,7 @@ const EDITABLE_FIELDS = [
 
 export default function ContentCalendar() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { selectedClientId, currentClient } = useClients();
   const { contentBriefs } = useStore();
 
@@ -82,19 +83,7 @@ export default function ContentCalendar() {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved' | 'error'>('idle');
   const [isDirty, setIsDirty] = useState(false);
 
-  // Navigation blocker for dirty state
-  const blocker = useBlocker(isDirty);
-  useEffect(() => {
-    if (blocker.state === 'blocked') {
-      if (window.confirm('You have unsaved edits. Leave anyway?')) {
-        blocker.proceed();
-      } else {
-        blocker.reset();
-      }
-    }
-  }, [blocker]);
-
-  // Also handle browser close/refresh
+  // Dirty-state protection via beforeunload (works with all router types)
   useEffect(() => {
     if (!isDirty) return;
     const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); };
@@ -219,6 +208,19 @@ export default function ContentCalendar() {
     }
   };
 
+  const handleDeleteMonth = async () => {
+    if (!urlClient || !backendMonth?.month) return;
+    if (!window.confirm(`Delete ${backendMonth.month} for ${currentClient?.name || 'this client'}? This removes all posts in that month.`)) return;
+    try {
+      await calendarApi.deleteMonth(urlClient, backendMonth.month);
+      setBackendMonth(null);
+      setSelectedDay(null);
+      navigate(`/brief?client=${urlClient}`);
+    } catch (err: any) {
+      alert('Delete failed: ' + err.message);
+    }
+  };
+
   const handleCreateReviewLink = async () => {
     if (!urlClient || !backendMonth?.month) return;
     try {
@@ -312,6 +314,10 @@ export default function ContentCalendar() {
             <button onClick={handleCreateReviewLink}
               className="flex items-center gap-2 bg-white/[0.06] border border-white/[0.1] text-zinc-300 px-4 py-2 rounded-xl text-sm font-medium hover:bg-white/[0.1] cursor-pointer">
               <Share2 className="w-4 h-4" /> Share for Review
+            </button>
+            <button onClick={handleDeleteMonth}
+              className="flex items-center gap-2 bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-2 rounded-xl text-sm font-medium hover:bg-red-500/20 cursor-pointer">
+              <Trash2 className="w-4 h-4" /> Reset Month
             </button>
           </div>
         )}

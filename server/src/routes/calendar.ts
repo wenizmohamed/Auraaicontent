@@ -51,6 +51,21 @@ export async function calendarRoutes(app: FastifyInstance) {
     return calendarMonth;
   });
 
+  // DELETE /api/clients/:clientId/calendar/:month — deletes ALL matching months (handles duplicates)
+  app.delete('/clients/:clientId/calendar/:month', async (request, reply) => {
+    const { clientId, month } = request.params as { clientId: string; month: string };
+    const decodedMonth = decodeURIComponent(month);
+
+    const all = await db.calendarMonth.findMany({ where: { clientId, month: decodedMonth } });
+    if (all.length === 0) return reply.status(404).send({ error: 'Calendar month not found' });
+
+    // Posts cascade-delete via Prisma schema
+    for (const m of all) {
+      await db.calendarMonth.delete({ where: { id: m.id } });
+    }
+    return { success: true, deleted: all.length, month: decodedMonth };
+  });
+
   // PATCH /api/calendar-posts/:postId
   app.patch('/calendar-posts/:postId', async (request) => {
     const { postId } = request.params as { postId: string };

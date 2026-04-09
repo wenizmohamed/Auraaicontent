@@ -93,6 +93,8 @@ export const calendarApi = {
     request<any>(`/api/clients/${clientId}/calendar/${encodeURIComponent(month)}`),
   updatePost: (postId: string, data: any) =>
     request<any>(`/api/calendar-posts/${postId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteMonth: (clientId: string, month: string) =>
+    request<any>(`/api/clients/${clientId}/calendar/${encodeURIComponent(month)}`, { method: 'DELETE' }),
 };
 
 // ─── Jobs ────────────────────────────────────────────────────────
