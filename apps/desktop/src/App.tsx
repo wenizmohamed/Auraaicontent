@@ -3,9 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { HashRouter, BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
-import { ClientProvider } from './lib/client-context';
+import { ClientProvider, useClients } from './lib/client-context';
+import { readJson } from './lib/safe-storage';
 
 // Use HashRouter for Electron (file:// protocol), BrowserRouter for web
 const isElectron = !!(window as any).electron?.isDesktop;
@@ -151,6 +152,23 @@ function Layout({ children }: { children: React.ReactNode }) {
   );
 }
 
+function DevBanner() {
+  const { serverOnline, authenticated, selectedClientId, authError } = useClients();
+  const lastCrash = readJson<any>('radix_last_crash', null);
+  const isDev = import.meta.env.DEV;
+  if (!isDev) return null;
+  return (
+    <div className="fixed bottom-0 left-0 right-0 z-[9999] bg-zinc-900/95 border-t border-zinc-800 px-4 py-1.5 flex items-center gap-4 text-[10px] font-mono text-zinc-500">
+      <span className={serverOnline ? 'text-emerald-400' : 'text-red-400'}>{serverOnline ? 'API: ON' : 'API: OFF'}</span>
+      <span className={authenticated ? 'text-emerald-400' : 'text-red-400'}>{authenticated ? 'AUTH: OK' : 'AUTH: NO'}</span>
+      {authError && <span className="text-red-400">ERR: {authError.slice(0, 40)}</span>}
+      <span className="text-zinc-600">client: {selectedClientId?.slice(0, 12) || 'none'}</span>
+      <span className="text-zinc-600">route: {location.pathname}</span>
+      {lastCrash && <span className="text-orange-400">LAST CRASH: {lastCrash.msg?.slice(0, 50)} ({lastCrash.time})</span>}
+    </div>
+  );
+}
+
 export default function App() {
   return (
     <StoreProvider>
@@ -177,6 +195,7 @@ export default function App() {
           </Routes>
         </Layout>
       </Router>
+      <DevBanner />
       </ClientProvider>
     </StoreProvider>
   );

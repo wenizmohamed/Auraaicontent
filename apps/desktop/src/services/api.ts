@@ -1,10 +1,11 @@
 import { PipelineItem, GeneratedImage, Post, ActivityLog, SavedResearch, PipelineStatus } from '../lib/store';
+import { readJson } from '../lib/safe-storage';
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const getDb = () => {
-  const db = localStorage.getItem('radix_mock_db');
-  if (db) return JSON.parse(db);
+  const db = readJson('radix_mock_db', null);
+  if (db) return db;
   
   // Default seed data
   return {

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { mockApi } from '../services/api';
+import { readJson } from './safe-storage';
 
 const STORE_VERSION = 2;
 
@@ -145,13 +146,13 @@ const defaultState: StoreState = {
   pipelineItems: [],
   generatedImages: [],
   imageHistory: [],
-  posts: JSON.parse(localStorage.getItem('radix_calendar_posts') || '[]'),
+  posts: readJson('radix_calendar_posts', []),
   activityLogs: [],
   isLoading: true,
   error: null,
   currentBrief: null,
   campaignContent: [],
-  contentBriefs: JSON.parse(localStorage.getItem('radix_content_briefs') || '[]'),
+  contentBriefs: readJson('radix_content_briefs', []),
 };
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
@@ -165,7 +166,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const data = await mockApi.fetchAll();
 
       // Merge: keep localStorage posts if mockApi returns empty
-      const savedPosts = JSON.parse(localStorage.getItem('radix_calendar_posts') || '[]');
+      const savedPosts = readJson('radix_calendar_posts', []);
       setState(prev => ({
         ...prev,
         pipelineItems: data.pipelineItems || [],
@@ -186,7 +187,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     // Re-sync contentBriefs from localStorage on window focus (prevents stale data)
     const onFocus = () => {
       try {
-        const fresh = JSON.parse(localStorage.getItem('radix_content_briefs') || '[]');
+        const fresh = readJson('radix_content_briefs', []);
         setState(prev => ({ ...prev, contentBriefs: fresh }));
       } catch {}
     };
