@@ -7,9 +7,7 @@ import {
   Filter, CheckSquare, Square, Image as ImageIcon, Sparkles, X,
 } from 'lucide-react';
 import { useStore, ContentBrief } from '../lib/store';
-import { searchVisualReferences, type VisualReference } from '../lib/ai';
 import { validateCaption, PLATFORM_LIMITS } from '../lib/platform-limits';
-import { getClientById } from '../lib/clients';
 import { useClients } from '../lib/client-context';
 import { calendarApi, reviewApi } from '../lib/backend-api';
 
@@ -98,7 +96,7 @@ export default function ContentReview() {
   const brief: ContentBrief | undefined = backendMonth
     ? { id: backendMonth.id, clientId: urlClient || selectedClientId || '', month: backendMonth.month, campaigns: [], occasions: [], platforms: [], pieceCount: backendMonth.posts?.length || 0, toneNotes: '', status: backendMonth.status, pieces: (backendMonth.posts || []).map((p: any) => ({ ...p, suggestedDate: p.date, creativeCopy: p.visualDirection || '', visualReference: p.referenceQuery || '', visualRefImages: [], hashtags: p.hashtags || [], charCount: (p.caption || '').length, charLimit: 2200, charStatus: 'good' as const, status: p.status || 'generated' })), createdAt: backendMonth.createdAt }
     : contentBriefs.find(b => b.id === briefId);
-  const client = currentClient || (brief ? getClientById(brief.clientId) : undefined);
+  const client = currentClient;
 
   // Local state
   const [pieces, setPieces] = useState<GeneratedPiece[]>([]);
@@ -122,53 +120,8 @@ export default function ContentReview() {
     }
   }, [brief?.id]);
 
-  // Auto-fetch visual references for pieces that have none
-  useEffect(() => {
-    if (!pieces.length) return;
-
-    const toFetch = pieces.filter(
-      p => p.visualReference && (!p.visualRefImages || p.visualRefImages.length === 0) && !fetchedRef.current.has(p.id)
-    );
-
-    if (!toFetch.length) return;
-
-    toFetch.forEach(p => fetchedRef.current.add(p.id));
-    setLoadingRefs(prev => {
-      const next = new Set(prev);
-      toFetch.forEach(p => next.add(p.id));
-      return next;
-    });
-
-    toFetch.forEach(async (piece) => {
-      try {
-        const refs = await searchVisualReferences(piece.visualReference);
-        const images = refs.slice(0, 4).map(r => ({
-          imageUrl: r.imageUrl,
-          sourceUrl: r.sourceUrl,
-          description: r.description,
-        }));
-
-        setPieces(prev => {
-          const updated = prev.map(p =>
-            p.id === piece.id ? { ...p, visualRefImages: images } : p
-          );
-          // Persist to store
-          if (brief) {
-            updateContentBrief(brief.id, { pieces: updated });
-          }
-          return updated;
-        });
-      } catch (err) {
-        console.warn('Failed to fetch visual refs for piece', piece.id, err);
-      } finally {
-        setLoadingRefs(prev => {
-          const next = new Set(prev);
-          next.delete(piece.id);
-          return next;
-        });
-      }
-    });
-  }, [pieces.length]);
+  // Visual reference auto-fetch removed — Unsplash Source API is dead
+  // References come from backend asset system (Commit 12)
 
   // Persist piece changes to store
   const updatePieces = useCallback((updater: (prev: GeneratedPiece[]) => GeneratedPiece[]) => {
@@ -222,8 +175,10 @@ export default function ContentReview() {
 
   // ─── Actions ────────────────────────────────────────────────
 
-  const handleStatusChange = (id: string, status: GeneratedPiece['status']) => {
+  const handleStatusChange = async (id: string, status: GeneratedPiece['status']) => {
     updatePieces(prev => prev.map(p => p.id === id ? { ...p, status } : p));
+    // Persist to backend
+    try { await calendarApi.updatePost(id, { status }); } catch {}
   };
 
   const handleStartEdit = (piece: GeneratedPiece) => {
@@ -232,7 +187,7 @@ export default function ContentReview() {
     setEditCreativeCopy(piece.creativeCopy);
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editingId) return;
     const validation = validateCaption(editCaption, pieces.find(p => p.id === editingId)?.platform || 'Instagram');
     updatePieces(prev => prev.map(p =>
@@ -248,6 +203,16 @@ export default function ContentReview() {
           }
         : p
     ));
+    // Persist to backend
+    try {
+      await calendarApi.updatePost(editingId, {
+        caption: editCaption,
+        visualDirection: editCreativeCopy,
+        status: 'edited',
+      });
+    } catch (err: any) {
+      console.error('Failed to save edit to backend:', err);
+    }
     setEditingId(null);
   };
 
@@ -274,9 +239,12 @@ export default function ContentReview() {
     }
   };
 
-  const bulkAction = (status: GeneratedPiece['status']) => {
+  const bulkAction = async (status: GeneratedPiece['status']) => {
+    const ids = [...selectedIds];
     updatePieces(prev => prev.map(p => selectedIds.has(p.id) ? { ...p, status } : p));
     setSelectedIds(new Set());
+    // Persist each to backend
+    await Promise.allSettled(ids.map(id => calendarApi.updatePost(id, { status })));
   };
 
   const handleExport = () => {

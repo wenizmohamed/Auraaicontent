@@ -22,7 +22,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   };
   if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
 
-  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
+  const res = await fetch(`${API_URL}${path}`, { ...options, headers, signal: options.signal || AbortSignal.timeout(30000) });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error(err.error || `Request failed: ${res.status}`);
@@ -97,6 +97,16 @@ export const jobsApi = {
 export const reviewApi = {
   createLink: (clientId: string, month: string) =>
     request<{ token: string; url: string; expiresAt: string | null }>(`/api/clients/${clientId}/calendar/${encodeURIComponent(month)}/review-links`, { method: 'POST', body: JSON.stringify({ expiresInDays: 30 }) }),
+};
+
+// ─── Exports ─────────────────────────────────────────────────────
+
+export const exportsApi = {
+  trigger: (clientId: string, month: string, type: 'pptx' = 'pptx') =>
+    request<{ jobId: string }>(`/api/clients/${clientId}/calendar/${encodeURIComponent(month)}/export`, { method: 'POST', body: JSON.stringify({ type }) }),
+  list: (clientId: string) =>
+    request<any[]>(`/api/exports/${clientId}`),
+  downloadUrl: (fileUrl: string) => `${API_URL}${fileUrl}`,
 };
 
 // ─── Server health check ─────────────────────────────────────────

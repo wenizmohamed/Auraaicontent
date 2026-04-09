@@ -52,6 +52,8 @@ export function processJob(id: string, worker: (job: Job) => Promise<any>): void
       updateJob(id, { status: 'completed', progress: 100, result });
     })
     .catch(err => {
-      updateJob(id, { status: 'failed', error: err.message || String(err) });
+      const msg = err.message || String(err);
+      console.error(`[JOB FAILED] ${job.type} (${id}): ${msg}`, err.stack || '');
+      updateJob(id, { status: 'failed', error: msg });
     });
 }

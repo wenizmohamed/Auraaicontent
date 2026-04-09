@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -19,23 +19,14 @@ import {
   CheckCircle2,
   X,
   Zap,
-  Bot,
 } from 'lucide-react';
 import { useStore, type ContentBrief } from '../lib/store';
 import { useClients } from '../lib/client-context';
 import { briefsApi, calendarApi, jobsApi } from '../lib/backend-api';
 import {
-  getClientById,
   DEFAULT_CAMPAIGNS,
   DEFAULT_OCCASIONS,
-  type ClientKB,
 } from '../lib/clients';
-import {
-  generateContentFromBrief,
-  searchVisualReferences,
-  type GeneratedPiece,
-  type AIProvider,
-} from '../lib/ai';
 import { PLATFORM_LIMITS } from '../lib/platform-limits';
 
 // ─── Platform config ───────────────────────────────────────────────
@@ -111,6 +102,13 @@ export default function BriefInput() {
 
   // ─── Form state ──────────────────────────────────────────────────
   const [selectedClientId, setSelectedClientId] = useState(contextClientId || clients[0]?.id || '');
+
+  // Sync local selectedClientId when context changes (e.g. user picks client on /clients page)
+  useEffect(() => {
+    if (contextClientId && contextClientId !== selectedClientId) {
+      setSelectedClientId(contextClientId);
+    }
+  }, [contextClientId]);
   const [selectedMonth, setSelectedMonth] = useState(monthOptions[0]?.value || '');
   const [campaigns, setCampaigns] = useState<CampaignEntry[]>(
     DEFAULT_CAMPAIGNS.map(c => ({
@@ -127,7 +125,6 @@ export default function BriefInput() {
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['Instagram', 'TikTok', 'LinkedIn']);
   const [pieceCount, setPieceCount] = useState(18);
   const [toneNotes, setToneNotes] = useState('');
-  const [aiProvider, setAiProvider] = useState<AIProvider>('claude');
   const [isGenerating, setIsGenerating] = useState(false);
   const cancelledRef = useRef(false);
   const [generationProgress, setGenerationProgress] = useState('');
@@ -226,17 +223,17 @@ export default function BriefInput() {
       setGenerationProgress(`Generating ${pieceCount} content pieces with Gemini...`);
       const { jobId } = await calendarApi.generate(selectedClientId, monthLabel, pieceCount);
 
-      // 3. Poll job until complete
+      // 3. Poll job until complete (10 min max, 5s intervals)
       let attempts = 0;
-      while (attempts < 60) {
+      while (attempts < 120) {
         if (cancelledRef.current) { setIsGenerating(false); return; }
-        await new Promise(r => setTimeout(r, 3000));
+        await new Promise(r => setTimeout(r, 5000));
         const job = await jobsApi.get(jobId);
-        setGenerationProgress(`Generating... ${job.progress}%`);
+        const elapsed = Math.round((attempts + 1) * 5);
+        setGenerationProgress(`Generating... ${job.progress}% (${elapsed}s)`);
 
         if (job.status === 'completed') {
           setGenerationProgress('Done!');
-          // Navigate to calendar with the generated month
           navigate(`/calendar?client=${selectedClientId}&month=${encodeURIComponent(monthLabel)}`);
           setIsGenerating(false);
           return;
@@ -246,12 +243,21 @@ export default function BriefInput() {
         }
         attempts++;
       }
-      throw new Error('Generation timed out');
+      throw new Error('Generation timed out after 10 minutes');
     } catch (err: any) {
       console.error('Generation failed:', err);
       setGenerationProgress('');
       setIsGenerating(false);
-      alert(`Generation failed: ${err.message}`);
+      const msg = err.message || '';
+      if (msg.includes('timed out') || msg.includes('timeout')) {
+        alert('Generation is taking longer than expected. Check the calendar in a few minutes — the server may still be processing.');
+      } else if (msg.includes('401') || msg.includes('Unauthorized')) {
+        alert('Session expired. Please refresh the page and try again.');
+      } else if (msg.includes('409')) {
+        alert('This month already has content. Delete it first or choose a different month.');
+      } else {
+        alert(`Generation failed: ${msg}`);
+      }
     }
   }, [selectedClientId, selectedMonth, campaigns, occasions, selectedPlatforms, pieceCount, toneNotes, navigate, monthOptions]);
 
@@ -619,7 +625,7 @@ export default function BriefInput() {
             </div>
           </motion.section>
 
-          {/* ─── Piece Count + Tone + AI Provider ─────────────────── */}
+          {/* ─── Piece Count + Tone + Engine ───────────────────────── */}
           <motion.section
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -673,78 +679,22 @@ export default function BriefInput() {
               />
             </div>
 
-            {/* AI Provider */}
+            {/* AI engine info — Gemini-only, configured on backend */}
             <div className="rounded-xl border border-white/10 bg-[#111] p-4">
               <div className="mb-3 flex items-center gap-2">
-                <Bot className="h-4 w-4 text-violet-400" />
+                <Sparkles className="h-4 w-4 text-violet-400" />
                 <label className="text-xs font-medium uppercase tracking-wider text-zinc-500">
-                  AI Provider
+                  AI Engine
                 </label>
               </div>
-              <div className="space-y-2">
-                <label
-                  className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition ${
-                    aiProvider === 'claude'
-                      ? 'border-violet-500/40 bg-violet-500/10'
-                      : 'border-white/5 bg-white/[0.02] hover:border-white/10'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="ai-provider"
-                    value="claude"
-                    checked={aiProvider === 'claude'}
-                    onChange={() => setAiProvider('claude')}
-                    className="sr-only"
-                  />
-                  <div
-                    className={`flex h-4 w-4 items-center justify-center rounded-full border ${
-                      aiProvider === 'claude'
-                        ? 'border-violet-500 bg-violet-500'
-                        : 'border-zinc-600'
-                    }`}
-                  >
-                    {aiProvider === 'claude' && (
-                      <div className="h-1.5 w-1.5 rounded-full bg-white" />
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-white">Claude Opus</p>
-                    <p className="text-[10px] text-zinc-500">Best quality, nuanced copy</p>
-                  </div>
-                </label>
-
-                <label
-                  className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition ${
-                    aiProvider === 'gemini'
-                      ? 'border-blue-500/40 bg-blue-500/10'
-                      : 'border-white/5 bg-white/[0.02] hover:border-white/10'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="ai-provider"
-                    value="gemini"
-                    checked={aiProvider === 'gemini'}
-                    onChange={() => setAiProvider('gemini')}
-                    className="sr-only"
-                  />
-                  <div
-                    className={`flex h-4 w-4 items-center justify-center rounded-full border ${
-                      aiProvider === 'gemini'
-                        ? 'border-blue-500 bg-blue-500'
-                        : 'border-zinc-600'
-                    }`}
-                  >
-                    {aiProvider === 'gemini' && (
-                      <div className="h-1.5 w-1.5 rounded-full bg-white" />
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-white">Gemini Flash</p>
-                    <p className="text-[10px] text-zinc-500">Fast, cost-effective</p>
-                  </div>
-                </label>
+              <div className="flex items-center gap-3 rounded-lg border border-blue-500/20 bg-blue-500/5 p-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10">
+                  <Sparkles className="h-4 w-4 text-blue-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-white">Gemini</p>
+                  <p className="text-[10px] text-zinc-500">Configured server-side</p>
+                </div>
               </div>
             </div>
           </motion.section>

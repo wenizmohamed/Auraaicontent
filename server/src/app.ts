@@ -11,12 +11,14 @@ import { jobRoutes } from './routes/jobs.js';
 import { reviewRoutes } from './routes/review.js';
 import { assetRoutes } from './routes/assets.js';
 import { knowledgeRoutes } from './routes/knowledge.js';
+import { exportRoutes } from './routes/exports.js';
+import { creativeRoutes } from './routes/creative.js';
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
 
   // Plugins
-  await app.register(cors, { origin: true, credentials: true });
+  await app.register(cors, { origin: true, credentials: true, methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'] });
   await app.register(multipart, { limits: { fileSize: 25 * 1024 * 1024 } });
   await app.register(fastifyStatic, { root: path.resolve(process.cwd(), 'uploads'), prefix: '/uploads/', decorateReply: false });
 
@@ -37,6 +39,8 @@ export async function buildApp() {
   await app.register(reviewRoutes, { prefix: '/api' });
   await app.register(assetRoutes, { prefix: '/api' });
   await app.register(knowledgeRoutes, { prefix: '/api' });
+  await app.register(exportRoutes, { prefix: '/api' });
+  await app.register(creativeRoutes, { prefix: '/api' });
 
   return app;
 }

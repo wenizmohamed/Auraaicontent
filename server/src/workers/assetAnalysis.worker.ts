@@ -1,5 +1,5 @@
 import fs from 'fs';
-import { analyzeAsset } from '../services/gemini.service.js';
+import { aiRouter } from '../services/providers/ai-router.js';
 import { assetService } from '../services/asset.service.js';
 import { storageService } from '../services/storage.service.js';
 
@@ -14,8 +14,21 @@ export async function analyzeAssetWorker(assetId: string): Promise<any> {
   const buffer = fs.readFileSync(absPath);
   const base64 = buffer.toString('base64');
 
-  const analysis = await analyzeAsset(base64, asset.mimeType);
+  const result = await aiRouter.analysis({
+    prompt: `Analyze this image for a social media content planning tool. Return JSON with:
+- description: what the image shows
+- tags: array of relevant tags
+- suggestedPlatforms: which social platforms this would work best on
+- mood: the visual mood/tone
+- colors: dominant colors
+- safeForClient: boolean, is this appropriate for professional client content`,
+    imageBase64: base64,
+    mimeType: asset.mimeType,
+  });
 
+  const analysis = result.output as any;
   await assetService.update(assetId, { analysis, tags: analysis.tags || [] });
+
+  console.log(`[assetAnalysis] ${assetId}: analyzed via ${result.provider}/${result.model} (${result.latencyMs}ms)`);
   return analysis;
 }

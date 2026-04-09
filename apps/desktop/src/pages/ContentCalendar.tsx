@@ -1,11 +1,11 @@
-import { useState, useMemo, useEffect } from 'react';
-import { Calendar as CalendarIcon, X, ExternalLink, ChevronLeft, ChevronRight, Instagram, Linkedin, Twitter, Facebook, Video, Sparkles, FileText, ArrowRight, Share2, Loader2, Copy } from 'lucide-react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import { Calendar as CalendarIcon, X, ExternalLink, ChevronLeft, ChevronRight, Instagram, Linkedin, Twitter, Facebook, Video, Sparkles, FileText, ArrowRight, Share2, Loader2, Copy, Download, Edit3, Check, Save } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../lib/store';
 import { validateCaption } from '../lib/platform-limits';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useBlocker } from 'react-router-dom';
 import { useClients } from '../lib/client-context';
-import { calendarApi, reviewApi } from '../lib/backend-api';
+import { calendarApi, reviewApi, exportsApi, jobsApi } from '../lib/backend-api';
 
 const getPlatformIcon = (platform: string) => {
   const p = platform.toLowerCase();
@@ -27,8 +27,6 @@ const getPlatformColor = (platform: string) => {
   return { dot: 'bg-emerald-500', badge: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/20' };
 };
 
-// Extract day number from AI date formats
-// Handles: "2026-08-12", "August 12", "Aug 12, 2026", "12th August", "Day 12"
 function extractDay(dateStr: string): number | null {
   if (!dateStr) return null;
   const s = dateStr.trim();
@@ -45,6 +43,23 @@ function extractDay(dateStr: string): number | null {
   return null;
 }
 
+// Editable field definitions
+const EDITABLE_FIELDS = [
+  { key: 'title', label: 'Title', type: 'text' },
+  { key: 'pillar', label: 'Pillar', type: 'text' },
+  { key: 'platform', label: 'Platform', type: 'select', options: ['Instagram', 'TikTok', 'LinkedIn', 'X', 'Facebook'] },
+  { key: 'format', label: 'Format', type: 'text' },
+  { key: 'hook', label: 'Hook', type: 'text' },
+  { key: 'keyMessage', label: 'Key Message', type: 'textarea' },
+  { key: 'caption', label: 'Caption', type: 'textarea' },
+  { key: 'cta', label: 'CTA', type: 'text' },
+  { key: 'hashtags', label: 'Hashtags', type: 'tags' },
+  { key: 'visualDirection', label: 'Visual Direction', type: 'textarea' },
+  { key: 'referenceQuery', label: 'Reference Query', type: 'text' },
+  { key: 'timing', label: 'Timing', type: 'text' },
+  { key: 'status', label: 'Status', type: 'select', options: ['draft', 'approved', 'changes_requested'] },
+] as const;
+
 export default function ContentCalendar() {
   const [searchParams] = useSearchParams();
   const { selectedClientId, currentClient } = useClients();
@@ -57,12 +72,40 @@ export default function ContentCalendar() {
   const [loadingBackend, setLoadingBackend] = useState(false);
   const [reviewLink, setReviewLink] = useState<string | null>(null);
   const [copyNotice, setCopyNotice] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportDone, setExportDone] = useState<string | null>(null);
 
-  // Load backend month if URL params or selected client
+  // Edit state
+  const [editingPostId, setEditingPostId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<Record<string, any>>({});
+  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saved' | 'error'>('idle');
+  const [isDirty, setIsDirty] = useState(false);
+
+  // Navigation blocker for dirty state
+  const blocker = useBlocker(isDirty);
+  useEffect(() => {
+    if (blocker.state === 'blocked') {
+      if (window.confirm('You have unsaved edits. Leave anyway?')) {
+        blocker.proceed();
+      } else {
+        blocker.reset();
+      }
+    }
+  }, [blocker]);
+
+  // Also handle browser close/refresh
+  useEffect(() => {
+    if (!isDirty) return;
+    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isDirty]);
+
   const urlMonth = searchParams.get('month');
   const urlClient = searchParams.get('client') || selectedClientId;
 
-  useEffect(() => {
+  const fetchMonth = useCallback(() => {
     if (urlClient && urlMonth) {
       setLoadingBackend(true);
       calendarApi.getMonth(urlClient, decodeURIComponent(urlMonth))
@@ -72,11 +115,114 @@ export default function ContentCalendar() {
     }
   }, [urlClient, urlMonth]);
 
+  useEffect(() => { fetchMonth(); }, [fetchMonth]);
+
+  // ─── Edit handlers ─────────────────────────────────────────────
+  const startEdit = (post: any) => {
+    setEditingPostId(post.id);
+    setEditDraft({
+      title: post.title || '',
+      pillar: post.pillar || '',
+      platform: post.platform || 'Instagram',
+      format: post.format || '',
+      hook: post.hook || '',
+      keyMessage: post.keyMessage || '',
+      caption: post.caption || '',
+      cta: post.cta || '',
+      hashtags: (post.hashtags || []).join(', '),
+      visualDirection: post.visualDirection || '',
+      referenceQuery: post.referenceQuery || '',
+      timing: post.timing || '',
+      status: post.status || 'draft',
+    });
+    setIsDirty(true);
+    setSaveStatus('idle');
+  };
+
+  const cancelEdit = () => {
+    setEditingPostId(null);
+    setEditDraft({});
+    setIsDirty(false);
+    setSaveStatus('idle');
+  };
+
+  const saveEdit = async () => {
+    if (!editingPostId) return;
+    setSaving(true);
+    setSaveStatus('idle');
+    try {
+      const payload = {
+        ...editDraft,
+        hashtags: editDraft.hashtags
+          ? editDraft.hashtags.split(',').map((t: string) => t.trim().replace(/^#/, '')).filter(Boolean)
+          : [],
+      };
+      await calendarApi.updatePost(editingPostId, payload);
+
+      // Optimistic update — patch the post in backendMonth
+      if (backendMonth?.posts) {
+        setBackendMonth((prev: any) => ({
+          ...prev,
+          posts: prev.posts.map((p: any) =>
+            p.id === editingPostId ? { ...p, ...payload } : p
+          ),
+        }));
+      }
+
+      setSaveStatus('saved');
+      setIsDirty(false);
+      setTimeout(() => { setEditingPostId(null); setSaveStatus('idle'); }, 800);
+    } catch (err: any) {
+      setSaveStatus('error');
+      alert('Save failed: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateDraftField = (key: string, value: string) => {
+    setEditDraft(prev => ({ ...prev, [key]: value }));
+    setIsDirty(true);
+  };
+
+  // ─── Export + Review ───────────────────────────────────────────
+  const handleExport = async () => {
+    if (!urlClient || !backendMonth?.month) return;
+    setExporting(true);
+    setExportDone(null);
+    try {
+      const { jobId } = await exportsApi.trigger(urlClient, backendMonth.month);
+      let attempts = 0;
+      while (attempts < 40) {
+        await new Promise(r => setTimeout(r, 2000));
+        const job = await jobsApi.get(jobId);
+        if (job.status === 'completed') {
+          const downloadUrl = exportsApi.downloadUrl(job.result?.fileUrl);
+          setExportDone(downloadUrl);
+          setExporting(false);
+          const a = document.createElement('a');
+          a.href = downloadUrl;
+          a.download = '';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          return;
+        }
+        if (job.status === 'failed') throw new Error(job.error || 'Export failed');
+        attempts++;
+      }
+      throw new Error('Export timed out');
+    } catch (err: any) {
+      alert('Export failed: ' + err.message);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const handleCreateReviewLink = async () => {
     if (!urlClient || !backendMonth?.month) return;
     try {
-      const { token } = await reviewApi.createLink(urlClient, backendMonth.month);
-      const url = `${window.location.origin}/review/${token}`;
+      const { url } = await reviewApi.createLink(urlClient, backendMonth.month);
       setReviewLink(url);
       navigator.clipboard.writeText(url).then(() => { setCopyNotice(true); setTimeout(() => setCopyNotice(false), 2000); });
     } catch (err: any) {
@@ -84,19 +230,17 @@ export default function ContentCalendar() {
     }
   };
 
-  // Current month display
+  // ─── Calendar display ─────────────────────────────────────────
   const now = new Date();
   const displayDate = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
   const monthName = displayDate.toLocaleString('en-US', { month: 'long', year: 'numeric' });
   const daysInMonth = new Date(displayDate.getFullYear(), displayDate.getMonth() + 1, 0).getDate();
   const firstDayOffset = new Date(displayDate.getFullYear(), displayDate.getMonth(), 1).getDay();
 
-  // Collect pieces — prefer backend data, fall back to local briefs
   const allPieces = useMemo(() => {
     if (backendMonth?.posts?.length) {
       return backendMonth.posts.map((p: any) => ({ ...p, suggestedDate: p.date }));
     }
-    // Fallback to local contentBriefs
     const pieces: any[] = [];
     for (const brief of contentBriefs || []) {
       for (const piece of brief.pieces || []) {
@@ -106,7 +250,6 @@ export default function ContentCalendar() {
     return pieces;
   }, [backendMonth, contentBriefs]);
 
-  // Map pieces to days
   const dayPieces = useMemo(() => {
     const map: Record<number, any[]> = {};
     for (const piece of allPieces) {
@@ -119,7 +262,6 @@ export default function ContentCalendar() {
     return map;
   }, [allPieces]);
 
-  // Filter by platform
   const filteredDayPieces = useMemo(() => {
     if (platformFilter === 'All') return dayPieces;
     const filtered: Record<number, any[]> = {};
@@ -134,6 +276,7 @@ export default function ContentCalendar() {
   const totalPieces = allPieces.length;
   const platforms = [...new Set(allPieces.map(p => p.platform))];
 
+  // ─── Render ───────────────────────────────────────────────────
   return (
     <div className="max-w-[1400px] mx-auto space-y-5">
 
@@ -150,6 +293,17 @@ export default function ContentCalendar() {
         </div>
         {backendMonth && (
           <div className="flex items-center gap-2">
+            {exportDone && (
+              <a href={exportDone} download
+                className="text-[10px] text-violet-400 bg-violet-500/10 px-3 py-1.5 rounded-lg hover:bg-violet-500/20 transition-colors">
+                Download again
+              </a>
+            )}
+            <button onClick={handleExport} disabled={exporting}
+              className="flex items-center gap-2 bg-white/[0.06] border border-white/[0.1] text-zinc-300 px-4 py-2 rounded-xl text-sm font-medium hover:bg-white/[0.1] cursor-pointer disabled:opacity-50">
+              {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              {exporting ? 'Exporting...' : 'Export PPTX'}
+            </button>
             {reviewLink && (
               <div className="text-[10px] text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-lg">
                 {copyNotice ? 'Copied!' : 'Link created'}
@@ -183,8 +337,6 @@ export default function ContentCalendar() {
           {/* Controls */}
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
             className="flex items-center justify-between">
-
-            {/* Month nav */}
             <div className="flex items-center gap-3">
               <button onClick={() => setMonthOffset(o => o - 1)}
                 className="p-2 rounded-xl bg-white/[0.03] border border-white/[0.06] text-zinc-500 hover:text-white hover:border-white/[0.1] transition-all cursor-pointer">
@@ -200,8 +352,6 @@ export default function ContentCalendar() {
                   className="text-[10px] text-zinc-600 hover:text-white transition-colors cursor-pointer">Today</button>
               )}
             </div>
-
-            {/* Platform filter */}
             <div className="flex items-center gap-1.5">
               {['All', ...platforms].map(p => (
                 <button key={p} onClick={() => setPlatformFilter(p)}
@@ -219,53 +369,37 @@ export default function ContentCalendar() {
           {/* Calendar Grid */}
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
             className="rounded-3xl bg-[#0c0c0c] border border-white/[0.06] p-5">
-
-            {/* Day names */}
             <div className="grid grid-cols-7 gap-2 mb-2">
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
                 <div key={d} className="text-center text-[10px] font-bold text-zinc-700 uppercase tracking-wider py-2">{d}</div>
               ))}
             </div>
-
-            {/* Calendar cells */}
             <div className="grid grid-cols-7 gap-2">
-              {/* Empty offset cells */}
               {Array.from({ length: firstDayOffset }).map((_, i) => (
                 <div key={`empty-${i}`} className="aspect-square rounded-xl bg-white/[0.01]" />
               ))}
-
-              {/* Day cells */}
               {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
                 const pieces = filteredDayPieces[day] || [];
                 const isSelected = selectedDay === day;
                 const isToday = monthOffset === 0 && day === now.getDate();
                 return (
-                  <button
-                    key={day}
+                  <button key={day}
                     onClick={() => setSelectedDay(isSelected ? null : day)}
                     className={`aspect-square rounded-xl border p-2 flex flex-col transition-all cursor-pointer relative ${
-                      isSelected
-                        ? 'bg-white/[0.08] border-white/[0.2]'
-                        : pieces.length > 0
-                          ? 'bg-white/[0.03] border-white/[0.06] hover:border-white/[0.12]'
-                          : 'bg-white/[0.01] border-white/[0.03] hover:bg-white/[0.02]'
-                    }`}
-                  >
+                      isSelected ? 'bg-white/[0.08] border-white/[0.2]'
+                        : pieces.length > 0 ? 'bg-white/[0.03] border-white/[0.06] hover:border-white/[0.12]'
+                        : 'bg-white/[0.01] border-white/[0.03] hover:bg-white/[0.02]'
+                    }`}>
                     <span className={`text-xs font-bold ${
                       isToday ? 'text-white bg-white/20 w-6 h-6 rounded-full flex items-center justify-center' :
                       pieces.length > 0 ? 'text-zinc-300' : 'text-zinc-700'
                     }`}>{day}</span>
-
-                    {/* Platform dots */}
                     {pieces.length > 0 && (
                       <div className="flex flex-wrap gap-0.5 mt-auto">
                         {pieces.slice(0, 5).map((p: any, j: number) => (
-                          <div key={j} className={`w-2 h-2 rounded-full ${getPlatformColor(p.platform).dot}`}
-                            title={p.platform} />
+                          <div key={j} className={`w-2 h-2 rounded-full ${getPlatformColor(p.platform).dot}`} title={p.platform} />
                         ))}
-                        {pieces.length > 5 && (
-                          <span className="text-[8px] text-zinc-600">+{pieces.length - 5}</span>
-                        )}
+                        {pieces.length > 5 && <span className="text-[8px] text-zinc-600">+{pieces.length - 5}</span>}
                       </div>
                     )}
                   </button>
@@ -278,11 +412,8 @@ export default function ContentCalendar() {
           <AnimatePresence>
             {selectedDay && selectedPieces.length > 0 && (
               <motion.div
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                className="rounded-3xl bg-[#0c0c0c] border border-white/[0.06] p-6"
-              >
+                initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+                className="rounded-3xl bg-[#0c0c0c] border border-white/[0.06] p-6">
                 <div className="flex items-center justify-between mb-5">
                   <h3 className="text-sm font-bold text-white">
                     {displayDate.toLocaleString('en-US', { month: 'long' })} {selectedDay} — {selectedPieces.length} piece{selectedPieces.length > 1 ? 's' : ''}
@@ -295,99 +426,232 @@ export default function ContentCalendar() {
 
                 <div className="space-y-4">
                   {selectedPieces.map((piece: any, i: number) => {
-                    const v = validateCaption(piece.caption || '', piece.platform || 'Instagram');
-                    const pc = getPlatformColor(piece.platform);
+                    const isEditing = editingPostId === piece.id;
+                    const v = validateCaption(isEditing ? editDraft.caption || '' : piece.caption || '', (isEditing ? editDraft.platform : piece.platform) || 'Instagram');
+                    const pc = getPlatformColor(isEditing ? editDraft.platform : piece.platform);
+
                     return (
                       <motion.div key={piece.id || i}
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: i * 0.05 }}
-                        className="rounded-2xl bg-white/[0.02] border border-white/[0.05] p-5 space-y-3"
-                      >
-                        {/* Platform + Format + Campaign */}
+                        initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
+                        className={`rounded-2xl border p-5 space-y-3 ${isEditing ? 'bg-white/[0.04] border-violet-500/30' : 'bg-white/[0.02] border-white/[0.05]'}`}>
+
+                        {/* Header: Platform + Format + Edit/Save buttons */}
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border ${pc.badge}`}>
-                            {getPlatformIcon(piece.platform)} {piece.platform}
+                            {getPlatformIcon(isEditing ? editDraft.platform : piece.platform)} {isEditing ? editDraft.platform : piece.platform}
                           </span>
-                          {piece.format && (
-                            <span className="text-[10px] font-medium text-zinc-600 bg-white/[0.03] px-2 py-1 rounded-lg">{piece.format}</span>
+                          <span className="text-[10px] font-medium text-zinc-600 bg-white/[0.03] px-2 py-1 rounded-lg">
+                            {isEditing ? editDraft.format : piece.format}
+                          </span>
+                          {piece.pillar && !isEditing && (
+                            <span className="text-[10px] font-medium text-violet-400/60 bg-violet-500/10 px-2 py-1 rounded-lg">{piece.pillar}</span>
                           )}
-                          {piece.campaignTheme && (
-                            <span className="text-[10px] font-medium text-violet-400/60 bg-violet-500/10 px-2 py-1 rounded-lg">{piece.campaignTheme}</span>
-                          )}
-                          <div className="ml-auto">
+
+                          <div className="ml-auto flex items-center gap-2">
                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                               v.status === 'good' ? 'bg-emerald-500/10 text-emerald-400' :
-                              v.status === 'warning' ? 'bg-amber-500/10 text-amber-400' :
-                              'bg-red-500/10 text-red-400'
+                              v.status === 'warning' ? 'bg-amber-500/10 text-amber-400' : 'bg-red-500/10 text-red-400'
                             }`}>{v.length}/{v.max}</span>
+
+                            {isEditing ? (
+                              <>
+                                {saveStatus === 'saved' && (
+                                  <span className="text-[10px] text-emerald-400 flex items-center gap-1"><Check className="w-3 h-3" /> Saved</span>
+                                )}
+                                <button onClick={saveEdit} disabled={saving}
+                                  className="flex items-center gap-1 px-3 py-1 rounded-lg text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/30 disabled:opacity-50 cursor-pointer">
+                                  {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />} Save
+                                </button>
+                                <button onClick={cancelEdit}
+                                  className="flex items-center gap-1 px-3 py-1 rounded-lg text-[10px] font-bold bg-zinc-500/20 text-zinc-400 border border-zinc-500/20 hover:bg-zinc-500/30 cursor-pointer">
+                                  <X className="w-3 h-3" /> Cancel
+                                </button>
+                              </>
+                            ) : (
+                              piece.id && (
+                                <button onClick={() => startEdit(piece)}
+                                  className="flex items-center gap-1 px-3 py-1 rounded-lg text-[10px] font-bold bg-white/[0.05] text-zinc-400 border border-white/[0.08] hover:text-white hover:bg-white/[0.1] cursor-pointer">
+                                  <Edit3 className="w-3 h-3" /> Edit
+                                </button>
+                              )
+                            )}
                           </div>
                         </div>
 
-                        {/* Art Direction */}
-                        {piece.creativeCopy && (
-                          <div>
-                            <h4 className="text-[10px] font-bold text-zinc-600 uppercase tracking-wider mb-1">Art Direction</h4>
-                            <p className="text-xs text-zinc-400 leading-relaxed">{piece.creativeCopy}</p>
-                          </div>
-                        )}
+                        {isEditing ? (
+                          /* ─── Edit Form ─────────────────────────────────── */
+                          <div className="space-y-3">
+                            <div className="grid grid-cols-2 gap-3">
+                              {/* Title */}
+                              <div>
+                                <label className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Title</label>
+                                <input value={editDraft.title} onChange={e => updateDraftField('title', e.target.value)}
+                                  className="w-full bg-zinc-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-violet-500/40 mt-0.5" />
+                              </div>
+                              {/* Pillar */}
+                              <div>
+                                <label className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Pillar</label>
+                                <input value={editDraft.pillar} onChange={e => updateDraftField('pillar', e.target.value)}
+                                  className="w-full bg-zinc-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-violet-500/40 mt-0.5" />
+                              </div>
+                              {/* Platform */}
+                              <div>
+                                <label className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Platform</label>
+                                <select value={editDraft.platform} onChange={e => updateDraftField('platform', e.target.value)}
+                                  className="w-full bg-zinc-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-violet-500/40 mt-0.5">
+                                  {['Instagram', 'TikTok', 'LinkedIn', 'X', 'Facebook'].map(p => <option key={p} value={p}>{p}</option>)}
+                                </select>
+                              </div>
+                              {/* Format */}
+                              <div>
+                                <label className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Format</label>
+                                <input value={editDraft.format} onChange={e => updateDraftField('format', e.target.value)}
+                                  className="w-full bg-zinc-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-violet-500/40 mt-0.5" />
+                              </div>
+                              {/* Status */}
+                              <div>
+                                <label className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Status</label>
+                                <select value={editDraft.status} onChange={e => updateDraftField('status', e.target.value)}
+                                  className="w-full bg-zinc-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-violet-500/40 mt-0.5">
+                                  {['draft', 'approved', 'changes_requested'].map(s => <option key={s} value={s}>{s}</option>)}
+                                </select>
+                              </div>
+                              {/* Timing */}
+                              <div>
+                                <label className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Timing</label>
+                                <input value={editDraft.timing} onChange={e => updateDraftField('timing', e.target.value)}
+                                  className="w-full bg-zinc-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-violet-500/40 mt-0.5" />
+                              </div>
+                            </div>
 
-                        {/* Copy Section */}
-                        <div className="space-y-2 bg-white/[0.01] rounded-lg p-3 border border-white/[0.03]">
-                          <h4 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Copy</h4>
-
-                          {piece.keyMessage && (
+                            {/* Hook */}
                             <div>
-                              <span className="text-[9px] text-amber-400/60 uppercase tracking-wider font-semibold">Key Message (on visual)</span>
-                              <p className="text-sm text-amber-200/90 font-medium bg-amber-500/[0.06] rounded-lg px-2 py-1.5 border border-amber-500/10 mt-0.5">{piece.keyMessage}</p>
+                              <label className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Hook</label>
+                              <input value={editDraft.hook} onChange={e => updateDraftField('hook', e.target.value)}
+                                className="w-full bg-zinc-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-violet-500/40 mt-0.5" />
                             </div>
-                          )}
 
-                          <div>
-                            <span className="text-[9px] text-zinc-600 uppercase tracking-wider font-semibold">Caption</span>
-                            <p className="text-sm text-zinc-200 bg-white/[0.02] p-2 rounded-lg border border-white/[0.04] whitespace-pre-wrap leading-relaxed mt-0.5">{piece.caption}</p>
-                          </div>
-
-                          {piece.cta && (
+                            {/* Key Message */}
                             <div>
-                              <span className="text-[9px] text-emerald-400/60 uppercase tracking-wider font-semibold">CTA</span>
-                              <p className="text-sm text-emerald-300/90 font-medium bg-emerald-500/[0.06] rounded-lg px-2 py-1.5 border border-emerald-500/10 mt-0.5">{piece.cta}</p>
+                              <label className="text-[9px] text-amber-400/60 uppercase tracking-wider font-semibold">Key Message (on visual)</label>
+                              <textarea value={editDraft.keyMessage} onChange={e => updateDraftField('keyMessage', e.target.value)} rows={2}
+                                className="w-full bg-zinc-900 border border-amber-500/20 rounded-lg px-2.5 py-1.5 text-xs text-amber-200 outline-none focus:border-amber-500/40 resize-y mt-0.5" />
                             </div>
-                          )}
 
-                          {piece.hashtags?.length > 0 && (
-                            <div className="flex flex-wrap gap-1 pt-1">
-                              {piece.hashtags.map((h: string, j: number) => (
-                                <span key={j} className="text-[10px] text-violet-400/70 bg-violet-500/10 px-1.5 py-0.5 rounded">#{h.replace(/^#/, '')}</span>
-                              ))}
+                            {/* Caption */}
+                            <div>
+                              <label className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Caption</label>
+                              <textarea value={editDraft.caption} onChange={e => updateDraftField('caption', e.target.value)} rows={4}
+                                className="w-full bg-zinc-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-violet-500/40 resize-y mt-0.5" />
                             </div>
-                          )}
-                        </div>
 
-                        {/* Visual References */}
-                        {piece.visualRefImages?.length > 0 && (
-                          <div>
-                            <h4 className="text-[10px] font-bold text-zinc-600 uppercase tracking-wider mb-2">Visual References</h4>
-                            <div className="grid grid-cols-4 gap-2">
-                              {piece.visualRefImages.slice(0, 4).map((ref: any, j: number) => (
-                                <a key={j} href={ref.sourceUrl || ref.pinterestUrl} target="_blank" rel="noopener noreferrer"
-                                  className="group rounded-lg overflow-hidden border border-white/[0.05] hover:border-white/[0.15] transition-all">
-                                  <div className="aspect-[4/3] bg-zinc-900 relative">
-                                    <img src={ref.imageUrl} alt={ref.description || ''} className="w-full h-full object-cover" loading="lazy"
-                                      onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                      <ExternalLink className="w-4 h-4 text-white" />
-                                    </div>
-                                  </div>
-                                </a>
-                              ))}
+                            {/* CTA */}
+                            <div>
+                              <label className="text-[9px] text-emerald-400/60 uppercase tracking-wider font-semibold">CTA</label>
+                              <input value={editDraft.cta} onChange={e => updateDraftField('cta', e.target.value)}
+                                className="w-full bg-zinc-900 border border-emerald-500/20 rounded-lg px-2.5 py-1.5 text-xs text-emerald-200 outline-none focus:border-emerald-500/40 mt-0.5" />
+                            </div>
+
+                            {/* Hashtags */}
+                            <div>
+                              <label className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Hashtags (comma-separated)</label>
+                              <input value={editDraft.hashtags} onChange={e => updateDraftField('hashtags', e.target.value)}
+                                className="w-full bg-zinc-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-violet-300 outline-none focus:border-violet-500/40 mt-0.5"
+                                placeholder="tag1, tag2, tag3" />
+                            </div>
+
+                            {/* Visual Direction */}
+                            <div>
+                              <label className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Visual Direction</label>
+                              <textarea value={editDraft.visualDirection} onChange={e => updateDraftField('visualDirection', e.target.value)} rows={2}
+                                className="w-full bg-zinc-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-zinc-300 outline-none focus:border-violet-500/40 resize-y mt-0.5" />
+                            </div>
+
+                            {/* Reference Query */}
+                            <div>
+                              <label className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Reference Query</label>
+                              <input value={editDraft.referenceQuery} onChange={e => updateDraftField('referenceQuery', e.target.value)}
+                                className="w-full bg-zinc-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-zinc-300 outline-none focus:border-violet-500/40 mt-0.5" />
                             </div>
                           </div>
-                        )}
+                        ) : (
+                          /* ─── Read-only view ────────────────────────────── */
+                          <>
+                            {/* Title */}
+                            {piece.title && (
+                              <h4 className="text-sm font-bold text-white">{piece.title}</h4>
+                            )}
 
-                        {/* Target Audience */}
-                        {piece.targetAudience && (
-                          <p className="text-[10px] text-zinc-600">Audience: {piece.targetAudience}</p>
+                            {/* Hook */}
+                            {piece.hook && (
+                              <p className="text-xs text-amber-300/80 italic">"{piece.hook}"</p>
+                            )}
+
+                            {/* Art Direction */}
+                            {(piece.creativeCopy || piece.visualDirection) && (
+                              <div>
+                                <h4 className="text-[10px] font-bold text-zinc-600 uppercase tracking-wider mb-1">Art Direction</h4>
+                                <p className="text-xs text-zinc-400 leading-relaxed">{piece.visualDirection || piece.creativeCopy}</p>
+                              </div>
+                            )}
+
+                            {/* Copy Section */}
+                            <div className="space-y-2 bg-white/[0.01] rounded-lg p-3 border border-white/[0.03]">
+                              <h4 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Copy</h4>
+
+                              {piece.keyMessage && (
+                                <div>
+                                  <span className="text-[9px] text-amber-400/60 uppercase tracking-wider font-semibold">Key Message (on visual)</span>
+                                  <p className="text-sm text-amber-200/90 font-medium bg-amber-500/[0.06] rounded-lg px-2 py-1.5 border border-amber-500/10 mt-0.5">{piece.keyMessage}</p>
+                                </div>
+                              )}
+
+                              <div>
+                                <span className="text-[9px] text-zinc-600 uppercase tracking-wider font-semibold">Caption</span>
+                                <p className="text-sm text-zinc-200 bg-white/[0.02] p-2 rounded-lg border border-white/[0.04] whitespace-pre-wrap leading-relaxed mt-0.5">{piece.caption}</p>
+                              </div>
+
+                              {piece.cta && (
+                                <div>
+                                  <span className="text-[9px] text-emerald-400/60 uppercase tracking-wider font-semibold">CTA</span>
+                                  <p className="text-sm text-emerald-300/90 font-medium bg-emerald-500/[0.06] rounded-lg px-2 py-1.5 border border-emerald-500/10 mt-0.5">{piece.cta}</p>
+                                </div>
+                              )}
+
+                              {piece.hashtags?.length > 0 && (
+                                <div className="flex flex-wrap gap-1 pt-1">
+                                  {piece.hashtags.map((h: string, j: number) => (
+                                    <span key={j} className="text-[10px] text-violet-400/70 bg-violet-500/10 px-1.5 py-0.5 rounded">#{h.replace(/^#/, '')}</span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Visual References */}
+                            {piece.visualRefImages?.length > 0 && (
+                              <div>
+                                <h4 className="text-[10px] font-bold text-zinc-600 uppercase tracking-wider mb-2">Visual References</h4>
+                                <div className="grid grid-cols-4 gap-2">
+                                  {piece.visualRefImages.slice(0, 4).map((ref: any, j: number) => (
+                                    <a key={j} href={ref.sourceUrl || ref.pinterestUrl} target="_blank" rel="noopener noreferrer"
+                                      className="group rounded-lg overflow-hidden border border-white/[0.05] hover:border-white/[0.15] transition-all">
+                                      <div className="aspect-[4/3] bg-zinc-900 relative">
+                                        <img src={ref.imageUrl} alt={ref.description || ''} className="w-full h-full object-cover" loading="lazy"
+                                          onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                          <ExternalLink className="w-4 h-4 text-white" />
+                                        </div>
+                                      </div>
+                                    </a>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {piece.timing && (
+                              <p className="text-[10px] text-zinc-600">Timing: {piece.timing}</p>
+                            )}
+                          </>
                         )}
                       </motion.div>
                     );
@@ -397,7 +661,6 @@ export default function ContentCalendar() {
             )}
           </AnimatePresence>
 
-          {/* Selected day but no pieces */}
           {selectedDay && selectedPieces.length === 0 && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
               className="rounded-2xl bg-white/[0.02] border border-white/[0.05] p-8 text-center">

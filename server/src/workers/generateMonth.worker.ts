@@ -1,5 +1,5 @@
 import { db } from '../db/prisma.js';
-import { generateJson, MODELS } from '../services/gemini.service.js';
+import { aiRouter } from '../services/providers/ai-router.js';
 import { briefService } from '../services/brief.service.js';
 import { buildPlanningPrompt } from '../services/prompt.service.js';
 import { type Job, updateJob } from './queue.js';
@@ -30,12 +30,17 @@ export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: 
     pieceCount: pieceCount || 18,
   });
 
-  // 4. Call Gemini
+  // 4. Call AI via router (Grok primary, Gemini fallback)
   updateJob(job.id, { progress: 40 });
-  const result = await generateJson<{ strategySummary: any; posts: any[] }>(prompt, MODELS.planner);
+  console.log(`[generateMonth] Prompt: ${prompt.length} chars, first 200: ${prompt.slice(0, 200).replace(/\n/g, ' ')}`);
+  const result = await aiRouter.text(
+    { prompt, json: true, temperature: 0.7 },
+    { jobId: job.id, clientId },
+  );
 
-  if (!result.posts || !Array.isArray(result.posts)) {
-    throw new Error('Gemini did not return a valid posts array');
+  const parsed = result.output as { strategySummary?: any; posts?: any[] };
+  if (!parsed.posts || !Array.isArray(parsed.posts)) {
+    throw new Error(`AI (${result.provider}/${result.model}) did not return a valid posts array`);
   }
 
   // 5. Save CalendarMonth
@@ -45,13 +50,13 @@ export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: 
       clientId,
       month,
       status: 'draft',
-      strategy: result.strategySummary || null,
+      strategy: parsed.strategySummary || null,
     },
   });
 
   // 6. Save CalendarPosts
   updateJob(job.id, { progress: 80 });
-  for (const post of result.posts) {
+  for (const post of parsed.posts) {
     await db.calendarPost.create({
       data: {
         calendarMonthId: calendarMonth.id,
@@ -74,5 +79,6 @@ export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: 
   }
 
   updateJob(job.id, { progress: 95 });
+  console.log(`[generateMonth] ${month} for ${client.name}: ${parsed.posts.length} posts via ${result.provider}/${result.model} (${result.latencyMs}ms${result.fallbackUsed ? ', FALLBACK' : ''})`);
   return { calendarMonthId: calendarMonth.id };
 }

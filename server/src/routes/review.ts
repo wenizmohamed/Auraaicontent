@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { db } from '../db/prisma.js';
 import { authGuard } from '../middleware/auth.js';
 import { reviewService } from '../services/review.service.js';
+import { env } from '../config/env.js';
 
 export async function reviewRoutes(app: FastifyInstance) {
 
@@ -16,9 +17,10 @@ export async function reviewRoutes(app: FastifyInstance) {
     if (!calendarMonth) return reply.status(404).send({ error: 'Calendar month not found' });
 
     const link = await reviewService.createLink(clientId, calendarMonth.id, expiresInDays);
+    const reviewUrl = `${env.PREVIEW_URL}/review/${link.token}`;
     return reply.status(201).send({
       token: link.token,
-      url: `/review/${link.token}`,
+      url: reviewUrl,
       expiresAt: link.expiresAt,
     });
   });
