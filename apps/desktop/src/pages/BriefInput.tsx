@@ -693,7 +693,7 @@ export default function BriefInput() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-white">AI Router</p>
-                  <p className="text-[10px] text-zinc-500">Grok primary, Gemini fallback</p>
+                  <p className="text-[10px] text-zinc-500">Server-configured AI routing</p>
                 </div>
               </div>
             </div>

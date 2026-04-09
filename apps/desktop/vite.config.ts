@@ -12,10 +12,12 @@ export default defineConfig(({mode}) => {
     base: isElectron ? './' : '/',
     plugins: [react(), tailwindcss()],
     define: {
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-      'process.env.ANTHROPIC_API_KEY': JSON.stringify(env.ANTHROPIC_API_KEY),
+      // SECURITY: Never inject API keys into the frontend bundle.
+      // All provider calls go through the backend server.
+      'process.env.GEMINI_API_KEY': JSON.stringify(''),
+      'process.env.ANTHROPIC_API_KEY': JSON.stringify(''),
       'process.env.COMFYUI_API_URL': JSON.stringify(comfyUrl),
-      'process.env.COMFYUI_CLOUD_API_KEY': JSON.stringify(env.COMFYUI_CLOUD_API_KEY || ''),
+      'process.env.COMFYUI_CLOUD_API_KEY': JSON.stringify(''),
     },
     resolve: {
       alias: {
