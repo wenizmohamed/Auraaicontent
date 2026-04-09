@@ -1,0 +1,40 @@
+{
+  "timestamp": "2026-04-09T14:39:50Z",
+  "git": {
+    "branch": "v2-migration",
+    "commit": "b51718d"
+  },
+  "keys_match_across_lanes": true,
+  "local_backend": {
+    "url": "http://localhost:8080",
+    "pid": "54284",
+    "process_start": "2026-04-09T14:38:03.888Z",
+    "gemini_fp": "15b49b4edb67",
+    "xai_fp": "72604114b5b7",
+    "routing": "xai/xai",
+    "status": "pass"
+  },
+  "local_web": {
+    "url": "http://localhost:3000",
+    "backend_url": "http://localhost:8080",
+    "pid": "3644",
+    "status": "pass"
+  },
+  "desktop": {
+    "electron_processes": 4,
+    "backend_url": "http://localhost:8080",
+    "status": "pass"
+  },
+  "vps_backend": {
+    "url": "https://srv1494206.hstgr.cloud/api",
+    "process_start": "2026-04-09T11:32:58.199Z",
+    "gemini_fp": "15b49b4edb67",
+    "xai_fp": "72604114b5b7",
+    "status": "pass"
+  },
+  "vps_frontend": {
+    "url": "https://srv1494206.hstgr.cloud",
+    "backend_url": "https://srv1494206.hstgr.cloud/api",
+    "status": "pass"
+  }
+}

@@ -15,6 +15,10 @@ import { knowledgeRoutes } from './routes/knowledge.js';
 import { exportRoutes } from './routes/exports.js';
 import { creativeRoutes } from './routes/creative.js';
 
+import { execSync } from 'child_process';
+
+const GIT_COMMIT = (() => { try { return execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim(); } catch { return 'unknown'; } })();
+
 export async function buildApp() {
   const app = Fastify({ logger: true });
 
@@ -42,6 +46,7 @@ export async function buildApp() {
     };
     return {
       status: 'ok',
+      commit: GIT_COMMIT,
       processStart: PROCESS_START,
       cwd: process.cwd(),
       nodeVersion: process.version,

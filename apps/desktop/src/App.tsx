@@ -152,19 +152,26 @@ function Layout({ children }: { children: React.ReactNode }) {
   );
 }
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+const BUILD_TIME = new Date().toISOString();
+const IS_ELECTRON = !!(window as any).electron?.isDesktop;
+
 function DevBanner() {
   const { serverOnline, authenticated, selectedClientId, authError } = useClients();
   const lastCrash = readJson<any>('radix_last_crash', null);
   const isDev = import.meta.env.DEV;
+  const lane = IS_ELECTRON ? 'desktop' : (window.location.hostname === 'localhost' ? 'local_web' : 'vps');
   if (!isDev) return null;
   return (
     <div className="fixed bottom-0 left-0 right-0 z-[9999] bg-zinc-900/95 border-t border-zinc-800 px-4 py-1.5 flex items-center gap-4 text-[10px] font-mono text-zinc-500">
+      <span className="text-violet-400 font-bold">{lane.toUpperCase()}</span>
       <span className={serverOnline ? 'text-emerald-400' : 'text-red-400'}>{serverOnline ? 'API: ON' : 'API: OFF'}</span>
       <span className={authenticated ? 'text-emerald-400' : 'text-red-400'}>{authenticated ? 'AUTH: OK' : 'AUTH: NO'}</span>
       {authError && <span className="text-red-400">ERR: {authError.slice(0, 40)}</span>}
+      <span className="text-zinc-600">→ {API_URL}</span>
       <span className="text-zinc-600">client: {selectedClientId?.slice(0, 12) || 'none'}</span>
       <span className="text-zinc-600">route: {location.pathname}</span>
-      {lastCrash && <span className="text-orange-400">LAST CRASH: {lastCrash.msg?.slice(0, 50)} ({lastCrash.time})</span>}
+      {lastCrash && <span className="text-orange-400">CRASH: {lastCrash.msg?.slice(0, 40)}</span>}
     </div>
   );
 }
