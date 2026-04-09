@@ -191,6 +191,38 @@ export default function BriefInput() {
     setGenerationProgress('Cancelled.');
   }, []);
 
+  // ─── Shared generate + poll helper ──────────────────────────────
+
+  const generateAndPoll = useCallback(async (
+    clientId: string,
+    month: string,
+    count: number,
+    onProgress?: (msg: string) => void,
+  ): Promise<void> => {
+    onProgress?.(`Generating ${count} content pieces...`);
+    const { jobId } = await calendarApi.generate(clientId, month, count);
+
+    let attempts = 0;
+    while (attempts < 120) {
+      if (cancelledRef.current) throw new Error('Cancelled');
+      await new Promise(r => setTimeout(r, 5000));
+      const job = await jobsApi.get(jobId);
+      const elapsed = Math.round((attempts + 1) * 5);
+      onProgress?.(`Generating... ${job.progress}% (${elapsed}s)`);
+
+      if (job.status === 'completed') {
+        onProgress?.('Done!');
+        navigate(`/calendar?client=${clientId}&month=${encodeURIComponent(month)}`);
+        return;
+      }
+      if (job.status === 'failed') {
+        throw new Error(job.error || 'Generation failed on server');
+      }
+      attempts++;
+    }
+    throw new Error('Generation timed out after 10 minutes');
+  }, [navigate]);
+
   // ─── Generate ────────────────────────────────────────────────────
 
   const handleGenerate = useCallback(async () => {
@@ -221,31 +253,9 @@ export default function BriefInput() {
         approvers: [],
       });
 
-      // 2. Generate via backend (POST → jobId)
-      setGenerationProgress(`Generating ${pieceCount} content pieces...`);
-      const { jobId } = await calendarApi.generate(selectedClientId, monthLabel, pieceCount);
-
-      // 3. Poll job until complete (10 min max, 5s intervals)
-      let attempts = 0;
-      while (attempts < 120) {
-        if (cancelledRef.current) { setIsGenerating(false); return; }
-        await new Promise(r => setTimeout(r, 5000));
-        const job = await jobsApi.get(jobId);
-        const elapsed = Math.round((attempts + 1) * 5);
-        setGenerationProgress(`Generating... ${job.progress}% (${elapsed}s)`);
-
-        if (job.status === 'completed') {
-          setGenerationProgress('Done!');
-          navigate(`/calendar?client=${selectedClientId}&month=${encodeURIComponent(monthLabel)}`);
-          setIsGenerating(false);
-          return;
-        }
-        if (job.status === 'failed') {
-          throw new Error(job.error || 'Generation failed on server');
-        }
-        attempts++;
-      }
-      throw new Error('Generation timed out after 10 minutes');
+      // 2. Generate + poll (shared helper)
+      await generateAndPoll(selectedClientId, monthLabel, pieceCount, setGenerationProgress);
+      setIsGenerating(false);
     } catch (err: any) {
       console.error('Generation failed:', err);
       setGenerationProgress('');
@@ -262,7 +272,7 @@ export default function BriefInput() {
         alert(`Generation failed: ${msg}`);
       }
     }
-  }, [selectedClientId, selectedMonth, campaigns, occasions, selectedPlatforms, pieceCount, toneNotes, navigate, monthOptions]);
+  }, [selectedClientId, selectedMonth, campaigns, occasions, selectedPlatforms, pieceCount, toneNotes, monthOptions, generateAndPoll]);
 
   // ─── Conflict handlers ──────────────────────────────────────────
 
@@ -284,28 +294,12 @@ export default function BriefInput() {
         throw new Error(`Delete failed: ${delErr.message}`);
       }
       setConflictAction('regenerating');
-      let jobId: string;
-      try {
-        const res = await calendarApi.generate(clientId, month, pieceCount);
-        jobId = res.jobId;
-      } catch (genErr: any) {
-        console.error('Regenerate step failed:', genErr);
-        throw new Error(`Regenerate failed: ${genErr.message}`);
-      }
-      let attempts = 0;
-      while (attempts < 120) {
-        await new Promise(r => setTimeout(r, 5000));
-        const job = await jobsApi.get(jobId);
-        if (job.status === 'completed') {
-          setConflict(null);
-          setConflictAction('idle');
-          navigate(`/calendar?client=${clientId}&month=${encodeURIComponent(month)}`);
-          return;
-        }
-        if (job.status === 'failed') throw new Error(job.error || 'Regeneration failed');
-        attempts++;
-      }
-      throw new Error('Regeneration timed out');
+      await generateAndPoll(clientId, month, pieceCount, (msg) => {
+        // Progress shown in conflict modal
+        setGenerationProgress(msg);
+      });
+      setConflict(null);
+      setConflictAction('idle');
     } catch (err: any) {
       console.error('Delete and regenerate failed:', err);
       setConflictAction('idle');

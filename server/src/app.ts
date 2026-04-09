@@ -22,6 +22,20 @@ const GIT_COMMIT = (() => { try { return execSync('git rev-parse --short HEAD', 
 export async function buildApp() {
   const app = Fastify({ logger: true });
 
+  // Tolerate empty JSON body on DELETE — Fastify 5 throws FST_ERR_CTP_EMPTY_JSON_BODY
+  // when Content-Type: application/json is sent with no body.
+  // Using stream-based parser bypasses Fastify's rawBodyParser empty-body check.
+  app.removeContentTypeParser('application/json');
+  app.addContentTypeParser('application/json', function (_req: any, payload: any, done: (err: Error | null, result?: any) => void) {
+    let data = '';
+    payload.on('data', (chunk: any) => { data += chunk.toString(); });
+    payload.on('end', () => {
+      if (!data || data.trim() === '') { done(null, undefined); return; }
+      try { done(null, JSON.parse(data)); } catch (err) { done(err as Error, undefined); }
+    });
+    payload.on('error', (err: Error) => done(err));
+  });
+
   // Plugins
   await app.register(cors, { origin: true, credentials: true, methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'] });
   await app.register(multipart, { limits: { fileSize: 25 * 1024 * 1024 } });

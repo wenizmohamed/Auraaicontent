@@ -8,14 +8,19 @@ const CLOUD_KEY = process.env.COMFYUI_CLOUD_API_KEY || '';
 
 export type ComfyMode = 'local' | 'cloud';
 
-// ─── Check if local ComfyUI is running ──────────────────────────
+// ─── Check if local ComfyUI is running (cached for 30s) ─────────
+
+let _comfyCache: { ok: boolean; ts: number } | null = null;
+const COMFY_CACHE_MS = 30_000;
 
 export async function isComfyUIRunning(): Promise<boolean> {
+  if (_comfyCache && Date.now() - _comfyCache.ts < COMFY_CACHE_MS) return _comfyCache.ok;
   try {
     const res = await fetch(`${LOCAL_URL}/system_stats`, { signal: AbortSignal.timeout(2000) });
+    _comfyCache = { ok: res.ok, ts: Date.now() };
     return res.ok;
   } catch {
-    // Silently fail — ComfyUI is optional, no console spam
+    _comfyCache = { ok: false, ts: Date.now() };
     return false;
   }
 }
