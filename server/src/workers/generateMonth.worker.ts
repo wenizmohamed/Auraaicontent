@@ -4,7 +4,7 @@ import { briefService } from '../services/brief.service.js';
 import { buildPlanningPrompt } from '../services/prompt.service.js';
 import { type Job, updateJob } from './queue.js';
 
-export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: string }> {
+export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: string; provider: string; model: string; latencyMs: number; fallbackUsed: boolean }> {
   const { clientId, month, pieceCount } = job.data;
 
   // 1. Fetch client + brief
@@ -80,5 +80,11 @@ export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: 
 
   updateJob(job.id, { progress: 95 });
   console.log(`[generateMonth] ${month} for ${client.name}: ${parsed.posts.length} posts via ${result.provider}/${result.model} (${result.latencyMs}ms${result.fallbackUsed ? ', FALLBACK' : ''})`);
-  return { calendarMonthId: calendarMonth.id };
+  return {
+    calendarMonthId: calendarMonth.id,
+    provider: result.provider,
+    model: result.model,
+    latencyMs: result.latencyMs,
+    fallbackUsed: result.fallbackUsed,
+  };
 }

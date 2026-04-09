@@ -15,14 +15,23 @@ export function clearAuthToken() {
   localStorage.removeItem('radix_auth_token');
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+async function request<T>(
+  path: string,
+  options: RequestInit = {},
+  config?: { timeoutMs?: number; json?: boolean },
+): Promise<T> {
+  const timeoutMs = config?.timeoutMs ?? 30000;
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    ...(config?.json === false ? {} : { 'Content-Type': 'application/json' }),
     ...(options.headers as any || {}),
   };
   if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
 
-  const res = await fetch(`${API_URL}${path}`, { ...options, headers, signal: options.signal || AbortSignal.timeout(30000) });
+  const res = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers,
+    signal: options.signal || AbortSignal.timeout(timeoutMs),
+  });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error(err.error || `Request failed: ${res.status}`);

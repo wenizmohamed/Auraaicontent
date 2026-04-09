@@ -220,7 +220,7 @@ export default function BriefInput() {
       });
 
       // 2. Generate via backend (POST → jobId)
-      setGenerationProgress(`Generating ${pieceCount} content pieces with Gemini...`);
+      setGenerationProgress(`Generating ${pieceCount} content pieces...`);
       const { jobId } = await calendarApi.generate(selectedClientId, monthLabel, pieceCount);
 
       // 3. Poll job until complete (10 min max, 5s intervals)
@@ -679,7 +679,7 @@ export default function BriefInput() {
               />
             </div>
 
-            {/* AI engine info — Gemini-only, configured on backend */}
+            {/* AI engine info — configured server-side */}
             <div className="rounded-xl border border-white/10 bg-[#111] p-4">
               <div className="mb-3 flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-violet-400" />
@@ -687,13 +687,13 @@ export default function BriefInput() {
                   AI Engine
                 </label>
               </div>
-              <div className="flex items-center gap-3 rounded-lg border border-blue-500/20 bg-blue-500/5 p-3">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10">
-                  <Sparkles className="h-4 w-4 text-blue-400" />
+              <div className="flex items-center gap-3 rounded-lg border border-violet-500/20 bg-violet-500/5 p-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/10">
+                  <Sparkles className="h-4 w-4 text-violet-400" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-white">Gemini</p>
-                  <p className="text-[10px] text-zinc-500">Configured server-side</p>
+                  <p className="text-sm font-medium text-white">AI Router</p>
+                  <p className="text-[10px] text-zinc-500">Grok primary, Gemini fallback</p>
                 </div>
               </div>
             </div>

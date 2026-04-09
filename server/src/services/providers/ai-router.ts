@@ -19,7 +19,8 @@ const PROVIDERS: Record<AiProviderName, AiProvider> = {
 };
 
 function orderedProviders(task: string): AiProvider[] {
-  const primary = PRIMARY[task] || 'xai';
+  const normalizedTask = task === 'image_edit' ? 'image' : task;
+  const primary = PRIMARY[normalizedTask] || 'xai';
   const fallback = primary === 'xai' ? 'gemini' : 'xai';
   return FALLBACK_ENABLED ? [PROVIDERS[primary], PROVIDERS[fallback]] : [PROVIDERS[primary]];
 }

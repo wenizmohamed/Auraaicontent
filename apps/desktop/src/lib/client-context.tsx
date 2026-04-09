@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
-import { clientsApi, authApi, setAuthToken, isServerAvailable, type BackendClient } from './backend-api';
+import { clientsApi, authApi, setAuthToken, clearAuthToken, isServerAvailable, type BackendClient } from './backend-api';
 
 // Internal dev credentials — auto-login on startup
 const DEV_EMAIL = 'mohamed@radixmedia.ae';
@@ -28,19 +28,20 @@ export function ClientProvider({ children }: { children: ReactNode }) {
   const [authError, setAuthError] = useState<string | null>(null);
   const [serverOnline, setServerOnline] = useState(false);
 
-  // Auto-login then fetch clients
+  // Auto-login then fetch clients — uses local variable, not stale React state
   const bootstrap = useCallback(async () => {
     setLoading(true);
     setAuthError(null);
 
     const online = await isServerAvailable();
     setServerOnline(online);
-
     if (!online) {
-      setAuthError('Backend server is not running (http://localhost:8080)');
+      setAuthError('Backend server is not running');
       setLoading(false);
       return;
     }
+
+    let isAuthed = false;
 
     // Try existing token first
     const existingToken = localStorage.getItem('radix_auth_token');
@@ -48,25 +49,27 @@ export function ClientProvider({ children }: { children: ReactNode }) {
       setAuthToken(existingToken);
       try {
         await authApi.me();
+        isAuthed = true;
         setAuthenticated(true);
       } catch {
-        // Token expired — re-login
-        localStorage.removeItem('radix_auth_token');
+        clearAuthToken();
       }
     }
 
-    // Auto-login if not authenticated yet
-    if (!authenticated) {
+    // Auto-login if token was missing or expired
+    if (!isAuthed) {
       try {
         const { token } = await authApi.login(DEV_EMAIL, DEV_PASSWORD);
         setAuthToken(token);
         setAuthenticated(true);
-      } catch (err: any) {
-        // Try register if login fails (first run)
+        isAuthed = true;
+      } catch {
+        // Try register on first run
         try {
           const { token } = await authApi.register(DEV_EMAIL, DEV_PASSWORD, 'Mohamed S.');
           setAuthToken(token);
           setAuthenticated(true);
+          isAuthed = true;
         } catch (regErr: any) {
           setAuthError(`Auth failed: ${regErr.message}`);
           setLoading(false);
@@ -75,20 +78,21 @@ export function ClientProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    // Fetch clients from backend
+    // Fetch clients
     try {
       const data = await clientsApi.list();
       setClients(data);
       if (!selectedClientId && data.length > 0) {
-        setSelectedClientId(data[0].id);
-        localStorage.setItem('radix_selected_client', data[0].id);
+        const first = data[0].id;
+        setSelectedClientId(first);
+        localStorage.setItem('radix_selected_client', first);
       }
     } catch (err: any) {
       setAuthError(`Failed to load clients: ${err.message}`);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedClientId]);
 
   useEffect(() => { bootstrap(); }, []);
 
