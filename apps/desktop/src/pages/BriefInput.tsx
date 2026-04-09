@@ -130,6 +130,8 @@ export default function BriefInput() {
   const [generationProgress, setGenerationProgress] = useState('');
   const [customOccasionName, setCustomOccasionName] = useState('');
   const [customOccasionDate, setCustomOccasionDate] = useState('');
+  const [conflict, setConflict] = useState<{ month: string; clientId: string } | null>(null);
+  const [conflictAction, setConflictAction] = useState<'idle' | 'deleting' | 'regenerating'>('idle');
 
   // ─── Handlers ────────────────────────────────────────────────────
 
@@ -254,41 +256,55 @@ export default function BriefInput() {
       } else if (msg.includes('401') || msg.includes('Unauthorized')) {
         alert('Session expired. Please refresh the page and try again.');
       } else if (msg.includes('409') || msg.includes('already exists')) {
-        const action = window.confirm(
-          `${monthLabel} already has content for this client.\n\nClick OK to delete it and regenerate.\nClick Cancel to open the existing calendar.`
-        );
-        if (action) {
-          // Delete and retry
-          try {
-            await calendarApi.deleteMonth(selectedClientId, monthLabel);
-            setIsGenerating(true);
-            setGenerationProgress('Deleted old month. Regenerating...');
-            const { jobId: retryJob } = await calendarApi.generate(selectedClientId, monthLabel, pieceCount);
-            let retryAttempts = 0;
-            while (retryAttempts < 120) {
-              if (cancelledRef.current) { setIsGenerating(false); return; }
-              await new Promise(r => setTimeout(r, 5000));
-              const job = await jobsApi.get(retryJob);
-              setGenerationProgress(`Regenerating... ${job.progress}%`);
-              if (job.status === 'completed') {
-                navigate(`/calendar?client=${selectedClientId}&month=${encodeURIComponent(monthLabel)}`);
-                setIsGenerating(false);
-                return;
-              }
-              if (job.status === 'failed') throw new Error(job.error || 'Regeneration failed');
-              retryAttempts++;
-            }
-          } catch (retryErr: any) {
-            alert(`Regeneration failed: ${retryErr.message}`);
-          }
-        } else {
-          navigate(`/calendar?client=${selectedClientId}&month=${encodeURIComponent(monthLabel)}`);
-        }
+        setConflict({ month: monthLabel, clientId: selectedClientId });
+        setConflictAction('idle');
       } else {
         alert(`Generation failed: ${msg}`);
       }
     }
   }, [selectedClientId, selectedMonth, campaigns, occasions, selectedPlatforms, pieceCount, toneNotes, navigate, monthOptions]);
+
+  // ─── Conflict handlers ──────────────────────────────────────────
+
+  const handleOpenExisting = () => {
+    if (!conflict) return;
+    setConflict(null);
+    navigate(`/calendar?client=${conflict.clientId}&month=${encodeURIComponent(conflict.month)}`);
+  };
+
+  const handleDeleteAndRegenerate = async () => {
+    if (!conflict) return;
+    const { month, clientId } = conflict;
+    try {
+      setConflictAction('deleting');
+      await calendarApi.deleteMonth(clientId, month);
+      setConflictAction('regenerating');
+      const { jobId } = await calendarApi.generate(clientId, month, pieceCount);
+      let attempts = 0;
+      while (attempts < 120) {
+        await new Promise(r => setTimeout(r, 5000));
+        const job = await jobsApi.get(jobId);
+        if (job.status === 'completed') {
+          setConflict(null);
+          setConflictAction('idle');
+          navigate(`/calendar?client=${clientId}&month=${encodeURIComponent(month)}`);
+          return;
+        }
+        if (job.status === 'failed') throw new Error(job.error || 'Regeneration failed');
+        attempts++;
+      }
+      throw new Error('Regeneration timed out');
+    } catch (err: any) {
+      setConflictAction('idle');
+      setConflict(null);
+      alert(`Failed: ${err.message}`);
+    }
+  };
+
+  const handleChooseAnother = () => {
+    setConflict(null);
+    setConflictAction('idle');
+  };
 
   // ─── Render helpers ──────────────────────────────────────────────
 
@@ -339,6 +355,65 @@ export default function BriefInput() {
               >
                 Stop Generation
               </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Conflict modal — month already exists */}
+      <AnimatePresence>
+        {conflict && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="w-full max-w-md rounded-2xl border border-white/10 bg-[#111] p-8 shadow-2xl"
+            >
+              <div className="mb-6 text-center">
+                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/10">
+                  <CalendarHeart className="h-6 w-6 text-amber-400" />
+                </div>
+                <h3 className="text-lg font-bold text-white">{conflict.month} already exists</h3>
+                <p className="mt-2 text-sm text-zinc-400">
+                  This month already has generated content. What would you like to do?
+                </p>
+              </div>
+
+              {conflictAction !== 'idle' ? (
+                <div className="flex flex-col items-center gap-3 py-4">
+                  <Loader2 className="h-8 w-8 animate-spin text-violet-500" />
+                  <p className="text-sm text-zinc-300">
+                    {conflictAction === 'deleting' ? 'Deleting old content...' : 'Regenerating fresh content...'}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <button
+                    onClick={handleOpenExisting}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-violet-500/30 bg-violet-500/10 px-4 py-3 text-sm font-medium text-violet-300 transition hover:bg-violet-500/20"
+                  >
+                    <CalendarHeart className="h-4 w-4" /> Open Existing Month
+                  </button>
+                  <button
+                    onClick={handleDeleteAndRegenerate}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-medium text-red-300 transition hover:bg-red-500/20"
+                  >
+                    <Sparkles className="h-4 w-4" /> Delete and Regenerate
+                  </button>
+                  <button
+                    onClick={handleChooseAnother}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-zinc-400 transition hover:bg-white/10 hover:text-white"
+                  >
+                    <X className="h-4 w-4" /> Choose Another Month
+                  </button>
+                </div>
+              )}
             </motion.div>
           </motion.div>
         )}
