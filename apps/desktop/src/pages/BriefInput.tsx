@@ -253,8 +253,37 @@ export default function BriefInput() {
         alert('Generation is taking longer than expected. Check the calendar in a few minutes — the server may still be processing.');
       } else if (msg.includes('401') || msg.includes('Unauthorized')) {
         alert('Session expired. Please refresh the page and try again.');
-      } else if (msg.includes('409')) {
-        alert('This month already has content. Delete it first or choose a different month.');
+      } else if (msg.includes('409') || msg.includes('already exists')) {
+        const action = window.confirm(
+          `${monthLabel} already has content for this client.\n\nClick OK to delete it and regenerate.\nClick Cancel to open the existing calendar.`
+        );
+        if (action) {
+          // Delete and retry
+          try {
+            await calendarApi.deleteMonth(selectedClientId, monthLabel);
+            setIsGenerating(true);
+            setGenerationProgress('Deleted old month. Regenerating...');
+            const { jobId: retryJob } = await calendarApi.generate(selectedClientId, monthLabel, pieceCount);
+            let retryAttempts = 0;
+            while (retryAttempts < 120) {
+              if (cancelledRef.current) { setIsGenerating(false); return; }
+              await new Promise(r => setTimeout(r, 5000));
+              const job = await jobsApi.get(retryJob);
+              setGenerationProgress(`Regenerating... ${job.progress}%`);
+              if (job.status === 'completed') {
+                navigate(`/calendar?client=${selectedClientId}&month=${encodeURIComponent(monthLabel)}`);
+                setIsGenerating(false);
+                return;
+              }
+              if (job.status === 'failed') throw new Error(job.error || 'Regeneration failed');
+              retryAttempts++;
+            }
+          } catch (retryErr: any) {
+            alert(`Regeneration failed: ${retryErr.message}`);
+          }
+        } else {
+          navigate(`/calendar?client=${selectedClientId}&month=${encodeURIComponent(monthLabel)}`);
+        }
       } else {
         alert(`Generation failed: ${msg}`);
       }
