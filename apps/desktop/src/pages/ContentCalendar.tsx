@@ -633,24 +633,40 @@ export default function ContentCalendar() {
                               )}
                             </div>
 
-                            {/* Visual References */}
-                            {piece.visualRefImages?.length > 0 && (
+                            {/* Linked Assets (from backend) */}
+                            {piece.assets?.length > 0 && (
                               <div>
-                                <h4 className="text-[10px] font-bold text-zinc-600 uppercase tracking-wider mb-2">Visual References</h4>
+                                <h4 className="text-[10px] font-bold text-zinc-600 uppercase tracking-wider mb-2">Assets</h4>
                                 <div className="grid grid-cols-4 gap-2">
-                                  {piece.visualRefImages.slice(0, 4).map((ref: any, j: number) => (
-                                    <a key={j} href={ref.sourceUrl || ref.pinterestUrl} target="_blank" rel="noopener noreferrer"
-                                      className="group rounded-lg overflow-hidden border border-white/[0.05] hover:border-white/[0.15] transition-all">
-                                      <div className="aspect-[4/3] bg-zinc-900 relative">
-                                        <img src={ref.imageUrl} alt={ref.description || ''} className="w-full h-full object-cover" loading="lazy"
-                                          onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                          <ExternalLink className="w-4 h-4 text-white" />
+                                  {piece.assets.slice(0, 4).map((link: any, j: number) => {
+                                    const a = link.asset || link;
+                                    const src = a.thumbUrl || a.fileUrl;
+                                    return (
+                                      <a key={a.id || j} href={a.fileUrl} target="_blank" rel="noopener noreferrer"
+                                        className="group rounded-lg overflow-hidden border border-white/[0.05] hover:border-white/[0.15] transition-all">
+                                        <div className="aspect-[4/3] bg-zinc-900 relative">
+                                          {a.mimeType?.startsWith('image/') ? (
+                                            <img src={src} alt={a.name || ''} className="w-full h-full object-cover" loading="lazy"
+                                              onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                                          ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-zinc-600 text-[10px]">{a.mimeType || 'file'}</div>
+                                          )}
+                                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                            <ExternalLink className="w-4 h-4 text-white" />
+                                          </div>
                                         </div>
-                                      </div>
-                                    </a>
-                                  ))}
+                                      </a>
+                                    );
+                                  })}
                                 </div>
+                              </div>
+                            )}
+
+                            {/* Fallback: visualDirection / referenceQuery when no assets */}
+                            {(!piece.assets || piece.assets.length === 0) && piece.referenceQuery && (
+                              <div>
+                                <h4 className="text-[10px] font-bold text-zinc-600 uppercase tracking-wider mb-1">Reference Query</h4>
+                                <p className="text-xs text-zinc-500 italic">{piece.referenceQuery}</p>
                               </div>
                             )}
 

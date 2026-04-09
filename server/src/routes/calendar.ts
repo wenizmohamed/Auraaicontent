@@ -43,7 +43,12 @@ export async function calendarRoutes(app: FastifyInstance) {
 
     const calendarMonth = await db.calendarMonth.findFirst({
       where: { clientId, month: decodedMonth },
-      include: { posts: { orderBy: { date: 'asc' } } },
+      include: {
+        posts: {
+          orderBy: { date: 'asc' },
+          include: { assets: { include: { asset: true } } },
+        },
+      },
       orderBy: { createdAt: 'desc' },
     });
 
