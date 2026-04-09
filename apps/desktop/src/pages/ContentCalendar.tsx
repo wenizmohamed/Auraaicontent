@@ -82,6 +82,12 @@ export default function ContentCalendar() {
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved' | 'error'>('idle');
   const [isDirty, setIsDirty] = useState(false);
+  const [statusMsg, setStatusMsg] = useState<{ text: string; type: 'ok' | 'error' | 'info' } | null>(null);
+
+  const showStatus = (text: string, type: 'ok' | 'error' | 'info' = 'ok', ms = 4000) => {
+    setStatusMsg({ text, type });
+    setTimeout(() => setStatusMsg(null), ms);
+  };
 
   // Dirty-state protection via beforeunload (works with all router types)
   useEffect(() => {
@@ -163,7 +169,7 @@ export default function ContentCalendar() {
       setTimeout(() => { setEditingPostId(null); setSaveStatus('idle'); }, 800);
     } catch (err: any) {
       setSaveStatus('error');
-      alert('Save failed: ' + err.message);
+      showStatus('Save failed: ' + err.message, 'error', 6000);
     } finally {
       setSaving(false);
     }
@@ -202,7 +208,7 @@ export default function ContentCalendar() {
       }
       throw new Error('Export timed out');
     } catch (err: any) {
-      alert('Export failed: ' + err.message);
+      showStatus('Export failed: ' + err.message, 'error', 6000);
     } finally {
       setExporting(false);
     }
@@ -213,11 +219,12 @@ export default function ContentCalendar() {
     if (!window.confirm(`Delete ${backendMonth.month} for ${currentClient?.name || 'this client'}? This removes all posts in that month.`)) return;
     try {
       await calendarApi.deleteMonth(urlClient, backendMonth.month);
+      showStatus(`Deleted ${backendMonth.month}. Redirecting to brief...`, 'ok');
       setBackendMonth(null);
       setSelectedDay(null);
-      navigate(`/brief?client=${urlClient}`);
+      setTimeout(() => navigate(`/brief?client=${urlClient}`), 1000);
     } catch (err: any) {
-      alert('Delete failed: ' + err.message);
+      showStatus('Delete failed: ' + err.message, 'error', 6000);
     }
   };
 
@@ -228,7 +235,7 @@ export default function ContentCalendar() {
       setReviewLink(url);
       navigator.clipboard.writeText(url).then(() => { setCopyNotice(true); setTimeout(() => setCopyNotice(false), 2000); });
     } catch (err: any) {
-      alert('Failed to create review link: ' + err.message);
+      showStatus('Failed to create review link: ' + err.message, 'error', 6000);
     }
   };
 
@@ -281,6 +288,20 @@ export default function ContentCalendar() {
   // ─── Render ───────────────────────────────────────────────────
   return (
     <div className="max-w-[1400px] mx-auto space-y-5">
+
+      {/* Status banner */}
+      <AnimatePresence>
+        {statusMsg && (
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+            className={`rounded-xl px-4 py-2.5 text-sm font-medium ${
+              statusMsg.type === 'ok' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+              statusMsg.type === 'error' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
+              'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+            }`}>
+            {statusMsg.text}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
