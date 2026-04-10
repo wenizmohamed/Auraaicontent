@@ -42,7 +42,8 @@ FE=$(curl -sf -o /dev/null -w "%{http_code}" http://localhost:3000 2>/dev/null |
 # Step 3: Desktop
 echo ""
 echo "--- Desktop ---"
-EC=$(tasklist 2>/dev/null | grep -c electron.exe || echo "0")
+EC=$(tasklist 2>/dev/null | grep -c electron.exe 2>/dev/null) || EC=0
+EC=${EC:-0}
 [ "$EC" -gt "0" ] && pass "desktop" "$EC processes" || fail "desktop" "not running"
 
 # Step 4: VPS
@@ -97,26 +98,45 @@ fi
 # Step 7: VPS generate
 echo ""
 echo "--- VPS Generate ---"
+set +e  # Don't die on curl failures during VPS generate
 VT=$(curl -sf -X POST "$VPS/api/auth/login" -H "Content-Type: application/json" \
-  -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}" | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])" 2>/dev/null || echo "")
-if [ -n "$VT" ]; then
-  VC=$(curl -sf "$VPS/api/clients" -H "Authorization: Bearer $VT" | python3 -c "import sys,json; c=json.load(sys.stdin); print(c[0]['id'] if c else '')" 2>/dev/null)
+  -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}" 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])" 2>/dev/null)
+if [ -n "${VT:-}" ]; then
+  # Pick first client whose brief is >= 50% complete — skip empty test clients
+  VC=$(curl -sf "$VPS/api/clients" -H "Authorization: Bearer $VT" 2>/dev/null | VPS="$VPS" VT="$VT" python3 -c "
+import sys, json, os, urllib.request
+clients = json.load(sys.stdin)
+if not clients: print(''); sys.exit(0)
+vps = os.environ['VPS']; vt = os.environ['VT']
+for c in clients:
+    try:
+        req = urllib.request.Request(f\"{vps}/api/clients/{c['id']}/brief/completeness\", headers={'Authorization': f'Bearer {vt}'})
+        comp = json.loads(urllib.request.urlopen(req, timeout=5).read())
+        if comp.get('score', 0) >= 50:
+            print(c['id']); sys.exit(0)
+    except Exception: pass
+print(clients[0]['id'])  # Fallback: use first client even if incomplete
+" 2>/dev/null)
   VM="VPS Smoke $(date +%s)"
-  VJ=$(curl -sf -X POST "$VPS/api/clients/$VC/calendar/generate" -H "Authorization: Bearer $VT" -H "Content-Type: application/json" \
-    -d "{\"month\":\"$VM\",\"pieceCount\":2}" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('jobId',d.get('error','')))" 2>/dev/null)
+  RESP=$(curl -s -X POST "$VPS/api/clients/$VC/calendar/generate" -H "Authorization: Bearer $VT" -H "Content-Type: application/json" \
+    -d "{\"month\":\"$VM\",\"pieceCount\":2}" 2>/dev/null)
+  VJ=$(echo "$RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('jobId',''))" 2>/dev/null)
   if echo "$VJ" | grep -qE "^[0-9a-f-]+$"; then
     for i in $(seq 1 20); do
       sleep 5
-      VS=$(curl -sf "$VPS/api/jobs/$VJ" -H "Authorization: Bearer $VT" | python3 -c "import sys,json; print(json.load(sys.stdin)['status'])" 2>/dev/null || echo "?")
-      if [ "$VS" = "completed" ]; then pass "vps_generate" "completed"; break
-      elif [ "$VS" = "failed" ]; then fail "vps_generate" "failed"; break; fi
+      VS=$(curl -sf "$VPS/api/jobs/$VJ" -H "Authorization: Bearer $VT" 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['status'])" 2>/dev/null)
+      if [ "${VS:-}" = "completed" ]; then pass "vps_generate" "completed"; break
+      elif [ "${VS:-}" = "failed" ]; then fail "vps_generate" "failed"; break; fi
     done
   else
-    fail "vps_generate" "$VJ"
+    # Show real error from response (likely "Brief completeness too low")
+    ERR=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('error','unknown'))" 2>/dev/null || echo "$RESP")
+    fail "vps_generate" "$ERR"
   fi
 else
   fail "vps_backend" "auth"
 fi
+set -e  # Restore strict mode
 
 # Write to DEBUG_LOG.md
 echo ""
