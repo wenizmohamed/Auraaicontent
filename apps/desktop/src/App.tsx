@@ -15,8 +15,6 @@ import { StoreProvider, useStore } from './lib/store';
 import { LayoutDashboard, Calendar, ImagePlus, Image as ImageIcon, Video, Search, UserCircle, ChevronLeft, ChevronRight, FileText, Palette, Layers, Wand2, FolderOpen, Radio, Building2 } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import ContentCalendar from './pages/ContentCalendar';
-import ImageGeneration from './pages/ImageGeneration';
-import ImageEditing from './pages/ImageEditing';
 import VideoAnalysis from './pages/VideoAnalysis';
 import Research from './pages/Research';
 import Profile from './pages/Profile';
