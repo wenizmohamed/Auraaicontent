@@ -4,6 +4,7 @@ import { aiRouter, getAiTelemetry } from '../services/providers/ai-router.js';
 import { createJob, processJob, getJob } from '../workers/queue.js';
 import { storageService } from '../services/storage.service.js';
 import { db } from '../db/prisma.js';
+import { searchPinterest, searchPinterestMulti, fetchPinterestImageBase64 } from '../services/pinterest.service.js';
 import type { Job } from '../workers/queue.js';
 
 export async function creativeRoutes(app: FastifyInstance) {
@@ -99,5 +100,66 @@ export async function creativeRoutes(app: FastifyInstance) {
   // GET /api/creative/telemetry — provider audit log
   app.get('/creative/telemetry', async () => {
     return getAiTelemetry();
+  });
+
+  // GET /api/creative/pinterest/search?q=...&limit=12&bookmark=...
+  // Scrapes Pinterest's public JSON endpoint — no API key required
+  app.get('/creative/pinterest/search', async (request, reply) => {
+    const { q, limit, bookmark } = request.query as { q?: string; limit?: string; bookmark?: string };
+    if (!q) return reply.status(400).send({ error: 'q (query) is required' });
+    try {
+      const lim = limit ? Math.min(parseInt(limit), 25) : 12;
+      const { results, nextBookmark } = await searchPinterest(q, lim, bookmark);
+      return { query: q, count: results.length, results, nextBookmark };
+    } catch (err: any) {
+      return reply.status(502).send({ error: err.message });
+    }
+  });
+
+  // POST /api/creative/pinterest/multi — search multiple queries at once
+  // Body: { queries: ["luxury villa", "dubai skyline"], perQuery: 6, clientId?: string, savePick?: 0 }
+  // If savePick is set, saves that result index as an asset under the client
+  app.post('/creative/pinterest/multi', async (request, reply) => {
+    const { queries, perQuery, clientId, savePick } = request.body as {
+      queries: string[]; perQuery?: number; clientId?: string; savePick?: number;
+    };
+    if (!Array.isArray(queries) || queries.length === 0) {
+      return reply.status(400).send({ error: 'queries array is required' });
+    }
+    try {
+      const results = await searchPinterestMulti(queries, perQuery || 6);
+
+      // Optionally save one as an asset for a client
+      let savedAsset = null;
+      if (clientId && typeof savePick === 'number' && results[savePick]) {
+        const pick = results[savePick];
+        try {
+          const base64 = await fetchPinterestImageBase64(pick.imageUrl);
+          const buf = Buffer.from(base64.split(',')[1], 'base64');
+          const { fileUrl, thumbUrl } = await storageService.saveFile(
+            buf,
+            `pinterest-${pick.id}.jpg`,
+            'image/jpeg',
+          );
+          savedAsset = await db.asset.create({
+            data: {
+              clientId,
+              name: `pinterest-${pick.id}.jpg`,
+              mimeType: 'image/jpeg',
+              fileUrl,
+              thumbUrl,
+              tags: ['pinterest', 'visual-ref'],
+              safeForClient: true,
+            },
+          });
+        } catch (saveErr: any) {
+          console.error('[pinterest] Failed to save asset:', saveErr.message);
+        }
+      }
+
+      return { count: results.length, results, savedAsset };
+    } catch (err: any) {
+      return reply.status(502).send({ error: err.message });
+    }
   });
 }
