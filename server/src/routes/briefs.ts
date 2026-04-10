@@ -16,9 +16,24 @@ export async function briefRoutes(app: FastifyInstance) {
   });
 
   // PUT /api/clients/:clientId/brief — upsert
-  app.put('/clients/:clientId/brief', async (request) => {
+  app.put('/clients/:clientId/brief', async (request, reply) => {
     const { clientId } = request.params as { clientId: string };
-    return briefService.upsert(clientId, request.body);
+    // Validate the client exists FIRST so we return a clear 404 instead of leaking
+    // a Prisma P2003 foreign-key violation as a generic 500.
+    const client = await clientService.getById(clientId);
+    if (!client) {
+      return reply.status(404).send({ error: `Client not found: ${clientId}. The selected client may have been deleted — refresh the Clients page.` });
+    }
+    try {
+      return await briefService.upsert(clientId, request.body);
+    } catch (err: any) {
+      // Defensive: if a race condition deletes the client between the check above
+      // and the upsert, surface the FK violation as a 404 too.
+      if (err?.code === 'P2003') {
+        return reply.status(404).send({ error: `Client ${clientId} no longer exists.` });
+      }
+      throw err;
+    }
   });
 
   // GET /api/clients/:clientId/brief/completeness

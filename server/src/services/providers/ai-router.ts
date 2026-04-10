@@ -94,6 +94,35 @@ export const aiRouter = {
   },
 
   async video(req: VideoRequest, meta?: { jobId?: string; clientId?: string }): Promise<ProviderResult<{ url: string }>> {
+    // Image-to-video requires Gemini — xAI's video() ignores `imageBase64`,
+    // which would silently degrade to text-to-video. Force Gemini when an input
+    // image is present, regardless of AI_VIDEO_PRIMARY.
+    if (req.imageBase64 && req.mimeType) {
+      const forced = async (): Promise<ProviderResult<{ url: string }>> => {
+        const start = Date.now();
+        try {
+          const result = await geminiProvider.video(req);
+          logTelemetry({
+            provider: result.provider, model: result.model, task: 'video',
+            latencyMs: result.latencyMs || (Date.now() - start), fallbackUsed: false,
+            jobId: meta?.jobId, clientId: meta?.clientId,
+            timestamp: new Date().toISOString(),
+          });
+          return result;
+        } catch (err) {
+          const errType = err instanceof Error ? err.message.slice(0, 80) : String(err);
+          logTelemetry({
+            provider: 'gemini', model: 'forced-image-to-video', task: 'video',
+            latencyMs: Date.now() - start, fallbackUsed: false,
+            errorType: errType,
+            jobId: meta?.jobId, clientId: meta?.clientId,
+            timestamp: new Date().toISOString(),
+          });
+          throw err;
+        }
+      };
+      return forced();
+    }
     return routeCall('video', p => p.video(req), meta);
   },
 

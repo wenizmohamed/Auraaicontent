@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { HashRouter, BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { HashRouter, BrowserRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import { ClientProvider, useClients } from './lib/client-context';
 import { readJson } from './lib/safe-storage';
 
@@ -30,6 +30,7 @@ import VisualReferences from './pages/VisualReferences';
 import BriefInput from './pages/BriefInput';
 import ContentReview from './pages/ContentReview';
 import Clients from './pages/Clients';
+import CreativeTools from './pages/CreativeTools';
 
 function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
@@ -43,7 +44,7 @@ function Layout({ children }: { children: React.ReactNode }) {
     { name: 'New Brief', href: '/brief', icon: FileText },
     { name: 'Review', href: '/content-review', icon: Layers },
     { name: 'Calendar', href: '/calendar', icon: Calendar },
-    { name: 'Creative Tools', href: '/image-gen', icon: Wand2 },
+    { name: 'Creative Tools', href: '/creative', icon: Wand2 },
   ];
 
   return (
@@ -152,7 +153,9 @@ function Layout({ children }: { children: React.ReactNode }) {
   );
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+const API_URL: string =
+  (import.meta.env.VITE_API_URL as string | undefined) ??
+  (import.meta.env.DEV ? 'http://localhost:8080' : '');
 const BUILD_TIME = new Date().toISOString();
 const IS_ELECTRON = !!(window as any).electron?.isDesktop;
 
@@ -190,8 +193,12 @@ export default function App() {
             <Route path="/topics" element={<TopicDesk />} />
             <Route path="/textures" element={<DesignTextures />} />
             <Route path="/calendar" element={<ContentCalendar />} />
-            <Route path="/image-gen" element={<ImageGeneration />} />
-            <Route path="/image-edit" element={<ImageEditing />} />
+            <Route path="/creative" element={<CreativeTools />} />
+            {/* Legacy routes redirect to the unified Creative Studio */}
+            <Route path="/image-gen" element={<Navigate to="/creative?tab=text-to-image" replace />} />
+            <Route path="/image-edit" element={<Navigate to="/creative?tab=image-edit" replace />} />
+            <Route path="/text-to-video" element={<Navigate to="/creative?tab=text-to-video" replace />} />
+            <Route path="/image-to-video" element={<Navigate to="/creative?tab=image-to-video" replace />} />
             <Route path="/pieces" element={<ContentPieces />} />
             <Route path="/ai-design" element={<AIDesignGenerator />} />
             <Route path="/references" element={<VisualReferences />} />

@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { Sparkles, Palette, Type, Image, Layout, Copy, Download, Loader2, ChevronRight, Wand2, Layers, Monitor, Smartphone } from 'lucide-react';
-import { generateDesignBrief } from '../lib/gemini';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Sparkles, Palette, Loader2, Copy, AlertCircle, ArrowLeft, RefreshCw } from 'lucide-react';
+import { designApi } from '../lib/backend-api';
+import { useClients } from '../lib/client-context';
 
-interface DesignBrief {
+interface DesignBriefResult {
   visualDirection: string;
   colorPalette: { name: string; hex: string }[];
   typography: { heading: string; body: string; accent: string };
@@ -10,240 +12,255 @@ interface DesignBrief {
   copy: { headline: string; subheadline: string; body: string; cta: string };
   imagePrompts: string[];
   dimensions: { platform: string; size: string }[];
+  provider?: string;
+  latencyMs?: number;
 }
 
-const STATIONS = ['Lebanon', 'Abu Dhabi', 'Investigations', 'Clips'];
-const STATION_STYLES: Record<string, { colors: string[]; mood: string }> = {
-  'Lebanon': { colors: ['#1E3A5F', '#C5A55A', '#FFFFFF'], mood: 'Elegant, Mediterranean, cultural heritage' },
-  'Abu Dhabi': { colors: ['#0A1628', '#D4AF37', '#E8E8E8'], mood: 'Luxurious, modern, Arabian sophistication' },
-  'Investigations': { colors: ['#1A1A2E', '#E94560', '#0F3460'], mood: 'Bold, dramatic, investigative journalism' },
-  'Clips': { colors: ['#FF6B6B', '#4ECDC4', '#1A1A2E'], mood: 'Dynamic, youthful, social-first' },
-};
-
 export default function AIDesignGenerator() {
-  // Guard: client-side AI keys removed for security — needs server-side routing
-  return (
-    <div className="max-w-2xl mx-auto mt-20 text-center">
-      <div className="bg-[#111] border border-white/10 rounded-2xl p-8">
-        <Sparkles className="w-12 h-12 text-amber-400 mx-auto mb-4" />
-        <h2 className="text-2xl font-bold text-white mb-2">AI Design Generator</h2>
-        <p className="text-zinc-400 mb-2">Server-side AI routing in progress.</p>
-        <p className="text-zinc-500 text-sm">This feature will use the backend AI provider router once migration is complete.</p>
-      </div>
-    </div>
-  );
-
-  const [step, setStep] = useState(1);
-  const [station, setStation] = useState('Lebanon');
+  const { selectedClientId, currentClient } = useClients();
+  const [step, setStep] = useState<1 | 2>(1);
   const [topic, setTopic] = useState('');
-  const [context, setContext] = useState('');
-  const [generating, setGenerating] = useState(false);
-  const [brief, setBrief] = useState<DesignBrief | null>(null);
+  const [audience, setAudience] = useState('');
+  const [objective, setObjective] = useState('');
+  const [mood, setMood] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [brief, setBrief] = useState<DesignBriefResult | null>(null);
 
   const handleGenerate = async () => {
     if (!topic.trim()) return;
-    setGenerating(true);
+    setLoading(true);
+    setError('');
+    setBrief(null);
+
     try {
-      const result = await generateDesignBrief(topic, context, station, STATION_STYLES[station]);
-      setBrief(result);
-      setStep(4);
-    } catch (err) {
-      // Fallback mock brief
-      setBrief({
-        visualDirection: `A ${STATION_STYLES[station].mood.toLowerCase()} visual approach featuring bold typography against ${station === 'Abu Dhabi' ? 'gold and dark' : 'rich, vibrant'} backgrounds. The composition should feel premium and editorial.`,
-        colorPalette: STATION_STYLES[station].colors.map((hex, i) => ({ name: ['Primary', 'Secondary', 'Accent'][i] || `Color ${i}`, hex })),
-        typography: { heading: 'Playfair Display', body: 'Inter', accent: 'Space Grotesk' },
-        layoutDescription: 'Asymmetric grid layout with hero image taking 60% of the canvas. Text elements aligned left with generous white space.',
-        copy: { headline: `Discover ${topic}`, subheadline: 'A new perspective on what matters', body: `Explore the latest insights and stories about ${topic}. Curated by the ${station} team.`, cta: 'Learn More →' },
-        imagePrompts: [
-          `Professional editorial photograph related to ${topic}, ${STATION_STYLES[station].mood}, dramatic lighting, magazine quality`,
-          `Abstract texture background, ${STATION_STYLES[station].mood}, dark and sophisticated, 4K resolution`,
-        ],
-        dimensions: [
-          { platform: 'Instagram Post', size: '1080x1080' },
-          { platform: 'Instagram Story', size: '1080x1920' },
-          { platform: 'LinkedIn', size: '1200x627' },
-          { platform: 'X/Twitter', size: '1600x900' },
-          { platform: 'Reel Cover', size: '1080x1920' },
-        ],
+      const out = await designApi.brief({
+        topic: topic.trim(),
+        audience: audience.trim() || undefined,
+        objective: objective.trim() || undefined,
+        mood: mood.trim() || undefined,
+        clientId: selectedClientId || undefined,
       });
-      setStep(4);
+      setBrief(out);
+      setStep(2);
+    } catch (err: any) {
+      setError(err?.message || 'Design generation failed');
     } finally {
-      setGenerating(false);
+      setLoading(false);
     }
   };
 
+  const copyAll = () => {
+    if (!brief) return;
+    const text = JSON.stringify(brief, null, 2);
+    navigator.clipboard.writeText(text);
+  };
+
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-white">AI Design Generator</h1>
-        <p className="text-zinc-500 mt-1">Generate complete design concepts from topics — the magic tab ✨</p>
-      </div>
-
-      {/* Progress Steps */}
-      <div className="flex items-center gap-2 mb-8">
-        {[{ n: 1, label: 'Station' }, { n: 2, label: 'Topic' }, { n: 3, label: 'Generate' }, { n: 4, label: 'Preview' }].map((s, i) => (
-          <div key={s.n} className="flex items-center gap-2">
-            <button onClick={() => s.n <= step && setStep(s.n)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${step >= s.n ? 'bg-violet-500/20 text-violet-400 border border-violet-500/30' : 'text-zinc-600 bg-white/5 border border-white/10'}`}>
-              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${step >= s.n ? 'bg-violet-500 text-white' : 'bg-white/10 text-zinc-500'}`}>{s.n}</span>
-              {s.label}
-            </button>
-            {i < 3 && <ChevronRight className="h-3 w-3 text-zinc-700" />}
+    <div className="max-w-[1100px] mx-auto space-y-6">
+      <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }}>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
+            <Palette className="w-5 h-5 text-amber-400" />
           </div>
-        ))}
-      </div>
+          <div>
+            <h1 className="text-3xl font-black text-white tracking-tight">AI Design Generator</h1>
+            <p className="text-sm text-zinc-500 mt-0.5">Generate a structured design brief — visual direction, palette, typography, copy, prompts.</p>
+          </div>
+        </div>
+      </motion.div>
 
-      {/* Step 1: Station */}
-      {step === 1 && (
-        <div className="grid grid-cols-2 gap-4 max-w-2xl">
-          {STATIONS.map(s => (
-            <button key={s} onClick={() => { setStation(s); setStep(2); }}
-              className={`p-6 rounded-xl border text-left transition-all hover:scale-[1.02] ${station === s ? 'bg-violet-500/10 border-violet-500/30' : 'bg-[#111] border-white/10 hover:border-white/20'}`}>
-              <div className="flex items-center gap-2 mb-3">
-                <div className="flex gap-1">
-                  {STATION_STYLES[s].colors.map((c, i) => (
-                    <div key={i} className="w-4 h-4 rounded-full border border-white/20" style={{ backgroundColor: c }} />
+      <AnimatePresence mode="wait">
+        {step === 1 && (
+          <motion.div key="step1" initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
+            className="bg-[#0c0c0c] border border-white/[0.06] rounded-2xl p-6 space-y-5">
+            <div>
+              <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Topic *</label>
+              <input
+                value={topic}
+                onChange={e => setTopic(e.target.value)}
+                placeholder="e.g. AlfaPay app launch — money transfer"
+                className="w-full mt-2 bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-amber-500/40"
+              />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Audience</label>
+                <input
+                  value={audience}
+                  onChange={e => setAudience(e.target.value)}
+                  placeholder="e.g. White-collar UAE expats"
+                  className="w-full mt-2 bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-amber-500/40"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Objective</label>
+                <input
+                  value={objective}
+                  onChange={e => setObjective(e.target.value)}
+                  placeholder="e.g. Drive app downloads"
+                  className="w-full mt-2 bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-amber-500/40"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Mood</label>
+              <input
+                value={mood}
+                onChange={e => setMood(e.target.value)}
+                placeholder="e.g. Premium, trustworthy, modern"
+                className="w-full mt-2 bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-amber-500/40"
+              />
+            </div>
+            {currentClient && (
+              <p className="text-[10px] text-zinc-600">Brand context will be auto-loaded for {currentClient.name}</p>
+            )}
+            <button
+              onClick={handleGenerate}
+              disabled={loading || !topic.trim()}
+              className="flex items-center gap-2 bg-white text-black px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-zinc-200 disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+              {loading ? 'Generating brief...' : 'Generate Brief'}
+            </button>
+          </motion.div>
+        )}
+
+        {step === 2 && brief && (
+          <motion.div key="step2" initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
+            className="space-y-5">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setStep(1)}
+                className="flex items-center gap-2 text-zinc-400 hover:text-white"
+              >
+                <ArrowLeft className="w-4 h-4" /> Back
+              </button>
+              <button
+                onClick={handleGenerate}
+                disabled={loading}
+                className="flex items-center gap-2 text-amber-400 hover:text-amber-300"
+              >
+                <RefreshCw className="w-4 h-4" /> Regenerate
+              </button>
+              <button
+                onClick={copyAll}
+                className="ml-auto flex items-center gap-2 text-zinc-400 hover:text-white"
+              >
+                <Copy className="w-4 h-4" /> Copy JSON
+              </button>
+              {brief.provider && <span className="text-[10px] text-zinc-700">via {brief.provider}</span>}
+            </div>
+
+            {brief.visualDirection && (
+              <div className="bg-[#0c0c0c] border border-white/[0.06] rounded-2xl p-5">
+                <h3 className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold mb-2">Visual Direction</h3>
+                <p className="text-sm text-zinc-300 leading-relaxed">{brief.visualDirection}</p>
+              </div>
+            )}
+
+            {brief.colorPalette.length > 0 && (
+              <div className="bg-[#0c0c0c] border border-white/[0.06] rounded-2xl p-5">
+                <h3 className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold mb-3">Color Palette</h3>
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+                  {brief.colorPalette.map((c, i) => (
+                    <div key={i} className="text-center">
+                      <div className="aspect-square rounded-xl border border-white/[0.06]" style={{ backgroundColor: c.hex }} />
+                      <p className="text-[10px] text-zinc-300 font-medium mt-1.5">{c.name}</p>
+                      <p className="text-[9px] text-zinc-600 font-mono">{c.hex}</p>
+                    </div>
                   ))}
                 </div>
               </div>
-              <h3 className="text-white font-semibold text-lg">{s}</h3>
-              <p className="text-zinc-500 text-xs mt-1">{STATION_STYLES[s].mood}</p>
-            </button>
-          ))}
-        </div>
-      )}
+            )}
 
-      {/* Step 2: Topic */}
-      {step === 2 && (
-        <div className="max-w-2xl space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-zinc-400 mb-1.5">Topic / Subject</label>
-            <input value={topic} onChange={e => setTopic(e.target.value)} placeholder="e.g. Ramadan Campaign, Q3 Product Launch, Breaking Investigation"
-              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-zinc-600 focus:ring-2 focus:ring-violet-500 focus:border-transparent" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-zinc-400 mb-1.5">Additional Context (optional)</label>
-            <textarea value={context} onChange={e => setContext(e.target.value)} rows={4} placeholder="Target audience, brand guidelines, key messages, specific requirements..."
-              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-zinc-600 focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none" />
-          </div>
-          <div className="flex gap-3">
-            <button onClick={() => setStep(1)} className="px-4 py-2.5 text-zinc-400 hover:text-white transition-colors">Back</button>
-            <button onClick={() => { if (topic.trim()) setStep(3); }}
-              className="flex items-center gap-2 bg-violet-600 text-white px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-violet-500 disabled:opacity-50 transition-colors">
-              Next <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Step 3: Generate */}
-      {step === 3 && (
-        <div className="max-w-2xl">
-          <div className="bg-[#111] border border-white/10 rounded-xl p-6 mb-6">
-            <h3 className="text-white font-semibold mb-3">Generation Summary</h3>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between"><span className="text-zinc-500">Station:</span><span className="text-violet-400 font-medium">{station}</span></div>
-              <div className="flex justify-between"><span className="text-zinc-500">Topic:</span><span className="text-white">{topic}</span></div>
-              <div className="flex justify-between"><span className="text-zinc-500">Style:</span><span className="text-zinc-300">{STATION_STYLES[station].mood}</span></div>
-              <div className="flex gap-2 justify-end mt-2">
-                {STATION_STYLES[station].colors.map((c, i) => (
-                  <div key={i} className="w-6 h-6 rounded-full border border-white/20" style={{ backgroundColor: c }} />
-                ))}
-              </div>
-            </div>
-          </div>
-          <div className="flex gap-3">
-            <button onClick={() => setStep(2)} className="px-4 py-2.5 text-zinc-400 hover:text-white transition-colors">Back</button>
-            <button onClick={handleGenerate} disabled={generating}
-              className="flex items-center gap-2 bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white px-8 py-3 rounded-xl text-sm font-semibold hover:from-violet-500 hover:to-fuchsia-500 disabled:opacity-50 transition-all shadow-lg shadow-violet-500/20">
-              {generating ? <><Loader2 className="h-4 w-4 animate-spin" /> Generating...</> : <><Wand2 className="h-4 w-4" /> Generate Design Brief</>}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Step 4: Preview */}
-      {step === 4 && brief && (
-        <div className="space-y-6 max-w-4xl">
-          {/* Visual Direction */}
-          <div className="bg-[#111] border border-white/10 rounded-xl p-6">
-            <h3 className="text-white font-semibold flex items-center gap-2 mb-3"><Image className="h-4 w-4 text-violet-400" /> Visual Direction</h3>
-            <p className="text-zinc-300 text-sm leading-relaxed">{brief.visualDirection}</p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-6">
-            {/* Color Palette */}
-            <div className="bg-[#111] border border-white/10 rounded-xl p-6">
-              <h3 className="text-white font-semibold flex items-center gap-2 mb-4"><Palette className="h-4 w-4 text-violet-400" /> Color Palette</h3>
-              <div className="space-y-2">
-                {brief.colorPalette.map((c, i) => (
-                  <div key={i} className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg border border-white/10" style={{ backgroundColor: c.hex }} />
-                    <div>
-                      <div className="text-white text-sm font-medium">{c.name}</div>
-                      <div className="text-zinc-500 text-xs font-mono">{c.hex}</div>
-                    </div>
+            <div className="bg-[#0c0c0c] border border-white/[0.06] rounded-2xl p-5">
+              <h3 className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold mb-3">Typography</h3>
+              <div className="grid grid-cols-3 gap-3">
+                {(['heading', 'body', 'accent'] as const).map(k => (
+                  <div key={k}>
+                    <p className="text-[9px] uppercase text-zinc-600 font-bold tracking-wider">{k}</p>
+                    <p className="text-sm text-zinc-300 mt-1">{brief.typography[k]}</p>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Typography */}
-            <div className="bg-[#111] border border-white/10 rounded-xl p-6">
-              <h3 className="text-white font-semibold flex items-center gap-2 mb-4"><Type className="h-4 w-4 text-violet-400" /> Typography</h3>
-              <div className="space-y-3">
-                <div><span className="text-zinc-500 text-xs">Heading:</span><div className="text-white text-lg font-bold">{brief.typography.heading}</div></div>
-                <div><span className="text-zinc-500 text-xs">Body:</span><div className="text-zinc-300">{brief.typography.body}</div></div>
-                <div><span className="text-zinc-500 text-xs">Accent:</span><div className="text-violet-400">{brief.typography.accent}</div></div>
+            {brief.layoutDescription && (
+              <div className="bg-[#0c0c0c] border border-white/[0.06] rounded-2xl p-5">
+                <h3 className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold mb-2">Layout</h3>
+                <p className="text-sm text-zinc-300 leading-relaxed">{brief.layoutDescription}</p>
               </div>
-            </div>
-          </div>
+            )}
 
-          {/* Copy */}
-          <div className="bg-[#111] border border-white/10 rounded-xl p-6">
-            <h3 className="text-white font-semibold flex items-center gap-2 mb-4"><Copy className="h-4 w-4 text-violet-400" /> Copy</h3>
-            <div className="space-y-3">
-              <div className="text-2xl font-bold text-white">{brief.copy.headline}</div>
-              <div className="text-lg text-zinc-400">{brief.copy.subheadline}</div>
-              <div className="text-sm text-zinc-300 leading-relaxed">{brief.copy.body}</div>
-              <div className="inline-block bg-violet-600 text-white px-4 py-2 rounded-lg text-sm font-medium">{brief.copy.cta}</div>
-            </div>
-          </div>
-
-          {/* Dimensions */}
-          <div className="bg-[#111] border border-white/10 rounded-xl p-6">
-            <h3 className="text-white font-semibold flex items-center gap-2 mb-4"><Monitor className="h-4 w-4 text-violet-400" /> Platform Dimensions</h3>
-            <div className="grid grid-cols-5 gap-3">
-              {brief.dimensions.map((d, i) => (
-                <div key={i} className="bg-white/5 rounded-lg p-3 text-center">
-                  <Smartphone className="h-5 w-5 text-zinc-500 mx-auto mb-1" />
-                  <div className="text-xs font-medium text-white">{d.platform}</div>
-                  <div className="text-[10px] text-zinc-500 font-mono">{d.size}</div>
+            <div className="bg-[#0c0c0c] border border-white/[0.06] rounded-2xl p-5 space-y-3">
+              <h3 className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Copy</h3>
+              {brief.copy.headline && (
+                <div>
+                  <p className="text-[9px] text-amber-400/60 uppercase tracking-wider font-semibold">Headline</p>
+                  <p className="text-base text-amber-200/90 font-bold mt-0.5">{brief.copy.headline}</p>
                 </div>
-              ))}
+              )}
+              {brief.copy.subheadline && (
+                <div>
+                  <p className="text-[9px] text-zinc-600 uppercase tracking-wider font-semibold">Subheadline</p>
+                  <p className="text-sm text-zinc-300 mt-0.5">{brief.copy.subheadline}</p>
+                </div>
+              )}
+              {brief.copy.body && (
+                <div>
+                  <p className="text-[9px] text-zinc-600 uppercase tracking-wider font-semibold">Body</p>
+                  <p className="text-sm text-zinc-300 mt-0.5 whitespace-pre-wrap">{brief.copy.body}</p>
+                </div>
+              )}
+              {brief.copy.cta && (
+                <div>
+                  <p className="text-[9px] text-emerald-400/60 uppercase tracking-wider font-semibold">CTA</p>
+                  <p className="text-sm text-emerald-300/90 font-medium mt-0.5">{brief.copy.cta}</p>
+                </div>
+              )}
             </div>
-          </div>
 
-          {/* Image Prompts */}
-          <div className="bg-[#111] border border-white/10 rounded-xl p-6">
-            <h3 className="text-white font-semibold flex items-center gap-2 mb-4"><Sparkles className="h-4 w-4 text-violet-400" /> Image Prompts</h3>
-            <div className="space-y-2">
-              {brief.imagePrompts.map((p, i) => (
-                <div key={i} className="bg-white/5 border border-white/5 rounded-lg p-3 text-sm text-zinc-300">{p}</div>
-              ))}
-            </div>
-          </div>
+            {brief.imagePrompts.length > 0 && (
+              <div className="bg-[#0c0c0c] border border-white/[0.06] rounded-2xl p-5">
+                <h3 className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold mb-3">Image Prompts</h3>
+                <ul className="space-y-2">
+                  {brief.imagePrompts.map((p, i) => (
+                    <li key={i} className="flex gap-2 text-sm text-zinc-300">
+                      <span className="text-amber-400 shrink-0">{i + 1}.</span>
+                      <span>{p}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
-          <div className="flex gap-3">
-            <button onClick={() => { setBrief(null); setStep(1); }}
-              className="px-4 py-2.5 text-zinc-400 hover:text-white transition-colors">Start Over</button>
-            <button className="flex items-center gap-2 bg-violet-600 text-white px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-violet-500 transition-colors">
-              <Download className="h-4 w-4" /> Export Brief
-            </button>
-          </div>
-        </div>
-      )}
+            {brief.dimensions.length > 0 && (
+              <div className="bg-[#0c0c0c] border border-white/[0.06] rounded-2xl p-5">
+                <h3 className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold mb-3">Dimensions</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {brief.dimensions.map((d, i) => (
+                    <div key={i} className="rounded-lg bg-white/[0.02] border border-white/[0.05] px-3 py-2">
+                      <p className="text-xs text-white font-medium">{d.platform}</p>
+                      <p className="text-[10px] text-zinc-500 font-mono">{d.size}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {error && (
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 flex items-start gap-3">
+            <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+            <p className="text-sm text-red-400">{error}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

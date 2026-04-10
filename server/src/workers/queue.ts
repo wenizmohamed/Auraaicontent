@@ -1,7 +1,7 @@
 // Job queue — in-memory for now, BullMQ+Redis in Phase 4
 // This provides the same API surface so the migration to BullMQ is a drop-in swap
 
-const JOB_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes max per job
+const JOB_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes max per job (was 10; bumped for visual ref auto-populate headroom)
 
 export interface Job {
   id: string;

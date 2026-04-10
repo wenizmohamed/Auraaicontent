@@ -16,6 +16,8 @@ interface ClientContextType {
   setSelectedClientId: (id: string) => void;
   fetchClients: () => Promise<void>;
   createClient: (data: { name: string; industry?: string; website?: string }) => Promise<BackendClient>;
+  updateClient: (id: string, data: Partial<BackendClient>) => Promise<BackendClient>;
+  deleteClient: (id: string) => Promise<void>;
 }
 
 const ClientContext = createContext<ClientContextType | undefined>(undefined);
@@ -82,10 +84,25 @@ export function ClientProvider({ children }: { children: ReactNode }) {
     try {
       const data = await clientsApi.list();
       setClients(data);
-      if (!selectedClientId && data.length > 0) {
-        const first = data[0].id;
-        setSelectedClientId(first);
-        localStorage.setItem('radix_selected_client', first);
+
+      // Reconcile persisted selection with the live list:
+      //   - If selectedClientId is missing OR refers to a client that no longer exists,
+      //     drop the stale value and fall back to the first available client.
+      //   - This is the fix for "Save brief failed: Internal Server Error" caused by a
+      //     stale id in localStorage pointing to a deleted client (Prisma P2003).
+      const stillExists = selectedClientId && data.some(c => c.id === selectedClientId);
+      if (!stillExists) {
+        if (selectedClientId) {
+          console.warn(`[client-context] Persisted client ${selectedClientId} no longer exists — falling back`);
+        }
+        if (data.length > 0) {
+          const first = data[0].id;
+          setSelectedClientId(first);
+          localStorage.setItem('radix_selected_client', first);
+        } else {
+          setSelectedClientId(null);
+          localStorage.removeItem('radix_selected_client');
+        }
       }
     } catch (err: any) {
       setAuthError(`Failed to load clients: ${err.message}`);
@@ -114,12 +131,35 @@ export function ClientProvider({ children }: { children: ReactNode }) {
     return client;
   }, []);
 
+  const updateClient = useCallback(async (id: string, data: Partial<BackendClient>) => {
+    // Strip read-only fields the backend rejects
+    const { id: _id, slug: _slug, status: _status, brief: _brief, ...patch } = data as any;
+    const updated = await clientsApi.update(id, patch);
+    setClients(prev => prev.map(c => (c.id === id ? { ...c, ...updated } : c)));
+    return updated;
+  }, []);
+
+  const deleteClient = useCallback(async (id: string) => {
+    await clientsApi.delete(id);
+    setClients(prev => {
+      const next = prev.filter(c => c.id !== id);
+      // If the deleted client was selected, switch to the next one (or clear)
+      if (selectedClientId === id) {
+        const newSelected = next[0]?.id || '';
+        setSelectedClientId(newSelected);
+        if (newSelected) localStorage.setItem('radix_selected_client', newSelected);
+        else localStorage.removeItem('radix_selected_client');
+      }
+      return next;
+    });
+  }, [selectedClientId]);
+
   const currentClient = clients.find(c => c.id === selectedClientId) || null;
 
   return (
     <ClientContext.Provider value={{
       clients, selectedClientId, currentClient, loading, authenticated, authError, serverOnline,
-      setSelectedClientId: handleSelectClient, fetchClients, createClient,
+      setSelectedClientId: handleSelectClient, fetchClients, createClient, updateClient, deleteClient,
     }}>
       {children}
     </ClientContext.Provider>

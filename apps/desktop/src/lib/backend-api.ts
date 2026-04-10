@@ -1,7 +1,13 @@
 // Backend API client — connects desktop frontend to Fastify server
 // Falls back to localStorage when server is unavailable
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+// Resolution order:
+//   1. explicit VITE_API_URL build env (highest priority)
+//   2. dev mode → http://localhost:8080 (vite dev server proxy target)
+//   3. prod mode → '' (relative URL — nginx serves /api/* on the same host)
+const API_URL: string =
+  (import.meta.env.VITE_API_URL as string | undefined) ??
+  (import.meta.env.DEV ? 'http://localhost:8080' : '');
 
 let authToken: string | null = localStorage.getItem('radix_auth_token');
 
@@ -36,8 +42,26 @@ async function request<T>(
     signal: options.signal || AbortSignal.timeout(timeoutMs),
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error || `Request failed: ${res.status}`);
+    const err = await res.json().catch(() => ({}));
+    // Fastify default error shape: { statusCode, error, message }
+    //   - `error` is the generic HTTP status name ("Internal Server Error")
+    //   - `message` is the actionable text
+    // Our routes return { error: "..." } as the actionable text.
+    // Prefer whichever looks more specific.
+    const fastifyMessage = (err as any).message;
+    const ourError = (err as any).error;
+    const isGeneric = (s: any) => typeof s === 'string' && /^(Internal Server Error|Bad Request|Not Found|Unauthorized|Forbidden)$/i.test(s);
+    let detail: string;
+    if (typeof fastifyMessage === 'string' && fastifyMessage.length > 0) {
+      detail = fastifyMessage;
+    } else if (typeof ourError === 'string' && ourError.length > 0 && !isGeneric(ourError)) {
+      detail = ourError;
+    } else if (typeof ourError === 'string' && ourError.length > 0) {
+      detail = ourError;
+    } else {
+      detail = res.statusText || `Request failed: ${res.status}`;
+    }
+    throw new Error(detail);
   }
   return res.json();
 }
@@ -92,12 +116,22 @@ export const briefsApi = {
 export const calendarApi = {
   generate: (clientId: string, month: string, pieceCount = 18) =>
     request<{ jobId: string }>(`/api/clients/${clientId}/calendar/generate`, { method: 'POST', body: JSON.stringify({ month, pieceCount }) }),
+  listMonths: (clientId: string) =>
+    request<{ id: string; month: string; status: string; createdAt: string; postCount: number }[]>(
+      `/api/clients/${clientId}/calendar/months`
+    ),
   getMonth: (clientId: string, month: string) =>
     request<any>(`/api/clients/${clientId}/calendar/${encodeURIComponent(month)}`),
   updatePost: (postId: string, data: any) =>
     request<any>(`/api/calendar-posts/${postId}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteMonth: (clientId: string, month: string) =>
     request<any>(`/api/clients/${clientId}/calendar/${encodeURIComponent(month)}`, { method: 'DELETE' }),
+  backfillVisualRefs: (clientId: string, month: string, count = 6) =>
+    request<{ month: string; postsScanned: number; postsEligible: number; postsBackfilled: number; totalRefsAdded: number; failures: any[] }>(
+      `/api/clients/${clientId}/calendar/${encodeURIComponent(month)}/visual-refs/backfill`,
+      { method: 'POST', body: JSON.stringify({ count }) },
+      { timeoutMs: 240000 },
+    ),
 };
 
 // ─── Jobs ────────────────────────────────────────────────────────
@@ -121,6 +155,121 @@ export const exportsApi = {
   list: (clientId: string) =>
     request<any[]>(`/api/exports/${clientId}`),
   downloadUrl: (fileUrl: string) => `${API_URL}${fileUrl}`,
+};
+
+// ─── Creative ────────────────────────────────────────────────────
+
+export const creativeApi = {
+  generateImage: (data: { prompt: string; aspectRatio?: string; clientId?: string }) =>
+    request<any>('/api/creative/images/generate', { method: 'POST', body: JSON.stringify(data) }, { timeoutMs: 180000 }),
+  editImage: (data: { prompt: string; imageBase64: string; mimeType?: string; aspectRatio?: string; clientId?: string }) =>
+    request<any>('/api/creative/images/edit', { method: 'POST', body: JSON.stringify(data) }, { timeoutMs: 180000 }),
+  generateVideo: (data: { prompt: string; aspectRatio?: string; durationSeconds?: number; resolution?: string; clientId?: string; imageBase64?: string; mimeType?: string }) =>
+    request<{ jobId: string }>('/api/creative/videos/generate', { method: 'POST', body: JSON.stringify(data) }),
+  getJob: (jobId: string) =>
+    request<{ id: string; status: string; progress: number; result?: any; error?: string }>(`/api/creative/jobs/${jobId}`),
+  improvePrompt: (prompt: string, mode?: string) =>
+    request<{ original: string; improved: string; mode: string | null; provider: string; latencyMs: number }>(
+      '/api/creative/prompt/improve',
+      { method: 'POST', body: JSON.stringify({ prompt, mode }) },
+      { timeoutMs: 60000 },
+    ),
+};
+
+// ─── Research ────────────────────────────────────────────────────
+
+export const researchApi = {
+  query: (query: string, depth: 'quick' | 'deep' = 'quick') =>
+    request<{ summary: string; keyPoints: string[]; sources: { title: string; url: string; snippet?: string }[]; provider: string; latencyMs: number }>(
+      '/api/research', { method: 'POST', body: JSON.stringify({ query, depth }) }, { timeoutMs: 120000 }
+    ),
+};
+
+// ─── Assistant ───────────────────────────────────────────────────
+
+export interface ChatMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+}
+
+export const assistantApi = {
+  chat: (messages: ChatMessage[], clientId?: string) =>
+    request<{ message: ChatMessage; provider: string; latencyMs: number }>(
+      '/api/assistant/chat', { method: 'POST', body: JSON.stringify({ messages, clientId }) }, { timeoutMs: 120000 }
+    ),
+};
+
+// ─── Design Brief ────────────────────────────────────────────────
+
+export const designApi = {
+  brief: (data: { topic: string; audience?: string; objective?: string; brandColors?: string[]; mood?: string; clientId?: string }) =>
+    request<any>('/api/design/brief', { method: 'POST', body: JSON.stringify(data) }, { timeoutMs: 120000 }),
+};
+
+// ─── Video Analysis ──────────────────────────────────────────────
+
+export const analyzeApi = {
+  video: (data: { videoUrl: string; prompt?: string; clientId?: string }) =>
+    request<any>('/api/analyze/video', { method: 'POST', body: JSON.stringify(data) }, { timeoutMs: 180000 }),
+};
+
+// ─── Visual References ──────────────────────────────────────────
+
+export interface VisualRef {
+  id: string;
+  postId: string;
+  thumbnailUrl: string;
+  sourceUrl: string;
+  sourceDomain: string;
+  sourceType: 'pinterest' | 'web' | 'manual' | 'placeholder';
+  title?: string;
+  description?: string;
+  pinId?: string;
+  position: number;
+  createdAt: string;
+}
+
+export interface VisualSearchResult {
+  thumbnailUrl: string;
+  sourceUrl: string;
+  sourceDomain: string;
+  sourceType?: 'pinterest' | 'web' | 'manual' | 'placeholder';
+  title?: string;
+  description?: string;
+}
+
+export const visualRefsApi = {
+  list: (postId: string) => request<VisualRef[]>(`/api/calendar-posts/${postId}/visual-refs`),
+  add: (postId: string, data: Partial<VisualRef>) =>
+    request<VisualRef>(`/api/calendar-posts/${postId}/visual-refs`, { method: 'POST', body: JSON.stringify(data) }),
+  update: (refId: string, data: Partial<VisualRef>) =>
+    request<VisualRef>(`/api/visual-refs/${refId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  delete: (refId: string) => request<{ success: boolean }>(`/api/visual-refs/${refId}`, { method: 'DELETE' }),
+  search: (query: string, count = 8) =>
+    request<{ results: VisualSearchResult[]; provider: string }>(`/api/visual-refs/search`, { method: 'POST', body: JSON.stringify({ query, count }) }),
+  autoPopulate: (postId: string, count = 6) =>
+    request<{ added: number; refs: VisualRef[] }>(`/api/calendar-posts/${postId}/visual-refs/auto-populate`, { method: 'POST', body: JSON.stringify({ count }) }),
+};
+
+// ─── Assets (file upload) ────────────────────────────────────────
+
+export const assetsApi = {
+  upload: async (clientId: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    const headers: Record<string, string> = {};
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+    const res = await fetch(`${API_URL}/api/clients/${clientId}/assets/upload`, {
+      method: 'POST',
+      headers,
+      body: form,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: res.statusText }));
+      throw new Error(err.error || `Upload failed: ${res.status}`);
+    }
+    return res.json() as Promise<{ id: string; fileUrl: string; thumbUrl?: string; mimeType: string; name: string }>;
+  },
 };
 
 // ─── Server health check ─────────────────────────────────────────

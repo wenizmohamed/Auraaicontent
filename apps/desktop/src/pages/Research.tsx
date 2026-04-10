@@ -1,195 +1,165 @@
 import { useState } from 'react';
-import Markdown from 'react-markdown';
-import { getGemini } from '../lib/gemini';
-import { Loader2, Search as SearchIcon, ExternalLink, Sparkles, TrendingUp } from 'lucide-react';
-import { useStore } from '../lib/store';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Loader2, Search as SearchIcon, ExternalLink, Sparkles, AlertCircle, FileSearch } from 'lucide-react';
+import { researchApi } from '../lib/backend-api';
+
+interface Source {
+  title: string;
+  url: string;
+  snippet?: string;
+}
 
 export default function Research() {
-  // Guard: client-side AI keys removed for security — needs server-side routing
-  return (
-    <div className="max-w-2xl mx-auto mt-20 text-center">
-      <div className="bg-[#111] border border-white/10 rounded-2xl p-8">
-        <SearchIcon className="w-12 h-12 text-amber-400 mx-auto mb-4" />
-        <h2 className="text-2xl font-bold text-white mb-2">Research</h2>
-        <p className="text-zinc-400 mb-2">Server-side AI routing in progress.</p>
-        <p className="text-zinc-500 text-sm">This feature will use the backend AI provider router once migration is complete.</p>
-      </div>
-    </div>
-  );
-
   const [query, setQuery] = useState('');
-  const [result, setResult] = useState('');
+  const [depth, setDepth] = useState<'quick' | 'deep'>('quick');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [groundingChunks, setGroundingChunks] = useState<any[]>([]);
+  const [summary, setSummary] = useState('');
+  const [keyPoints, setKeyPoints] = useState<string[]>([]);
+  const [sources, setSources] = useState<Source[]>([]);
+  const [provider, setProvider] = useState('');
 
-  const suggestedTopics = [
-    "CBUAE Regulations 2026",
-    "UAE Remittance Trends",
-    "Social Media Best Practices",
-    "Competitor Analysis",
-    "Ramadan Campaign Ideas",
-    "Digital Finance Trends"
-  ];
-
-  const trendingTopics = [
-    { title: "AI in Fintech", category: "Technology", views: "12.5K" },
-    { title: "Crypto Regulations Dubai", category: "Compliance", views: "8.2K" },
-    { title: "Gen Z Banking Habits", category: "Consumer Trends", views: "6.4K" },
-    { title: "Cross-border Payments", category: "Market Analysis", views: "5.1K" }
-  ];
-
-  const handleSearch = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
+  const handleResearch = async () => {
     if (!query.trim()) return;
-    
     setLoading(true);
     setError('');
-    setResult('');
-    setGroundingChunks([]);
-    
+    setSummary('');
+    setKeyPoints([]);
+    setSources([]);
+    setProvider('');
+
     try {
-      const ai = getGemini();
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.1-pro-preview',
-        contents: query,
-        config: {
-          tools: [{ googleSearch: {} }]
-        }
-      });
-      
-      setResult(response.text || '');
-      
-      const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
-      if (chunks) {
-        setGroundingChunks(chunks);
-      }
+      const out = await researchApi.query(query.trim(), depth);
+      setSummary(out.summary || '');
+      setKeyPoints(out.keyPoints || []);
+      setSources(out.sources || []);
+      setProvider(out.provider || '');
     } catch (err: any) {
-      setError(err.message || 'An error occurred');
+      setError(err?.message || 'Research failed');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto pb-12">
-      <div className="relative overflow-hidden rounded-3xl bg-slate-900 p-8 shadow-2xl border border-slate-800">
-        <div className="absolute inset-0 bg-gradient-to-br from-rose-500/10 via-pink-500/5 to-transparent z-0" />
-        <div className="absolute -top-24 -right-24 w-96 h-96 bg-rose-500/20 rounded-full blur-3xl z-0" />
-        
-        <div className="relative z-10 flex items-center gap-6">
-          <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-rose-500 to-pink-500 text-white shadow-lg shadow-rose-500/20">
-            <SearchIcon className="h-8 w-8" />
+    <div className="max-w-[900px] mx-auto space-y-6">
+      <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }}>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
+            <FileSearch className="w-5 h-5 text-amber-400" />
           </div>
           <div>
-            <h1 className="text-3xl font-extrabold text-white tracking-tight mb-2">
-              Research & Search
-            </h1>
-            <p className="text-slate-300 text-lg">
-              Query all available content and get up-to-date information using Google Search Grounding.
-            </p>
+            <h1 className="text-3xl font-black text-white tracking-tight">Research</h1>
+            <p className="text-sm text-zinc-500 mt-0.5">Topic research with summary, key points, and sources via the backend AI router.</p>
           </div>
         </div>
-      </div>
+      </motion.div>
 
-      <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-rose-500 to-pink-500" />
-        <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1 group">
-             <div className="absolute -inset-0.5 bg-gradient-to-r from-rose-500 to-pink-500 rounded-xl blur opacity-0 group-focus-within:opacity-30 transition duration-500"></div>
-            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 z-10">
-              <SearchIcon className="h-5 w-5 text-slate-400" aria-hidden="true" />
-            </div>
-            <input
-              type="text"
-              className="relative block w-full rounded-xl border-0 py-4 pl-12 pr-4 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-200 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-rose-500 sm:text-base transition-all bg-slate-50"
-              placeholder="Ask anything (e.g., What are the latest CBUAE regulations?)"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
+      <div className="bg-[#0c0c0c] border border-white/[0.06] rounded-2xl p-5 space-y-4">
+        <div>
+          <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Topic</label>
+          <input
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleResearch()}
+            placeholder="e.g. UAE remittance market trends 2026"
+            className="w-full mt-2 bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-amber-500/40"
+          />
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setDepth('quick')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                depth === 'quick'
+                  ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                  : 'bg-white/[0.03] text-zinc-500 border-white/[0.06]'
+              }`}
+            >Quick</button>
+            <button
+              onClick={() => setDepth('deep')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                depth === 'deep'
+                  ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                  : 'bg-white/[0.03] text-zinc-500 border-white/[0.06]'
+              }`}
+            >Deep</button>
           </div>
           <button
-            type="submit"
+            onClick={handleResearch}
             disabled={loading || !query.trim()}
-            className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 px-8 py-4 text-base font-bold text-white shadow-lg shadow-rose-500/30 hover:shadow-rose-500/50 hover:-translate-y-0.5 transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600 disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none whitespace-nowrap"
+            className="ml-auto flex items-center gap-2 bg-white text-black px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-zinc-200 disabled:opacity-30 disabled:cursor-not-allowed"
           >
-            {loading ? (
-              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-            ) : (
-              <Sparkles className="mr-2 h-5 w-5" />
-            )}
-            {loading ? 'Searching...' : 'Search'}
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <SearchIcon className="w-4 h-4" />}
+            {loading ? 'Researching...' : 'Research'}
           </button>
-        </form>
-        
-        <div className="mt-6">
-          <p className="text-sm font-medium text-slate-500 mb-3">Suggested Topics</p>
-          <div className="flex flex-wrap gap-2">
-            {suggestedTopics.map((topic, index) => (
-              <button
-                key={index}
-                onClick={() => {
-                  setQuery(topic);
-                  // We don't auto-submit here, but we could by calling handleSearch() 
-                  // However, handleSearch expects an event, so we'd need to modify it slightly.
-                  // For now, just setting the query is fine.
-                }}
-                className="inline-flex items-center px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 text-sm font-medium transition-colors border border-slate-200 hover:border-rose-200"
-              >
-                {topic}
-              </button>
-            ))}
-          </div>
         </div>
       </div>
 
-      {error && (
-        <div className="rounded-2xl bg-red-50 p-6 border border-red-100">
-          <div className="text-sm text-red-700 font-medium">{error}</div>
-        </div>
-      )}
+      <AnimatePresence>
+        {error && (
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 flex items-start gap-3">
+            <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+            <p className="text-sm text-red-400">{error}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {result && (
-        <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 relative overflow-hidden space-y-8">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-rose-500 to-pink-500" />
-          
-          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-rose-500" />
-            Search Results
-          </h2>
-          
-          <div className="prose prose-slate max-w-none prose-headings:font-display prose-headings:tracking-tight prose-a:text-rose-600 hover:prose-a:text-rose-500">
-            <Markdown>{result}</Markdown>
-          </div>
-          
-          {groundingChunks.length > 0 && (
-            <div className="border-t border-slate-100 pt-8 mt-8">
-              <h3 className="text-sm font-bold text-slate-900 mb-4 uppercase tracking-wider">Sources</h3>
-              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {groundingChunks.map((chunk, index) => {
-                  if (chunk.web?.uri) {
-                    return (
-                      <li key={index}>
-                        <a 
-                          href={chunk.web.uri} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="flex items-start p-3 rounded-xl bg-slate-50 hover:bg-rose-50 border border-slate-100 hover:border-rose-200 transition-colors duration-200 group"
-                        >
-                          <ExternalLink className="mr-3 h-5 w-5 text-slate-400 group-hover:text-rose-500 flex-shrink-0 mt-0.5" />
-                          <span className="text-sm font-medium text-slate-700 group-hover:text-rose-700 line-clamp-2">
-                            {chunk.web.title || chunk.web.uri}
-                          </span>
-                        </a>
-                      </li>
-                    );
-                  }
-                  return null;
-                })}
+      {(summary || keyPoints.length > 0 || sources.length > 0) && (
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
+          {summary && (
+            <div className="bg-[#0c0c0c] border border-white/[0.06] rounded-2xl p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <h3 className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Summary</h3>
+                {provider && <span className="ml-auto text-[10px] text-zinc-700">via {provider}</span>}
+              </div>
+              <p className="text-sm text-zinc-300 leading-relaxed">{summary}</p>
+            </div>
+          )}
+
+          {keyPoints.length > 0 && (
+            <div className="bg-[#0c0c0c] border border-white/[0.06] rounded-2xl p-5">
+              <h3 className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold mb-3">Key Points</h3>
+              <ul className="space-y-2">
+                {keyPoints.map((kp, i) => (
+                  <li key={i} className="flex gap-2 text-sm text-zinc-300">
+                    <span className="text-amber-400 shrink-0">•</span>
+                    <span>{kp}</span>
+                  </li>
+                ))}
               </ul>
             </div>
           )}
-        </div>
+
+          {sources.length > 0 && (
+            <div className="bg-[#0c0c0c] border border-white/[0.06] rounded-2xl p-5">
+              <h3 className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold mb-3">Sources</h3>
+              <div className="space-y-2">
+                {sources.map((src, i) => (
+                  <a
+                    key={i}
+                    href={src.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block rounded-xl bg-white/[0.02] border border-white/[0.05] px-4 py-3 hover:border-amber-500/30 hover:bg-white/[0.04] transition-all"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-white truncate">{src.title}</p>
+                        {src.snippet && <p className="text-[11px] text-zinc-500 mt-1 line-clamp-2">{src.snippet}</p>}
+                        <p className="text-[10px] text-amber-400/70 mt-1 truncate">{src.url}</p>
+                      </div>
+                      <ExternalLink className="w-4 h-4 text-zinc-600 shrink-0 mt-0.5" />
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+        </motion.div>
       )}
     </div>
   );

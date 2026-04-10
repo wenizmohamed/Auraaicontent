@@ -1,6 +1,9 @@
 import { GoogleGenAI } from '@google/genai';
+import path from 'path';
+import { promises as fsp } from 'fs';
 import type { AiProvider, AnalysisRequest, ImageRequest, ProviderResult, TextRequest, VideoRequest } from './types.js';
 import { AiProviderError } from './errors.js';
+import { storageService } from '../storage.service.js';
 
 const TIMEOUT = parseInt(process.env.GEMINI_TIMEOUT_MS || '180000', 10);
 
@@ -124,10 +127,28 @@ export const geminiProvider: AiProvider = {
     }
     const file = (operation as any).response?.generatedVideos?.[0]?.video;
     if (!file?.uri) throw new AiProviderError('gemini', 'video', 'No video URI in response');
-    return {
-      provider: 'gemini', model, latencyMs: Date.now() - start, fallbackUsed: false,
-      output: { url: file.uri },
-    };
+
+    // Gemini Veo returns a temporary, auth-required URL like
+    //   https://generativelanguage.googleapis.com/v1beta/files/<id>:download?alt=media
+    // The browser cannot load that directly (401/empty), and the URL expires
+    // shortly after the operation completes. Download it via the SDK NOW (with
+    // the API key embedded in the client) and persist via storageService so the
+    // frontend gets a stable /uploads/... URL it can render with <video src>.
+    const filename = `veo-${Date.now()}.mp4`;
+    const uploadsDir = path.resolve(process.cwd(), 'uploads');
+    await fsp.mkdir(uploadsDir, { recursive: true });
+    const tmpPath = path.join(uploadsDir, `tmp-${filename}`);
+    try {
+      await ai.files.download({ file, downloadPath: tmpPath });
+      const buf = await fsp.readFile(tmpPath);
+      const { fileUrl } = await storageService.saveFile(buf, filename, 'video/mp4');
+      return {
+        provider: 'gemini', model, latencyMs: Date.now() - start, fallbackUsed: false,
+        output: { url: fileUrl },
+      };
+    } finally {
+      await fsp.unlink(tmpPath).catch(() => { /* ignore */ });
+    }
   },
 
   async analysis(req: AnalysisRequest): Promise<ProviderResult<object>> {

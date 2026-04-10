@@ -13,7 +13,20 @@ export type ComfyMode = 'local' | 'cloud';
 let _comfyCache: { ok: boolean; ts: number } | null = null;
 const COMFY_CACHE_MS = 30_000;
 
+// Only worth probing on localhost (dev) — production VPS deploys never have a local
+// ComfyUI behind the Vite proxy, so the probe just produces noisy network errors.
+function isLocalhost(): boolean {
+  if (typeof window === 'undefined') return false;
+  const h = window.location.hostname;
+  return h === 'localhost' || h === '127.0.0.1' || h === '0.0.0.0';
+}
+
 export async function isComfyUIRunning(): Promise<boolean> {
+  // Skip the probe entirely off-localhost (noise reduction on deployed VPS)
+  if (!isLocalhost()) {
+    _comfyCache = { ok: false, ts: Date.now() };
+    return false;
+  }
   if (_comfyCache && Date.now() - _comfyCache.ts < COMFY_CACHE_MS) return _comfyCache.ok;
   try {
     const res = await fetch(`${LOCAL_URL}/system_stats`, { signal: AbortSignal.timeout(2000) });

@@ -4,6 +4,7 @@ import { authGuard } from '../middleware/auth.js';
 import { briefService } from '../services/brief.service.js';
 import { createJob, processJob } from '../workers/queue.js';
 import { generateMonthWorker } from '../workers/generateMonth.worker.js';
+import { visualSearchService } from '../services/visual-search.service.js';
 
 export async function calendarRoutes(app: FastifyInstance) {
 
@@ -36,6 +37,31 @@ export async function calendarRoutes(app: FastifyInstance) {
     return reply.status(202).send({ jobId: job.id });
   });
 
+  // GET /api/clients/:clientId/calendar/months
+  // Returns all months for a client, newest first, with post counts.
+  // Used by Calendar/Review auto-loaders so we don't have to guess month names.
+  app.get('/clients/:clientId/calendar/months', async (request) => {
+    const { clientId } = request.params as { clientId: string };
+    const months = await db.calendarMonth.findMany({
+      where: { clientId },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        month: true,
+        status: true,
+        createdAt: true,
+        _count: { select: { posts: true } },
+      },
+    });
+    return months.map(m => ({
+      id: m.id,
+      month: m.month,
+      status: m.status,
+      createdAt: m.createdAt,
+      postCount: m._count.posts,
+    }));
+  });
+
   // GET /api/clients/:clientId/calendar/:month
   app.get('/clients/:clientId/calendar/:month', async (request, reply) => {
     const { clientId, month } = request.params as { clientId: string; month: string };
@@ -46,7 +72,10 @@ export async function calendarRoutes(app: FastifyInstance) {
       include: {
         posts: {
           orderBy: { date: 'asc' },
-          include: { assets: { include: { asset: true } } },
+          include: {
+            assets: { include: { asset: true } },
+            visualRefs: { orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] },
+          },
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -77,6 +106,73 @@ export async function calendarRoutes(app: FastifyInstance) {
     const updates = request.body as any;
     const { id, calendarMonthId, createdAt, updatedAt, ...data } = updates;
     return db.calendarPost.update({ where: { id: postId }, data });
+  });
+
+  // POST /api/clients/:clientId/calendar/:month/visual-refs/backfill
+  // Auto-populates visual refs for every post in that month that has a referenceQuery and 0 refs.
+  // Safe to call repeatedly — only fills gaps.
+  app.post('/clients/:clientId/calendar/:month/visual-refs/backfill', async (request, reply) => {
+    const { clientId, month } = request.params as { clientId: string; month: string };
+    const decodedMonth = decodeURIComponent(month);
+    const { count } = (request.body as { count?: number }) || {};
+    const perPost = Math.max(1, Math.min(12, count || 6));
+
+    const calMonth = await db.calendarMonth.findFirst({
+      where: { clientId, month: decodedMonth },
+      include: {
+        posts: {
+          select: {
+            id: true,
+            referenceQuery: true,
+            _count: { select: { visualRefs: true } },
+          },
+        },
+      },
+    });
+    if (!calMonth) return reply.status(404).send({ error: 'Calendar month not found' });
+
+    const candidates = calMonth.posts.filter(
+      p => p._count.visualRefs === 0 && p.referenceQuery && p.referenceQuery.trim(),
+    );
+
+    let totalRefsAdded = 0;
+    let postsBackfilled = 0;
+    const failures: { postId: string; error: string }[] = [];
+
+    for (const p of candidates) {
+      try {
+        const { results } = await visualSearchService.search(p.referenceQuery!, perPost);
+        let position = 0;
+        for (const r of results) {
+          await db.postVisualReference.create({
+            data: {
+              postId: p.id,
+              thumbnailUrl: r.thumbnailUrl,
+              sourceUrl: r.sourceUrl,
+              sourceDomain: r.sourceDomain,
+              sourceType: r.sourceType,
+              title: r.title || null,
+              description: r.description || null,
+              pinId: r.pinId || null,
+              position: position++,
+            },
+          });
+          totalRefsAdded++;
+        }
+        postsBackfilled++;
+      } catch (err: any) {
+        failures.push({ postId: p.id, error: err?.message || 'unknown' });
+      }
+    }
+
+    return {
+      month: decodedMonth,
+      postsScanned: calMonth.posts.length,
+      postsEligible: candidates.length,
+      postsBackfilled,
+      totalRefsAdded,
+      failures,
+    };
   });
 
   // POST /api/calendar-posts/:postId/regenerate → { jobId } (stub)

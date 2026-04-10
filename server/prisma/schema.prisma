@@ -147,10 +147,30 @@ model CalendarPost {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  calendarMonth   CalendarMonth       @relation(fields: [calendarMonthId], references: [id], onDelete: Cascade)
+  calendarMonth   CalendarMonth         @relation(fields: [calendarMonthId], references: [id], onDelete: Cascade)
   comments        PostComment[]
   versions        PostVersion[]
   assets          CalendarPostAsset[]
+  visualRefs      PostVisualReference[]
+}
+
+model PostVisualReference {
+  id            String   @id @default(cuid())
+  postId        String
+  thumbnailUrl  String
+  sourceUrl     String
+  sourceDomain  String
+  sourceType    String   @default("web")
+  title         String?
+  description   String?
+  pinId         String?
+  position      Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  post          CalendarPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@index([sourceDomain])
 }
 
 model CalendarPostAsset {

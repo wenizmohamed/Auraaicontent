@@ -1,11 +1,11 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { Calendar as CalendarIcon, X, ExternalLink, ChevronLeft, ChevronRight, Instagram, Linkedin, Twitter, Facebook, Video, Sparkles, FileText, ArrowRight, Share2, Loader2, Copy, Download, Edit3, Check, Save, Trash2 } from 'lucide-react';
+import { Calendar as CalendarIcon, X, ExternalLink, ChevronLeft, ChevronRight, Instagram, Linkedin, Twitter, Facebook, Video, Sparkles, FileText, ArrowRight, Share2, Loader2, Copy, Download, Edit3, Check, Save, Trash2, Building2, ChevronDown, ImagePlus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useStore } from '../lib/store';
 import { validateCaption } from '../lib/platform-limits';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { useClients } from '../lib/client-context';
-import { calendarApi, reviewApi, exportsApi, jobsApi } from '../lib/backend-api';
+import { calendarApi, reviewApi, exportsApi, jobsApi, visualRefsApi } from '../lib/backend-api';
+import VisualRefGrid from '../components/VisualRefGrid';
 
 const getPlatformIcon = (platform: string) => {
   const p = platform.toLowerCase();
@@ -61,10 +61,9 @@ const EDITABLE_FIELDS = [
 ] as const;
 
 export default function ContentCalendar() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { selectedClientId, currentClient } = useClients();
-  const { contentBriefs } = useStore();
+  const { clients, selectedClientId, currentClient, setSelectedClientId } = useClients();
 
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [platformFilter, setPlatformFilter] = useState('All');
@@ -97,20 +96,90 @@ export default function ContentCalendar() {
     return () => window.removeEventListener('beforeunload', handler);
   }, [isDirty]);
 
+  // ─── Hard client filter — selectedClientId is the only source of truth ─────
+  // URL ?client= and ?month= are display-state only; they get rewritten when
+  // the global selected client changes so other pages stay in sync.
   const urlMonth = searchParams.get('month');
-  const urlClient = searchParams.get('client') || selectedClientId;
+  const urlClient = searchParams.get('client');
+  // Always use the global selected client; if URL has a different client, the
+  // global client wins and we rewrite the URL.
+  const activeClientId = selectedClientId || '';
 
-  const fetchMonth = useCallback(() => {
-    if (urlClient && urlMonth) {
-      setLoadingBackend(true);
-      calendarApi.getMonth(urlClient, decodeURIComponent(urlMonth))
-        .then(setBackendMonth)
-        .catch(() => setBackendMonth(null))
-        .finally(() => setLoadingBackend(false));
+  // Reset stale per-month state when the active client changes
+  const [autoLoadAttempted, setAutoLoadAttempted] = useState(false);
+  useEffect(() => {
+    if (urlClient && urlClient !== activeClientId) {
+      // URL still references old client — rewrite URL and clear stale month
+      setBackendMonth(null);
+      setSelectedDay(null);
+      setEditingPostId(null);
+      setEditDraft({});
+      setIsDirty(false);
+      setAutoLoadAttempted(false);
+      const next = new URLSearchParams(searchParams);
+      next.delete('month');
+      if (activeClientId) next.set('client', activeClientId);
+      else next.delete('client');
+      setSearchParams(next, { replace: true });
     }
-  }, [urlClient, urlMonth]);
+  }, [activeClientId, urlClient]);
+
+  const fetchMonth = useCallback(async () => {
+    if (!activeClientId) {
+      setBackendMonth(null);
+      return;
+    }
+    if (urlMonth) {
+      // Explicit month requested
+      setLoadingBackend(true);
+      try {
+        const data = await calendarApi.getMonth(activeClientId, decodeURIComponent(urlMonth));
+        setBackendMonth(data);
+      } catch {
+        setBackendMonth(null);
+      } finally {
+        setLoadingBackend(false);
+      }
+      return;
+    }
+    // No explicit month — fetch the list of all months for this client and pick the most recent.
+    // This works regardless of how months are named (timestamp-named, freeform, calendar-style).
+    if (!autoLoadAttempted) {
+      setAutoLoadAttempted(true);
+      setLoadingBackend(true);
+      try {
+        const months = await calendarApi.listMonths(activeClientId);
+        if (months.length > 0) {
+          const latest = months[0].month;
+          const data = await calendarApi.getMonth(activeClientId, latest);
+          setBackendMonth(data);
+          const next = new URLSearchParams(searchParams);
+          next.set('client', activeClientId);
+          next.set('month', latest);
+          setSearchParams(next, { replace: true });
+        }
+      } catch { /* ignore — empty calendar is the same UX */ }
+      finally { setLoadingBackend(false); }
+    }
+  }, [activeClientId, urlMonth, autoLoadAttempted, searchParams]);
 
   useEffect(() => { fetchMonth(); }, [fetchMonth]);
+
+  // When the user picks a client via the in-page selector
+  const handleClientPick = (id: string) => {
+    if (!id || id === activeClientId) return;
+    setSelectedClientId(id);
+    setBackendMonth(null);
+    setSelectedDay(null);
+    setEditingPostId(null);
+    setEditDraft({});
+    setIsDirty(false);
+    setAutoLoadAttempted(false);
+    const next = new URLSearchParams(searchParams);
+    next.set('client', id);
+    next.delete('month');
+    setSearchParams(next, { replace: true });
+  };
 
   // ─── Edit handlers ─────────────────────────────────────────────
   const startEdit = (post: any) => {
@@ -214,6 +283,25 @@ export default function ContentCalendar() {
     }
   };
 
+  const [backfilling, setBackfilling] = useState(false);
+  const handleBackfillRefs = async () => {
+    if (!activeClientId || !backendMonth?.month || backfilling) return;
+    setBackfilling(true);
+    try {
+      const out = await calendarApi.backfillVisualRefs(activeClientId, backendMonth.month, 6);
+      const msg = out.totalRefsAdded > 0
+        ? `Added ${out.totalRefsAdded} visual refs across ${out.postsBackfilled}/${out.postsEligible} posts`
+        : `No posts needed backfill (${out.postsScanned} scanned)`;
+      showStatus(msg, 'ok');
+      // Re-fetch the month so the new refs render
+      fetchMonth();
+    } catch (err: any) {
+      showStatus('Backfill failed: ' + (err?.message || 'unknown'), 'error', 6000);
+    } finally {
+      setBackfilling(false);
+    }
+  };
+
   const handleDeleteMonth = async () => {
     if (!urlClient || !backendMonth?.month) return;
     if (!window.confirm(`Delete ${backendMonth.month} for ${currentClient?.name || 'this client'}? This removes all posts in that month.`)) return;
@@ -246,18 +334,14 @@ export default function ContentCalendar() {
   const daysInMonth = new Date(displayDate.getFullYear(), displayDate.getMonth() + 1, 0).getDate();
   const firstDayOffset = new Date(displayDate.getFullYear(), displayDate.getMonth(), 1).getDay();
 
+  // Hard-filter: ONLY render the active client's backend posts.
+  // No localStorage fallback — that was the source of cross-client bleed.
   const allPieces = useMemo(() => {
     if (backendMonth?.posts?.length) {
       return backendMonth.posts.map((p: any) => ({ ...p, suggestedDate: p.date }));
     }
-    const pieces: any[] = [];
-    for (const brief of contentBriefs || []) {
-      for (const piece of brief.pieces || []) {
-        pieces.push({ ...piece, briefMonth: brief.month, clientId: brief.clientId });
-      }
-    }
-    return pieces;
-  }, [backendMonth, contentBriefs]);
+    return [];
+  }, [backendMonth]);
 
   const dayPieces = useMemo(() => {
     const map: Record<number, any[]> = {};
@@ -305,14 +389,33 @@ export default function ContentCalendar() {
 
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-        className="flex items-start justify-between">
+        className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-3xl font-black text-white tracking-tight">Content Calendar</h1>
-          <p className="text-sm text-zinc-500 mt-1">
-            {loadingBackend ? 'Loading from server...' :
-              backendMonth ? `${currentClient?.name || 'Client'} — ${backendMonth.month} — ${totalPieces} posts (${backendMonth.status})` :
-              totalPieces > 0 ? `${totalPieces} content pieces` : 'No content yet — create a brief first'}
-          </p>
+          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+            {/* Client selector — drives the entire page */}
+            <div className="relative">
+              <select
+                value={activeClientId}
+                onChange={e => handleClientPick(e.target.value)}
+                className="appearance-none rounded-lg bg-violet-500/15 border border-violet-500/30 pl-8 pr-8 py-1.5 text-xs font-semibold text-violet-300 outline-none cursor-pointer hover:bg-violet-500/20"
+              >
+                {clients.length === 0 && <option value="">No clients</option>}
+                {clients.map(c => (
+                  <option key={c.id} value={c.id} className="bg-zinc-900 text-white">{c.name}</option>
+                ))}
+              </select>
+              <Building2 className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-violet-400" />
+              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-violet-400" />
+            </div>
+            <span className="text-xs text-zinc-600">·</span>
+            <p className="text-xs text-zinc-500">
+              {loadingBackend ? 'Loading from server...' :
+                backendMonth ? `${backendMonth.month} — ${totalPieces} posts (${backendMonth.status})` :
+                activeClientId ? 'No content yet — create a brief first' :
+                'Pick a client to load their calendar'}
+            </p>
+          </div>
         </div>
         {backendMonth && (
           <div className="flex items-center gap-2">
@@ -335,6 +438,11 @@ export default function ContentCalendar() {
             <button onClick={handleCreateReviewLink}
               className="flex items-center gap-2 bg-white/[0.06] border border-white/[0.1] text-zinc-300 px-4 py-2 rounded-xl text-sm font-medium hover:bg-white/[0.1] cursor-pointer">
               <Share2 className="w-4 h-4" /> Share for Review
+            </button>
+            <button onClick={handleBackfillRefs} disabled={backfilling}
+              className="flex items-center gap-2 bg-violet-500/10 border border-violet-500/20 text-violet-300 px-4 py-2 rounded-xl text-sm font-medium hover:bg-violet-500/20 cursor-pointer disabled:opacity-50">
+              {backfilling ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImagePlus className="w-4 h-4" />}
+              {backfilling ? 'Backfilling...' : 'Backfill Refs'}
             </button>
             <button onClick={handleDeleteMonth}
               className="flex items-center gap-2 bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-2 rounded-xl text-sm font-medium hover:bg-red-500/20 cursor-pointer">
@@ -654,42 +762,20 @@ export default function ContentCalendar() {
                               )}
                             </div>
 
-                            {/* Linked Assets (from backend) */}
-                            {piece.assets?.length > 0 && (
-                              <div>
-                                <h4 className="text-[10px] font-bold text-zinc-600 uppercase tracking-wider mb-2">Assets</h4>
-                                <div className="grid grid-cols-4 gap-2">
-                                  {piece.assets.slice(0, 4).map((link: any, j: number) => {
-                                    const a = link.asset || link;
-                                    const src = a.thumbUrl || a.fileUrl;
-                                    return (
-                                      <a key={a.id || j} href={a.fileUrl} target="_blank" rel="noopener noreferrer"
-                                        className="group rounded-lg overflow-hidden border border-white/[0.05] hover:border-white/[0.15] transition-all">
-                                        <div className="aspect-[4/3] bg-zinc-900 relative">
-                                          {a.mimeType?.startsWith('image/') ? (
-                                            <img src={src} alt={a.name || ''} className="w-full h-full object-cover" loading="lazy"
-                                              onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                                          ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-zinc-600 text-[10px]">{a.mimeType || 'file'}</div>
-                                          )}
-                                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                            <ExternalLink className="w-4 h-4 text-white" />
-                                          </div>
-                                        </div>
-                                      </a>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
+                            {/* Visual references — external refs preferred, internal assets fallback */}
+                            <VisualRefGrid
+                              post={piece}
+                              onSearchClick={async (q) => {
+                                try {
+                                  await visualRefsApi.autoPopulate(piece.id, 6);
+                                  showStatus(`Added inspiration refs for "${q.slice(0, 40)}"`, 'ok');
+                                  fetchMonth();
+                                } catch (err: any) {
+                                  showStatus('Auto-populate failed: ' + err.message, 'error', 6000);
+                                }
+                              }}
+                            />
 
-                            {/* Fallback: visualDirection / referenceQuery when no assets */}
-                            {(!piece.assets || piece.assets.length === 0) && piece.referenceQuery && (
-                              <div>
-                                <h4 className="text-[10px] font-bold text-zinc-600 uppercase tracking-wider mb-1">Reference Query</h4>
-                                <p className="text-xs text-zinc-500 italic">{piece.referenceQuery}</p>
-                              </div>
-                            )}
 
                             {piece.timing && (
                               <p className="text-[10px] text-zinc-600">Timing: {piece.timing}</p>

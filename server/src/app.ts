@@ -14,6 +14,11 @@ import { assetRoutes } from './routes/assets.js';
 import { knowledgeRoutes } from './routes/knowledge.js';
 import { exportRoutes } from './routes/exports.js';
 import { creativeRoutes } from './routes/creative.js';
+import { researchRoutes } from './routes/research.js';
+import { assistantRoutes } from './routes/assistant.js';
+import { designRoutes } from './routes/design.js';
+import { analyzeRoutes } from './routes/analyze.js';
+import { visualRefRoutes } from './routes/visualRefs.js';
 
 import { execSync } from 'child_process';
 
@@ -94,6 +99,11 @@ export async function buildApp() {
   await app.register(knowledgeRoutes, { prefix: '/api' });
   await app.register(exportRoutes, { prefix: '/api' });
   await app.register(creativeRoutes, { prefix: '/api' });
+  await app.register(researchRoutes, { prefix: '/api' });
+  await app.register(assistantRoutes, { prefix: '/api' });
+  await app.register(designRoutes, { prefix: '/api' });
+  await app.register(analyzeRoutes, { prefix: '/api' });
+  await app.register(visualRefRoutes, { prefix: '/api' });
 
   return app;
 }

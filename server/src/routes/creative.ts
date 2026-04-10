@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { authGuard } from '../middleware/auth.js';
 import { aiRouter, getAiTelemetry } from '../services/providers/ai-router.js';
-import { createJob, processJob, getJob } from '../workers/queue.js';
+import { createJob, processJob, getJob, updateJob } from '../workers/queue.js';
 import { storageService } from '../services/storage.service.js';
 import { db } from '../db/prisma.js';
 import { searchPinterest, searchPinterestMulti, fetchPinterestImageBase64 } from '../services/pinterest.service.js';
@@ -69,21 +69,54 @@ export async function creativeRoutes(app: FastifyInstance) {
   });
 
   // POST /api/creative/videos/generate — async via job queue
+  // Supports both text-to-video AND image-to-video (when imageBase64 is provided).
   app.post('/creative/videos/generate', async (request, reply) => {
-    const { prompt, aspectRatio, durationSeconds, resolution, clientId } = request.body as any;
+    const { prompt, aspectRatio, durationSeconds, resolution, clientId, imageBase64, mimeType } =
+      request.body as any;
     if (!prompt) return reply.status(400).send({ error: 'prompt is required' });
 
-    const job = createJob('creative-video', { prompt, aspectRatio, durationSeconds, resolution, clientId });
+    // Both Gemini Veo and xAI grok-imagine-video only accept 16:9 and 9:16.
+    // Reject unsupported ratios upfront with a clear message instead of letting
+    // the upstream provider's raw JSON error leak through.
+    const allowedAspects = ['16:9', '9:16'];
+    if (aspectRatio && !allowedAspects.includes(aspectRatio)) {
+      return reply.status(400).send({
+        error: `Video generation only supports aspect ratios ${allowedAspects.join(' and ')}. Got "${aspectRatio}". Switch to 16:9 or 9:16.`,
+      });
+    }
+
+    const job = createJob('creative-video', {
+      prompt, aspectRatio, durationSeconds, resolution, clientId, imageBase64, mimeType,
+    });
     processJob(job.id, async (j: Job) => {
-      const result = await aiRouter.video(
-        { prompt: j.data.prompt, aspectRatio: j.data.aspectRatio, durationSeconds: j.data.durationSeconds, resolution: j.data.resolution },
-        { jobId: j.id, clientId: j.data.clientId },
-      );
-      return {
-        provider: result.provider, model: result.model,
-        latencyMs: result.latencyMs, fallbackUsed: result.fallbackUsed,
-        url: result.output.url,
-      };
+      // Bump progress every 3 seconds while the long Gemini Veo call runs.
+      // Without this the user sees "5%" frozen for ~75 seconds and assumes the job is broken.
+      // Caps at 90% so the final jump to 100% is the actual completion.
+      let p = 10;
+      const ticker = setInterval(() => {
+        p = Math.min(p + 5, 90);
+        updateJob(j.id, { progress: p });
+      }, 3000);
+      try {
+        const result = await aiRouter.video(
+          {
+            prompt: j.data.prompt,
+            aspectRatio: j.data.aspectRatio,
+            durationSeconds: j.data.durationSeconds,
+            resolution: j.data.resolution,
+            imageBase64: j.data.imageBase64,
+            mimeType: j.data.mimeType,
+          },
+          { jobId: j.id, clientId: j.data.clientId },
+        );
+        return {
+          provider: result.provider, model: result.model,
+          latencyMs: result.latencyMs, fallbackUsed: result.fallbackUsed,
+          url: result.output.url,
+        };
+      } finally {
+        clearInterval(ticker);
+      }
     });
 
     return reply.status(202).send({ jobId: job.id });
@@ -102,8 +135,61 @@ export async function creativeRoutes(app: FastifyInstance) {
     return getAiTelemetry();
   });
 
+  // POST /api/creative/prompt/improve
+  // Magic-pen prompt rewriter for the 4 primary creative modes.
+  // Body: { prompt: string, mode?: 'text-to-image'|'image-edit'|'text-to-video'|'image-to-video' }
+  app.post('/creative/prompt/improve', async (request, reply) => {
+    const { prompt, mode } = (request.body as { prompt?: string; mode?: string }) || {};
+    if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
+      return reply.status(400).send({ error: 'prompt is required' });
+    }
+
+    const modeHints: Record<string, string> = {
+      'text-to-image': 'a single still image',
+      'image-edit': 'an edit applied to an existing image',
+      'text-to-video': 'a short video clip generated from scratch',
+      'image-to-video': 'a short video animated from a starting still image',
+    };
+    const targetHint = modeHints[mode || ''] || 'a creative output';
+
+    const improvePrompt = [
+      `You are a senior creative director. Rewrite the user's raw prompt into a stronger, more vivid prompt for ${targetHint}.`,
+      ``,
+      `Rules:`,
+      `- Keep the user's core intent and subject.`,
+      `- Add specific visual details: lighting, composition, mood, color palette, camera angle, style references where relevant.`,
+      `- Use present tense, concrete nouns, evocative adjectives.`,
+      `- 1-3 sentences, no preamble, no quotes, no markdown.`,
+      `- Return ONLY the improved prompt as plain text.`,
+      ``,
+      `User prompt:`,
+      `"${prompt.trim()}"`,
+      ``,
+      `Improved prompt:`,
+    ].join('\n');
+
+    try {
+      const result = await aiRouter.text({ prompt: improvePrompt, temperature: 0.6 });
+      const improved = (typeof result.output === 'string' ? result.output : JSON.stringify(result.output))
+        .trim()
+        .replace(/^["']+|["']+$/g, '')   // strip wrap quotes if model added them
+        .replace(/^Improved prompt:\s*/i, '');
+      return {
+        original: prompt,
+        improved,
+        mode: mode || null,
+        provider: result.provider,
+        latencyMs: result.latencyMs,
+      };
+    } catch (err: any) {
+      return reply.status(502).send({ error: err?.message || 'Prompt improver failed' });
+    }
+  });
+
+  // ─── Pinterest scraper (no API key) ─────────────────────────────
+  // Mirrors local Claude commit bb6ae31 — public JSON endpoint, browser-shaped headers.
+
   // GET /api/creative/pinterest/search?q=...&limit=12&bookmark=...
-  // Scrapes Pinterest's public JSON endpoint — no API key required
   app.get('/creative/pinterest/search', async (request, reply) => {
     const { q, limit, bookmark } = request.query as { q?: string; limit?: string; bookmark?: string };
     if (!q) return reply.status(400).send({ error: 'q (query) is required' });
@@ -116,9 +202,9 @@ export async function creativeRoutes(app: FastifyInstance) {
     }
   });
 
-  // POST /api/creative/pinterest/multi — search multiple queries at once
-  // Body: { queries: ["luxury villa", "dubai skyline"], perQuery: 6, clientId?: string, savePick?: 0 }
-  // If savePick is set, saves that result index as an asset under the client
+  // POST /api/creative/pinterest/multi
+  // Body: { queries: ["luxury villa","dubai"], perQuery: 6, clientId?: string, savePick?: number }
+  // If savePick is set, downloads that result and saves it as an Asset under clientId.
   app.post('/creative/pinterest/multi', async (request, reply) => {
     const { queries, perQuery, clientId, savePick } = request.body as {
       queries: string[]; perQuery?: number; clientId?: string; savePick?: number;
@@ -129,13 +215,13 @@ export async function creativeRoutes(app: FastifyInstance) {
     try {
       const results = await searchPinterestMulti(queries, perQuery || 6);
 
-      // Optionally save one as an asset for a client
       let savedAsset = null;
       if (clientId && typeof savePick === 'number' && results[savePick]) {
         const pick = results[savePick];
         try {
-          const base64 = await fetchPinterestImageBase64(pick.imageUrl);
-          const buf = Buffer.from(base64.split(',')[1], 'base64');
+          const dataUrl = await fetchPinterestImageBase64(pick.imageUrl);
+          const base64 = dataUrl.split(',')[1] || '';
+          const buf = Buffer.from(base64, 'base64');
           const { fileUrl, thumbUrl } = await storageService.saveFile(
             buf,
             `pinterest-${pick.id}.jpg`,

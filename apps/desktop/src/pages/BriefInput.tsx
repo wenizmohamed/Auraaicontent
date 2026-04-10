@@ -95,20 +95,19 @@ interface OccasionEntry {
 export default function BriefInput() {
   const navigate = useNavigate();
   const { addContentBrief, updateContentBrief } = useStore();
-  const { clients: backendClients, selectedClientId: contextClientId } = useClients();
+  const { clients: backendClients, selectedClientId: contextClientId, setSelectedClientId: setContextClientId, currentClient } = useClients();
   // Map backend clients to the shape BriefInput expects
   const clients = backendClients.map(c => ({ id: c.id, name: c.name, industry: c.industry || '', ...c }));
   const monthOptions = useMemo(() => buildMonthOptions(), []);
 
   // ─── Form state ──────────────────────────────────────────────────
-  const [selectedClientId, setSelectedClientId] = useState(contextClientId || clients[0]?.id || '');
-
-  // Sync local selectedClientId when context changes (e.g. user picks client on /clients page)
-  useEffect(() => {
-    if (contextClientId && contextClientId !== selectedClientId) {
-      setSelectedClientId(contextClientId);
-    }
-  }, [contextClientId]);
+  // Local selectedClientId is purely a mirror of the global context.
+  // Use the context value directly as the source of truth.
+  const selectedClientId = contextClientId || clients[0]?.id || '';
+  // Setter pushes back to the global context so other pages stay in sync.
+  const setSelectedClientId = (id: string) => {
+    if (id) setContextClientId(id);
+  };
   const [selectedMonth, setSelectedMonth] = useState(monthOptions[0]?.value || '');
   const [campaigns, setCampaigns] = useState<CampaignEntry[]>(
     DEFAULT_CAMPAIGNS.map(c => ({
@@ -212,7 +211,8 @@ export default function BriefInput() {
 
       if (job.status === 'completed') {
         onProgress?.('Done!');
-        navigate(`/calendar?client=${clientId}&month=${encodeURIComponent(month)}`);
+        // Route to Review (not Calendar) so user sees generated content + visual references first
+        navigate(`/content-review?client=${clientId}&month=${encodeURIComponent(month)}`);
         return;
       }
       if (job.status === 'failed') {
@@ -233,6 +233,7 @@ export default function BriefInput() {
 
     setIsGenerating(true);
     const monthLabel = monthOptions.find(m => m.value === selectedMonth)?.label || selectedMonth;
+    let step: 'save_brief' | 'generate' = 'save_brief';
 
     try {
       // 1. Save brief to backend
@@ -254,22 +255,27 @@ export default function BriefInput() {
       });
 
       // 2. Generate + poll (shared helper)
+      step = 'generate';
       await generateAndPoll(selectedClientId, monthLabel, pieceCount, setGenerationProgress);
       setIsGenerating(false);
     } catch (err: any) {
-      console.error('Generation failed:', err);
+      console.error(`Generation failed at step="${step}":`, err);
       setGenerationProgress('');
       setIsGenerating(false);
       const msg = err.message || '';
+      const stepLabel = step === 'save_brief' ? 'Save brief' : 'Generate content';
+
       if (msg.includes('timed out') || msg.includes('timeout')) {
-        alert('Generation is taking longer than expected. Check the calendar in a few minutes — the server may still be processing.');
+        alert(`${stepLabel} is taking longer than expected. Check the calendar in a few minutes — the server may still be processing.`);
       } else if (msg.includes('401') || msg.includes('Unauthorized')) {
-        alert('Session expired. Please refresh the page and try again.');
+        alert(`${stepLabel} failed: session expired. Please refresh the page and try again.`);
       } else if (msg.includes('409') || msg.includes('already exists')) {
         setConflict({ month: monthLabel, clientId: selectedClientId });
         setConflictAction('idle');
+      } else if (msg.includes('422') || msg.includes('completeness')) {
+        alert(`${stepLabel} blocked: brief is incomplete. ${msg}`);
       } else {
-        alert(`Generation failed: ${msg}`);
+        alert(`${stepLabel} failed: ${msg}`);
       }
     }
   }, [selectedClientId, selectedMonth, campaigns, occasions, selectedPlatforms, pieceCount, toneNotes, monthOptions, generateAndPoll]);
@@ -441,9 +447,19 @@ export default function BriefInput() {
               Create Content Brief
             </h1>
           </div>
-          <p className="mt-2 pl-[52px] text-sm text-zinc-500">
-            Define the brief and let AI generate all content pieces for the month.
-          </p>
+          <div className="mt-2 pl-[52px] flex items-center gap-3">
+            <p className="text-sm text-zinc-500">
+              Brief for
+            </p>
+            {currentClient ? (
+              <span className="inline-flex items-center gap-1.5 rounded-lg bg-violet-500/15 border border-violet-500/30 px-3 py-1 text-sm font-semibold text-violet-300">
+                <span className="w-1.5 h-1.5 rounded-full bg-violet-400" />
+                {currentClient.name}
+              </span>
+            ) : (
+              <span className="text-sm text-amber-400">no client selected — pick one on /clients first</span>
+            )}
+          </div>
         </motion.div>
 
         <div className="space-y-8">

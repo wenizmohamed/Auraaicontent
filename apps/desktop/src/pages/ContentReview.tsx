@@ -9,7 +9,8 @@ import {
 import { useStore, ContentBrief } from '../lib/store';
 import { validateCaption, PLATFORM_LIMITS } from '../lib/platform-limits';
 import { useClients } from '../lib/client-context';
-import { calendarApi, reviewApi } from '../lib/backend-api';
+import { calendarApi, reviewApi, visualRefsApi } from '../lib/backend-api';
+import VisualRefGrid from '../components/VisualRefGrid';
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -82,19 +83,80 @@ export default function ContentReview() {
   const { contentBriefs, updateContentBrief } = useStore();
   const { selectedClientId, currentClient } = useClients();
 
-  // Try backend first, then local brief
+  // Try backend first, then local brief.
+  // Fallback chain for the URL params (so the sidebar Review link "just works"):
+  //   1. ?client=&month= (explicit URL)
+  //   2. selectedClientId from context + most recent month for that client
   const [backendMonth, setBackendMonth] = useState<any>(null);
+  const [autoLoadAttempted, setAutoLoadAttempted] = useState(false);
+
   useEffect(() => {
     const cId = urlClient || selectedClientId;
     if (cId && urlMonth) {
       calendarApi.getMonth(cId, decodeURIComponent(urlMonth))
-        .then(setBackendMonth).catch(() => {});
+        .then(setBackendMonth)
+        .catch(() => setBackendMonth(null));
+      return;
     }
-  }, [urlClient, urlMonth, selectedClientId]);
+    // No explicit month — fetch the list of all months for this client and pick the most recent.
+    // Works for arbitrary month names (timestamp-named, freeform, calendar-style).
+    if (cId && !urlMonth && !autoLoadAttempted) {
+      setAutoLoadAttempted(true);
+      (async () => {
+        try {
+          const months = await calendarApi.listMonths(cId);
+          if (months.length > 0) {
+            const latest = months[0].month;
+            const data = await calendarApi.getMonth(cId, latest);
+            setBackendMonth(data);
+          }
+        } catch { /* ignore */ }
+      })();
+    }
+  }, [urlClient, urlMonth, selectedClientId, autoLoadAttempted]);
+
+  // Map a backend CalendarPost asset link to a visualRefImages entry
+  const mapAssetsToVisualRefs = (post: any) => {
+    const links = post?.assets || [];
+    return links.map((link: any) => {
+      const a = link.asset || link;
+      return {
+        imageUrl: a.thumbUrl || a.fileUrl || '',
+        sourceUrl: a.fileUrl || '',
+        description: a.name || post.referenceQuery || '',
+      };
+    }).filter((r: any) => r.imageUrl);
+  };
 
   // Find brief — prefer backend, fall back to local
   const brief: ContentBrief | undefined = backendMonth
-    ? { id: backendMonth.id, clientId: urlClient || selectedClientId || '', month: backendMonth.month, campaigns: [], occasions: [], platforms: [], pieceCount: backendMonth.posts?.length || 0, toneNotes: '', status: backendMonth.status, pieces: (backendMonth.posts || []).map((p: any) => ({ ...p, suggestedDate: p.date, creativeCopy: p.visualDirection || '', visualReference: p.referenceQuery || '', visualRefImages: [], hashtags: p.hashtags || [], charCount: (p.caption || '').length, charLimit: 2200, charStatus: 'good' as const, status: p.status || 'generated' })), createdAt: backendMonth.createdAt }
+    ? {
+        id: backendMonth.id,
+        clientId: urlClient || selectedClientId || '',
+        month: backendMonth.month,
+        campaigns: [],
+        occasions: [],
+        platforms: [],
+        pieceCount: backendMonth.posts?.length || 0,
+        toneNotes: '',
+        status: backendMonth.status,
+        pieces: (backendMonth.posts || []).map((p: any) => ({
+          ...p,
+          // Keep `visualRefs` and `assets` straight from the backend for VisualRefGrid.
+          // visualRefImages is the legacy local-store shape — derive it from assets so
+          // any code path that still reads it gets a non-empty array.
+          suggestedDate: p.date,
+          creativeCopy: p.visualDirection || '',
+          visualReference: p.referenceQuery || '',
+          visualRefImages: mapAssetsToVisualRefs(p),
+          hashtags: p.hashtags || [],
+          charCount: (p.caption || '').length,
+          charLimit: 2200,
+          charStatus: 'good' as const,
+          status: p.status || 'generated',
+        })),
+        createdAt: backendMonth.createdAt,
+      }
     : contentBriefs.find(b => b.id === briefId);
   const client = currentClient;
 
@@ -272,16 +334,27 @@ export default function ContentReview() {
   if (!brief) {
     return (
       <div className="max-w-2xl mx-auto mt-20 text-center">
-        <h2 className="text-2xl font-bold text-white mb-4">Brief Not Found</h2>
+        <Sparkles className="w-12 h-12 text-amber-400 mx-auto mb-4" />
+        <h2 className="text-2xl font-bold text-white mb-4">No Content to Review</h2>
         <p className="text-zinc-400 mb-8">
-          {briefId ? `No brief with ID "${briefId}" exists.` : 'No brief ID provided in the URL.'}
+          {currentClient
+            ? `No generated content found for ${currentClient.name}. Create a brief to generate content.`
+            : 'Pick a client and create a content brief to generate content for review.'}
         </p>
-        <button
-          onClick={() => navigate('/pieces')}
-          className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-black font-medium rounded-xl transition-colors"
-        >
-          Back to Content Pieces
-        </button>
+        <div className="flex items-center justify-center gap-3">
+          <button
+            onClick={() => navigate('/brief')}
+            className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-black font-medium rounded-xl transition-colors"
+          >
+            Create New Brief
+          </button>
+          <button
+            onClick={() => navigate('/calendar')}
+            className="px-6 py-3 bg-white/10 hover:bg-white/15 text-white font-medium rounded-xl transition-colors"
+          >
+            Open Calendar
+          </button>
+        </div>
       </div>
     );
   }
@@ -293,10 +366,10 @@ export default function ContentReview() {
         <h2 className="text-2xl font-bold text-white mb-4">No Content Generated Yet</h2>
         <p className="text-zinc-400 mb-8">This brief has no generated pieces to review.</p>
         <button
-          onClick={() => navigate('/pieces')}
+          onClick={() => navigate('/brief')}
           className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-black font-medium rounded-xl transition-colors"
         >
-          Back to Content Pieces
+          Create New Brief
         </button>
       </div>
     );
@@ -314,11 +387,15 @@ export default function ContentReview() {
         className="mb-8"
       >
         <button
-          onClick={() => navigate('/pieces')}
+          onClick={() => {
+            const cId = urlClient || selectedClientId || '';
+            const m = brief?.month ? encodeURIComponent(brief.month) : '';
+            navigate(cId && m ? `/calendar?client=${cId}&month=${m}` : '/calendar');
+          }}
           className="flex items-center gap-2 text-zinc-400 hover:text-white mb-4 transition-colors print:hidden"
         >
           <ArrowLeft className="w-4 h-4" />
-          Back to Content Pieces
+          Back to Calendar
         </button>
 
         <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
@@ -656,54 +733,23 @@ export default function ContentReview() {
                     )}
                   </div>
 
-                  {/* Visual References */}
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <ImageIcon className="w-3.5 h-3.5 text-zinc-500" />
-                      <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-medium">Visual References</span>
-                    </div>
-
-                    {loadingRefs.has(piece.id) ? (
-                      <div className="grid grid-cols-4 gap-2">
-                        {[...Array(4)].map((_, i) => (
-                          <div key={i} className="aspect-square bg-zinc-800 rounded-lg animate-pulse" />
-                        ))}
-                      </div>
-                    ) : piece.visualRefImages && piece.visualRefImages.length > 0 ? (
-                      <div className="grid grid-cols-4 gap-2">
-                        {piece.visualRefImages.slice(0, 4).map((ref, i) => (
-                          <a
-                            key={i}
-                            href={ref.sourceUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="group relative aspect-square rounded-lg overflow-hidden border border-white/5 hover:border-amber-500/30 transition-colors"
-                          >
-                            <img
-                              src={ref.imageUrl}
-                              alt={ref.description}
-                              className="w-full h-full object-cover"
-                              loading="lazy"
-                              onError={e => {
-                                (e.target as HTMLImageElement).src = `data:image/svg+xml,${encodeURIComponent(
-                                  '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" fill="%23222"><rect width="200" height="200"/><text x="50%" y="50%" fill="%23555" font-size="12" text-anchor="middle" dy=".3em">No image</text></svg>'
-                                )}`;
-                              }}
-                            />
-                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                              <span className="text-[10px] text-white/80 text-center px-1 leading-tight">
-                                View Source
-                              </span>
-                            </div>
-                          </a>
-                        ))}
-                      </div>
-                    ) : piece.visualReference ? (
-                      <p className="text-xs text-zinc-500 italic bg-white/[0.02] rounded-lg px-3 py-2 border border-white/5">
-                        {piece.visualReference}
-                      </p>
-                    ) : null}
-                  </div>
+                  {/* Visual References — shared component, external refs preferred */}
+                  <VisualRefGrid
+                    post={piece as any}
+                    onSearchClick={async (q) => {
+                      try {
+                        await visualRefsApi.autoPopulate(piece.id, 6);
+                        // Re-fetch the month so the new refs appear
+                        if (backendMonth?.month && (urlClient || selectedClientId)) {
+                          const cId = urlClient || selectedClientId!;
+                          const refreshed = await calendarApi.getMonth(cId, backendMonth.month);
+                          setBackendMonth(refreshed);
+                        }
+                      } catch (err: any) {
+                        console.warn('Auto-populate failed:', err);
+                      }
+                    }}
+                  />
                 </div>
 
                 {/* Card Actions */}
