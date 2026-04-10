@@ -3,11 +3,16 @@
 
 // Resolution order:
 //   1. explicit VITE_API_URL build env (highest priority)
-//   2. dev mode → http://localhost:8080 (vite dev server proxy target)
-//   3. prod mode → '' (relative URL — nginx serves /api/* on the same host)
+//   2. desktop runtime → window.electron.apiBaseUrl || http://127.0.0.1:8080
+//   3. dev mode → http://127.0.0.1:8080 (vite dev server proxy target)
+//   4. prod web mode → '' (relative URL — nginx serves /api/* on the same host)
+const desktopApiBaseUrl =
+  typeof window !== 'undefined' && window.electron?.isDesktop
+    ? (window.electron.apiBaseUrl || 'http://127.0.0.1:8080')
+    : null;
 const API_URL: string =
   (import.meta.env.VITE_API_URL as string | undefined) ??
-  (import.meta.env.DEV ? 'http://localhost:8080' : '');
+  (desktopApiBaseUrl || (import.meta.env.DEV ? 'http://127.0.0.1:8080' : ''));
 
 let authToken: string | null = localStorage.getItem('radix_auth_token');
 

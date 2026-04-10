@@ -9,7 +9,7 @@ import { ClientProvider, useClients } from './lib/client-context';
 import { readJson } from './lib/safe-storage';
 
 // Use HashRouter for Electron (file:// protocol), BrowserRouter for web
-const isElectron = !!(window as any).electron?.isDesktop;
+const isElectron = !!window.electron?.isDesktop;
 const Router = isElectron ? HashRouter : BrowserRouter;
 import { StoreProvider, useStore } from './lib/store';
 import { LayoutDashboard, Calendar, ImagePlus, Image as ImageIcon, Video, Search, UserCircle, ChevronLeft, ChevronRight, FileText, Palette, Layers, Wand2, FolderOpen, Radio, Building2 } from 'lucide-react';
@@ -153,11 +153,14 @@ function Layout({ children }: { children: React.ReactNode }) {
   );
 }
 
+const DESKTOP_API_URL = window.electron?.isDesktop
+  ? (window.electron.apiBaseUrl || 'http://127.0.0.1:8080')
+  : null;
 const API_URL: string =
   (import.meta.env.VITE_API_URL as string | undefined) ??
-  (import.meta.env.DEV ? 'http://localhost:8080' : '');
+  (DESKTOP_API_URL || (import.meta.env.DEV ? 'http://127.0.0.1:8080' : ''));
 const BUILD_TIME = new Date().toISOString();
-const IS_ELECTRON = !!(window as any).electron?.isDesktop;
+const IS_ELECTRON = !!window.electron?.isDesktop;
 
 function DevBanner() {
   const { serverOnline, authenticated, selectedClientId, authError } = useClients();
