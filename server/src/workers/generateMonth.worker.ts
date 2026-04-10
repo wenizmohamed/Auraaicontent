@@ -1,7 +1,7 @@
 import { db } from '../db/prisma.js';
 import { aiRouter } from '../services/providers/ai-router.js';
 import { briefService } from '../services/brief.service.js';
-import { buildPlanningPrompt } from '../services/prompt.service.js';
+import { buildPlanningPrompt, parseBriefChannels } from '../services/prompt.service.js';
 import { visualSearchService } from '../services/visual-search.service.js';
 import { type Job, updateJob } from './queue.js';
 
@@ -44,6 +44,35 @@ export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: 
     throw new Error(`AI (${result.provider}/${result.model}) did not return a valid posts array`);
   }
 
+  // 4b. Defense in depth: enforce that every generated post uses an ALLOWED platform
+  // from the saved brief. If the AI ignores the prompt restriction (happens rarely),
+  // we coerce stray platforms back into the allowed set rather than accept the drift.
+  const allowedChannels = parseBriefChannels(client.brief.channels);
+  const fallbackPlatform = allowedChannels[0] || 'Instagram';
+  const allowedSet = new Set(allowedChannels.length > 0 ? allowedChannels : ['Instagram']);
+
+  const canonicalize = (p: any): string => {
+    if (typeof p !== 'string') return fallbackPlatform;
+    const lower = p.trim().toLowerCase();
+    if (lower === 'instagram' && allowedSet.has('Instagram')) return 'Instagram';
+    if (lower === 'tiktok' && allowedSet.has('TikTok')) return 'TikTok';
+    if (lower === 'linkedin' && allowedSet.has('LinkedIn')) return 'LinkedIn';
+    if ((lower === 'x' || lower === 'twitter' || lower === 'x (twitter)') && allowedSet.has('X')) return 'X';
+    if (lower === 'facebook' && allowedSet.has('Facebook')) return 'Facebook';
+    return fallbackPlatform; // coerce unknown/disallowed platforms
+  };
+
+  let coerced = 0;
+  for (const post of parsed.posts) {
+    const original = post.platform;
+    const normalized = canonicalize(original);
+    if (normalized !== original) coerced++;
+    post.platform = normalized;
+  }
+  if (coerced > 0) {
+    console.warn(`[generateMonth] Coerced ${coerced}/${parsed.posts.length} posts to allowed platforms [${allowedChannels.join(', ')}] — AI ignored prompt restriction`);
+  }
+
   // 5. Save CalendarMonth
   updateJob(job.id, { progress: 70 });
   const calendarMonth = await db.calendarMonth.create({
@@ -65,7 +94,7 @@ export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: 
         date: post.date || '',
         title: post.title || '',
         pillar: post.pillar || '',
-        platform: post.platform || 'Instagram',
+        platform: post.platform, // Already validated/coerced above
         format: post.format || 'Static',
         hook: post.hook || null,
         keyMessage: post.keyMessage || null,
