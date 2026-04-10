@@ -175,12 +175,14 @@ export default function ContentReview() {
   const [showFilters, setShowFilters] = useState(false);
   const fetchedRef = useRef<Set<string>>(new Set());
 
-  // Sync pieces from brief
+  // Sync pieces from brief.
+  // Include backendMonth.posts so re-fetching the same month (same id)
+  // still refreshes visualRefs/assets in the Review grid.
   useEffect(() => {
     if (brief?.pieces) {
       setPieces(brief.pieces as GeneratedPiece[]);
     }
-  }, [brief?.id]);
+  }, [brief?.id, backendMonth?.posts]);
 
   // Visual reference auto-fetch removed — Unsplash Source API is dead
   // References come from backend asset system (Commit 12)
