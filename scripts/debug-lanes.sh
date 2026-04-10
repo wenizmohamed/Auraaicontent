@@ -26,7 +26,9 @@ check_fe() {
 }
 
 check_electron() {
-  tasklist 2>/dev/null | grep -c electron.exe || echo "0"
+  local count
+  count=$(tasklist 2>/dev/null | grep -c electron.exe 2>/dev/null) || count=0
+  echo "${count:-0}"
 }
 
 echo "Inspecting lanes..."
