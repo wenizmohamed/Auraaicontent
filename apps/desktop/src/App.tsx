@@ -12,9 +12,10 @@ import { readJson } from './lib/safe-storage';
 const isElectron = !!window.electron?.isDesktop;
 const Router = isElectron ? HashRouter : BrowserRouter;
 import { StoreProvider, useStore } from './lib/store';
-import { LayoutDashboard, Calendar, ImagePlus, Image as ImageIcon, Video, Search, UserCircle, ChevronLeft, ChevronRight, FileText, Palette, Layers, Wand2, FolderOpen, Radio, Building2 } from 'lucide-react';
+import { LayoutDashboard, Calendar, ImagePlus, Image as ImageIcon, Video, Search, UserCircle, ChevronLeft, ChevronRight, FileText, Palette, Layers, Wand2, FolderOpen, Radio, Building2, AlertCircle } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import ContentCalendar from './pages/ContentCalendar';
+import Login from './pages/Login';
 import VideoAnalysis from './pages/VideoAnalysis';
 import Research from './pages/Research';
 import Profile from './pages/Profile';
@@ -180,35 +181,80 @@ function DevBanner() {
   );
 }
 
+function AuthGate({ children }: { children: React.ReactNode }) {
+  const { authenticated, loading, serverOnline, authError } = useClients();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-amber-500/30 border-t-amber-500 rounded-full animate-spin" />
+          <p className="text-zinc-500 text-sm">Connecting...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!serverOnline) {
+    return (
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-6">
+        <div className="max-w-md text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 mb-5 shadow-[0_0_40px_-10px_rgba(239,68,68,0.35)]">
+            <AlertCircle className="w-7 h-7 text-red-400" />
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2 tracking-tight">Backend offline</h2>
+          <p className="text-zinc-500 text-sm mb-6 max-w-sm mx-auto leading-relaxed">
+            {authError || 'The Radix backend server is not reachable. Make sure it is running and try again.'}
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-6 py-3 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white font-medium rounded-xl transition-colors duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!authenticated) {
+    return <Login />;
+  }
+
+  return <>{children}</>;
+}
+
 export default function App() {
   return (
     <StoreProvider>
       <ClientProvider>
       <Router>
-        <Layout>
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/clients" element={<Clients />} />
-            <Route path="/brief" element={<BriefInput />} />
-            <Route path="/content-review" element={<ContentReview />} />
-            <Route path="/topics" element={<TopicDesk />} />
-            <Route path="/textures" element={<DesignTextures />} />
-            <Route path="/calendar" element={<ContentCalendar />} />
-            <Route path="/creative" element={<CreativeTools />} />
-            {/* Legacy routes redirect to the unified Creative Studio */}
-            <Route path="/image-gen" element={<Navigate to="/creative?tab=text-to-image" replace />} />
-            <Route path="/image-edit" element={<Navigate to="/creative?tab=image-edit" replace />} />
-            <Route path="/text-to-video" element={<Navigate to="/creative?tab=text-to-video" replace />} />
-            <Route path="/image-to-video" element={<Navigate to="/creative?tab=image-to-video" replace />} />
-            <Route path="/pieces" element={<ContentPieces />} />
-            <Route path="/ai-design" element={<AIDesignGenerator />} />
-            <Route path="/references" element={<VisualReferences />} />
-            <Route path="/video" element={<VideoAnalysis />} />
-            <Route path="/research" element={<Research />} />
-            <Route path="/studio" element={<Studio />} />
-            <Route path="/profile" element={<Profile />} />
-          </Routes>
-        </Layout>
+        <AuthGate>
+          <Layout>
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/clients" element={<Clients />} />
+              <Route path="/brief" element={<BriefInput />} />
+              <Route path="/content-review" element={<ContentReview />} />
+              <Route path="/topics" element={<TopicDesk />} />
+              <Route path="/textures" element={<DesignTextures />} />
+              <Route path="/calendar" element={<ContentCalendar />} />
+              <Route path="/creative" element={<CreativeTools />} />
+              {/* Legacy routes redirect to the unified Creative Studio */}
+              <Route path="/image-gen" element={<Navigate to="/creative?tab=text-to-image" replace />} />
+              <Route path="/image-edit" element={<Navigate to="/creative?tab=image-edit" replace />} />
+              <Route path="/text-to-video" element={<Navigate to="/creative?tab=text-to-video" replace />} />
+              <Route path="/image-to-video" element={<Navigate to="/creative?tab=image-to-video" replace />} />
+              <Route path="/pieces" element={<ContentPieces />} />
+              <Route path="/ai-design" element={<AIDesignGenerator />} />
+              <Route path="/references" element={<VisualReferences />} />
+              <Route path="/video" element={<VideoAnalysis />} />
+              <Route path="/research" element={<Research />} />
+              <Route path="/studio" element={<Studio />} />
+              <Route path="/profile" element={<Profile />} />
+            </Routes>
+          </Layout>
+        </AuthGate>
       </Router>
       <DevBanner />
       </ClientProvider>
