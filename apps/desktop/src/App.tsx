@@ -65,10 +65,10 @@ function Layout({ children }: { children: React.ReactNode }) {
         {/* Logo Area */}
         <div className={`h-20 flex items-center justify-center border-b border-white/5 ${isCollapsed ? 'px-2' : 'px-5'}`}>
           {isCollapsed ? (
-            <img src="/radix-logo.jpg" alt="Radix" className="w-10 h-10 rounded-lg object-cover" />
+            <img src="./radix-logo.jpg" alt="Radix" className="w-10 h-10 rounded-lg object-cover" />
           ) : (
             <div className="flex items-center gap-3">
-              <img src="/radix-logo.jpg" alt="Radix" className="w-10 h-10 rounded-lg object-cover" />
+              <img src="./radix-logo.jpg" alt="Radix" className="w-10 h-10 rounded-lg object-cover" />
               <div>
                 <span className="text-xl font-black tracking-[0.25em] text-white uppercase" style={{ fontFamily: "'Inter', sans-serif" }}>
                   RADIX
