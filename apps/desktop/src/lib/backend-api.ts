@@ -66,7 +66,12 @@ async function request<T>(
     } else {
       detail = res.statusText || `Request failed: ${res.status}`;
     }
-    throw new Error(detail);
+    const e = new Error(detail) as Error & { statusCode?: number; providers?: any[]; geminiOnly?: boolean };
+    e.statusCode = res.status;
+    // Forward provider failure summaries + geminiOnly flag from structured error responses
+    if (Array.isArray((err as any).providers)) e.providers = (err as any).providers;
+    if ((err as any).geminiOnly) e.geminiOnly = true;
+    throw e;
   }
   return res.json();
 }

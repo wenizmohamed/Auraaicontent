@@ -140,6 +140,7 @@ export default function CreativeTools() {
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState('');
+  const [errorCode, setErrorCode] = useState<number | null>(null);
   const [resultUrl, setResultUrl] = useState('');
   const [savedAssetId, setSavedAssetId] = useState<string | null>(null);
   const [provider, setProvider] = useState('');
@@ -153,6 +154,7 @@ export default function CreativeTools() {
   const switchMode = (next: Mode) => {
     setMode(next);
     setError('');
+    setErrorCode(null);
     setResultUrl('');
     setSavedAssetId(null);
     setProvider('');
@@ -206,6 +208,7 @@ export default function CreativeTools() {
     cancelledRef.current = false;
     setLoading(true);
     setError('');
+    setErrorCode(null);
     setResultUrl('');
     setSavedAssetId(null);
     setProvider('');
@@ -274,7 +277,10 @@ export default function CreativeTools() {
         if (attempts >= 120) throw new Error('Video generation timed out after 10 minutes');
       }
     } catch (err: any) {
-      if (!cancelledRef.current) setError(err?.message || 'Generation failed');
+      if (!cancelledRef.current) {
+        setError(err?.message || 'Generation failed');
+        setErrorCode(err?.statusCode || null);
+      }
     } finally {
       if (!cancelledRef.current) setLoading(false);
     }
@@ -295,6 +301,7 @@ export default function CreativeTools() {
       if (out?.improved) setPrompt(out.improved);
     } catch (err: any) {
       setError(`Prompt improver failed: ${err?.message || 'unknown'}`);
+      setErrorCode(err?.statusCode || null);
     } finally {
       setImproving(false);
     }
@@ -523,13 +530,23 @@ export default function CreativeTools() {
 
         {/* Error */}
         <AnimatePresence>
-          {error && (
-            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-              className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 flex items-start gap-3">
-              <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-              <p className="text-sm text-red-400">{error}</p>
-            </motion.div>
-          )}
+          {error && (() => {
+            const isRateLimit = errorCode === 429 || /rate.?limit/i.test(error);
+            const isUnavailable = errorCode === 503 || /unavailable|gemini/i.test(error);
+            const bg = isRateLimit ? 'bg-amber-500/10 border-amber-500/20' : isUnavailable ? 'bg-zinc-500/10 border-zinc-500/20' : 'bg-red-500/10 border-red-500/20';
+            const text = isRateLimit ? 'text-amber-400' : isUnavailable ? 'text-zinc-400' : 'text-red-400';
+            const label = isRateLimit ? 'Rate limited' : isUnavailable ? 'Provider unavailable' : 'Error';
+            return (
+              <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                className={`rounded-xl ${bg} px-4 py-3 flex items-start gap-3`}>
+                <AlertCircle className={`w-4 h-4 ${text} shrink-0 mt-0.5`} />
+                <div>
+                  <p className={`text-xs font-bold uppercase tracking-wider ${text} mb-0.5`}>{label}</p>
+                  <p className={`text-sm ${text}`}>{error}</p>
+                </div>
+              </motion.div>
+            );
+          })()}
         </AnimatePresence>
 
         {/* Result */}

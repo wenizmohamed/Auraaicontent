@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { authGuard } from '../middleware/auth.js';
 import { aiRouter } from '../services/providers/ai-router.js';
+import { sendAiError } from '../services/providers/errors.js';
 
 interface ResearchBody {
   query?: string;
@@ -63,7 +64,7 @@ export async function researchRoutes(app: FastifyInstance) {
         latencyMs: result.latencyMs,
       };
     } catch (err: any) {
-      return reply.status(502).send({ error: err?.message || 'Research failed' });
+      return sendAiError(reply, err, 'Research failed');
     }
   });
 }

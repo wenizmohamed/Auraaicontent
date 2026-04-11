@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { authGuard } from '../middleware/auth.js';
 import { aiRouter } from '../services/providers/ai-router.js';
+import { sendAiError } from '../services/providers/errors.js';
 import { db } from '../db/prisma.js';
 
 interface ChatMessage {
@@ -70,7 +71,7 @@ export async function assistantRoutes(app: FastifyInstance) {
         latencyMs: result.latencyMs,
       };
     } catch (err: any) {
-      return reply.status(502).send({ error: err?.message || 'Assistant call failed' });
+      return sendAiError(reply, err, 'Assistant call failed');
     }
   });
 }

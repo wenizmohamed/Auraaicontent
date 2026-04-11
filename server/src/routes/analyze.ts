@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { authGuard } from '../middleware/auth.js';
 import { aiRouter } from '../services/providers/ai-router.js';
+import { sendAiError } from '../services/providers/errors.js';
 
 interface AnalyzeVideoBody {
   videoUrl?: string;
@@ -76,7 +77,7 @@ export async function analyzeRoutes(app: FastifyInstance) {
         latencyMs: result.latencyMs,
       };
     } catch (err: any) {
-      return reply.status(502).send({ error: err?.message || 'Video analysis failed' });
+      return sendAiError(reply, err, 'Video analysis failed');
     }
   });
 }

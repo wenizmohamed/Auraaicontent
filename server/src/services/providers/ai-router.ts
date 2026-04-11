@@ -1,6 +1,6 @@
 import { xaiProvider } from './xai.provider.js';
 import { geminiProvider } from './gemini.provider.js';
-import { isRetryableAiError } from './errors.js';
+import { isRetryableAiError, AllProvidersFailedError, type ProviderFailure } from './errors.js';
 import type { AiProvider, AiProviderName, AiTask, AiTelemetryEntry, AnalysisRequest, ImageRequest, ProviderResult, TextRequest, VideoRequest } from './types.js';
 
 // ─── Routing config from env ─────────────────────────────────────
@@ -49,7 +49,7 @@ async function routeCall<T>(
   meta?: { jobId?: string; clientId?: string },
 ): Promise<ProviderResult<T>> {
   const providers = orderedProviders(task);
-  let lastErr: unknown;
+  const failures: ProviderFailure[] = [];
   let fallbackUsed = false;
 
   for (let i = 0; i < providers.length; i++) {
@@ -66,21 +66,22 @@ async function routeCall<T>(
       });
       return result;
     } catch (err) {
-      lastErr = err;
-      const errType = err instanceof Error ? err.message.slice(0, 80) : String(err);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      const retryable = isRetryableAiError(err);
+      failures.push({ provider: provider.name, message: errMsg.slice(0, 200), retryable });
       logTelemetry({
         provider: provider.name, model: 'unknown', task,
         latencyMs: 0, fallbackUsed,
-        errorType: errType,
+        errorType: errMsg.slice(0, 80),
         jobId: meta?.jobId, clientId: meta?.clientId,
         timestamp: new Date().toISOString(),
       });
 
-      if (!isRetryableAiError(err) || !FALLBACK_ENABLED) break;
-      console.warn(`[AI] ${provider.name} ${task} failed (retryable), trying fallback: ${errType}`);
+      if (!retryable || !FALLBACK_ENABLED) break;
+      console.warn(`[AI] ${provider.name} ${task} failed (retryable), trying fallback: ${errMsg.slice(0, 80)}`);
     }
   }
-  throw lastErr;
+  throw new AllProvidersFailedError(task, failures);
 }
 
 // ─── Public API ──────────────────────────────────────────────────

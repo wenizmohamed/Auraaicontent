@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { authGuard } from '../middleware/auth.js';
 import { aiRouter, getAiTelemetry } from '../services/providers/ai-router.js';
+import { sendAiError } from '../services/providers/errors.js';
 import { createJob, processJob, getJob, updateJob } from '../workers/queue.js';
 import { storageService } from '../services/storage.service.js';
 import { db } from '../db/prisma.js';
@@ -37,7 +38,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         assetUrl: savedAsset?.fileUrl || result.output.url || null,
       };
     } catch (err: any) {
-      return reply.status(502).send({ error: err.message, provider: 'ai-router' });
+      return sendAiError(reply, err, 'Image generation failed');
     }
   });
 
@@ -64,7 +65,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         assetUrl: savedAsset?.fileUrl || result.output.url || null,
       };
     } catch (err: any) {
-      return reply.status(502).send({ error: err.message });
+      return sendAiError(reply, err, 'AI operation failed');
     }
   });
 
@@ -182,7 +183,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         latencyMs: result.latencyMs,
       };
     } catch (err: any) {
-      return reply.status(502).send({ error: err?.message || 'Prompt improver failed' });
+      return sendAiError(reply, err, 'Prompt improver failed');
     }
   });
 
@@ -198,7 +199,7 @@ export async function creativeRoutes(app: FastifyInstance) {
       const { results, nextBookmark } = await searchPinterest(q, lim, bookmark);
       return { query: q, count: results.length, results, nextBookmark };
     } catch (err: any) {
-      return reply.status(502).send({ error: err.message });
+      return sendAiError(reply, err, 'AI operation failed');
     }
   });
 
@@ -245,7 +246,7 @@ export async function creativeRoutes(app: FastifyInstance) {
 
       return { count: results.length, results, savedAsset };
     } catch (err: any) {
-      return reply.status(502).send({ error: err.message });
+      return sendAiError(reply, err, 'AI operation failed');
     }
   });
 }

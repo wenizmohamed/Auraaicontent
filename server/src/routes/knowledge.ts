@@ -50,7 +50,11 @@ export async function knowledgeRoutes(app: FastifyInstance) {
       const result = await embedKnowledgeItem(knowledgeItemId);
       return result;
     } catch (err: any) {
-      return reply.status(422).send({ error: err.message });
+      const status = err?.statusCode || (err?.geminiOnly ? 503 : 422);
+      return reply.status(status).send({
+        error: err.message,
+        ...(err?.geminiOnly ? { geminiOnly: true } : {}),
+      });
     }
   });
 

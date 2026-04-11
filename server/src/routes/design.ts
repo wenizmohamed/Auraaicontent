@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { authGuard } from '../middleware/auth.js';
 import { aiRouter } from '../services/providers/ai-router.js';
+import { sendAiError } from '../services/providers/errors.js';
 import { db } from '../db/prisma.js';
 
 interface DesignBriefBody {
@@ -105,7 +106,7 @@ export async function designRoutes(app: FastifyInstance) {
         latencyMs: result.latencyMs,
       };
     } catch (err: any) {
-      return reply.status(502).send({ error: err?.message || 'Design brief failed' });
+      return sendAiError(reply, err, 'Design brief failed');
     }
   });
 }
