@@ -282,6 +282,49 @@ export const assetsApi = {
   },
 };
 
+// ─── Dashboard ──────────────────────────────────────────────────
+
+export interface DashboardStats {
+  clients: {
+    total: number;
+    withBrief: number;
+  };
+  content: {
+    totalMonths: number;
+    totalPosts: number;
+    byStatus: {
+      draft: number;
+      approved: number;
+      changes_requested: number;
+    };
+    byPlatform: Record<string, number>;
+  };
+  generation: {
+    recentJobs: {
+      month: string;
+      clientId: string;
+      createdAt: string;
+    }[];
+  };
+  knowledge: {
+    totalItems: number;
+    totalChunks: number;
+  };
+  activity: {
+    recentMonths: {
+      id: string;
+      month: string;
+      status: string;
+      createdAt: string;
+      postCount: number;
+    }[];
+  };
+}
+
+export const dashboardApi = {
+  stats: () => request<DashboardStats>('/api/dashboard/stats'),
+};
+
 // ─── Server health check ─────────────────────────────────────────
 
 export async function isServerAvailable(): Promise<boolean> {

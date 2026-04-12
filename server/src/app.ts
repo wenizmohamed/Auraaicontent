@@ -19,6 +19,7 @@ import { assistantRoutes } from './routes/assistant.js';
 import { designRoutes } from './routes/design.js';
 import { analyzeRoutes } from './routes/analyze.js';
 import { visualRefRoutes } from './routes/visualRefs.js';
+import { dashboardRoutes } from './routes/dashboard.js';
 
 import { execSync } from 'child_process';
 
@@ -104,6 +105,7 @@ export async function buildApp() {
   await app.register(designRoutes, { prefix: '/api' });
   await app.register(analyzeRoutes, { prefix: '/api' });
   await app.register(visualRefRoutes, { prefix: '/api' });
+  await app.register(dashboardRoutes, { prefix: '/api' });
 
   return app;
 }
