@@ -125,13 +125,14 @@ export default function RadixAssistant() {
 
   return (
     <>
-      {/* Floating launcher */}
+      {/* Floating launcher — DNA avatar */}
       <button
         onClick={() => setOpen(!open)}
-        className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-amber-500 text-black flex items-center justify-center shadow-2xl hover:scale-105 transition-transform cursor-pointer"
+        className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full shadow-2xl hover:scale-105 transition-transform cursor-pointer overflow-hidden border-2 border-amber-500/40"
         title={open ? 'Close assistant' : 'Open Radix Assistant'}
       >
-        {open ? <X className="w-6 h-6" /> : <Bot className="w-6 h-6" />}
+        {open ? <X className="w-6 h-6 text-white absolute inset-0 m-auto z-10" /> : null}
+        <img src="./radix-dna.jpg" alt="Radix AI" className={`w-full h-full object-cover ${open ? 'opacity-30' : ''}`} />
       </button>
 
       <AnimatePresence>
@@ -144,8 +145,8 @@ export default function RadixAssistant() {
           >
             {/* Header */}
             <div className="px-4 py-3 border-b border-white/[0.06] flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
-                <Bot className="w-4 h-4 text-amber-400" />
+              <div className="w-8 h-8 rounded-lg overflow-hidden border border-amber-500/30">
+                <img src="./radix-dna.jpg" alt="Radix" className="w-full h-full object-cover" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold text-white">Radix</p>
@@ -164,8 +165,8 @@ export default function RadixAssistant() {
             <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
               {messages.length === 0 && !loading && (
                 <div className="h-full flex flex-col items-center justify-center text-center px-4">
-                  <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mb-3 shadow-[0_0_30px_-8px_rgba(245,158,11,0.3)]">
-                    <Bot className="w-5 h-5 text-amber-400" />
+                  <div className="w-14 h-14 rounded-2xl overflow-hidden border border-amber-500/20 mb-3 shadow-[0_0_30px_-8px_rgba(245,158,11,0.3)]">
+                    <img src="./radix-dna.jpg" alt="Radix" className="w-full h-full object-cover" />
                   </div>
                   <p className="text-sm text-zinc-400 mb-1 font-medium">I'm Radix — your content strategist.</p>
                   <p className="text-xs text-zinc-600 mb-4">I can generate content, search visual refs, pull your brief, and more.</p>
