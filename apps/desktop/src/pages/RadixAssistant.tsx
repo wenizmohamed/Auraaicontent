@@ -1,13 +1,25 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bot, Send, X, Loader2, Trash2, MessageSquare, AlertCircle } from 'lucide-react';
+import { Bot, Send, X, Loader2, Trash2, MessageSquare, AlertCircle, Zap, Search, FileText, Calendar, Image as ImageIcon, ExternalLink } from 'lucide-react';
 import { assistantApi, type ChatMessage } from '../lib/backend-api';
 import { useClients } from '../lib/client-context';
+import { useNavigate } from 'react-router-dom';
+
+interface ActionResult {
+  type: string;
+  params: Record<string, any>;
+  result: any;
+}
+
+interface EnrichedMessage extends ChatMessage {
+  action?: ActionResult;
+}
 
 export default function RadixAssistant() {
-  const { selectedClientId } = useClients();
+  const navigate = useNavigate();
+  const { selectedClientId, currentClient } = useClients();
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<EnrichedMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -17,20 +29,24 @@ export default function RadixAssistant() {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, loading]);
 
-  const handleSend = async () => {
-    const content = input.trim();
+  const handleSend = async (overrideInput?: string) => {
+    const content = (overrideInput || input).trim();
     if (!content || loading) return;
 
-    const userMsg: ChatMessage = { role: 'user', content };
-    const next = [...messages, userMsg];
-    setMessages(next);
+    const userMsg: EnrichedMessage = { role: 'user', content };
+    const chatMessages: ChatMessage[] = [...messages.map(m => ({ role: m.role, content: m.content })), { role: 'user' as const, content }];
+    setMessages(prev => [...prev, userMsg]);
     setInput('');
     setLoading(true);
     setError('');
 
     try {
-      const out = await assistantApi.chat(next, selectedClientId || undefined);
-      setMessages(prev => [...prev, out.message]);
+      const out = await assistantApi.chat(chatMessages, selectedClientId || undefined);
+      const assistantMsg: EnrichedMessage = {
+        ...out.message,
+        action: (out as any).action || undefined,
+      };
+      setMessages(prev => [...prev, assistantMsg]);
     } catch (err: any) {
       setError(err?.message || 'Chat failed');
     } finally {
@@ -38,9 +54,73 @@ export default function RadixAssistant() {
     }
   };
 
-  const handleClear = () => {
-    setMessages([]);
-    setError('');
+  const handleClear = () => { setMessages([]); setError(''); };
+
+  const quickActions = [
+    { label: 'Brief', icon: FileText, prompt: 'Show me the current brief' },
+    { label: 'Calendar', icon: Calendar, prompt: 'What months do we have in the calendar?' },
+    { label: 'Visual refs', icon: Search, prompt: `Search for visual references about ${currentClient?.industry || 'luxury branding'}` },
+    { label: 'Generate', icon: Zap, prompt: `Generate content for ${new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' })}` },
+  ];
+
+  // Action card renderer
+  const renderActionCard = (action: ActionResult) => {
+    const r = action.result;
+    if (!r) return null;
+
+    if (action.type === 'search_visual_refs' && r.images?.length) {
+      return (
+        <div className="mt-2 grid grid-cols-3 gap-1.5">
+          {r.images.slice(0, 6).map((img: any, i: number) => (
+            <a key={i} href={img.pinUrl} target="_blank" rel="noopener noreferrer"
+              className="aspect-square rounded-lg overflow-hidden border border-white/[0.06] hover:border-amber-500/30 transition-colors relative group">
+              <img src={img.thumbUrl} alt={img.title || ''} className="w-full h-full object-cover" loading="lazy" />
+              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <ExternalLink className="w-3.5 h-3.5 text-white" />
+              </div>
+            </a>
+          ))}
+        </div>
+      );
+    }
+
+    if (action.type === 'generate_content' && r.jobId) {
+      return (
+        <button onClick={() => { navigate(`/calendar?client=${selectedClientId}&month=${encodeURIComponent(r.month)}`); setOpen(false); }}
+          className="mt-2 flex items-center gap-2 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-1.5 cursor-pointer hover:bg-amber-500/20 transition-colors">
+          <Calendar className="w-3.5 h-3.5" /> View Calendar →
+        </button>
+      );
+    }
+
+    if (action.type === 'list_clients' && Array.isArray(r)) {
+      return (
+        <div className="mt-2 space-y-1">
+          {r.slice(0, 5).map((c: any) => (
+            <div key={c.id} className="text-[11px] text-zinc-400 bg-white/[0.03] rounded-lg px-2.5 py-1.5 border border-white/[0.04]">
+              <span className="text-zinc-200 font-medium">{c.name}</span>
+              {c.industry && <span className="text-zinc-600 ml-1">· {c.industry}</span>}
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    if (action.type === 'get_calendar' && Array.isArray(r)) {
+      return (
+        <div className="mt-2 space-y-1">
+          {r.map((m: any, i: number) => (
+            <button key={i} onClick={() => { navigate(`/calendar?client=${selectedClientId}&month=${encodeURIComponent(m.month)}`); setOpen(false); }}
+              className="w-full text-left text-[11px] text-zinc-400 bg-white/[0.03] rounded-lg px-2.5 py-1.5 border border-white/[0.04] cursor-pointer hover:border-white/[0.1] transition-colors">
+              <span className="text-zinc-200 font-medium">{m.month}</span>
+              <span className="text-zinc-600 ml-1">· {m.postCount} posts · {m.status}</span>
+            </button>
+          ))}
+        </div>
+      );
+    }
+
+    return null;
   };
 
   return (
@@ -48,7 +128,7 @@ export default function RadixAssistant() {
       {/* Floating launcher */}
       <button
         onClick={() => setOpen(!open)}
-        className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-amber-500 text-black flex items-center justify-center shadow-2xl hover:scale-105 transition-transform"
+        className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-amber-500 text-black flex items-center justify-center shadow-2xl hover:scale-105 transition-transform cursor-pointer"
         title={open ? 'Close assistant' : 'Open Radix Assistant'}
       >
         {open ? <X className="w-6 h-6" /> : <Bot className="w-6 h-6" />}
@@ -60,7 +140,7 @@ export default function RadixAssistant() {
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed bottom-24 right-6 z-50 w-[380px] max-w-[calc(100vw-3rem)] h-[560px] max-h-[calc(100vh-8rem)] bg-[#0c0c0c] border border-white/[0.08] rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+            className="fixed bottom-24 right-6 z-50 w-[400px] max-w-[calc(100vw-3rem)] h-[600px] max-h-[calc(100vh-8rem)] bg-[#0c0c0c] border border-white/[0.08] rounded-2xl shadow-2xl flex flex-col overflow-hidden"
           >
             {/* Header */}
             <div className="px-4 py-3 border-b border-white/[0.06] flex items-center gap-3">
@@ -68,15 +148,13 @@ export default function RadixAssistant() {
                 <Bot className="w-4 h-4 text-amber-400" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-white">Radix Assistant</p>
-                <p className="text-[10px] text-zinc-500">Backend AI router</p>
+                <p className="text-sm font-bold text-white">Radix</p>
+                <p className="text-[10px] text-zinc-500">
+                  {currentClient ? `${currentClient.name} · Agent mode` : 'Agent mode'}
+                </p>
               </div>
               {messages.length > 0 && (
-                <button
-                  onClick={handleClear}
-                  className="p-1.5 text-zinc-600 hover:text-red-400 transition-colors"
-                  title="Clear chat"
-                >
+                <button onClick={handleClear} className="p-1.5 text-zinc-600 hover:text-red-400 transition-colors cursor-pointer" title="Clear chat">
                   <Trash2 className="w-4 h-4" />
                 </button>
               )}
@@ -85,34 +163,49 @@ export default function RadixAssistant() {
             {/* Messages */}
             <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
               {messages.length === 0 && !loading && (
-                <div className="h-full flex flex-col items-center justify-center text-center px-6">
-                  <MessageSquare className="w-10 h-10 text-zinc-800 mb-3" />
-                  <p className="text-sm text-zinc-500">Ask anything about your content briefs, calendars, or strategy.</p>
+                <div className="h-full flex flex-col items-center justify-center text-center px-4">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mb-3 shadow-[0_0_30px_-8px_rgba(245,158,11,0.3)]">
+                    <Bot className="w-5 h-5 text-amber-400" />
+                  </div>
+                  <p className="text-sm text-zinc-400 mb-1 font-medium">I'm Radix — your content strategist.</p>
+                  <p className="text-xs text-zinc-600 mb-4">I can generate content, search visual refs, pull your brief, and more.</p>
+
+                  {/* Quick actions */}
+                  <div className="grid grid-cols-2 gap-2 w-full max-w-[280px]">
+                    {quickActions.map(qa => (
+                      <button key={qa.label} onClick={() => handleSend(qa.prompt)}
+                        className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.03] border border-white/[0.06] text-xs text-zinc-400 hover:text-white hover:border-white/[0.12] transition-all cursor-pointer">
+                        <qa.icon className="w-3.5 h-3.5 text-amber-500/60" />
+                        {qa.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
+
               {messages.map((m, i) => (
-                <div
-                  key={i}
-                  className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div
-                    className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap ${
+                <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[88%] ${m.role === 'user' ? '' : ''}`}>
+                    <div className={`rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap leading-relaxed ${
                       m.role === 'user'
                         ? 'bg-amber-500 text-black rounded-br-sm'
                         : 'bg-white/[0.04] text-zinc-200 border border-white/[0.06] rounded-bl-sm'
-                    }`}
-                  >
-                    {m.content}
+                    }`}>
+                      {m.content}
+                    </div>
+                    {m.action && renderActionCard(m.action)}
                   </div>
                 </div>
               ))}
+
               {loading && (
                 <div className="flex justify-start">
                   <div className="rounded-2xl rounded-bl-sm bg-white/[0.04] border border-white/[0.06] px-3.5 py-2 text-sm text-zinc-500 flex items-center gap-2">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Thinking...
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" /> Working on it...
                   </div>
                 </div>
               )}
+
               {error && (
                 <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-3 py-2 flex items-start gap-2">
                   <AlertCircle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
@@ -128,14 +221,14 @@ export default function RadixAssistant() {
                   value={input}
                   onChange={e => setInput(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
-                  placeholder="Type a message..."
+                  placeholder={loading ? 'Working...' : 'Ask Radix anything...'}
                   disabled={loading}
-                  className="flex-1 bg-zinc-900 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-amber-500/40 disabled:opacity-50"
+                  className="flex-1 bg-zinc-900 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-amber-500/40 disabled:opacity-50 transition-colors"
                 />
                 <button
-                  onClick={handleSend}
+                  onClick={() => handleSend()}
                   disabled={loading || !input.trim()}
-                  className="w-9 h-9 rounded-xl bg-amber-500 text-black flex items-center justify-center hover:bg-amber-400 disabled:opacity-30 disabled:cursor-not-allowed"
+                  className="w-9 h-9 rounded-xl bg-amber-500 text-black flex items-center justify-center hover:bg-amber-400 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
                 >
                   <Send className="w-4 h-4" />
                 </button>

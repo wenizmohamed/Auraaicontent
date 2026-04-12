@@ -204,7 +204,7 @@ export interface ChatMessage {
 
 export const assistantApi = {
   chat: (messages: ChatMessage[], clientId?: string) =>
-    request<{ message: ChatMessage; provider: string; latencyMs: number }>(
+    request<{ message: ChatMessage; action?: { type: string; params: Record<string, any>; result: any }; provider: string; latencyMs: number }>(
       '/api/assistant/chat', { method: 'POST', body: JSON.stringify({ messages, clientId }) }, { timeoutMs: 120000 }
     ),
 };
