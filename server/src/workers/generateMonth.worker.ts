@@ -3,6 +3,7 @@ import { aiRouter } from '../services/providers/ai-router.js';
 import { briefService } from '../services/brief.service.js';
 import { buildPlanningPrompt, parseBriefChannels } from '../services/prompt.service.js';
 import { visualSearchService } from '../services/visual-search.service.js';
+import { retrieveContext } from '../services/retrieval.service.js';
 import { type Job, updateJob } from './queue.js';
 
 export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: string; provider: string; model: string; latencyMs: number; fallbackUsed: boolean }> {
@@ -21,6 +22,20 @@ export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: 
   const { score } = briefService.completeness(client.brief);
   if (score < 50) throw new Error(`Brief completeness too low (${score}%). Need at least 50%.`);
 
+  // 2b. Retrieve brand knowledge context (best-effort — generation continues without it)
+  let knowledgeContext: { text: string; score: number }[] = [];
+  if (client.brief.objective) {
+    try {
+      const chunks = await retrieveContext(clientId, client.brief.objective, 5);
+      knowledgeContext = chunks.map(c => ({ text: c.text, score: c.score }));
+      if (knowledgeContext.length > 0) {
+        console.log(`[generateMonth] Retrieved ${knowledgeContext.length} knowledge chunks for ${client.name} (top score: ${knowledgeContext[0].score.toFixed(3)})`);
+      }
+    } catch (err: any) {
+      console.warn(`[generateMonth] Knowledge retrieval failed, continuing without it:`, err?.message || err);
+    }
+  }
+
   // 3. Build prompt
   updateJob(job.id, { progress: 20 });
   const prompt = buildPlanningPrompt({
@@ -29,6 +44,7 @@ export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: 
     assets: client.assets || [],
     month,
     pieceCount: pieceCount || 18,
+    knowledgeContext,
   });
 
   // 4. Call AI via router (Grok primary, Gemini fallback)

@@ -5,11 +5,12 @@ import {
   ArrowLeft, Search, LayoutGrid, List, CheckCircle2, XCircle, Edit3,
   RefreshCw, ChevronDown, Printer, Hash, Calendar, Eye, Users,
   Filter, CheckSquare, Square, Image as ImageIcon, Sparkles, X,
+  Download, Loader2,
 } from 'lucide-react';
 import { useStore, ContentBrief } from '../lib/store';
 import { validateCaption, PLATFORM_LIMITS } from '../lib/platform-limits';
 import { useClients } from '../lib/client-context';
-import { calendarApi, reviewApi, visualRefsApi } from '../lib/backend-api';
+import { calendarApi, reviewApi, visualRefsApi, exportsApi, jobsApi } from '../lib/backend-api';
 import VisualRefGrid from '../components/VisualRefGrid';
 
 // ─── Types ──────────────────────────────────────────────────────
@@ -173,7 +174,11 @@ export default function ContentReview() {
   const [editCreativeCopy, setEditCreativeCopy] = useState('');
   const [loadingRefs, setLoadingRefs] = useState<Set<string>>(new Set());
   const [showFilters, setShowFilters] = useState(false);
+  const [focusedIndex, setFocusedIndex] = useState(0);
+  const [exporting, setExporting] = useState(false);
+  const [exportDone, setExportDone] = useState<string | null>(null);
   const fetchedRef = useRef<Set<string>>(new Set());
+  const cardRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
   // Sync pieces from brief.
   // Include backendMonth.posts so re-fetching the same month (same id)
@@ -318,6 +323,93 @@ export default function ContentReview() {
   const handleRegenerate = (id: string) => {
     handleStatusChange(id, 'generated');
   };
+
+  const handleExportPptx = async () => {
+    const cId = urlClient || selectedClientId || '';
+    const month = brief?.month;
+    if (!cId || !month) return;
+    setExporting(true);
+    setExportDone(null);
+    try {
+      const { jobId } = await exportsApi.trigger(cId, month);
+      let attempts = 0;
+      while (attempts < 40) {
+        await new Promise(r => setTimeout(r, 2000));
+        const job = await jobsApi.get(jobId);
+        if (job.status === 'completed') {
+          const downloadUrl = exportsApi.downloadUrl(job.result?.fileUrl);
+          setExportDone(downloadUrl);
+          setExporting(false);
+          const a = document.createElement('a');
+          a.href = downloadUrl;
+          a.download = '';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          return;
+        }
+        if (job.status === 'failed') {
+          console.error('Export failed:', job.error);
+          break;
+        }
+        attempts++;
+      }
+    } catch (err) {
+      console.error('Export PPTX failed:', err);
+    }
+    setExporting(false);
+  };
+
+  // ─── Keyboard shortcuts ───────────────────────────────────
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // Skip when editing or when an input/textarea is focused
+      if (editingId) return;
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+      switch (e.key) {
+        case 'j': {
+          e.preventDefault();
+          setFocusedIndex(prev => {
+            const next = Math.min(prev + 1, filteredPieces.length - 1);
+            cardRefs.current.get(next)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            return next;
+          });
+          break;
+        }
+        case 'k': {
+          e.preventDefault();
+          setFocusedIndex(prev => {
+            const next = Math.max(prev - 1, 0);
+            cardRefs.current.get(next)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            return next;
+          });
+          break;
+        }
+        case 'a': {
+          e.preventDefault();
+          const piece = filteredPieces[focusedIndex];
+          if (piece) handleStatusChange(piece.id, 'approved');
+          break;
+        }
+        case 'r': {
+          e.preventDefault();
+          const piece = filteredPieces[focusedIndex];
+          if (piece) handleStatusChange(piece.id, 'rejected');
+          break;
+        }
+        case 'e': {
+          e.preventDefault();
+          const piece = filteredPieces[focusedIndex];
+          if (piece) handleStartEdit(piece);
+          break;
+        }
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [editingId, filteredPieces, focusedIndex]);
 
   // ─── Character Counter ──────────────────────────────────────
 
@@ -500,6 +592,14 @@ export default function ContentReview() {
             <Printer className="w-4 h-4" />
             Export PDF
           </button>
+          <button
+            onClick={handleExportPptx}
+            disabled={exporting}
+            className="flex items-center gap-2 px-4 py-2.5 bg-zinc-900 border border-white/10 rounded-xl text-sm text-zinc-400 hover:text-white transition-colors disabled:opacity-50"
+          >
+            {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            {exporting ? 'Exporting...' : 'Export PPTX'}
+          </button>
         </div>
 
         {/* Expanded filters */}
@@ -573,6 +673,36 @@ export default function ContentReview() {
         </AnimatePresence>
       </motion.div>
 
+      {/* ── Approval Progress ────────────────────────────── */}
+      {pieces.length > 0 && (
+        <div className="mb-4 px-1 print:hidden">
+          <div className="flex items-center justify-between mb-1.5">
+            <p className="text-sm font-medium text-zinc-300">
+              {stats.approved === stats.total ? (
+                <span className="text-emerald-400">All approved — ready to export &#10003;</span>
+              ) : (
+                <>
+                  <span className="text-emerald-400 tabular-nums">{stats.approved}</span>
+                  <span className="text-zinc-500">/{stats.total}</span>
+                  {' approved — '}
+                  <span className="text-zinc-400 tabular-nums">
+                    {stats.total > 0 ? Math.round((stats.approved / stats.total) * 100) : 0}% complete
+                  </span>
+                </>
+              )}
+            </p>
+          </div>
+          <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+            <motion.div
+              className="h-full bg-emerald-500 rounded-full"
+              initial={{ width: 0 }}
+              animate={{ width: `${stats.total > 0 ? (stats.approved / stats.total) * 100 : 0}%` }}
+              transition={{ duration: 0.5, ease: 'easeOut' }}
+            />
+          </div>
+        </div>
+      )}
+
       {/* ── Results count ──────────────────────────────────── */}
       <div className="flex items-center justify-between mb-4 px-1 print:hidden">
         <p className="text-sm text-zinc-500">
@@ -587,13 +717,16 @@ export default function ContentReview() {
             {filteredPieces.map((piece, idx) => (
               <motion.div
                 key={piece.id}
+                ref={(el: HTMLDivElement | null) => { if (el) cardRefs.current.set(idx, el); else cardRefs.current.delete(idx); }}
                 layout
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ delay: idx * 0.03, duration: 0.25 }}
                 className={`bg-[#111] border rounded-2xl overflow-hidden transition-colors ${
-                  selectedIds.has(piece.id) ? 'border-amber-500/50 ring-1 ring-amber-500/20' : 'border-white/10'
+                  selectedIds.has(piece.id) ? 'border-amber-500/50 ring-1 ring-amber-500/20'
+                  : focusedIndex === idx ? 'border-amber-500/30 ring-1 ring-amber-500/10'
+                  : 'border-white/10'
                 }`}
               >
                 {/* Card Header */}
@@ -1017,6 +1150,23 @@ export default function ContentReview() {
           );
         })()}
       </AnimatePresence>
+
+      {/* ── Keyboard Hint Bar ────────────────────────────── */}
+      {!editingId && pieces.length > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 z-30 flex justify-center py-2 pointer-events-none print:hidden">
+          <div className="px-4 py-1.5 bg-zinc-900/80 backdrop-blur-sm border border-white/5 rounded-lg">
+            <span className="text-[11px] text-zinc-500 font-mono tracking-wide">
+              <kbd className="px-1.5 py-0.5 bg-white/5 rounded text-zinc-400 text-[10px]">j</kbd>/<kbd className="px-1.5 py-0.5 bg-white/5 rounded text-zinc-400 text-[10px]">k</kbd> navigate
+              <span className="mx-2 text-zinc-700">&middot;</span>
+              <kbd className="px-1.5 py-0.5 bg-white/5 rounded text-zinc-400 text-[10px]">a</kbd> approve
+              <span className="mx-2 text-zinc-700">&middot;</span>
+              <kbd className="px-1.5 py-0.5 bg-white/5 rounded text-zinc-400 text-[10px]">r</kbd> reject
+              <span className="mx-2 text-zinc-700">&middot;</span>
+              <kbd className="px-1.5 py-0.5 bg-white/5 rounded text-zinc-400 text-[10px]">e</kbd> edit
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* ── Bulk Actions Bar ───────────────────────────────── */}
       <AnimatePresence>

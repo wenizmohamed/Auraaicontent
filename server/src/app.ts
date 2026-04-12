@@ -20,6 +20,7 @@ import { designRoutes } from './routes/design.js';
 import { analyzeRoutes } from './routes/analyze.js';
 import { visualRefRoutes } from './routes/visualRefs.js';
 import { dashboardRoutes } from './routes/dashboard.js';
+import { registerRateLimiter } from './middleware/rate-limiter.js';
 
 import { execSync } from 'child_process';
 
@@ -41,6 +42,9 @@ export async function buildApp() {
     });
     payload.on('error', (err: Error) => done(err));
   });
+
+  // Rate limiter (before routes, after parser)
+  registerRateLimiter(app);
 
   // Plugins
   await app.register(cors, { origin: true, credentials: true, methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'] });

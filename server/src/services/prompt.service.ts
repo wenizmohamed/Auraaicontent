@@ -37,7 +37,7 @@ export function parseBriefChannels(raw: any): string[] {
   return [...new Set(canonical)];
 }
 
-export function buildPlanningPrompt(p: { client: any; brief: any; assets: any[]; month: string; pieceCount: number }): string {
+export function buildPlanningPrompt(p: { client: any; brief: any; assets: any[]; month: string; pieceCount: number; knowledgeContext?: { text: string; score: number }[] }): string {
   const s: string[] = [];
   s.push(`You are an expert social media content strategist for ${p.client.name}, a ${p.client.industry || 'general'} company.`);
   s.push('\n=== CLIENT ===');
@@ -80,6 +80,15 @@ export function buildPlanningPrompt(p: { client: any; brief: any; assets: any[];
     // Fallback: if no channels configured (shouldn't happen — brief completeness gate requires it)
     s.push('No channels specified in brief. Default to Instagram only.');
     s.push('- ' + PLATFORM_LIMITS.Instagram);
+  }
+
+  // Brand knowledge from uploaded documents (RAG retrieval)
+  if (p.knowledgeContext && p.knowledgeContext.length > 0) {
+    s.push('\n=== BRAND KNOWLEDGE ===');
+    s.push('The following knowledge was uploaded by the client. Use it to inform your content strategy:');
+    p.knowledgeContext.forEach((chunk, i) => {
+      s.push(`${i + 1}. ${chunk.text}`);
+    });
   }
 
   s.push(`\n=== TASK ===\nGenerate exactly ${p.pieceCount} content pieces for ${p.month} as JSON.`);

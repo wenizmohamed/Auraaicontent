@@ -15,10 +15,38 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Wand2, ImageIcon, Image as ImageLucide, Edit3, Video, Film, Loader2,
   Sparkles, X, Upload, Download, AlertCircle, CheckCircle2,
-  FileSearch, Palette, Bot, ArrowRight, PenTool,
+  FileSearch, Palette, Bot, ArrowRight, PenTool, ChevronDown, ChevronUp,
+  Link2, Copy, Clock,
 } from 'lucide-react';
 import { creativeApi } from '../lib/backend-api';
 import { useClients } from '../lib/client-context';
+import { readJson } from '../lib/safe-storage';
+
+// ─── Prompt History ─────────────────────────────────────────────
+
+const HISTORY_KEY = 'radix_prompt_history';
+const MAX_HISTORY = 20;
+
+interface PromptHistoryEntry {
+  prompt: string;
+  mode: Mode;
+  timestamp: number;
+}
+
+function loadHistory(): PromptHistoryEntry[] {
+  return readJson<PromptHistoryEntry[]>(HISTORY_KEY, []);
+}
+
+function saveHistory(entries: PromptHistoryEntry[]) {
+  try {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(entries.slice(0, MAX_HISTORY)));
+  } catch {}
+}
+
+function pushHistory(entry: PromptHistoryEntry) {
+  const prev = loadHistory().filter(h => h.prompt !== entry.prompt);
+  saveHistory([entry, ...prev]);
+}
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -148,6 +176,15 @@ export default function CreativeTools() {
   const cancelledRef = useRef(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Prompt history
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [promptHistory, setPromptHistory] = useState<PromptHistoryEntry[]>(loadHistory);
+
+  // Attach-to-post modal
+  const [attachModalOpen, setAttachModalOpen] = useState(false);
+  const [attachPostId, setAttachPostId] = useState('');
+  const [copiedAssetId, setCopiedAssetId] = useState(false);
+
   useEffect(() => () => { cancelledRef.current = true; }, []);
 
   // When the user switches mode, reset everything mode-specific but keep prompt
@@ -276,6 +313,11 @@ export default function CreativeTools() {
         }
         if (attempts >= 120) throw new Error('Video generation timed out after 10 minutes');
       }
+
+      // Save prompt to history on success
+      const entry: PromptHistoryEntry = { prompt: prompt.trim(), mode, timestamp: Date.now() };
+      pushHistory(entry);
+      setPromptHistory(loadHistory());
     } catch (err: any) {
       if (!cancelledRef.current) {
         setError(err?.message || 'Generation failed');
@@ -458,6 +500,61 @@ export default function CreativeTools() {
           </div>
         </div>
 
+        {/* Prompt history */}
+        {promptHistory.length > 0 && (
+          <div>
+            <button
+              type="button"
+              onClick={() => setHistoryOpen(o => !o)}
+              className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-zinc-500 font-bold hover:text-zinc-300 transition-colors"
+            >
+              <Clock className="w-3 h-3" />
+              Recent prompts ({promptHistory.length})
+              {historyOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            </button>
+            <AnimatePresence>
+              {historyOpen && (
+                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                  <div className="mt-2 rounded-xl border border-white/[0.06] bg-white/[0.01] max-h-48 overflow-y-auto divide-y divide-white/[0.04]">
+                    {promptHistory.map((h, i) => (
+                      <div key={`${h.timestamp}-${i}`} className="flex items-center gap-2 px-3 py-2 group hover:bg-white/[0.02] transition-colors">
+                        <button
+                          type="button"
+                          onClick={() => { setPrompt(h.prompt); setHistoryOpen(false); }}
+                          className="flex-1 text-left text-xs text-zinc-400 truncate hover:text-white transition-colors"
+                          title={h.prompt}
+                        >
+                          {h.prompt}
+                        </button>
+                        <span className="text-[9px] text-zinc-700 shrink-0">{h.mode.replace(/-/g, ' ')}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = promptHistory.filter((_, j) => j !== i);
+                            saveHistory(next);
+                            setPromptHistory(next);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-zinc-600 hover:text-red-400 transition-all"
+                          title="Remove"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { saveHistory([]); setPromptHistory([]); }}
+                    className="mt-1.5 text-[10px] text-zinc-600 hover:text-red-400 transition-colors"
+                  >
+                    Clear all
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
+
         {/* Compact controls row */}
         <div className="flex flex-wrap items-end gap-5">
           <div>
@@ -571,6 +668,15 @@ export default function CreativeTools() {
                 >
                   <Download className="w-3 h-3" /> Download
                 </a>
+                {savedAssetId && (
+                  <button
+                    type="button"
+                    onClick={() => setAttachModalOpen(true)}
+                    className="flex items-center gap-1 text-[10px] text-sky-400 hover:text-sky-300 bg-sky-500/10 border border-sky-500/20 rounded-md px-2 py-0.5"
+                  >
+                    <Link2 className="w-3 h-3" /> Attach to Post
+                  </button>
+                )}
               </div>
             </div>
             <div className="rounded-xl overflow-hidden border border-white/[0.06] bg-black">
@@ -582,6 +688,81 @@ export default function CreativeTools() {
             </div>
           </motion.div>
         )}
+
+        {/* Attach-to-post modal */}
+        <AnimatePresence>
+          {attachModalOpen && savedAssetId && (
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+              onClick={() => setAttachModalOpen(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+                onClick={e => e.stopPropagation()}
+                className="bg-[#111] border border-white/[0.1] rounded-2xl p-6 w-full max-w-md space-y-4 shadow-2xl"
+              >
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-white">Attach Asset to Post</h3>
+                  <button onClick={() => setAttachModalOpen(false)} className="p-1 rounded-lg hover:bg-white/10 text-zinc-400">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Copyable asset ID badge */}
+                <div className="flex items-center gap-2 bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-2">
+                  <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold shrink-0">Asset ID</span>
+                  <code className="text-xs text-emerald-400 truncate flex-1">{savedAssetId}</code>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(savedAssetId);
+                      setCopiedAssetId(true);
+                      setTimeout(() => setCopiedAssetId(false), 2000);
+                    }}
+                    className="p-1 rounded hover:bg-white/10 text-zinc-500 hover:text-white transition-colors"
+                    title="Copy asset ID"
+                  >
+                    {copiedAssetId ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+
+                {/* Post ID input + link button */}
+                <div>
+                  <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Post ID</label>
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <input
+                      type="text"
+                      value={attachPostId}
+                      onChange={e => setAttachPostId(e.target.value)}
+                      placeholder="Paste calendar post ID..."
+                      className="flex-1 bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-amber-500/40"
+                    />
+                    <button
+                      type="button"
+                      disabled={!attachPostId.trim()}
+                      onClick={async () => {
+                        try {
+                          await (await import('../lib/backend-api')).calendarApi.updatePost(
+                            attachPostId.trim(),
+                            { assetId: savedAssetId, assetUrl: resultUrl },
+                          );
+                          setAttachModalOpen(false);
+                          setAttachPostId('');
+                        } catch (err: any) {
+                          alert(`Link failed: ${err?.message || 'unknown error'}`);
+                        }
+                      }}
+                      className="flex items-center gap-1.5 bg-sky-500/20 border border-sky-500/30 text-sky-300 px-4 py-2 rounded-lg text-sm font-medium hover:bg-sky-500/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <Link2 className="w-3.5 h-3.5" /> Link
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
 
       {/* ─── Secondary Tools (demoted) ──────────────────────────── */}

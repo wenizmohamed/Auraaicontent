@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { db } from '../db/prisma.js';
 import { authGuard } from '../middleware/auth.js';
 import { briefService } from '../services/brief.service.js';
+import { auditService } from '../services/audit.service.js';
 import { createJob, processJob } from '../workers/queue.js';
 import { generateMonthWorker } from '../workers/generateMonth.worker.js';
 import { visualSearchService } from '../services/visual-search.service.js';
@@ -33,6 +34,10 @@ export async function calendarRoutes(app: FastifyInstance) {
     // Create and process job
     const job = createJob('generate-month', { clientId, month, pieceCount: pieceCount || 18 });
     processJob(job.id, generateMonthWorker);
+
+    // Audit
+    const userId = (request as any).user?.id;
+    auditService.log({ userId, clientId, action: 'generate', entityType: 'CalendarMonth', payload: { month, pieceCount, jobId: job.id } });
 
     return reply.status(202).send({ jobId: job.id });
   });

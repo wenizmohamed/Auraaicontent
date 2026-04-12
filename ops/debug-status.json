@@ -1,14 +1,14 @@
 {
-  "timestamp": "2026-04-09T14:39:50Z",
+  "timestamp": "2026-04-11T20:07:07Z",
   "git": {
-    "branch": "v2-migration",
-    "commit": "b51718d"
+    "branch": "million-dollar-hardening",
+    "commit": "af1ea25"
   },
   "keys_match_across_lanes": true,
   "local_backend": {
     "url": "http://localhost:8080",
-    "pid": "54284",
-    "process_start": "2026-04-09T14:38:03.888Z",
+    "pid": "66992",
+    "process_start": "2026-04-11T20:06:39.568Z",
     "gemini_fp": "15b49b4edb67",
     "xai_fp": "72604114b5b7",
     "routing": "xai/xai",
@@ -17,17 +17,17 @@
   "local_web": {
     "url": "http://localhost:3000",
     "backend_url": "http://localhost:8080",
-    "pid": "3644",
-    "status": "pass"
+    "pid": "?",
+    "status": "down"
   },
   "desktop": {
-    "electron_processes": 4,
+    "electron_processes": 0,
     "backend_url": "http://localhost:8080",
-    "status": "pass"
+    "status": "not_running"
   },
   "vps_backend": {
     "url": "https://srv1494206.hstgr.cloud/api",
-    "process_start": "2026-04-09T11:32:58.199Z",
+    "process_start": "2026-04-11T18:14:11.104Z",
     "gemini_fp": "15b49b4edb67",
     "xai_fp": "72604114b5b7",
     "status": "pass"
