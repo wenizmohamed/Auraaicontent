@@ -16,6 +16,7 @@ import { LayoutDashboard, Calendar, ImagePlus, Image as ImageIcon, Video, Search
 import Dashboard from './pages/Dashboard';
 import ContentCalendar from './pages/ContentCalendar';
 import Login from './pages/Login';
+import Onboarding from './pages/Onboarding';
 import VideoAnalysis from './pages/VideoAnalysis';
 import Research from './pages/Research';
 import Profile from './pages/Profile';
@@ -252,6 +253,7 @@ export default function App() {
               <Route path="/research" element={<Research />} />
               <Route path="/studio" element={<Studio />} />
               <Route path="/profile" element={<Profile />} />
+              <Route path="/onboarding" element={<Onboarding />} />
             </Routes>
           </Layout>
         </AuthGate>
