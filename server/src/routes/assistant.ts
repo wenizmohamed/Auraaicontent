@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify';
+import Anthropic from '@anthropic-ai/sdk';
 import { authGuard } from '../middleware/auth.js';
 import { aiRouter } from '../services/providers/ai-router.js';
 import { sendAiError } from '../services/providers/errors.js';
@@ -8,6 +9,36 @@ import { createJob, processJob } from '../workers/queue.js';
 import { generateMonthWorker } from '../workers/generateMonth.worker.js';
 import { searchPinterest } from '../services/pinterest.service.js';
 import { auditService } from '../services/audit.service.js';
+
+// ─── Claude Client ───────────────────────────────────────────────
+const CLAUDE_MODEL = 'claude-sonnet-4-20250514';
+let _claude: Anthropic | null = null;
+function getClaude(): Anthropic {
+  if (!_claude) {
+    const key = process.env.ANTHROPIC_API_KEY;
+    if (!key) throw new Error('ANTHROPIC_API_KEY is not set — assistant requires Claude');
+    _claude = new Anthropic({ apiKey: key });
+  }
+  return _claude;
+}
+
+async function callClaude(system: string, messages: { role: 'user' | 'assistant'; content: string }[]): Promise<string> {
+  const client = getClaude();
+  const start = Date.now();
+  const response = await client.messages.create({
+    model: CLAUDE_MODEL,
+    max_tokens: 2048,
+    system,
+    messages,
+  });
+  const latency = Date.now() - start;
+  const text = response.content
+    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+    .map(b => b.text)
+    .join('');
+  console.log(`[assistant] Claude ${CLAUDE_MODEL} ${latency}ms, ${text.length} chars`);
+  return text;
+}
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -157,10 +188,11 @@ async function executeAction(action: string, params: any, clientId: string | nul
     case 'improve_prompt': {
       const prompt = params?.prompt || '';
       if (!prompt) return { error: 'prompt text is required' };
-      const result = await aiRouter.text({
-        prompt: `You are a creative director. Improve this image/video generation prompt to be more vivid, specific, and visually compelling. Return ONLY the improved prompt, nothing else.\n\nOriginal: ${prompt}`,
-      });
-      return { original: prompt, improved: typeof result.output === 'string' ? result.output : JSON.stringify(result.output) };
+      const improved = await callClaude(
+        'You are a creative director. Improve the given image/video generation prompt to be more vivid, specific, and visually compelling. Return ONLY the improved prompt, nothing else.',
+        [{ role: 'user', content: prompt }],
+      );
+      return { original: prompt, improved: improved.trim() };
     }
 
     default:
@@ -200,29 +232,27 @@ export async function assistantRoutes(app: FastifyInstance) {
 
     const systemPrompt = RADIX_PERSONA + clientContext;
 
-    // Format conversation
-    const conversation = messages
+    // Format conversation for Claude's messages API
+    const claudeMessages: { role: 'user' | 'assistant'; content: string }[] = messages
       .filter(m => m.role !== 'system')
-      .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
-      .join('\n\n');
+      .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
 
     try {
-      // Pass 1: Get AI response (might be an action or plain text)
-      const pass1 = await aiRouter.text({
-        prompt: `${conversation}\n\nAssistant:`,
-        system: systemPrompt,
-      });
+      const start = Date.now();
 
-      let responseText = typeof pass1.output === 'string' ? pass1.output.trim() : JSON.stringify(pass1.output);
+      // Pass 1: Get Claude's response (might be an action or plain text)
+      const pass1Text = await callClaude(systemPrompt, claudeMessages);
+
+      let responseText = pass1Text.trim();
       let actionTaken: AgentAction | undefined;
-      let totalLatency = pass1.latencyMs;
+      let totalLatency = Date.now() - start;
 
       // Check if the response is an action JSON
       try {
-        const parsed = typeof pass1.output === 'object' ? pass1.output : JSON.parse(responseText);
-        if (parsed && (parsed as any).type === 'action' && (parsed as any).action) {
-          const actionName = (parsed as any).action;
-          const actionParams = (parsed as any).params || {};
+        const parsed = JSON.parse(responseText);
+        if (parsed && parsed.type === 'action' && parsed.action) {
+          const actionName = parsed.action;
+          const actionParams = parsed.params || {};
 
           // Execute the action
           const actionResult = await executeAction(actionName, actionParams, clientId || null);
@@ -239,14 +269,15 @@ export async function assistantRoutes(app: FastifyInstance) {
             payload: { params: actionParams, resultSummary: JSON.stringify(actionResult).slice(0, 200) },
           });
 
-          // Pass 2: Ask AI to write a human-friendly summary of the action result
-          const pass2 = await aiRouter.text({
-            prompt: `${conversation}\n\nAssistant: [I executed the "${actionName}" action]\n\nAction result:\n${JSON.stringify(actionResult, null, 2)}\n\nNow write a concise, friendly summary of what happened for the user. Be specific about numbers and details. Don't repeat the raw JSON — translate it into natural language.\n\nAssistant:`,
-            system: systemPrompt,
-          });
+          // Pass 2: Ask Claude to write a human-friendly summary of the action result
+          const pass2Text = await callClaude(systemPrompt, [
+            ...claudeMessages,
+            { role: 'assistant', content: `[Executed "${actionName}" action]` },
+            { role: 'user', content: `Action result:\n${JSON.stringify(actionResult, null, 2)}\n\nWrite a concise, friendly summary of what happened. Be specific about numbers and details. Don't repeat raw JSON — translate into natural language.` },
+          ]);
 
-          responseText = typeof pass2.output === 'string' ? pass2.output.trim() : JSON.stringify(pass2.output);
-          totalLatency += pass2.latencyMs;
+          responseText = pass2Text.trim();
+          totalLatency = Date.now() - start;
         }
       } catch {
         // Not JSON — it's a plain text response, which is fine
@@ -255,7 +286,7 @@ export async function assistantRoutes(app: FastifyInstance) {
       return {
         message: { role: 'assistant' as const, content: responseText },
         action: actionTaken,
-        provider: pass1.provider,
+        provider: 'claude',
         latencyMs: totalLatency,
       };
     } catch (err: any) {

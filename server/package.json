@@ -12,6 +12,7 @@
     "prisma:studio": "prisma studio"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.88.0",
     "@fastify/cors": "^11.0.0",
     "@fastify/multipart": "^9.0.0",
     "@fastify/static": "^9.1.0",
