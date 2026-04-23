@@ -36,7 +36,7 @@
       "icon": "public/radix-icon.png"
     },
     "portable": {
-      "artifactName": "RADIX-Content-Planner-Portable.exe"
+      "artifactName": "RADIX-Content-Planner-Portable-v2.exe"
     }
   },
   "dependencies": {

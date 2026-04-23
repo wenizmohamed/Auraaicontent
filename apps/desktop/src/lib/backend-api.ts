@@ -1,18 +1,61 @@
 // Backend API client — connects desktop frontend to Fastify server
 // Falls back to localStorage when server is unavailable
-
+//
 // Resolution order:
 //   1. explicit VITE_API_URL build env (highest priority)
-//   2. desktop runtime → window.electron.apiBaseUrl || http://127.0.0.1:8080
-//   3. dev mode → http://127.0.0.1:8080 (vite dev server proxy target)
-//   4. prod web mode → '' (relative URL — nginx serves /api/* on the same host)
-const desktopApiBaseUrl =
-  typeof window !== 'undefined' && window.electron?.isDesktop
-    ? (window.electron.apiBaseUrl || 'http://127.0.0.1:8080')
+//   2. localStorage override (radix_api_url) — picked at runtime by the
+//      cascade below when a candidate comes back healthy
+//   3. desktop runtime → cascade [local, VPS] with 2s probe
+//   4. dev mode → http://127.0.0.1:8080 (vite dev server proxy target)
+//   5. prod web mode → '' (relative URL — nginx serves /api/* on the same host)
+const PRODUCTION_VPS_URL = 'https://srv1494206.hstgr.cloud';
+
+function computeCandidates(): string[] {
+  const explicit = import.meta.env.VITE_API_URL as string | undefined;
+  if (explicit) return [explicit];
+  const stored = typeof window !== 'undefined' ? localStorage.getItem('radix_api_url') : null;
+  const runtimeHint = typeof window !== 'undefined' && window.electron?.isDesktop
+    ? window.electron.apiBaseUrl || null
     : null;
-const API_URL: string =
-  (import.meta.env.VITE_API_URL as string | undefined) ??
-  (desktopApiBaseUrl || (import.meta.env.DEV ? 'http://127.0.0.1:8080' : ''));
+  const isDev = import.meta.env.DEV;
+  const isElectron = typeof window !== 'undefined' && window.electron?.isDesktop;
+
+  const list: string[] = [];
+  if (stored) list.push(stored);
+  if (runtimeHint) list.push(runtimeHint);
+  if (isElectron || isDev) list.push('http://127.0.0.1:8080');
+  if (isElectron) list.push(PRODUCTION_VPS_URL);
+  if (!list.length) list.push(''); // prod web: same-origin
+  return [...new Set(list)];
+}
+
+let API_URL: string = computeCandidates()[0] ?? '';
+
+async function probeHealthy(url: string, timeoutMs = 2000): Promise<boolean> {
+  try {
+    const base = url || window.location.origin;
+    const res = await fetch(`${base}/api/health`, { signal: AbortSignal.timeout(timeoutMs) });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Cascade the candidate list: return the first URL whose /api/health responds
+ * inside `timeoutMs`. Persist the winner to localStorage so subsequent launches
+ * skip the probe. Called from isServerAvailable() at bootstrap.
+ */
+async function pickHealthyBackend(timeoutMs = 2000): Promise<string | null> {
+  for (const candidate of computeCandidates()) {
+    if (await probeHealthy(candidate, timeoutMs)) {
+      API_URL = candidate;
+      try { localStorage.setItem('radix_api_url', candidate); } catch {}
+      return candidate;
+    }
+  }
+  return null;
+}
 
 let authToken: string | null = localStorage.getItem('radix_auth_token');
 let refreshToken: string | null = localStorage.getItem('radix_refresh_token');
@@ -422,11 +465,26 @@ export const dashboardApi = {
 
 // ─── Server health check ─────────────────────────────────────────
 
+/** Try the current API_URL, and if it fails, cascade through the candidate
+ * list (local -> VPS) and pick the first healthy one.  The winner is
+ * persisted to localStorage so next launch starts there.  This is why the
+ * portable exe works out-of-the-box against the VPS for team members who
+ * don't run the Fastify server locally. */
 export async function isServerAvailable(): Promise<boolean> {
-  try {
-    await fetch(`${API_URL}/api/health`, { signal: AbortSignal.timeout(2000) });
-    return true;
-  } catch {
-    return false;
-  }
+  if (API_URL && await probeHealthy(API_URL, 2000)) return true;
+  const winner = await pickHealthyBackend(2500);
+  return winner !== null;
+}
+
+/** Return the currently-bound backend URL (after cascade).  Useful for
+ * status UIs that want to display "Connected to: https://srv..." */
+export function getApiUrl(): string {
+  return API_URL;
+}
+
+/** Override the backend URL manually (e.g. a "Settings → Backend URL"
+ * dropdown).  Clears any cached probe winner so next probe re-runs. */
+export function setApiUrl(url: string) {
+  API_URL = url;
+  try { localStorage.setItem('radix_api_url', url); } catch {}
 }
