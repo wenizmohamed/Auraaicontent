@@ -11,12 +11,7 @@ import type {
   Thought,
   ChatMessage,
 } from '../state/agent-store';
-
-const API_URL =
-  (import.meta.env.VITE_API_URL as string | undefined) ??
-  (typeof window !== 'undefined' && window.location.hostname === 'localhost'
-    ? 'http://localhost:8080'
-    : 'http://127.0.0.1:8080');
+import { API_URL } from '../lib/api-url';
 
 interface ServerSession {
   uid: string;

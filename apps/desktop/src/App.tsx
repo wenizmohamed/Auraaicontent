@@ -187,12 +187,11 @@ function Layout({ children }: { children: React.ReactNode }) {
   );
 }
 
-const DESKTOP_API_URL = window.electron?.isDesktop
-  ? (window.electron.apiBaseUrl || 'http://127.0.0.1:8080')
-  : null;
-const API_URL: string =
-  (import.meta.env.VITE_API_URL as string | undefined) ??
-  (DESKTOP_API_URL || (import.meta.env.DEV ? 'http://127.0.0.1:8080' : ''));
+// Unified resolver: env > electron hint > localStorage > same-origin (prod)
+// > 127.0.0.1:8080 (dev / fallback).  Was a one-off inline fallback ladder
+// that hardcoded 127.0.0.1:8080 into prod bundles → VPS DevTools flooded
+// with ERR_CONNECTION_REFUSED (2026-04-23 Weni recording).
+import { API_URL } from './lib/api-url';
 const BUILD_TIME = new Date().toISOString();
 const IS_ELECTRON = !!window.electron?.isDesktop;
 

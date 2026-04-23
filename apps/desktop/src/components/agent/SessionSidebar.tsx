@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Plus, Search, Clock, Loader2, AlertCircle } from 'lucide-react';
+import { API_URL } from '../../lib/api-url';
 
 interface SessionSidebarProps {
   activeSessionUid: string | null;
@@ -17,12 +18,6 @@ interface SessionRow {
   status: string;
   updatedAt: string;
 }
-
-const API_URL =
-  (import.meta.env.VITE_API_URL as string | undefined) ??
-  (typeof window !== 'undefined' && window.location.hostname === 'localhost'
-    ? 'http://localhost:8080'
-    : 'http://127.0.0.1:8080');
 
 async function fetchSessions(): Promise<SessionRow[]> {
   const token = typeof window !== 'undefined' ? window.localStorage.getItem('radix_auth_token') : null;

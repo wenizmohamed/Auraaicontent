@@ -11,12 +11,7 @@ import {
 } from '../../state/agent-store';
 import { useStreamTail } from '../../hooks/useAgentSocket';
 import { getAgentSocket } from '../../lib/socket';
-
-const API_URL =
-  (import.meta.env.VITE_API_URL as string | undefined) ??
-  (typeof window !== 'undefined' && window.location.hostname === 'localhost'
-    ? 'http://localhost:8080'
-    : 'http://127.0.0.1:8080');
+import { API_URL } from '../../lib/api-url';
 
 async function promoteDraftToSession(
   title: string,

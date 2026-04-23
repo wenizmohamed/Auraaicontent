@@ -9,14 +9,9 @@ import type {
   ServerToClientEvents,
 } from './agent-events';
 import { AGENT_NAMESPACE } from './agent-events';
+import { API_URL } from './api-url';
 
 export type AgentSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
-
-const API_URL =
-  (import.meta.env.VITE_API_URL as string | undefined) ??
-  (typeof window !== 'undefined' && window.location.hostname === 'localhost'
-    ? 'http://localhost:8080'
-    : 'http://127.0.0.1:8080');
 
 let agentSocket: AgentSocket | null = null;
 

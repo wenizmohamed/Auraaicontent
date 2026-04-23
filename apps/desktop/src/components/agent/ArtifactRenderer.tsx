@@ -10,14 +10,13 @@ import {
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import type { Artifact } from '../../state/agent-store';
+import { API_URL as FILE_SERVER_BASE } from '../../lib/api-url';
 
 interface ArtifactRendererProps {
   artifact: Artifact;
 }
 
 type Kind = 'image' | 'video' | 'pdf' | 'text' | 'markdown' | 'office' | 'unknown';
-
-const FILE_SERVER_BASE = 'http://localhost:8080';
 
 function formatBytes(bytes?: number): string | null {
   if (bytes == null || !Number.isFinite(bytes)) return null;

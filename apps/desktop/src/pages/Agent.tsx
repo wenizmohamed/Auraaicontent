@@ -14,8 +14,7 @@ import SessionSidebar from '../components/agent/SessionSidebar';
 import ChatPanel from '../components/agent/ChatPanel';
 import ComputerPanel from '../components/agent/ComputerPanel';
 import PanelErrorBoundary from '../components/agent/PanelErrorBoundary';
-
-const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://127.0.0.1:8080';
+import { API_URL } from '../lib/api-url';
 
 function generateDraftUid(): string {
   // crypto.randomUUID is safer than Math.random for collision-resistance in
