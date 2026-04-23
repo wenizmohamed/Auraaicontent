@@ -76,15 +76,19 @@ export async function runContentAgent(args: RunContentAgentArgs): Promise<RunAge
   try {
     const result = await runAgentLoop({ input, ctx });
 
-    // Persist final assistant message
+    // Persist final assistant message — content may be string or null (when
+    // the assistant only emitted tool_calls). Coerce null/array to string.
     const lastAssistant = [...result.messages].reverse().find((m) => m.role === 'assistant');
     if (lastAssistant) {
-      const text = Array.isArray(lastAssistant.content)
-        ? lastAssistant.content
-            .filter((b) => b.type === 'text')
-            .map((b) => (b as { text: string }).text)
-            .join('\n')
-        : lastAssistant.content;
+      const raw = lastAssistant.content;
+      let text: string;
+      if (typeof raw === 'string') text = raw;
+      else if (Array.isArray(raw))
+        text = raw
+          .filter((b): b is { type: 'text'; text: string } => b.type === 'text')
+          .map((b) => b.text)
+          .join('\n');
+      else text = '';
       if (text.trim()) {
         await prisma.agentMessage.create({
           data: { sessionId: session.id, role: 'assistant', content: text.slice(0, 50000) },

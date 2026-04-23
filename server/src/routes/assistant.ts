@@ -1,7 +1,6 @@
 import { FastifyInstance } from 'fastify';
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import { authGuard } from '../middleware/auth.js';
-import { aiRouter } from '../services/providers/ai-router.js';
 import { sendAiError } from '../services/providers/errors.js';
 import { db } from '../db/prisma.js';
 import { briefService } from '../services/brief.service.js';
@@ -10,33 +9,34 @@ import { generateMonthWorker } from '../workers/generateMonth.worker.js';
 import { searchPinterest } from '../services/pinterest.service.js';
 import { auditService } from '../services/audit.service.js';
 
-// ─── Claude Client ───────────────────────────────────────────────
-const CLAUDE_MODEL = process.env.CLAUDE_ASSISTANT_MODEL || 'claude-sonnet-4-20250514';
-let _claude: Anthropic | null = null;
-function getClaude(): Anthropic {
-  if (!_claude) {
-    const key = process.env.ANTHROPIC_API_KEY;
-    if (!key) throw new Error('ANTHROPIC_API_KEY is not set — assistant requires Claude');
-    _claude = new Anthropic({ apiKey: key });
+// ─── Grok Client (xAI via OpenAI-compatible API) ─────────────────
+// 2026-04-23: migrated off Anthropic Claude direct SDK at Weni's direction.
+// Grok 4.x is the assistant brain. Vertex Claude remains a future option
+// (see server/docs/vertex-claude.md) but is not wired here by default.
+const GROK_MODEL = process.env.ASSISTANT_MODEL || process.env.XAI_TEXT_MODEL || 'grok-4-fast-reasoning';
+const XAI_BASE_URL = process.env.XAI_BASE_URL || 'https://api.x.ai/v1';
+
+let _grok: OpenAI | null = null;
+function getGrok(): OpenAI {
+  if (!_grok) {
+    const key = process.env.XAI_API_KEY;
+    if (!key) throw new Error('XAI_API_KEY is not set — assistant requires Grok');
+    _grok = new OpenAI({ apiKey: key, baseURL: XAI_BASE_URL });
   }
-  return _claude;
+  return _grok;
 }
 
-async function callClaude(system: string, messages: { role: 'user' | 'assistant'; content: string }[]): Promise<string> {
-  const client = getClaude();
+async function callGrok(system: string, messages: { role: 'user' | 'assistant'; content: string }[]): Promise<string> {
+  const client = getGrok();
   const start = Date.now();
-  const response = await client.messages.create({
-    model: CLAUDE_MODEL,
+  const response = await client.chat.completions.create({
+    model: GROK_MODEL,
     max_tokens: 2048,
-    system,
-    messages,
+    messages: [{ role: 'system', content: system }, ...messages],
   });
   const latency = Date.now() - start;
-  const text = response.content
-    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-    .map(b => b.text)
-    .join('');
-  console.log(`[assistant] Claude ${CLAUDE_MODEL} ${latency}ms, ${text.length} chars`);
+  const text = response.choices[0]?.message?.content ?? '';
+  console.log(`[assistant] Grok ${GROK_MODEL} ${latency}ms, ${text.length} chars`);
   return text;
 }
 
@@ -200,7 +200,7 @@ async function executeAction(action: string, params: any, clientId: string | nul
     case 'improve_prompt': {
       const prompt = params?.prompt || '';
       if (!prompt) return { error: 'prompt text is required' };
-      const improved = await callClaude(
+      const improved = await callGrok(
         'You are a creative director. Improve the given image/video generation prompt to be more vivid, specific, and visually compelling. Return ONLY the improved prompt, nothing else.',
         [{ role: 'user', content: prompt }],
       );
@@ -229,7 +229,7 @@ async function executeAction(action: string, params: any, clientId: string | nul
     case 'research': {
       const query = params?.query || '';
       if (!query) return { error: 'query is required' };
-      const researchResult = await callClaude(
+      const researchResult = await callGrok(
         'You are a senior content strategist at a Dubai agency. Research the topic and provide 5-7 actionable content ideas with platform recommendations. Be specific to the UAE/GCC market when relevant. Return as structured text, not JSON.',
         [{ role: 'user', content: query }],
       );
@@ -298,7 +298,7 @@ export async function assistantRoutes(app: FastifyInstance) {
     const systemPrompt = RADIX_PERSONA + clientContext;
 
     // Format conversation for Claude's messages API
-    const claudeMessages: { role: 'user' | 'assistant'; content: string }[] = messages
+    const grokMessages: { role: 'user' | 'assistant'; content: string }[] = messages
       .filter(m => m.role !== 'system')
       .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
 
@@ -306,7 +306,7 @@ export async function assistantRoutes(app: FastifyInstance) {
       const start = Date.now();
 
       // Pass 1: Get Claude's response (might be an action or plain text)
-      const pass1Text = await callClaude(systemPrompt, claudeMessages);
+      const pass1Text = await callGrok(systemPrompt, grokMessages);
 
       let responseText = pass1Text.trim();
       let actionTaken: AgentAction | undefined;
@@ -335,8 +335,8 @@ export async function assistantRoutes(app: FastifyInstance) {
           });
 
           // Pass 2: Ask Claude to write a human-friendly summary of the action result
-          const pass2Text = await callClaude(systemPrompt, [
-            ...claudeMessages,
+          const pass2Text = await callGrok(systemPrompt, [
+            ...grokMessages,
             { role: 'assistant', content: `[Executed "${actionName}" action]` },
             { role: 'user', content: `Action result:\n${JSON.stringify(actionResult, null, 2)}\n\nWrite a concise, friendly summary of what happened. Be specific about numbers and details. Don't repeat raw JSON — translate into natural language.` },
           ]);
@@ -351,7 +351,7 @@ export async function assistantRoutes(app: FastifyInstance) {
       return {
         message: { role: 'assistant' as const, content: responseText },
         action: actionTaken,
-        provider: 'claude',
+        provider: 'grok',
         latencyMs: totalLatency,
       };
     } catch (err: any) {

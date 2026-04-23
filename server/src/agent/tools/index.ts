@@ -32,11 +32,27 @@ export const TOOL_BY_NAME: Record<string, AnyTool> = Object.fromEntries(
   TOOLS.map((t) => [t.name, t]),
 );
 
-// Anthropic-compatible tool schema (for Messages.create({ tools: ... })).
+// Anthropic-compatible tool schema (kept for Vertex Claude fallback path).
 export function toAnthropicTools(): Array<{ name: string; description: string; input_schema: AnyTool['input_schema'] }> {
   return TOOLS.map((t) => ({
     name: t.name,
     description: t.description,
     input_schema: t.input_schema,
+  }));
+}
+
+// OpenAI-compatible tool schema (xAI Grok, OpenAI, Vertex non-Claude).
+// Shape: { type: 'function', function: { name, description, parameters } }
+export function toOpenAITools(): Array<{
+  type: 'function';
+  function: { name: string; description: string; parameters: AnyTool['input_schema'] };
+}> {
+  return TOOLS.map((t) => ({
+    type: 'function' as const,
+    function: {
+      name: t.name,
+      description: t.description,
+      parameters: t.input_schema,
+    },
   }));
 }

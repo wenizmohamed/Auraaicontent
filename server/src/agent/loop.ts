@@ -1,10 +1,20 @@
-// Tool-calling loop using Anthropic Messages API.
-// Streams assistant text deltas as agent:message events, executes tool calls
-// against the registry, feeds tool_result blocks back into the conversation.
-// Max 10 iterations (safety cap). Aborts on ctx.signal.
+// Tool-calling loop using xAI Grok via the OpenAI-compatible Chat Completions
+// API.  Streams assistant text deltas as `agent:message` events, executes
+// tool_calls against the registry, feeds tool results back as role:'tool'
+// messages.  Max 20 iterations (safety cap).  Aborts on ctx.signal.
+//
+// 2026-04-23: Migrated off Anthropic Claude direct SDK at Weni's direction.
+// Grok 4.x is now the orchestrator. Vertex Claude remains available as a
+// secondary path (see server/docs/vertex-claude.md) but is not wired into the
+// agent loop by default.
 
-import Anthropic from '@anthropic-ai/sdk';
-import { TOOL_BY_NAME, toAnthropicTools } from './tools/index.js';
+import OpenAI from 'openai';
+import type {
+  ChatCompletionMessageParam,
+  ChatCompletionTool,
+  ChatCompletionMessageToolCall,
+} from 'openai/resources/chat/completions';
+import { TOOL_BY_NAME, toOpenAITools } from './tools/index.js';
 import type { ToolContext } from './tool-types.js';
 
 // Superagent LRN-20260420-008 finding #4: 10 was too tight for manus-grade
@@ -12,22 +22,13 @@ import type { ToolContext } from './tool-types.js';
 // routinely hit 14-16 iters).  20 keeps the safety cap but stops truncating
 // valid multi-client plans.
 const MAX_ITERATIONS = parseInt(process.env.AGENT_MAX_ITERATIONS ?? '20', 10);
-const MODEL = process.env.AGENT_MODEL ?? 'claude-sonnet-4-6';
+const MODEL = process.env.AGENT_MODEL ?? 'grok-4-fast-reasoning';
+const BASE_URL = process.env.XAI_BASE_URL ?? 'https://api.x.ai/v1';
 
 function isAbortError(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false;
   const e = err as { name?: string; code?: string };
   return e.name === 'AbortError' || e.code === 'ABORT_ERR';
-}
-
-type ContentBlock =
-  | { type: 'text'; text: string }
-  | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> }
-  | { type: 'tool_result'; tool_use_id: string; content: string; is_error?: boolean };
-
-interface Message {
-  role: 'user' | 'assistant';
-  content: string | ContentBlock[];
 }
 
 const SYSTEM = `You are Radix's content-ops agent. You orchestrate a social media pipeline for UAE brands.
@@ -77,17 +78,33 @@ export interface RunAgentArgs {
 export interface RunAgentResult {
   iterations: number;
   stopReason: 'end_turn' | 'max_iterations' | 'aborted' | 'error';
-  messages: Message[];
+  messages: ChatCompletionMessageParam[];
   error?: string;
 }
 
-export async function runAgentLoop({ input, ctx }: RunAgentArgs): Promise<RunAgentResult> {
-  const anthropic = new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY,
-  });
+interface PartialToolCall {
+  id?: string;
+  name?: string;
+  argsBuf: string;
+}
 
-  const messages: Message[] = [{ role: 'user', content: input }];
-  const tools = toAnthropicTools();
+export async function runAgentLoop({ input, ctx }: RunAgentArgs): Promise<RunAgentResult> {
+  const apiKey = process.env.XAI_API_KEY;
+  if (!apiKey) {
+    await ctx.emit('agent:error', {
+      message: 'XAI_API_KEY is not set — agent orchestrator (Grok) cannot start',
+      at: new Date().toISOString(),
+    });
+    return { iterations: 0, stopReason: 'error', messages: [], error: 'missing XAI_API_KEY' };
+  }
+
+  const client = new OpenAI({ apiKey, baseURL: BASE_URL });
+
+  const messages: ChatCompletionMessageParam[] = [
+    { role: 'system', content: SYSTEM },
+    { role: 'user', content: input },
+  ];
+  const tools = toOpenAITools() as ChatCompletionTool[];
 
   await ctx.emit('agent:start', {
     sessionUid: ctx.sessionUid,
@@ -103,16 +120,16 @@ export async function runAgentLoop({ input, ctx }: RunAgentArgs): Promise<RunAge
 
     let stream;
     try {
-      stream = anthropic.messages.stream({
-        model: MODEL,
-        max_tokens: 4096,
-        system: SYSTEM,
-        tools,
-        messages: messages.map((m) => ({
-          role: m.role,
-          content: m.content as string | Anthropic.Messages.ContentBlockParam[],
-        })),
-      });
+      stream = await client.chat.completions.create(
+        {
+          model: MODEL,
+          max_tokens: 4096,
+          messages,
+          tools,
+          stream: true,
+        },
+        { signal: ctx.signal },
+      );
     } catch (err) {
       if (isAbortError(err)) {
         await ctx.emit('agent:error', { message: 'Aborted by user', at: new Date().toISOString() });
@@ -123,24 +140,48 @@ export async function runAgentLoop({ input, ctx }: RunAgentArgs): Promise<RunAge
       return { iterations: iter, stopReason: 'error', messages, error: msg };
     }
 
+    let assistantContent = '';
     let streamingBuffer = '';
-    stream.on('text', async (delta: string) => {
-      streamingBuffer += delta;
-      // throttle: emit per ~120 chars
-      if (streamingBuffer.length >= 120 || delta.includes('\n')) {
-        const flushed = streamingBuffer;
-        streamingBuffer = '';
-        await ctx.emit('agent:message', {
-          text: flushed,
-          streaming: true,
-          at: new Date().toISOString(),
-        });
-      }
-    });
+    const partialCalls = new Map<number, PartialToolCall>();
+    let finishReason: string | null = null;
 
-    let finalMessage;
     try {
-      finalMessage = await stream.finalMessage();
+      for await (const chunk of stream) {
+        if (ctx.signal.aborted) break;
+        const choice = chunk.choices?.[0];
+        if (!choice) continue;
+        const delta = choice.delta;
+
+        if (delta?.content) {
+          assistantContent += delta.content;
+          streamingBuffer += delta.content;
+          if (streamingBuffer.length >= 120 || delta.content.includes('\n')) {
+            const flushed = streamingBuffer;
+            streamingBuffer = '';
+            await ctx.emit('agent:message', {
+              text: flushed,
+              streaming: true,
+              at: new Date().toISOString(),
+            });
+          }
+        }
+
+        if (delta?.tool_calls) {
+          for (const tc of delta.tool_calls) {
+            const idx = tc.index;
+            let entry = partialCalls.get(idx);
+            if (!entry) {
+              entry = { argsBuf: '' };
+              partialCalls.set(idx, entry);
+            }
+            if (tc.id) entry.id = tc.id;
+            if (tc.function?.name) entry.name = tc.function.name;
+            if (tc.function?.arguments) entry.argsBuf += tc.function.arguments;
+          }
+        }
+
+        if (choice.finish_reason) finishReason = choice.finish_reason;
+      }
     } catch (err) {
       if (isAbortError(err)) {
         await ctx.emit('agent:error', { message: 'Aborted by user', at: new Date().toISOString() });
@@ -159,110 +200,104 @@ export async function runAgentLoop({ input, ctx }: RunAgentArgs): Promise<RunAge
       });
     }
 
-    const assistantBlocks: ContentBlock[] = finalMessage.content.map((b) => {
-      if (b.type === 'text') return { type: 'text', text: b.text };
-      if (b.type === 'tool_use') {
-        return { type: 'tool_use', id: b.id, name: b.name, input: b.input as Record<string, unknown> };
-      }
-      return { type: 'text', text: '' };
-    });
-    messages.push({ role: 'assistant', content: assistantBlocks });
+    const toolCalls: ChatCompletionMessageToolCall[] = [...partialCalls.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .filter(([, e]) => e.name && e.id)
+      .map(([idx, e]) => ({
+        id: e.id ?? `call_${Date.now()}_${idx}`,
+        type: 'function' as const,
+        function: { name: e.name ?? '', arguments: e.argsBuf || '{}' },
+      }));
 
-    // Emit any standalone thought text blocks (if no streaming buffer captured them).
-    for (const block of assistantBlocks) {
-      if (block.type === 'text' && block.text.trim()) {
-        // streaming already emitted these — skip re-emit to avoid double
-      }
-    }
+    const assistantMsg: ChatCompletionMessageParam =
+      toolCalls.length > 0
+        ? {
+            role: 'assistant',
+            content: assistantContent || null,
+            tool_calls: toolCalls,
+          }
+        : { role: 'assistant', content: assistantContent };
+    messages.push(assistantMsg);
 
-    if (finalMessage.stop_reason === 'end_turn' || finalMessage.stop_reason === 'stop_sequence') {
-      const summary = assistantBlocks
-        .filter((b): b is { type: 'text'; text: string } => b.type === 'text')
-        .map((b) => b.text)
-        .join('\n')
-        .slice(0, 500);
+    if (finishReason && finishReason !== 'tool_calls') {
+      const summary = assistantContent.slice(0, 500);
       await ctx.emit('agent:complete', { at: new Date().toISOString(), summary });
       return { iterations: iter + 1, stopReason: 'end_turn', messages };
     }
 
-    if (finalMessage.stop_reason !== 'tool_use') {
+    if (toolCalls.length === 0) {
       await ctx.emit('agent:complete', { at: new Date().toISOString() });
       return { iterations: iter + 1, stopReason: 'end_turn', messages };
     }
 
-    // Execute all tool_use blocks
-    const toolResults: ContentBlock[] = [];
-    for (const block of assistantBlocks) {
-      if (block.type !== 'tool_use') continue;
+    for (const tc of toolCalls) {
       if (ctx.signal.aborted) {
-        toolResults.push({
-          type: 'tool_result',
-          tool_use_id: block.id,
-          content: 'Aborted',
-          is_error: true,
-        });
+        messages.push({ role: 'tool', tool_call_id: tc.id, content: 'Aborted' });
         continue;
       }
 
-      const tool = TOOL_BY_NAME[block.name];
+      let parsedInput: Record<string, unknown>;
+      try {
+        parsedInput = JSON.parse(tc.function.arguments);
+      } catch {
+        parsedInput = {};
+      }
+
+      const tool = TOOL_BY_NAME[tc.function.name];
       await ctx.emit('agent:tool_start', {
-        toolCallId: block.id,
-        tool: block.name,
-        args: block.input,
+        toolCallId: tc.id,
+        tool: tc.function.name,
+        args: parsedInput,
         at: new Date().toISOString(),
       });
 
       if (!tool) {
         await ctx.emit('agent:tool_result', {
-          toolCallId: block.id,
-          tool: block.name,
+          toolCallId: tc.id,
+          tool: tc.function.name,
           ok: false,
-          error: `Unknown tool: ${block.name}`,
+          error: `Unknown tool: ${tc.function.name}`,
           at: new Date().toISOString(),
         });
-        toolResults.push({
-          type: 'tool_result',
-          tool_use_id: block.id,
-          content: `Unknown tool: ${block.name}`,
-          is_error: true,
+        messages.push({
+          role: 'tool',
+          tool_call_id: tc.id,
+          content: `Unknown tool: ${tc.function.name}`,
         });
         continue;
       }
 
       try {
-        const result = await tool.handler(block.input as never, ctx);
+        const result = await tool.handler(parsedInput as never, ctx);
         const resultStr = typeof result === 'string' ? result : JSON.stringify(result);
         await ctx.emit('agent:tool_result', {
-          toolCallId: block.id,
-          tool: block.name,
+          toolCallId: tc.id,
+          tool: tc.function.name,
           ok: true,
           result,
           at: new Date().toISOString(),
         });
-        toolResults.push({
-          type: 'tool_result',
-          tool_use_id: block.id,
+        messages.push({
+          role: 'tool',
+          tool_call_id: tc.id,
           content: resultStr.slice(0, 20000),
         });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         await ctx.emit('agent:tool_result', {
-          toolCallId: block.id,
-          tool: block.name,
+          toolCallId: tc.id,
+          tool: tc.function.name,
           ok: false,
           error: msg,
           at: new Date().toISOString(),
         });
-        toolResults.push({
-          type: 'tool_result',
-          tool_use_id: block.id,
+        messages.push({
+          role: 'tool',
+          tool_call_id: tc.id,
           content: `Error: ${msg}`,
-          is_error: true,
         });
       }
     }
-
-    messages.push({ role: 'user', content: toolResults });
   }
 
   await ctx.emit('agent:error', {
