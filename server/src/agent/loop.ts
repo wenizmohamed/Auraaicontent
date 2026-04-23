@@ -128,7 +128,11 @@ export async function runAgentLoop({ input, ctx }: RunAgentArgs): Promise<RunAge
     try {
       const opened = await chatStream(
         {
-          max_tokens: 4096,
+          // 6144 budget: Gemini 3 thinking mode can consume 1-2K tokens on
+          // reasoning_content before emitting visible content or tool_calls.
+          // 4096 was occasionally cutting off in the middle of multi-tool
+          // iterations. 6144 covers typical reasoning + tool JSON + narrative.
+          max_tokens: 6144,
           messages,
           tools,
         },

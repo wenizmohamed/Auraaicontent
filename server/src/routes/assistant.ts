@@ -18,8 +18,12 @@ async function callAssistantLLM(
   system: string,
   messages: { role: 'user' | 'assistant'; content: string }[],
 ): Promise<{ text: string; provider: ProviderName; model: string; latencyMs: number; fallbackUsed: boolean }> {
+  // 4096 budget: Gemini 3 / Kimi K2 are thinking models that may burn
+  // 500-2K tokens on reasoning_content BEFORE emitting visible content.
+  // 2048 was getting truncated to empty on complex prompts; 4096 gives
+  // ~2K output headroom after reasoning overhead.
   const r = await chatText({
-    max_tokens: 2048,
+    max_tokens: 4096,
     messages: [{ role: 'system', content: system }, ...messages],
   }, { chainEnv: process.env.ASSISTANT_PROVIDER_CHAIN });
   console.log(`[assistant] ${r.provider}/${r.model} ${r.latencyMs}ms${r.fallbackUsed ? ' (fallback)' : ''}, ${r.text.length} chars`);

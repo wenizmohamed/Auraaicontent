@@ -1,7 +1,13 @@
 import { FastifyInstance } from 'fastify';
 import bcrypt from 'bcryptjs';
 import { db } from '../db/prisma.js';
-import { signToken, authGuard, type JwtPayload } from '../middleware/auth.js';
+import { signToken, authGuard, mintRefreshToken, hashRefreshToken, type JwtPayload } from '../middleware/auth.js';
+
+function reqMeta(request: any): { userAgent: string | null; ip: string | null } {
+  const ua = (request.headers['user-agent'] as string | undefined)?.slice(0, 300) ?? null;
+  const ip = (request.ip as string | undefined) ?? null;
+  return { userAgent: ua, ip };
+}
 
 export async function authRoutes(app: FastifyInstance) {
 
@@ -31,16 +37,88 @@ export async function authRoutes(app: FastifyInstance) {
       { userId: user.id, email: user.email, role: user.role },
       Boolean(rememberMe),
     );
+    const refresh = mintRefreshToken();
+    const meta = reqMeta(request);
+    await db.refreshToken.create({
+      data: {
+        userId: user.id,
+        tokenHash: refresh.hash,
+        expiresAt: refresh.expiresAt,
+        userAgent: meta.userAgent,
+        ip: meta.ip,
+      },
+    });
     return {
       token,
+      refreshToken: refresh.raw,
+      refreshExpiresAt: refresh.expiresAt.toISOString(),
       rememberMe: Boolean(rememberMe),
       user: { id: user.id, email: user.email, name: user.name, role: user.role },
     };
   });
 
-  // POST /api/auth/logout
-  app.post('/logout', async () => {
-    // Stateless JWT — client discards token. Server-side token blocklist is a future enhancement.
+  // POST /api/auth/refresh — rotate access+refresh tokens.  Revokes the
+  // presented refresh token and issues a new pair.  Reuse of a revoked
+  // token triggers a full user-wide revocation (compromise signal).
+  app.post('/refresh', async (request, reply) => {
+    const { refreshToken } = (request.body ?? {}) as { refreshToken?: string };
+    if (!refreshToken || typeof refreshToken !== 'string') {
+      return reply.status(400).send({ error: 'refreshToken required' });
+    }
+    const hash = hashRefreshToken(refreshToken);
+    const row = await db.refreshToken.findUnique({ where: { tokenHash: hash }, include: { user: true } });
+    if (!row) {
+      return reply.status(401).send({ error: 'invalid refresh token' });
+    }
+    // Reuse of revoked token = attacker replay. Revoke the whole user.
+    if (row.revokedAt) {
+      await db.refreshToken.updateMany({
+        where: { userId: row.userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      return reply.status(401).send({ error: 'refresh token reuse detected — all sessions revoked', requireLogin: true });
+    }
+    if (row.expiresAt.getTime() < Date.now()) {
+      return reply.status(401).send({ error: 'refresh token expired', requireLogin: true });
+    }
+
+    const user = row.user;
+    const newAccess = signToken({ userId: user.id, email: user.email, role: user.role });
+    const fresh = mintRefreshToken();
+    const meta = reqMeta(request);
+    const newRow = await db.refreshToken.create({
+      data: {
+        userId: user.id,
+        tokenHash: fresh.hash,
+        expiresAt: fresh.expiresAt,
+        userAgent: meta.userAgent,
+        ip: meta.ip,
+      },
+    });
+    await db.refreshToken.update({
+      where: { id: row.id },
+      data: { revokedAt: new Date(), replacedBy: newRow.id },
+    });
+    return {
+      token: newAccess,
+      refreshToken: fresh.raw,
+      refreshExpiresAt: fresh.expiresAt.toISOString(),
+      user: { id: user.id, email: user.email, name: user.name, role: user.role },
+    };
+  });
+
+  // POST /api/auth/logout — revoke the presented refresh token so it can't
+  // be replayed.  Access token stays valid until its short TTL expires;
+  // that's acceptable (1h max).  Frontend discards both.
+  app.post('/logout', async (request) => {
+    const { refreshToken } = (request.body ?? {}) as { refreshToken?: string };
+    if (refreshToken && typeof refreshToken === 'string') {
+      const hash = hashRefreshToken(refreshToken);
+      await db.refreshToken.updateMany({
+        where: { tokenHash: hash, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+    }
     return { success: true };
   });
 

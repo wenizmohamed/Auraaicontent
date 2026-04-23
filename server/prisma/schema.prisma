@@ -16,9 +16,27 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  comments      PostComment[]
-  auditLogs     AuditLog[]
-  agentSessions AgentSession[]
+  comments       PostComment[]
+  auditLogs      AuditLog[]
+  agentSessions  AgentSession[]
+  refreshTokens  RefreshToken[]
+}
+
+model RefreshToken {
+  id          String    @id @default(cuid())
+  userId      String
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+  revokedAt   DateTime?
+  replacedBy  String?
+  userAgent   String?
+  ip          String?
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 model Client {
