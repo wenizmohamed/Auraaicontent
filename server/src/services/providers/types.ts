@@ -6,6 +6,7 @@ export interface TextRequest {
   system?: string;
   temperature?: number;
   json?: boolean;
+  maxTokens?: number;
 }
 
 export interface ImageRequest {

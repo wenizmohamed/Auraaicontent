@@ -121,6 +121,32 @@ export async function buildApp() {
     timestamp: new Date().toISOString(),
   }));
 
+  // Provider matrix (public) — shows which AI providers are configured + which
+  // is the live orchestrator.  Useful for the team-share dashboard and for
+  // smoke-checks after env changes.
+  app.get('/api/providers/status', async () => {
+    const { vertexClaudeStatus } = await import('./services/providers/vertex-claude.provider.js');
+    const { kimiStatus } = await import('./services/providers/kimi.provider.js');
+    return {
+      orchestrator: process.env.AGENT_MODEL || 'grok-4-fast-reasoning',
+      providers: {
+        grok: {
+          configured: !!process.env.XAI_API_KEY,
+          model: process.env.XAI_TEXT_MODEL || 'grok-4-fast-reasoning',
+          baseURL: process.env.XAI_BASE_URL || 'https://api.x.ai/v1',
+          role: 'orchestrator + assistant',
+        },
+        gemini: {
+          configured: !!process.env.GEMINI_API_KEY,
+          model: process.env.GEMINI_TEXT_MODEL || 'gemini-3.1-pro-preview',
+          role: 'analysis + image-fallback',
+        },
+        vertexClaude: vertexClaudeStatus(),
+        kimi: kimiStatus(),
+      },
+    };
+  });
+
   // Health details (auth-gated) — proves runtime env is fresh
   app.get('/api/health/details', async () => {
     const fingerprint = (key: string) => {
