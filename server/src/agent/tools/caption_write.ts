@@ -5,7 +5,7 @@
 // apps/desktop/src/lib/platform-limits.ts, and streams tokens to the agent
 // socket room as `agent:message` events.
 
-import OpenAI from 'openai';
+import { chatStream } from '../../services/llm/chat.js';
 import { defineTool } from '../tool-types.js';
 import { PLATFORM_LIMITS } from '../../shared/platform-limits.js';
 
@@ -31,8 +31,8 @@ interface Result {
   version?: number;
 }
 
-const MODEL = process.env.AGENT_MODEL || 'grok-4-fast-reasoning';
-const XAI_BASE_URL = process.env.XAI_BASE_URL || 'https://api.x.ai/v1';
+// Tool LLM uses the same Gemini → Grok → Kimi fallback chain as the
+// orchestrator (see services/llm/chat.ts).
 
 // Map tool arg → platform-limits.ts key. Tool accepts "twitter" while the
 // limits map keys it as "x".
@@ -143,22 +143,19 @@ export const tool = defineTool<Args, Result>({
       at: new Date().toISOString(),
     });
 
-    const client = new OpenAI({ apiKey: process.env.XAI_API_KEY, baseURL: XAI_BASE_URL });
-    const stream = await client.chat.completions.create(
+    const opened = await chatStream(
       {
-        model: MODEL,
         max_tokens: 1024,
         messages: [
           { role: 'system', content: system },
           { role: 'user', content: userPrompt },
         ],
-        stream: true,
       },
       { signal: ctx.signal },
     );
 
     let caption = '';
-    for await (const chunk of stream) {
+    for await (const chunk of opened.stream) {
       if (ctx.signal.aborted) throw new Error('aborted');
       const delta = chunk.choices?.[0]?.delta?.content;
       if (typeof delta === 'string' && delta.length > 0) {

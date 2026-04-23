@@ -1,14 +1,13 @@
-// Tool-calling loop using xAI Grok via the OpenAI-compatible Chat Completions
-// API.  Streams assistant text deltas as `agent:message` events, executes
+// Tool-calling loop using OpenAI-compatible Chat Completions across the
+// Gemini → Grok → Kimi fallback chain (Weni 2026-04-23: Gemini 3.1 Pro is
+// PRIMARY because the API key is billed to the Radix company card).
+// Streams assistant text deltas as `agent:message` events, executes
 // tool_calls against the registry, feeds tool results back as role:'tool'
 // messages.  Max 20 iterations (safety cap).  Aborts on ctx.signal.
 //
-// 2026-04-23: Migrated off Anthropic Claude direct SDK at Weni's direction.
-// Grok 4.x is now the orchestrator. Vertex Claude remains available as a
-// secondary path (see server/docs/vertex-claude.md) but is not wired into the
-// agent loop by default.
+// Provider switching happens BEFORE the stream starts; once chunks are
+// flowing we don't switch mid-stream (would drop partial output).
 
-import OpenAI from 'openai';
 import type {
   ChatCompletionMessageParam,
   ChatCompletionTool,
@@ -16,14 +15,14 @@ import type {
 } from 'openai/resources/chat/completions';
 import { TOOL_BY_NAME, toOpenAITools } from './tools/index.js';
 import type { ToolContext } from './tool-types.js';
+import { chatStream, DEFAULT_CHAIN, type ProviderName } from '../services/llm/chat.js';
 
 // Superagent LRN-20260420-008 finding #4: 10 was too tight for manus-grade
 // workflows (scrape -> analyze -> gen -> caption -> compliance chains
 // routinely hit 14-16 iters).  20 keeps the safety cap but stops truncating
 // valid multi-client plans.
 const MAX_ITERATIONS = parseInt(process.env.AGENT_MAX_ITERATIONS ?? '20', 10);
-const MODEL = process.env.AGENT_MODEL ?? 'grok-4-fast-reasoning';
-const BASE_URL = process.env.XAI_BASE_URL ?? 'https://api.x.ai/v1';
+const AGENT_CHAIN_ENV = process.env.AGENT_PROVIDER_CHAIN; // e.g. "gemini,xai,moonshot"
 
 function isAbortError(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false;
@@ -89,16 +88,21 @@ interface PartialToolCall {
 }
 
 export async function runAgentLoop({ input, ctx }: RunAgentArgs): Promise<RunAgentResult> {
-  const apiKey = process.env.XAI_API_KEY;
-  if (!apiKey) {
+  // Provider chain (Gemini primary, Grok fallback, Kimi tertiary).  Resolve
+  // it once up front so we can fail fast if NO provider is configured.  The
+  // chatStream() helper still tries each provider per iteration in case
+  // quota / network state changes mid-run.
+  const probeChain = DEFAULT_CHAIN.filter((p) => {
+    const envKey = p === 'gemini' ? 'GEMINI_API_KEY' : p === 'xai' ? 'XAI_API_KEY' : 'MOONSHOT_API_KEY';
+    return !!process.env[envKey];
+  });
+  if (probeChain.length === 0) {
     await ctx.emit('agent:error', {
-      message: 'XAI_API_KEY is not set — agent orchestrator (Grok) cannot start',
+      message: 'No LLM provider configured (need GEMINI_API_KEY, XAI_API_KEY, or MOONSHOT_API_KEY)',
       at: new Date().toISOString(),
     });
-    return { iterations: 0, stopReason: 'error', messages: [], error: 'missing XAI_API_KEY' };
+    return { iterations: 0, stopReason: 'error', messages: [], error: 'no provider configured' };
   }
-
-  const client = new OpenAI({ apiKey, baseURL: BASE_URL });
 
   const messages: ChatCompletionMessageParam[] = [
     { role: 'system', content: SYSTEM },
@@ -118,27 +122,38 @@ export async function runAgentLoop({ input, ctx }: RunAgentArgs): Promise<RunAge
       return { iterations: iter, stopReason: 'aborted', messages };
     }
 
-    let stream;
+    let stream: AsyncIterable<import('openai/resources/chat/completions').ChatCompletionChunk>;
+    let providerUsed: ProviderName;
+    let modelUsed: string;
     try {
-      stream = await client.chat.completions.create(
+      const opened = await chatStream(
         {
-          model: MODEL,
           max_tokens: 4096,
           messages,
           tools,
-          stream: true,
         },
-        { signal: ctx.signal },
+        { chainEnv: AGENT_CHAIN_ENV, signal: ctx.signal },
       );
+      stream = opened.stream;
+      providerUsed = opened.provider;
+      modelUsed = opened.model;
+      if (iter === 0) {
+        await ctx.emit('agent:thought', {
+          text: `Orchestrator: ${providerUsed}/${modelUsed}${opened.fallbackUsed ? ' (fallback)' : ''}`,
+          at: new Date().toISOString(),
+        });
+      }
     } catch (err) {
       if (isAbortError(err)) {
         await ctx.emit('agent:error', { message: 'Aborted by user', at: new Date().toISOString() });
         return { iterations: iter, stopReason: 'aborted', messages };
       }
       const msg = err instanceof Error ? err.message : String(err);
-      await ctx.emit('agent:error', { message: `LLM call failed: ${msg}`, at: new Date().toISOString() });
+      await ctx.emit('agent:error', { message: `All LLM providers failed: ${msg}`, at: new Date().toISOString() });
       return { iterations: iter, stopReason: 'error', messages, error: msg };
     }
+    void providerUsed;
+    void modelUsed;
 
     let assistantContent = '';
     let streamingBuffer = '';

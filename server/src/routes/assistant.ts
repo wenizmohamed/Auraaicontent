@@ -1,5 +1,4 @@
 import { FastifyInstance } from 'fastify';
-import OpenAI from 'openai';
 import { authGuard } from '../middleware/auth.js';
 import { sendAiError } from '../services/providers/errors.js';
 import { db } from '../db/prisma.js';
@@ -8,36 +7,22 @@ import { createJob, processJob } from '../workers/queue.js';
 import { generateMonthWorker } from '../workers/generateMonth.worker.js';
 import { searchPinterest } from '../services/pinterest.service.js';
 import { auditService } from '../services/audit.service.js';
+import { chatText, type ProviderName } from '../services/llm/chat.js';
 
-// ─── Grok Client (xAI via OpenAI-compatible API) ─────────────────
-// 2026-04-23: migrated off Anthropic Claude direct SDK at Weni's direction.
-// Grok 4.x is the assistant brain. Vertex Claude remains a future option
-// (see server/docs/vertex-claude.md) but is not wired here by default.
-const GROK_MODEL = process.env.ASSISTANT_MODEL || process.env.XAI_TEXT_MODEL || 'grok-4-fast-reasoning';
-const XAI_BASE_URL = process.env.XAI_BASE_URL || 'https://api.x.ai/v1';
-
-let _grok: OpenAI | null = null;
-function getGrok(): OpenAI {
-  if (!_grok) {
-    const key = process.env.XAI_API_KEY;
-    if (!key) throw new Error('XAI_API_KEY is not set — assistant requires Grok');
-    _grok = new OpenAI({ apiKey: key, baseURL: XAI_BASE_URL });
-  }
-  return _grok;
-}
-
-async function callGrok(system: string, messages: { role: 'user' | 'assistant'; content: string }[]): Promise<string> {
-  const client = getGrok();
-  const start = Date.now();
-  const response = await client.chat.completions.create({
-    model: GROK_MODEL,
+// ─── Assistant LLM ───────────────────────────────────────────────
+// 2026-04-23: Weni's directive — Gemini 3.1 Pro is PRIMARY (Radix
+// company-card key), Grok is fallback, Kimi K2 tertiary. The chain is
+// implemented in services/llm/chat.ts → chatText().
+async function callAssistantLLM(
+  system: string,
+  messages: { role: 'user' | 'assistant'; content: string }[],
+): Promise<{ text: string; provider: ProviderName; model: string; latencyMs: number; fallbackUsed: boolean }> {
+  const r = await chatText({
     max_tokens: 2048,
     messages: [{ role: 'system', content: system }, ...messages],
-  });
-  const latency = Date.now() - start;
-  const text = response.choices[0]?.message?.content ?? '';
-  console.log(`[assistant] Grok ${GROK_MODEL} ${latency}ms, ${text.length} chars`);
-  return text;
+  }, { chainEnv: process.env.ASSISTANT_PROVIDER_CHAIN });
+  console.log(`[assistant] ${r.provider}/${r.model} ${r.latencyMs}ms${r.fallbackUsed ? ' (fallback)' : ''}, ${r.text.length} chars`);
+  return r;
 }
 
 // ─── Types ───────────────────────────────────────────────────────
@@ -200,11 +185,11 @@ async function executeAction(action: string, params: any, clientId: string | nul
     case 'improve_prompt': {
       const prompt = params?.prompt || '';
       if (!prompt) return { error: 'prompt text is required' };
-      const improved = await callGrok(
+      const improved = await callAssistantLLM(
         'You are a creative director. Improve the given image/video generation prompt to be more vivid, specific, and visually compelling. Return ONLY the improved prompt, nothing else.',
         [{ role: 'user', content: prompt }],
       );
-      return { original: prompt, improved: improved.trim() };
+      return { original: prompt, improved: improved.text.trim() };
     }
 
     case 'delete_calendar': {
@@ -229,11 +214,11 @@ async function executeAction(action: string, params: any, clientId: string | nul
     case 'research': {
       const query = params?.query || '';
       if (!query) return { error: 'query is required' };
-      const researchResult = await callGrok(
+      const researchResult = await callAssistantLLM(
         'You are a senior content strategist at a Dubai agency. Research the topic and provide 5-7 actionable content ideas with platform recommendations. Be specific to the UAE/GCC market when relevant. Return as structured text, not JSON.',
         [{ role: 'user', content: query }],
       );
-      return { query, insights: researchResult.trim() };
+      return { query, insights: researchResult.text.trim() };
     }
 
     case 'update_post': {
@@ -305,12 +290,12 @@ export async function assistantRoutes(app: FastifyInstance) {
     try {
       const start = Date.now();
 
-      // Pass 1: Get Claude's response (might be an action or plain text)
-      const pass1Text = await callGrok(systemPrompt, grokMessages);
-
-      let responseText = pass1Text.trim();
+      // Pass 1: Get the assistant's response (might be an action JSON or plain text).
+      const pass1 = await callAssistantLLM(systemPrompt, grokMessages);
+      let responseText = pass1.text.trim();
       let actionTaken: AgentAction | undefined;
       let totalLatency = Date.now() - start;
+      let providerUsed = pass1.provider as string;
 
       // Check if the response is an action JSON
       try {
@@ -334,15 +319,16 @@ export async function assistantRoutes(app: FastifyInstance) {
             payload: { params: actionParams, resultSummary: JSON.stringify(actionResult).slice(0, 200) },
           });
 
-          // Pass 2: Ask Claude to write a human-friendly summary of the action result
-          const pass2Text = await callGrok(systemPrompt, [
+          // Pass 2: Ask the assistant to write a human-friendly summary of the action result.
+          const pass2 = await callAssistantLLM(systemPrompt, [
             ...grokMessages,
             { role: 'assistant', content: `[Executed "${actionName}" action]` },
             { role: 'user', content: `Action result:\n${JSON.stringify(actionResult, null, 2)}\n\nWrite a concise, friendly summary of what happened. Be specific about numbers and details. Don't repeat raw JSON — translate into natural language.` },
           ]);
 
-          responseText = pass2Text.trim();
+          responseText = pass2.text.trim();
           totalLatency = Date.now() - start;
+          providerUsed = pass2.provider as string;
         }
       } catch {
         // Not JSON — it's a plain text response, which is fine
@@ -351,7 +337,7 @@ export async function assistantRoutes(app: FastifyInstance) {
       return {
         message: { role: 'assistant' as const, content: responseText },
         action: actionTaken,
-        provider: 'grok',
+        provider: providerUsed,
         latencyMs: totalLatency,
       };
     } catch (err: any) {

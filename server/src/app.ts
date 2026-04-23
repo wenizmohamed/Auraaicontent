@@ -121,27 +121,35 @@ export async function buildApp() {
     timestamp: new Date().toISOString(),
   }));
 
-  // Provider matrix (public) — three-provider stack.  Claude is intentionally
-  // absent (removed 2026-04-23 by Weni's directive).  Grok is the orchestrator
-  // + assistant brain, Gemini handles analysis + image fallback, Kimi is the
-  // long-context (128k) option for deep analysis.
+  // Provider matrix (public) — Gemini 3.1 Pro PRIMARY (Radix company-card
+  // billing), Grok fallback, Kimi K2 tertiary.  No Claude in any form.
+  // Chain enforced both at AiRouter (image/video/analysis) AND at the
+  // chat-with-fallback helper (text/orchestrator/agent tools).
   app.get('/api/providers/status', async () => {
     const { kimiStatus } = await import('./services/providers/kimi.provider.js');
+    const { chainStatus, DEFAULT_CHAIN } = await import('./services/llm/chat.js');
     return {
-      orchestrator: process.env.AGENT_MODEL || 'grok-4-fast-reasoning',
+      orchestrator: process.env.GEMINI_CHAT_MODEL || 'gemini-2.5-flash',
+      fallbackChain: chainStatus(DEFAULT_CHAIN),
       providers: {
+        gemini: {
+          configured: !!process.env.GEMINI_API_KEY,
+          chatModel: process.env.GEMINI_CHAT_MODEL || 'gemini-2.5-flash',
+          analysisModel: process.env.GEMINI_TEXT_MODEL || 'gemini-3.1-pro-preview',
+          imageModel: process.env.GEMINI_IMAGE_MODEL || 'gemini-3.1-flash-image-preview',
+          videoModel: process.env.GEMINI_VIDEO_MODEL || 'veo-3.1-generate-preview',
+          baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+          role: 'PRIMARY — orchestrator, assistant, analysis, image, video',
+          rank: 1,
+        },
         grok: {
           configured: !!process.env.XAI_API_KEY,
           model: process.env.XAI_TEXT_MODEL || 'grok-4-fast-reasoning',
           baseURL: process.env.XAI_BASE_URL || 'https://api.x.ai/v1',
-          role: 'orchestrator + assistant',
+          role: 'fallback (text + image + video)',
+          rank: 2,
         },
-        gemini: {
-          configured: !!process.env.GEMINI_API_KEY,
-          model: process.env.GEMINI_TEXT_MODEL || 'gemini-3.1-pro-preview',
-          role: 'analysis + image-fallback',
-        },
-        kimi: kimiStatus(),
+        kimi: { ...kimiStatus(), role: 'tertiary — long-context (text only)', rank: 3 },
       },
     };
   });

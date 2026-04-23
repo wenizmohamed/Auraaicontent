@@ -4,10 +4,14 @@ import { isRetryableAiError, AllProvidersFailedError, type ProviderFailure } fro
 import type { AiProvider, AiProviderName, AiTask, AiTelemetryEntry, AnalysisRequest, ImageRequest, ProviderResult, TextRequest, VideoRequest } from './types.js';
 
 // ─── Routing config from env ─────────────────────────────────────
+// Weni 2026-04-23: Gemini 3.1 Pro is PRIMARY across the board because the
+// API key bills to the Radix company card.  Grok is the fallback.  (Kimi
+// isn't in the AiProvider abstraction yet — text fallback to Kimi happens
+// at the higher-level chatText/chatStream helper in services/llm/chat.ts.)
 const PRIMARY: Record<string, AiProviderName> = {
-  text: (process.env.AI_TEXT_PRIMARY as AiProviderName) || 'xai',
-  image: (process.env.AI_IMAGE_PRIMARY as AiProviderName) || 'xai',
-  video: (process.env.AI_VIDEO_PRIMARY as AiProviderName) || 'xai',
+  text: (process.env.AI_TEXT_PRIMARY as AiProviderName) || 'gemini',
+  image: (process.env.AI_IMAGE_PRIMARY as AiProviderName) || 'gemini',
+  video: (process.env.AI_VIDEO_PRIMARY as AiProviderName) || 'gemini',
   analysis: (process.env.AI_ANALYSIS_PRIMARY as AiProviderName) || 'gemini',
 };
 
@@ -20,8 +24,8 @@ const PROVIDERS: Record<AiProviderName, AiProvider> = {
 
 function orderedProviders(task: string): AiProvider[] {
   const normalizedTask = task === 'image_edit' ? 'image' : task;
-  const primary = PRIMARY[normalizedTask] || 'xai';
-  const fallback = primary === 'xai' ? 'gemini' : 'xai';
+  const primary = PRIMARY[normalizedTask] || 'gemini';
+  const fallback = primary === 'gemini' ? 'xai' : 'gemini';
   return FALLBACK_ENABLED ? [PROVIDERS[primary], PROVIDERS[fallback]] : [PROVIDERS[primary]];
 }
 

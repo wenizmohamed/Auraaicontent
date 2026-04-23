@@ -10,7 +10,7 @@
 // Emits agent:thought progress updates. Returns shape:
 //   { hashtags: { tag, reach_estimate?, rationale }[] }
 
-import OpenAI from 'openai';
+import { chatText } from '../../services/llm/chat.js';
 import { defineTool } from '../tool-types.js';
 import { searchPinterest } from '../../services/pinterest.service.js';
 
@@ -37,8 +37,7 @@ interface Result {
   mergedTagCount?: number;
 }
 
-const MODEL = process.env.AGENT_MODEL || 'grok-4-fast-reasoning';
-const XAI_BASE_URL = process.env.XAI_BASE_URL || 'https://api.x.ai/v1';
+// Tool LLM rides the Gemini → Grok → Kimi fallback chain.
 const DEFAULT_COUNT = 12;
 const HASHTAG_RX = /#([A-Za-z][A-Za-z0-9_]{1,49})/g;
 
@@ -81,7 +80,6 @@ async function askLlm(
   seedTags: string[],
   signal: AbortSignal,
 ): Promise<AnthropicHashtag[]> {
-  const client = new OpenAI({ apiKey: process.env.XAI_API_KEY, baseURL: XAI_BASE_URL });
   const seedHint = seedTags.length
     ? `Scraped hashtag seeds (may be noisy, filter and dedupe): ${seedTags.join(', ')}`
     : 'No scraped seeds available — propose from scratch.';
@@ -101,19 +99,16 @@ async function askLlm(
     seedHint,
   ].join('\n');
 
-  const resp = await client.chat.completions.create(
-    {
-      model: MODEL,
-      max_tokens: 1500,
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: user },
-      ],
-    },
-    { signal },
-  );
+  void signal; // chatText doesn't currently expose signal — fallback chain
+  const resp = await chatText({
+    max_tokens: 1500,
+    messages: [
+      { role: 'system', content: system },
+      { role: 'user', content: user },
+    ],
+  });
 
-  const text = (resp.choices[0]?.message?.content ?? '').trim();
+  const text = resp.text.trim();
 
   // Strip any accidental fence.
   const jsonText = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();

@@ -6,7 +6,7 @@
 //
 // Strict mode: any severity=high issue flips passed→false regardless of count.
 
-import OpenAI from 'openai';
+import { chatText } from '../../services/llm/chat.js';
 import { defineTool } from '../tool-types.js';
 
 interface Args {
@@ -34,8 +34,7 @@ interface Result {
   persistedPostId?: string;
 }
 
-const MODEL = process.env.AGENT_MODEL || 'grok-4-fast-reasoning';
-const XAI_BASE_URL = process.env.XAI_BASE_URL || 'https://api.x.ai/v1';
+// Tool LLM rides the Gemini → Grok → Kimi fallback chain.
 const VALID_SEVERITIES: readonly Severity[] = ['high', 'med', 'low'] as const;
 
 function isSeverity(value: unknown): value is Severity {
@@ -145,26 +144,21 @@ export const tool = defineTool<Args, Result>({
       at: new Date().toISOString(),
     });
 
-    const client = new OpenAI({ apiKey: process.env.XAI_API_KEY, baseURL: XAI_BASE_URL });
-    const resp = await client.chat.completions.create(
-      {
-        model: MODEL,
-        max_tokens: 2000,
-        messages: [
-          { role: 'system', content: buildSystemPrompt(constraints) },
-          {
-            role: 'user',
-            content: `TEXT TO AUDIT:\n---\n${args.text}\n---\nReturn the JSON now.`,
-          },
-        ],
-        response_format: { type: 'json_object' },
-      },
-      { signal: ctx.signal },
-    );
+    const resp = await chatText({
+      max_tokens: 2000,
+      messages: [
+        { role: 'system', content: buildSystemPrompt(constraints) },
+        {
+          role: 'user',
+          content: `TEXT TO AUDIT:\n---\n${args.text}\n---\nReturn the JSON now.`,
+        },
+      ],
+      response_format: { type: 'json_object' },
+    });
 
     if (ctx.signal.aborted) throw new Error('aborted');
 
-    const rawText = resp.choices[0]?.message?.content ?? '';
+    const rawText = resp.text;
 
     const issues = parseIssues(rawText);
 
