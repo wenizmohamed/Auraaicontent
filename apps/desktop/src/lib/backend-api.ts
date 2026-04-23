@@ -15,21 +15,80 @@ const API_URL: string =
   (desktopApiBaseUrl || (import.meta.env.DEV ? 'http://127.0.0.1:8080' : ''));
 
 let authToken: string | null = localStorage.getItem('radix_auth_token');
+let refreshToken: string | null = localStorage.getItem('radix_refresh_token');
 
 export function setAuthToken(token: string) {
   authToken = token;
   localStorage.setItem('radix_auth_token', token);
 }
 
+export function setRefreshToken(token: string | null) {
+  refreshToken = token;
+  if (token) localStorage.setItem('radix_refresh_token', token);
+  else localStorage.removeItem('radix_refresh_token');
+}
+
 export function clearAuthToken() {
   authToken = null;
+  refreshToken = null;
   localStorage.removeItem('radix_auth_token');
+  localStorage.removeItem('radix_refresh_token');
+}
+
+// Signal back to the app that the session is done (refresh expired / reuse
+// triggered global revocation).  ClientContext hooks listen for this and
+// push the user to the login page.
+type LogoutReason = 'refresh-expired' | 'refresh-reuse' | 'logout';
+const logoutListeners = new Set<(reason: LogoutReason) => void>();
+export function onForcedLogout(fn: (reason: LogoutReason) => void) {
+  logoutListeners.add(fn);
+  return () => logoutListeners.delete(fn);
+}
+function emitForcedLogout(reason: LogoutReason) {
+  clearAuthToken();
+  for (const fn of logoutListeners) {
+    try { fn(reason); } catch { /* listener isolation */ }
+  }
+}
+
+// Refresh rotation — in-flight de-dup so a burst of parallel 401s only
+// triggers ONE /auth/refresh round-trip.  Subsequent requests await the
+// same promise and then retry with the fresh access token.
+let refreshInFlight: Promise<boolean> | null = null;
+async function rotateRefresh(): Promise<boolean> {
+  if (!refreshToken) return false;
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = (async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        if (body?.requireLogin) {
+          emitForcedLogout(body.error?.includes('reuse') ? 'refresh-reuse' : 'refresh-expired');
+        }
+        return false;
+      }
+      const data = await res.json();
+      if (data?.token) setAuthToken(data.token);
+      if (data?.refreshToken) setRefreshToken(data.refreshToken);
+      return !!data?.token;
+    } catch {
+      return false;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+  return refreshInFlight;
 }
 
 async function request<T>(
   path: string,
   options: RequestInit = {},
-  config?: { timeoutMs?: number; json?: boolean },
+  config?: { timeoutMs?: number; json?: boolean; _retry?: boolean },
 ): Promise<T> {
   const timeoutMs = config?.timeoutMs ?? 30000;
   const headers: Record<string, string> = {
@@ -47,6 +106,19 @@ async function request<T>(
     signal: options.signal || AbortSignal.timeout(timeoutMs),
   });
   if (!res.ok) {
+    // 401 on a non-auth endpoint → try one silent refresh + retry.  We skip
+    // retry on /api/auth/* so a bad login doesn't fire a refresh storm.
+    if (
+      res.status === 401 &&
+      !config?._retry &&
+      !path.startsWith('/api/auth/') &&
+      refreshToken
+    ) {
+      const rotated = await rotateRefresh();
+      if (rotated) {
+        return request<T>(path, options, { ...config, _retry: true });
+      }
+    }
     const err = await res.json().catch(() => ({}));
     // Fastify default error shape: { statusCode, error, message }
     //   - `error` is the generic HTTP status name ("Internal Server Error")
@@ -78,18 +150,33 @@ async function request<T>(
 
 // ─── Auth ────────────────────────────────────────────────────────
 
+export interface AuthResponse {
+  token: string;
+  refreshToken?: string;
+  refreshExpiresAt?: string;
+  rememberMe: boolean;
+  user: any;
+}
+
 export const authApi = {
   login: (email: string, password: string, rememberMe = false) =>
-    request<{ token: string; rememberMe: boolean; user: any }>(
+    request<AuthResponse>(
       '/api/auth/login',
       { method: 'POST', body: JSON.stringify({ email, password, rememberMe }) },
     ),
   register: (email: string, password: string, name: string, rememberMe = false) =>
-    request<{ token: string; rememberMe: boolean; user: any }>(
+    request<AuthResponse>(
       '/api/auth/register',
       { method: 'POST', body: JSON.stringify({ email, password, name, rememberMe }) },
     ),
   me: () => request<any>('/api/auth/me'),
+  // Logout revokes the refresh token server-side so replay can't extend
+  // the session.  Access token stays valid until its short TTL expires.
+  logout: () =>
+    request<{ success: boolean }>(
+      '/api/auth/logout',
+      { method: 'POST', body: JSON.stringify({ refreshToken }) },
+    ).catch(() => ({ success: false })),  // best-effort
 };
 
 // ─── Clients ─────────────────────────────────────────────────────

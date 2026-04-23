@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
-import { clientsApi, authApi, setAuthToken, clearAuthToken, isServerAvailable, type BackendClient } from './backend-api';
+import { clientsApi, authApi, setAuthToken, setRefreshToken, clearAuthToken, onForcedLogout, isServerAvailable, type BackendClient } from './backend-api';
 
 interface ClientContextType {
   clients: BackendClient[];
@@ -97,10 +97,12 @@ export function ClientProvider({ children }: { children: ReactNode }) {
   // ─── Auth actions ───────────────────────────────────────────────
 
   const login = useCallback(async (email: string, password: string, rememberMe = false) => {
-    const { token } = await authApi.login(email, password, rememberMe);
+    const { token, refreshToken } = await authApi.login(email, password, rememberMe);
     setAuthToken(token);
-    // Remember-me preference is surfaced to the UI for display and reused
-    // when auto-refreshing the token in future releases.
+    setRefreshToken(refreshToken ?? null);
+    // Remember-me preference is surfaced to the UI for display. The access
+    // token is short-lived (1h / 7d with rememberMe); backend-api silently
+    // rotates via /api/auth/refresh using the 30-day refresh token.
     try { localStorage.setItem('radix_remember_me', rememberMe ? '1' : '0'); } catch {}
     setAuthenticated(true);
     setAuthError(null);
@@ -108,8 +110,9 @@ export function ClientProvider({ children }: { children: ReactNode }) {
   }, [fetchAndReconcile]);
 
   const register = useCallback(async (email: string, password: string, name: string, rememberMe = false) => {
-    const { token } = await authApi.register(email, password, name, rememberMe);
+    const { token, refreshToken } = await authApi.register(email, password, name, rememberMe);
     setAuthToken(token);
+    setRefreshToken(refreshToken ?? null);
     try { localStorage.setItem('radix_remember_me', rememberMe ? '1' : '0'); } catch {}
     setAuthenticated(true);
     setAuthError(null);
@@ -117,11 +120,31 @@ export function ClientProvider({ children }: { children: ReactNode }) {
   }, [fetchAndReconcile]);
 
   const logout = useCallback(() => {
+    // Fire-and-forget revoke the refresh token server-side before wiping local state.
+    void authApi.logout();
     clearAuthToken();
     setAuthenticated(false);
     setClients([]);
     setSelectedClientId(null);
     localStorage.removeItem('radix_selected_client');
+  }, []);
+
+  // When backend-api detects refresh expiry or reuse-revocation, it fires
+  // onForcedLogout -> we flip the React state to show the login screen.
+  useEffect(() => {
+    const unsubscribe = onForcedLogout((reason) => {
+      console.warn('[auth] forced logout:', reason);
+      setAuthenticated(false);
+      setClients([]);
+      setSelectedClientId(null);
+      localStorage.removeItem('radix_selected_client');
+      if (reason === 'refresh-reuse') {
+        setAuthError('Session revoked for security — please log in again.');
+      } else if (reason === 'refresh-expired') {
+        setAuthError('Session expired — please log in again.');
+      }
+    });
+    return () => { unsubscribe(); };
   }, []);
 
   // ─── Client actions ─────────────────────────────────────────────
