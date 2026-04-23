@@ -17,7 +17,7 @@ interface EnrichedMessage extends ChatMessage {
 
 export default function RadixAssistant() {
   const navigate = useNavigate();
-  const { selectedClientId, currentClient } = useClients();
+  const { selectedClientId, currentClient, fetchClients, setSelectedClientId } = useClients();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<EnrichedMessage[]>([]);
   const [input, setInput] = useState('');
@@ -42,11 +42,22 @@ export default function RadixAssistant() {
 
     try {
       const out = await assistantApi.chat(chatMessages, selectedClientId || undefined);
-      const assistantMsg: EnrichedMessage = {
-        ...out.message,
-        action: (out as any).action || undefined,
-      };
+      const action = (out as any).action as ActionResult | undefined;
+      const assistantMsg: EnrichedMessage = { ...out.message, action };
       setMessages(prev => [...prev, assistantMsg]);
+
+      // Side-effects that change server state — refresh local caches so the
+      // dashboard picks up the change without a manual F5 (the reason Weni
+      // saw "1 client" after create_client fired 2026-04-23).
+      if (action?.type === 'create_client' && action.result?.created && action.result?.id) {
+        await fetchClients();
+        setSelectedClientId(action.result.id);
+      } else if (action?.type === 'create_client' && action.result?.alreadyExists && action.result?.id) {
+        await fetchClients();
+        setSelectedClientId(action.result.id);
+      } else if (action?.type === 'delete_calendar' && action.result?.deleted) {
+        await fetchClients();
+      }
     } catch (err: any) {
       setError(err?.message || 'Chat failed');
     } finally {
@@ -91,6 +102,16 @@ export default function RadixAssistant() {
         <button onClick={() => { navigate(`/calendar?client=${selectedClientId}&month=${encodeURIComponent(r.month)}`); setOpen(false); }}
           className="mt-2 flex items-center gap-2 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-1.5 cursor-pointer hover:bg-amber-500/20 transition-colors">
           <Calendar className="w-3.5 h-3.5" /> View Calendar →
+        </button>
+      );
+    }
+
+    if (action.type === 'create_client' && (r.created || r.alreadyExists) && r.id) {
+      const verb = r.created ? 'Created' : 'Already exists';
+      return (
+        <button onClick={() => { navigate('/clients'); setOpen(false); }}
+          className="mt-2 flex items-center gap-2 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-1.5 cursor-pointer hover:bg-amber-500/20 transition-colors">
+          <FileText className="w-3.5 h-3.5" /> {verb}: {r.name} · Open Clients →
         </button>
       );
     }
