@@ -3,6 +3,7 @@ import { authGuard } from '../middleware/auth.js';
 import { sendAiError } from '../services/providers/errors.js';
 import { db } from '../db/prisma.js';
 import { briefService } from '../services/brief.service.js';
+import { clientService } from '../services/client.service.js';
 import { createJob, processJob } from '../workers/queue.js';
 import { generateMonthWorker } from '../workers/generateMonth.worker.js';
 import { searchPinterest } from '../services/pinterest.service.js';
@@ -60,6 +61,10 @@ ACTIONS:
 1. list_clients — List all clients in the system
    → { "type": "action", "action": "list_clients", "params": {} }
 
+1b. create_client — Create a NEW client profile. Always use this when the user asks to "add", "create", or "set up" a client. Don't tell them to use the UI — you CAN do it here.
+   → { "type": "action", "action": "create_client", "params": { "name": "Al Fardan Exchange", "industry": "Financial Services", "website": "https://alfardanexchange.com", "instagramHandle": "alfardan" } }
+   (only "name" is required — others are optional)
+
 2. get_brief — Get a client's content brief
    → { "type": "action", "action": "get_brief", "params": {} }
 
@@ -109,6 +114,32 @@ async function executeAction(action: string, params: any, clientId: string | nul
         select: { id: true, name: true, industry: true, status: true },
         orderBy: { name: 'asc' },
       });
+
+    case 'create_client': {
+      const name = (params?.name || '').trim();
+      if (!name) return { error: 'client name is required' };
+      const industry = params?.industry?.trim();
+      const website = params?.website?.trim();
+      const instagramHandle = params?.instagramHandle?.trim();
+      const existing = await db.client.findFirst({ where: { name: { equals: name, mode: 'insensitive' } }, select: { id: true, name: true, slug: true } });
+      if (existing) {
+        return { alreadyExists: true, id: existing.id, name: existing.name, slug: existing.slug, message: `"${existing.name}" already exists — selecting it instead.` };
+      }
+      const client = await clientService.create({
+        name,
+        ...(industry ? { industry } : {}),
+        ...(website ? { website } : {}),
+        ...(instagramHandle ? { instagramHandle } : {}),
+      });
+      return {
+        created: true,
+        id: client.id,
+        name: client.name,
+        slug: client.slug,
+        industry: client.industry ?? null,
+        message: `Created "${client.name}". Switch to it with the client selector, then upload a brief or ask me to draft content.`,
+      };
+    }
 
     case 'get_brief': {
       if (!clientId) return { error: 'No client selected' };
