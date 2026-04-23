@@ -1,11 +1,11 @@
-// caption_write — stream a platform-compliant caption via Anthropic SDK.
+// caption_write — stream a platform-compliant caption via Grok (xAI).
 //
 // Reads the piece (CalendarPost) for existing metadata, pulls the client brief
 // for tone/brand hints, respects platform char-limits from
 // apps/desktop/src/lib/platform-limits.ts, and streams tokens to the agent
 // socket room as `agent:message` events.
 
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import { defineTool } from '../tool-types.js';
 import { PLATFORM_LIMITS } from '../../shared/platform-limits.js';
 
@@ -31,7 +31,8 @@ interface Result {
   version?: number;
 }
 
-const MODEL = 'claude-sonnet-4-6';
+const MODEL = process.env.AGENT_MODEL || 'grok-4-fast-reasoning';
+const XAI_BASE_URL = process.env.XAI_BASE_URL || 'https://api.x.ai/v1';
 
 // Map tool arg → platform-limits.ts key. Tool accepts "twitter" while the
 // limits map keys it as "x".
@@ -142,13 +143,16 @@ export const tool = defineTool<Args, Result>({
       at: new Date().toISOString(),
     });
 
-    const client = new Anthropic();
-    const stream = client.messages.stream(
+    const client = new OpenAI({ apiKey: process.env.XAI_API_KEY, baseURL: XAI_BASE_URL });
+    const stream = await client.chat.completions.create(
       {
         model: MODEL,
         max_tokens: 1024,
-        system,
-        messages: [{ role: 'user', content: userPrompt }],
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: userPrompt },
+        ],
+        stream: true,
       },
       { signal: ctx.signal },
     );
@@ -156,14 +160,11 @@ export const tool = defineTool<Args, Result>({
     let caption = '';
     for await (const chunk of stream) {
       if (ctx.signal.aborted) throw new Error('aborted');
-      if (
-        chunk.type === 'content_block_delta' &&
-        chunk.delta.type === 'text_delta' &&
-        typeof chunk.delta.text === 'string'
-      ) {
-        caption += chunk.delta.text;
+      const delta = chunk.choices?.[0]?.delta?.content;
+      if (typeof delta === 'string' && delta.length > 0) {
+        caption += delta;
         await ctx.emit('agent:message', {
-          text: chunk.delta.text,
+          text: delta,
           streaming: true,
           at: new Date().toISOString(),
         });

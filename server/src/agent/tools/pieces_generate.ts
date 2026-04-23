@@ -1,8 +1,9 @@
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import { defineTool } from '../tool-types.js';
 import type { NormalizedBrief } from './brief_analyze.js';
 
-const MODEL = 'claude-sonnet-4-6' as const;
+const MODEL = process.env.AGENT_MODEL || 'grok-4-fast-reasoning';
+const XAI_BASE_URL = process.env.XAI_BASE_URL || 'https://api.x.ai/v1';
 const DEFAULT_PIECE_COUNT = 18;
 const ALLOWED_PLATFORMS = ['Instagram', 'LinkedIn', 'TikTok'] as const;
 type Platform = (typeof ALLOWED_PLATFORMS)[number];
@@ -152,9 +153,9 @@ export const tool = defineTool<Args, Result>({
   async handler(args, ctx) {
     assertNotAborted(ctx.signal);
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
+    const apiKey = process.env.XAI_API_KEY;
     if (!apiKey) {
-      throw new Error('ANTHROPIC_API_KEY not set');
+      throw new Error('XAI_API_KEY not set');
     }
 
     const count = typeof args.pieceCount === 'number' && args.pieceCount > 0
@@ -167,22 +168,29 @@ export const tool = defineTool<Args, Result>({
       at: now(),
     });
 
-    const client = new Anthropic({ apiKey });
-    const stream = client.messages.stream({
-      model: MODEL,
-      max_tokens: 8192,
-      system: buildSystemPrompt(),
-      messages: [{ role: 'user', content: buildUserPrompt(args, platforms, count) }],
-    });
+    const client = new OpenAI({ apiKey, baseURL: XAI_BASE_URL });
+    const stream = await client.chat.completions.create(
+      {
+        model: MODEL,
+        max_tokens: 8192,
+        messages: [
+          { role: 'system', content: buildSystemPrompt() },
+          { role: 'user', content: buildUserPrompt(args, platforms, count) },
+        ],
+        stream: true,
+      },
+      { signal: ctx.signal },
+    );
 
     let buffer = '';
     let flushed = 0;
     const CHUNK_FLUSH = 160;
 
-    for await (const event of stream) {
+    for await (const chunk of stream) {
       assertNotAborted(ctx.signal);
-      if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-        buffer += event.delta.text;
+      const delta = chunk.choices?.[0]?.delta?.content;
+      if (typeof delta === 'string' && delta.length > 0) {
+        buffer += delta;
         if (buffer.length - flushed >= CHUNK_FLUSH) {
           await ctx.emit('agent:message', {
             text: buffer.slice(flushed),
@@ -193,8 +201,6 @@ export const tool = defineTool<Args, Result>({
         }
       }
     }
-
-    await stream.finalMessage();
 
     if (buffer.length > flushed) {
       await ctx.emit('agent:message', {

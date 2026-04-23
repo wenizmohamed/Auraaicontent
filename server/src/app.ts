@@ -121,11 +121,11 @@ export async function buildApp() {
     timestamp: new Date().toISOString(),
   }));
 
-  // Provider matrix (public) — shows which AI providers are configured + which
-  // is the live orchestrator.  Useful for the team-share dashboard and for
-  // smoke-checks after env changes.
+  // Provider matrix (public) — three-provider stack.  Claude is intentionally
+  // absent (removed 2026-04-23 by Weni's directive).  Grok is the orchestrator
+  // + assistant brain, Gemini handles analysis + image fallback, Kimi is the
+  // long-context (128k) option for deep analysis.
   app.get('/api/providers/status', async () => {
-    const { vertexClaudeStatus } = await import('./services/providers/vertex-claude.provider.js');
     const { kimiStatus } = await import('./services/providers/kimi.provider.js');
     return {
       orchestrator: process.env.AGENT_MODEL || 'grok-4-fast-reasoning',
@@ -141,7 +141,6 @@ export async function buildApp() {
           model: process.env.GEMINI_TEXT_MODEL || 'gemini-3.1-pro-preview',
           role: 'analysis + image-fallback',
         },
-        vertexClaude: vertexClaudeStatus(),
         kimi: kimiStatus(),
       },
     };
@@ -163,7 +162,7 @@ export async function buildApp() {
       envFingerprints: {
         GEMINI_API_KEY: fingerprint('GEMINI_API_KEY'),
         XAI_API_KEY: fingerprint('XAI_API_KEY'),
-        ANTHROPIC_API_KEY: fingerprint('ANTHROPIC_API_KEY'),
+        MOONSHOT_API_KEY: fingerprint('MOONSHOT_API_KEY'),
         DATABASE_URL: fingerprint('DATABASE_URL'),
         JWT_SECRET: fingerprint('JWT_SECRET'),
         AGENT_MODEL: process.env.AGENT_MODEL || 'unset',

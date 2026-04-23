@@ -1,18 +1,25 @@
-// Kimi (Moonshot AI) provider — OpenAI-compatible API.  Stub-wired for the
-// orchestrator router; not invoked by any route until MOONSHOT_API_KEY is
-// set + a routing rule promotes it.
+// Kimi (Moonshot AI) provider — OpenAI-compatible API.
 //
 // Endpoint: https://api.moonshot.ai/v1
-// Models  : kimi-k2-instruct (latest), moonshot-v1-128k, moonshot-v1-32k
+// Auth    : Authorization: Bearer ${MOONSHOT_API_KEY}
+// Models  :
+//   - kimi-k2-turbo-preview ← DEFAULT. Non-thinking, fast, predictable.
+//   - kimi-k2.6              ← THINKING model — puts output in
+//                              reasoning_content first; needs max_tokens
+//                              ≥4096 or content comes back empty
+//                              (finish_reason='length').
+//   - kimi-k2-thinking-turbo ← Faster thinking variant
+//   - moonshot-v1-128k       ← v1 series, 128K context, plain chat
+//   - moonshot-v1-128k-vision-preview ← multimodal long-context
 //
-// Use case in Radix: long-context analysis (128k context window) — feed an
-// entire client's content history + brief + competitors into a single call
-// without the multi-round chunking Claude/Grok would need.
+// Use case in Radix: long-context analysis (128K-256K) — feed an entire
+// client's content history + brief + competitor scrape into a single call
+// without the multi-round chunking Grok would need.
 
 import OpenAI from 'openai';
 
 const BASE_URL = process.env.MOONSHOT_BASE_URL || 'https://api.moonshot.ai/v1';
-const MODEL = process.env.MOONSHOT_MODEL || 'kimi-k2-instruct';
+const MODEL = process.env.MOONSHOT_MODEL || 'kimi-k2-turbo-preview';
 
 let _client: OpenAI | null = null;
 
@@ -28,7 +35,7 @@ function getClient(): OpenAI {
 export async function callKimi(
   system: string,
   messages: { role: 'user' | 'assistant'; content: string }[],
-  maxTokens = 2048,
+  maxTokens = 4096,
   json = false,
 ): Promise<string> {
   const client = getClient();
@@ -39,7 +46,15 @@ export async function callKimi(
     messages: [{ role: 'system', content: system }, ...messages],
     ...(json ? { response_format: { type: 'json_object' as const } } : {}),
   });
-  const text = r.choices[0]?.message?.content ?? '';
+  // Thinking models (kimi-k2.6, kimi-k2-thinking) put their final answer in
+  // `content` after streaming the chain of thought into `reasoning_content`.
+  // If `content` is empty but reasoning has data, fall back to reasoning so
+  // we never silently return ''.
+  const choice = r.choices[0]?.message as
+    | { content?: string | null; reasoning_content?: string | null }
+    | undefined;
+  let text = choice?.content ?? '';
+  if (!text && choice?.reasoning_content) text = choice.reasoning_content;
   const latency = Date.now() - start;
   console.log(`[kimi] ${MODEL} ${latency}ms, ${text.length} chars`);
   return text;

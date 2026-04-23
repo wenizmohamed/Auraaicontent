@@ -10,7 +10,7 @@
 // Emits agent:thought progress updates. Returns shape:
 //   { hashtags: { tag, reach_estimate?, rationale }[] }
 
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import { defineTool } from '../tool-types.js';
 import { searchPinterest } from '../../services/pinterest.service.js';
 
@@ -37,7 +37,8 @@ interface Result {
   mergedTagCount?: number;
 }
 
-const MODEL = 'claude-sonnet-4-6';
+const MODEL = process.env.AGENT_MODEL || 'grok-4-fast-reasoning';
+const XAI_BASE_URL = process.env.XAI_BASE_URL || 'https://api.x.ai/v1';
 const DEFAULT_COUNT = 12;
 const HASHTAG_RX = /#([A-Za-z][A-Za-z0-9_]{1,49})/g;
 
@@ -73,14 +74,14 @@ interface AnthropicHashtag {
   rationale: string;
 }
 
-async function askAnthropic(
+async function askLlm(
   topic: string,
   platform: string,
   count: number,
   seedTags: string[],
   signal: AbortSignal,
 ): Promise<AnthropicHashtag[]> {
-  const client = new Anthropic();
+  const client = new OpenAI({ apiKey: process.env.XAI_API_KEY, baseURL: XAI_BASE_URL });
   const seedHint = seedTags.length
     ? `Scraped hashtag seeds (may be noisy, filter and dedupe): ${seedTags.join(', ')}`
     : 'No scraped seeds available — propose from scratch.';
@@ -100,21 +101,19 @@ async function askAnthropic(
     seedHint,
   ].join('\n');
 
-  const resp = await client.messages.create(
+  const resp = await client.chat.completions.create(
     {
       model: MODEL,
       max_tokens: 1500,
-      system,
-      messages: [{ role: 'user', content: user }],
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: user },
+      ],
     },
     { signal },
   );
 
-  const text = resp.content
-    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-    .map((b) => b.text)
-    .join('\n')
-    .trim();
+  const text = (resp.choices[0]?.message?.content ?? '').trim();
 
   // Strip any accidental fence.
   const jsonText = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
@@ -178,7 +177,7 @@ export const tool = defineTool<Args, Result>({
     });
 
     // Phase 2 — Anthropic enrich/propose.
-    const enriched = await askAnthropic(args.topic, args.platform, count, seedTags, ctx.signal);
+    const enriched = await askLlm(args.topic, args.platform, count, seedTags, ctx.signal);
 
     // Dedupe by lowercased tag, keep first occurrence.
     const seen = new Set<string>();
