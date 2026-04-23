@@ -464,13 +464,13 @@ export default function CreativeTools() {
               type="button"
               onClick={handleImprovePrompt}
               disabled={!prompt.trim() || improving || loading}
-              title="Improve this prompt with Grok"
+              title="Improve this prompt with AI (Gemini primary, Grok fallback)"
               className="flex items-center gap-1.5 rounded-lg border border-violet-500/30 bg-violet-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-violet-300 hover:bg-violet-500/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
             >
               {improving
                 ? <Loader2 className="w-3 h-3 animate-spin" />
                 : <PenTool className="w-3 h-3" />}
-              {improving ? 'Improving...' : 'Improve with Grok'}
+              {improving ? 'Improving...' : 'Improve with AI'}
             </button>
           </div>
           <div className="relative">
