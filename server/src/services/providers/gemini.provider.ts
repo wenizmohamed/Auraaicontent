@@ -6,6 +6,12 @@ import { AiProviderError } from './errors.js';
 import { storageService } from '../storage.service.js';
 
 const TIMEOUT = parseInt(process.env.GEMINI_TIMEOUT_MS || '60000', 10);
+// Separate budget for image paths.  Google's nano-banana edit model
+// (gemini-3.1-flash-image-preview) is currently dead for our API key
+// (verified 2026-04-23: direct curl hangs → 70s timeout, no response).
+// Short budget here makes the ai-router fall to xai/grok-imagine-image in
+// seconds instead of making the user wait a full minute per image edit.
+const IMAGE_EDIT_TIMEOUT = parseInt(process.env.GEMINI_IMAGE_EDIT_TIMEOUT_MS || '15000', 10);
 
 // Retry budget before dropping to ai-router's cross-provider fallback.
 // Retry only on Google's 503 "high demand" throttle + 429 rate-limit — those
@@ -99,10 +105,40 @@ export const geminiProvider: AiProvider = {
 
   async image(req: ImageRequest): Promise<ProviderResult<{ url?: string; base64?: string }>> {
     const ai = getAI();
+    // Default is imagen-4.0-fast-generate-001 — it's the ONLY Google image
+    // model that currently responds for our API key (verified 2026-04-23 via
+    // direct curl: gemini-3.1-flash-image-preview hangs 70s/no-response,
+    // imagen-4.0-fast returns HTTP 200 in 5s).  Ultra path uses imagen-4 ultra.
     const model = req.quality === 'ultra'
       ? (process.env.GEMINI_IMAGE_ULTRA_MODEL || 'imagen-4.0-ultra-generate-001')
-      : (process.env.GEMINI_IMAGE_MODEL || 'gemini-3.1-flash-image-preview');
+      : (process.env.GEMINI_IMAGE_MODEL || 'imagen-4.0-fast-generate-001');
     const start = Date.now();
+
+    // Imagen models (imagen-*) live behind the :predict endpoint and are
+    // dispatched via ai.models.generateImages().  Gemini image models
+    // (gemini-*-image-*) use :generateContent with responseModalities.
+    // Wrong dispatch = SDK error or silent hang, so branch on model family.
+    const isImagen = /^imagen-/i.test(model);
+
+    if (isImagen) {
+      const response = await withRetry('image', () => withTimeout(
+        ai.models.generateImages({
+          model,
+          prompt: req.prompt,
+          config: {
+            numberOfImages: 1,
+            ...(req.aspectRatio ? { aspectRatio: req.aspectRatio } : {}),
+          },
+        }),
+        TIMEOUT, 'image',
+      ));
+      const base64 = response.generatedImages?.[0]?.image?.imageBytes;
+      return {
+        provider: 'gemini', model, latencyMs: Date.now() - start, fallbackUsed: false,
+        output: { base64 },
+      };
+    }
+
     const response = await withRetry('image', () => withTimeout(
       ai.models.generateContent({
         model,
@@ -123,7 +159,12 @@ export const geminiProvider: AiProvider = {
 
   async imageEdit(req: ImageRequest): Promise<ProviderResult<{ url?: string; base64?: string }>> {
     const ai = getAI();
-    const model = process.env.GEMINI_IMAGE_MODEL || 'gemini-3.1-flash-image-preview';
+    // Edit needs nano-banana (gemini-*-image-*), NOT imagen — imagen-4.0
+    // is text-to-image only and returns 404 on :generateContent.  Separate
+    // env so flipping GEMINI_IMAGE_MODEL=imagen-* (for generate) does not
+    // break the edit path. (2026-04-23 root-caused via systematic-debugging.)
+    const model = process.env.GEMINI_IMAGE_EDIT_MODEL
+      || 'gemini-3.1-flash-image-preview';
     const start = Date.now();
     const parts: any[] = [];
     if (req.imageBase64 && req.mimeType) {
@@ -133,6 +174,10 @@ export const geminiProvider: AiProvider = {
       parts.push({ inlineData: { mimeType: ref.mimeType, data: ref.base64 } });
     }
     parts.push({ text: req.prompt });
+    // Image-edit only works via gemini-*-image-* (nano-banana) on the public
+    // API.  When that model is throttled/dead at Google's end, the shorter
+    // IMAGE_EDIT_TIMEOUT lets ai-router fall to xai/grok-imagine-image fast
+    // instead of making the user wait the full TEXT-grade timeout per click.
     const response = await withRetry('imageEdit', () => withTimeout(
       ai.models.generateContent({
         model,
@@ -142,7 +187,7 @@ export const geminiProvider: AiProvider = {
           ...(req.aspectRatio ? { imageConfig: { aspectRatio: req.aspectRatio } } : {}),
         },
       }),
-      TIMEOUT, 'imageEdit',
+      IMAGE_EDIT_TIMEOUT, 'imageEdit',
     ));
     const part = (response as any).candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData);
     return {
