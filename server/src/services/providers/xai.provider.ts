@@ -69,7 +69,10 @@ export const xaiProvider: AiProvider = {
     // model's default cap that was truncating responses mid-string and
     // causing safeJsonParse to fail with "JSON parse failed" (incident
     // 2026-04-23, jobs 0b5c8a3c + earlier generate-month failures).
-    const maxTokens = req.maxTokens ?? (req.json ? 8192 : 2048);
+    // 16384 covers month-strategy JSON (~12KB typical).  Was 8192 and still
+    // hit truncation on the Al Fardan 18-post brief+pillars payload — the
+    // response would end mid-string and safeJsonParse couldn't recover.
+    const maxTokens = req.maxTokens ?? (req.json ? 16384 : 2048);
     const data = await xaiFetch('/chat/completions', {
       model,
       temperature: req.temperature ?? 0.7,

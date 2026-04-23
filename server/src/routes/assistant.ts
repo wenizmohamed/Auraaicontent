@@ -328,9 +328,17 @@ export async function assistantRoutes(app: FastifyInstance) {
       let totalLatency = Date.now() - start;
       let providerUsed = pass1.provider as string;
 
-      // Check if the response is an action JSON
+      // Check if the response is an action JSON.  Gemini frequently wraps
+      // JSON in ```json ... ``` markdown fences; strip those defensively
+      // before parsing so the action branch actually fires.  Without this
+      // strip the user gets a raw fenced-JSON message and no action runs
+      // (seen on "create new client" + "generate N pieces" on 2026-04-23).
+      const stripped = responseText
+        .replace(/^```(?:json)?\s*/i, '')
+        .replace(/```\s*$/i, '')
+        .trim();
       try {
-        const parsed = JSON.parse(responseText);
+        const parsed = JSON.parse(stripped);
         if (parsed && parsed.type === 'action' && parsed.action) {
           const actionName = parsed.action;
           const actionParams = parsed.params || {};
