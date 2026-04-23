@@ -13,11 +13,11 @@ export async function creativeRoutes(app: FastifyInstance) {
 
   // POST /api/creative/images/generate
   app.post('/creative/images/generate', async (request, reply) => {
-    const { prompt, aspectRatio, clientId } = request.body as { prompt: string; aspectRatio?: string; clientId?: string };
+    const { prompt, aspectRatio, clientId, quality } = request.body as { prompt: string; aspectRatio?: string; clientId?: string; quality?: 'standard' | 'ultra' };
     if (!prompt) return reply.status(400).send({ error: 'prompt is required' });
 
     try {
-      const result = await aiRouter.image({ prompt, aspectRatio }, { clientId });
+      const result = await aiRouter.image({ prompt, aspectRatio, quality }, { clientId });
       // Save to assets if we have base64
       let savedAsset = null;
       if (result.output.base64 && clientId) {

@@ -56,7 +56,9 @@ export const geminiProvider: AiProvider = {
 
   async image(req: ImageRequest): Promise<ProviderResult<{ url?: string; base64?: string }>> {
     const ai = getAI();
-    const model = process.env.GEMINI_IMAGE_MODEL || 'gemini-3.1-flash-image-preview';
+    const model = req.quality === 'ultra'
+      ? (process.env.GEMINI_IMAGE_ULTRA_MODEL || 'imagen-4.0-ultra-generate-001')
+      : (process.env.GEMINI_IMAGE_MODEL || 'gemini-3.1-flash-image-preview');
     const start = Date.now();
     const response = await withTimeout(
       ai.models.generateContent({
@@ -108,7 +110,9 @@ export const geminiProvider: AiProvider = {
 
   async video(req: VideoRequest): Promise<ProviderResult<{ url: string }>> {
     const ai = getAI();
-    const model = process.env.GEMINI_VIDEO_MODEL || 'veo-3.1-generate-preview';
+    const model = req.fast
+      ? (process.env.GEMINI_VIDEO_FAST_MODEL || 'veo-3.1-fast-generate-preview')
+      : (process.env.GEMINI_VIDEO_MODEL || 'veo-3.1-generate-preview');
     const start = Date.now();
     let operation = await ai.models.generateVideos({
       model,

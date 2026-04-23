@@ -79,10 +79,16 @@ async function request<T>(
 // ─── Auth ────────────────────────────────────────────────────────
 
 export const authApi = {
-  login: (email: string, password: string) =>
-    request<{ token: string; user: any }>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
-  register: (email: string, password: string, name: string) =>
-    request<{ token: string; user: any }>('/api/auth/register', { method: 'POST', body: JSON.stringify({ email, password, name }) }),
+  login: (email: string, password: string, rememberMe = false) =>
+    request<{ token: string; rememberMe: boolean; user: any }>(
+      '/api/auth/login',
+      { method: 'POST', body: JSON.stringify({ email, password, rememberMe }) },
+    ),
+  register: (email: string, password: string, name: string, rememberMe = false) =>
+    request<{ token: string; rememberMe: boolean; user: any }>(
+      '/api/auth/register',
+      { method: 'POST', body: JSON.stringify({ email, password, name, rememberMe }) },
+    ),
   me: () => request<any>('/api/auth/me'),
 };
 
@@ -134,6 +140,8 @@ export const calendarApi = {
     request<any>(`/api/clients/${clientId}/calendar/${encodeURIComponent(month)}`),
   updatePost: (postId: string, data: any) =>
     request<any>(`/api/calendar-posts/${postId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deletePost: (postId: string) =>
+    request<{ success: boolean; deletedId: string }>(`/api/calendar-posts/${postId}`, { method: 'DELETE' }),
   deleteMonth: (clientId: string, month: string) =>
     request<any>(`/api/clients/${clientId}/calendar/${encodeURIComponent(month)}`, { method: 'DELETE' }),
   backfillVisualRefs: (clientId: string, month: string, count = 6) =>

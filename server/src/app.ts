@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import helmet from '@fastify/helmet';
 import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import path from 'path';
@@ -20,6 +21,7 @@ import { designRoutes } from './routes/design.js';
 import { analyzeRoutes } from './routes/analyze.js';
 import { visualRefRoutes } from './routes/visualRefs.js';
 import { dashboardRoutes } from './routes/dashboard.js';
+import { agentRoutes } from './routes/agent.js';
 import { registerRateLimiter } from './middleware/rate-limiter.js';
 
 import { execSync } from 'child_process';
@@ -46,12 +48,70 @@ export async function buildApp() {
   // Rate limiter (before routes, after parser)
   registerRateLimiter(app);
 
-  // Plugins
-  await app.register(cors, { origin: true, credentials: true, methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'] });
+  // Security headers — helmet sets HSTS, X-Content-Type-Options, Referrer-Policy,
+  // Cross-Origin-*, and a strict CSP.  Electron renderer + browser frontend both
+  // load from same origin as the backend in prod; devtools keeps the CSP lenient
+  // enough for the Vite-served React app without going unsafe-inline.
+  const isProd = process.env.NODE_ENV === 'production';
+  await app.register(helmet, {
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"], // Tailwind inlines critical CSS in build
+        imgSrc: ["'self'", 'data:', 'blob:', 'https:'], // allow remote logos / avatars / BFL image CDN
+        connectSrc: ["'self'", 'ws:', 'wss:', 'https:'], // Socket.IO + upstream AI provider APIs
+        fontSrc: ["'self'", 'data:'],
+        frameAncestors: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+        objectSrc: ["'none'"],
+      },
+    },
+    crossOriginEmbedderPolicy: false, // loosen so uploaded assets render in <img>
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    hsts: isProd ? { maxAge: 63072000, includeSubDomains: true, preload: true } : false,
+  });
+
+  // HTTP CORS — explicit allowlist, fails closed in prod (mirrors Socket.IO fix).
+  // Env-driven via HTTP_CORS_ORIGINS (comma-separated).
+  const corsOrigin: boolean | string[] | RegExp = (() => {
+    const raw = process.env.HTTP_CORS_ORIGINS?.trim();
+    if (raw) return raw.split(',').map((s) => s.trim()).filter(Boolean);
+    if (isProd) return []; // fail closed
+    return [
+      'http://127.0.0.1:3200',
+      'http://localhost:3200',
+      'http://127.0.0.1:5173',
+      'http://localhost:5173',
+      'app://.',
+      'file://',
+    ];
+  })();
+  await app.register(cors, {
+    origin: corsOrigin,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  });
+  app.log.info({ corsOrigin }, '[http] CORS policy');
   await app.register(multipart, { limits: { fileSize: 25 * 1024 * 1024 } });
   await app.register(fastifyStatic, { root: path.resolve(process.cwd(), 'uploads'), prefix: '/uploads/', decorateReply: false });
 
   const PROCESS_START = new Date().toISOString();
+
+  // Root — redirect to frontend in dev, show API index in prod.
+  app.get('/', async (_req, reply) => {
+    const frontend = process.env.FRONTEND_URL ?? 'http://localhost:3200';
+    if (process.env.NODE_ENV === 'production') {
+      return reply.send({
+        service: 'radix-server',
+        version: '1.0.0',
+        docs: '/api/health',
+        agent: 'POST /api/agent/runs  ·  socket.io /agent',
+      });
+    }
+    return reply.redirect(frontend, 302);
+  });
 
   // Health check (public)
   app.get('/api/health', async () => ({
@@ -77,7 +137,10 @@ export async function buildApp() {
       envFingerprints: {
         GEMINI_API_KEY: fingerprint('GEMINI_API_KEY'),
         XAI_API_KEY: fingerprint('XAI_API_KEY'),
+        ANTHROPIC_API_KEY: fingerprint('ANTHROPIC_API_KEY'),
         DATABASE_URL: fingerprint('DATABASE_URL'),
+        JWT_SECRET: fingerprint('JWT_SECRET'),
+        AGENT_MODEL: process.env.AGENT_MODEL || 'unset',
       },
       routing: {
         AI_TEXT_PRIMARY: process.env.AI_TEXT_PRIMARY || 'xai',
@@ -110,6 +173,7 @@ export async function buildApp() {
   await app.register(analyzeRoutes, { prefix: '/api' });
   await app.register(visualRefRoutes, { prefix: '/api' });
   await app.register(dashboardRoutes, { prefix: '/api' });
+  await app.register(agentRoutes, { prefix: '/api/agent' });
 
   return app;
 }

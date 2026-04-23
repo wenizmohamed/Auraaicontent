@@ -14,8 +14,8 @@ interface ClientContextType {
   createClient: (data: { name: string; industry?: string; website?: string }) => Promise<BackendClient>;
   updateClient: (id: string, data: Partial<BackendClient>) => Promise<BackendClient>;
   deleteClient: (id: string) => Promise<void>;
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, name: string) => Promise<void>;
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
+  register: (email: string, password: string, name: string, rememberMe?: boolean) => Promise<void>;
   logout: () => void;
 }
 
@@ -96,17 +96,21 @@ export function ClientProvider({ children }: { children: ReactNode }) {
 
   // ─── Auth actions ───────────────────────────────────────────────
 
-  const login = useCallback(async (email: string, password: string) => {
-    const { token } = await authApi.login(email, password);
+  const login = useCallback(async (email: string, password: string, rememberMe = false) => {
+    const { token } = await authApi.login(email, password, rememberMe);
     setAuthToken(token);
+    // Remember-me preference is surfaced to the UI for display and reused
+    // when auto-refreshing the token in future releases.
+    try { localStorage.setItem('radix_remember_me', rememberMe ? '1' : '0'); } catch {}
     setAuthenticated(true);
     setAuthError(null);
     await fetchAndReconcile();
   }, [fetchAndReconcile]);
 
-  const register = useCallback(async (email: string, password: string, name: string) => {
-    const { token } = await authApi.register(email, password, name);
+  const register = useCallback(async (email: string, password: string, name: string, rememberMe = false) => {
+    const { token } = await authApi.register(email, password, name, rememberMe);
     setAuthToken(token);
+    try { localStorage.setItem('radix_remember_me', rememberMe ? '1' : '0'); } catch {}
     setAuthenticated(true);
     setAuthError(null);
     await fetchAndReconcile();

@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Image, Link as LinkIcon, Tag, FolderOpen, Plus, Search, Download, Pin, Eye, X, ExternalLink, Filter } from 'lucide-react';
+import { visualRefsApi } from '../lib/backend-api';
+import { useToast } from '../lib/toast-context';
 
 interface VisualRef {
   id: string;
@@ -71,7 +73,17 @@ export default function VisualReferences() {
     setShowAdd(false);
   };
 
-  const handleDelete = (id: string) => {
+  const { success: toastOk, error: toastErr } = useToast();
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Delete this visual reference?')) return;
+    try {
+      await visualRefsApi.delete(id);
+      toastOk('Reference deleted');
+    } catch (err: any) {
+      toastErr(err?.message || 'Delete failed');
+      return;
+    }
     setRefs(prev => prev.filter(r => r.id !== id));
   };
 

@@ -2,13 +2,16 @@ import { useState, type FormEvent } from 'react';
 import { motion } from 'framer-motion';
 import { Loader2, AlertCircle, ArrowRight, Sparkles } from 'lucide-react';
 import { useClients } from '../lib/client-context';
+import { useTheme } from '../lib/theme-context';
 
 export default function Login() {
   const { login, register, authError } = useClients();
+  const { theme } = useTheme();
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => localStorage.getItem('radix_last_email') ?? '');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [rememberMe, setRememberMe] = useState(() => localStorage.getItem('radix_remember_me') === '1');
   const [submitting, setSubmitting] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
@@ -17,10 +20,18 @@ export default function Login() {
     setLocalError(null);
     setSubmitting(true);
     try {
-      if (mode === 'signin') {
-        await login(email.trim(), password);
+      // Persist the email we'll prefill next time — only if the user opted in.
+      // Passwords never touch localStorage; only the JWT (which the backend
+      // scopes by lifetime via rememberMe).
+      if (rememberMe) {
+        try { localStorage.setItem('radix_last_email', email.trim()); } catch {}
       } else {
-        await register(email.trim(), password, name.trim() || email.split('@')[0]);
+        try { localStorage.removeItem('radix_last_email'); } catch {}
+      }
+      if (mode === 'signin') {
+        await login(email.trim(), password, rememberMe);
+      } else {
+        await register(email.trim(), password, name.trim() || email.split('@')[0], rememberMe);
       }
     } catch (err: any) {
       setLocalError(err.message || 'Authentication failed');
@@ -32,7 +43,7 @@ export default function Login() {
   const err = localError || authError;
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-6">
+    <div className={`min-h-screen flex items-center justify-center p-6 ${theme === 'light' ? 'bg-slate-100' : 'bg-zinc-950'}`}>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -48,7 +59,7 @@ export default function Login() {
         </div>
 
         {/* Card */}
-        <div className="bg-[#111] border border-white/10 rounded-2xl p-6">
+        <div className={`rounded-2xl p-6 border ${theme === 'light' ? 'bg-white border-slate-200' : 'bg-[#111] border-white/10'}`}>
           {/* Mode toggle */}
           <div className="flex gap-1 p-1 bg-white/[0.03] border border-white/[0.06] rounded-xl mb-6">
             <button
@@ -116,6 +127,21 @@ export default function Login() {
                 placeholder="••••••••"
               />
             </div>
+
+            {/* Remember me — 30-day JWT vs 24-hour. Opt-in because long-lived
+                access tokens are a tradeoff: convenience ↔ credential lifespan. */}
+            <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-zinc-400 hover:text-zinc-200 transition-colors">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="w-4 h-4 rounded border-white/20 bg-zinc-900 text-amber-500 focus:ring-2 focus:ring-amber-500/30 focus:ring-offset-0 cursor-pointer"
+              />
+              <span>
+                Remember me on this device
+                <span className="ml-1 text-[10px] text-zinc-600">(30 days)</span>
+              </span>
+            </label>
 
             {err && (
               <div className="flex items-start gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-xs">

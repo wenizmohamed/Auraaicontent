@@ -5,7 +5,7 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
-  
+
   --color-background: #0a0a0a;
   --color-surface: #121212;
   --color-surface-hover: #1e1e1e;
@@ -13,6 +13,114 @@
   --color-primary: #ffffff;
   --color-secondary: #a1a1aa;
   --color-accent: #3b82f6;
+}
+
+/* ═══ Light Mode Global Overrides ═══ */
+html.light {
+  --color-background: #f8fafc;
+  --color-surface: #ffffff;
+  --color-surface-hover: #f1f5f9;
+  --color-border: #e2e8f0;
+  --color-primary: #0f172a;
+  --color-secondary: #64748b;
+  --color-accent: #f59e0b;
+}
+html.light body { background: #f1f5f9; color: #0f172a; }
+
+/* Backgrounds */
+html.light .bg-zinc-950,
+html.light .bg-\[\#0a0a0a\],
+html.light .bg-\[\#0c0c0c\],
+html.light .bg-\[\#050505\],
+html.light .bg-\[\#050508\],
+html.light .bg-\[\#08080c\],
+html.light .bg-\[\#0a0a0f\] { background: #f1f5f9 !important; }
+html.light .bg-zinc-900,
+html.light .bg-\[\#121212\],
+html.light .bg-\[\#1a1a1a\],
+html.light .bg-\[\#18181b\] { background: #ffffff !important; }
+
+/* Glass surfaces → white cards */
+html.light .bg-white\/\[0\.03\],
+html.light .bg-white\/\[0\.04\],
+html.light .bg-white\/\[0\.05\],
+html.light .bg-white\/\[0\.06\],
+html.light .bg-white\/\[0\.08\] { background: rgba(255,255,255,0.85) !important; }
+
+/* Borders */
+html.light .border-white\/\[0\.06\],
+html.light .border-white\/\[0\.08\],
+html.light .border-white\/\[0\.1\],
+html.light .border-white\/\[0\.12\],
+html.light .border-white\/5,
+html.light .border-white\/10 { border-color: #e2e8f0 !important; }
+
+/* Text */
+html.light .text-white { color: #0f172a !important; }
+html.light .text-zinc-100 { color: #1e293b !important; }
+html.light .text-zinc-200 { color: #1e293b !important; }
+html.light .text-zinc-300 { color: #334155 !important; }
+html.light .text-zinc-400 { color: #64748b !important; }
+html.light .text-zinc-500 { color: #94a3b8 !important; }
+html.light .text-zinc-600 { color: #cbd5e1 !important; }
+
+/* Platform / accent text colors — keep on-brand in light mode (Tailwind -400 at 0.5L reads on light bg) */
+html.light .text-pink-400 { color: #ec4899 !important; }
+html.light .text-blue-400 { color: #2563eb !important; }
+html.light .text-slate-300 { color: #334155 !important; }
+html.light .text-sky-400 { color: #0284c7 !important; }
+html.light .text-indigo-400 { color: #4f46e5 !important; }
+html.light .text-amber-400 { color: #d97706 !important; }
+html.light .text-emerald-400 { color: #059669 !important; }
+html.light .text-red-400 { color: #dc2626 !important; }
+html.light .text-violet-400 { color: #7c3aed !important; }
+
+/* Hover states */
+html.light .hover\:bg-white\/5:hover,
+html.light .hover\:bg-white\/\[0\.04\]:hover,
+html.light .hover\:bg-white\/\[0\.08\]:hover { background: rgba(0,0,0,0.04) !important; }
+html.light .hover\:bg-white\/10:hover { background: rgba(0,0,0,0.06) !important; }
+html.light .hover\:border-white\/\[0\.12\]:hover,
+html.light .hover\:border-white\/\[0\.15\]:hover {
+  border-color: #94a3b8 !important;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08) !important;
+}
+
+/* Glass utility in light */
+html.light .glass { background: rgba(255,255,255,0.7) !important; backdrop-filter: blur(20px); border-color: #e2e8f0 !important; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+
+/* Inputs */
+html.light input, html.light textarea, html.light select {
+  background: #f8fafc !important; border-color: #e2e8f0 !important; color: #0f172a !important;
+}
+html.light input:focus, html.light textarea:focus { border-color: #f59e0b !important; box-shadow: 0 0 0 3px rgba(245,158,11,0.1) !important; }
+html.light input::placeholder, html.light textarea::placeholder { color: #94a3b8 !important; }
+
+/* Scrollbar */
+html.light ::-webkit-scrollbar-thumb { background: #cbd5e1; }
+html.light ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* ═══ Glass Card Utility ═══ */
+.glass-card {
+  background: rgba(255,255,255,0.04);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 16px;
+  transition: all 200ms ease;
+}
+.glass-card:hover {
+  background: rgba(255,255,255,0.07);
+  border-color: rgba(255,255,255,0.12);
+}
+html.light .glass-card {
+  background: rgba(255,255,255,0.8);
+  border-color: #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+html.light .glass-card:hover {
+  background: rgba(255,255,255,0.95);
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
 }
 
 /* Electron desktop titlebar drag region */

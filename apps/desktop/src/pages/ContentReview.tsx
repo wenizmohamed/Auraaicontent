@@ -11,6 +11,7 @@ import { useStore, ContentBrief } from '../lib/store';
 import { validateCaption, PLATFORM_LIMITS } from '../lib/platform-limits';
 import { useClients } from '../lib/client-context';
 import { calendarApi, reviewApi, visualRefsApi, exportsApi, jobsApi } from '../lib/backend-api';
+import { ContentStatus, STATUS_LABEL, STATUS_COLOR, normalizeStatus } from '../lib/status-enum';
 import VisualRefGrid from '../components/VisualRefGrid';
 
 // ─── Types ──────────────────────────────────────────────────────
@@ -33,7 +34,7 @@ interface GeneratedPiece {
   charCount: number;
   charLimit: number;
   charStatus: 'good' | 'warning' | 'over';
-  status: 'generated' | 'approved' | 'edited' | 'rejected';
+  status: ContentStatus;
 }
 
 // ─── Constants ──────────────────────────────────────────────────
@@ -58,19 +59,9 @@ const PLATFORM_DOT_COLORS: Record<string, string> = {
   snapchat: 'bg-yellow-400',
 };
 
-const STATUS_COLORS: Record<string, string> = {
-  generated: 'bg-zinc-500/20 text-zinc-400 border-zinc-500/30',
-  approved: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
-  edited: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-  rejected: 'bg-red-500/20 text-red-400 border-red-500/30',
-};
-
-const STATUS_DOT: Record<string, string> = {
-  generated: 'bg-zinc-400',
-  approved: 'bg-emerald-400',
-  edited: 'bg-blue-400',
-  rejected: 'bg-red-400',
-};
+// Status colors/labels now come from ../lib/status-enum (canonical vocabulary
+// shared with ContentCalendar). Local STATUS_COLORS/STATUS_DOT maps were
+// removed as part of the H2 vocabulary unification.
 
 // ─── Component ──────────────────────────────────────────────────
 
@@ -154,7 +145,7 @@ export default function ContentReview() {
           charCount: (p.caption || '').length,
           charLimit: 2200,
           charStatus: 'good' as const,
-          status: p.status || 'generated',
+          status: normalizeStatus(p.status),
         })),
         createdAt: backendMonth.createdAt,
       }
@@ -183,9 +174,15 @@ export default function ContentReview() {
   // Sync pieces from brief.
   // Include backendMonth.posts so re-fetching the same month (same id)
   // still refreshes visualRefs/assets in the Review grid.
+  // Normalize status at the boundary so legacy tokens from the local zustand
+  // store ('generated', 'edited') are mapped to canonical ContentStatus.
   useEffect(() => {
     if (brief?.pieces) {
-      setPieces(brief.pieces as GeneratedPiece[]);
+      const normalized = (brief.pieces as any[]).map(p => ({
+        ...p,
+        status: normalizeStatus(p.status),
+      })) as GeneratedPiece[];
+      setPieces(normalized);
     }
   }, [brief?.id, backendMonth?.posts]);
 
@@ -236,9 +233,11 @@ export default function ContentReview() {
 
   const stats = useMemo(() => ({
     total: pieces.length,
-    generated: pieces.filter(p => p.status === 'generated').length,
+    draft: pieces.filter(p => p.status === 'draft').length,
+    in_review: pieces.filter(p => p.status === 'in_review').length,
     approved: pieces.filter(p => p.status === 'approved').length,
-    edited: pieces.filter(p => p.status === 'edited').length,
+    changes_requested: pieces.filter(p => p.status === 'changes_requested').length,
+    published: pieces.filter(p => p.status === 'published').length,
     rejected: pieces.filter(p => p.status === 'rejected').length,
   }), [pieces]);
 
@@ -268,7 +267,7 @@ export default function ContentReview() {
             charCount: validation.length,
             charLimit: validation.max,
             charStatus: validation.status,
-            status: 'edited' as const,
+            status: 'changes_requested' as const,
           }
         : p
     ));
@@ -277,7 +276,7 @@ export default function ContentReview() {
       await calendarApi.updatePost(editingId, {
         caption: editCaption,
         visualDirection: editCreativeCopy,
-        status: 'edited',
+        status: 'changes_requested',
       });
     } catch (err: any) {
       console.error('Failed to save edit to backend:', err);
@@ -321,7 +320,7 @@ export default function ContentReview() {
   };
 
   const handleRegenerate = (id: string) => {
-    handleStatusChange(id, 'generated');
+    handleStatusChange(id, 'draft');
   };
 
   const handleExportPptx = async () => {
@@ -513,10 +512,12 @@ export default function ContentReview() {
           {/* Stats bar */}
           <div className="flex gap-3 flex-wrap">
             {[
-              { label: 'Generated', value: stats.generated, color: 'text-zinc-400' },
-              { label: 'Approved', value: stats.approved, color: 'text-emerald-400' },
-              { label: 'Edited', value: stats.edited, color: 'text-blue-400' },
-              { label: 'Rejected', value: stats.rejected, color: 'text-red-400' },
+              { label: STATUS_LABEL.draft, value: stats.draft, color: 'text-zinc-400' },
+              { label: STATUS_LABEL.in_review, value: stats.in_review, color: 'text-amber-400' },
+              { label: STATUS_LABEL.approved, value: stats.approved, color: 'text-emerald-400' },
+              { label: STATUS_LABEL.changes_requested, value: stats.changes_requested, color: 'text-blue-400' },
+              { label: STATUS_LABEL.published, value: stats.published, color: 'text-white' },
+              { label: STATUS_LABEL.rejected, value: stats.rejected, color: 'text-red-400' },
             ].map(s => (
               <div
                 key={s.label}
@@ -632,10 +633,9 @@ export default function ContentReview() {
                   className="bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500/50"
                 >
                   <option value="all">All Statuses</option>
-                  <option value="generated">Generated</option>
-                  <option value="approved">Approved</option>
-                  <option value="edited">Edited</option>
-                  <option value="rejected">Rejected</option>
+                  {(Object.keys(STATUS_LABEL) as ContentStatus[]).map(s => (
+                    <option key={s} value={s}>{STATUS_LABEL[s]}</option>
+                  ))}
                 </select>
 
                 {/* Campaign filter */}
@@ -760,10 +760,10 @@ export default function ContentReview() {
 
                   {/* Status badge */}
                   <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border ${
-                    STATUS_COLORS[piece.status]
+                    STATUS_COLOR[piece.status].badge
                   }`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[piece.status]}`} />
-                    {piece.status.charAt(0).toUpperCase() + piece.status.slice(1)}
+                    <span className={`w-1.5 h-1.5 rounded-full ${STATUS_COLOR[piece.status].dot}`} />
+                    {STATUS_LABEL[piece.status]}
                   </span>
                 </div>
 
@@ -1023,10 +1023,10 @@ export default function ContentReview() {
                       </td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium border ${
-                          STATUS_COLORS[piece.status]
+                          STATUS_COLOR[piece.status].badge
                         }`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[piece.status]}`} />
-                          {piece.status.charAt(0).toUpperCase() + piece.status.slice(1)}
+                          <span className={`w-1.5 h-1.5 rounded-full ${STATUS_COLOR[piece.status].dot}`} />
+                          {STATUS_LABEL[piece.status]}
                         </span>
                       </td>
                       <td className="px-4 py-3 print:hidden">

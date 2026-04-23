@@ -7,7 +7,11 @@ export async function authRoutes(app: FastifyInstance) {
 
   // POST /api/auth/login
   app.post('/login', async (request, reply) => {
-    const { email, password } = request.body as { email: string; password: string };
+    const { email, password, rememberMe } = request.body as {
+      email: string;
+      password: string;
+      rememberMe?: boolean;
+    };
 
     if (!email || !password) {
       return reply.status(400).send({ error: 'Email and password required' });
@@ -23,8 +27,15 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.status(401).send({ error: 'Invalid credentials' });
     }
 
-    const token = signToken({ userId: user.id, email: user.email, role: user.role });
-    return { token, user: { id: user.id, email: user.email, name: user.name, role: user.role } };
+    const token = signToken(
+      { userId: user.id, email: user.email, role: user.role },
+      Boolean(rememberMe),
+    );
+    return {
+      token,
+      rememberMe: Boolean(rememberMe),
+      user: { id: user.id, email: user.email, name: user.name, role: user.role },
+    };
   });
 
   // POST /api/auth/logout
@@ -48,7 +59,12 @@ export async function authRoutes(app: FastifyInstance) {
 
   // POST /api/auth/register — dev convenience, disable in production
   app.post('/register', async (request, reply) => {
-    const { email, password, name } = request.body as { email: string; password: string; name: string };
+    const { email, password, name, rememberMe } = request.body as {
+      email: string;
+      password: string;
+      name: string;
+      rememberMe?: boolean;
+    };
 
     if (!email || !password || !name) {
       return reply.status(400).send({ error: 'Email, password, and name required' });
@@ -65,7 +81,10 @@ export async function authRoutes(app: FastifyInstance) {
       select: { id: true, email: true, name: true, role: true },
     });
 
-    const token = signToken({ userId: user.id, email: user.email, role: user.role });
-    return { token, user };
+    const token = signToken(
+      { userId: user.id, email: user.email, role: user.role },
+      Boolean(rememberMe),
+    );
+    return { token, rememberMe: Boolean(rememberMe), user };
   });
 }

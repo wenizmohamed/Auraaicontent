@@ -45,15 +45,21 @@ export async function calendarRoutes(app: FastifyInstance) {
   // GET /api/clients/:clientId/calendar/months
   // Returns all months for a client, newest first, with post counts.
   // Used by Calendar/Review auto-loaders so we don't have to guess month names.
+  // Smoke-test months (isTest=true) are hidden by default; pass ?includeTest=true
+  // for dev tooling that needs to see them (e.g. smoke-test cleanup scripts).
   app.get('/clients/:clientId/calendar/months', async (request) => {
     const { clientId } = request.params as { clientId: string };
+    const { includeTest } = (request.query as { includeTest?: string }) || {};
+    const showTest = includeTest === 'true' || includeTest === '1';
+
     const months = await db.calendarMonth.findMany({
-      where: { clientId },
+      where: showTest ? { clientId } : { clientId, isTest: false },
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
         month: true,
         status: true,
+        isTest: true,
         createdAt: true,
         _count: { select: { posts: true } },
       },
@@ -62,6 +68,7 @@ export async function calendarRoutes(app: FastifyInstance) {
       id: m.id,
       month: m.month,
       status: m.status,
+      isTest: m.isTest,
       createdAt: m.createdAt,
       postCount: m._count.posts,
     }));
@@ -111,6 +118,13 @@ export async function calendarRoutes(app: FastifyInstance) {
     const updates = request.body as any;
     const { id, calendarMonthId, createdAt, updatedAt, ...data } = updates;
     return db.calendarPost.update({ where: { id: postId }, data });
+  });
+
+  // DELETE /api/calendar-posts/:postId
+  app.delete('/calendar-posts/:postId', async (request) => {
+    const { postId } = request.params as { postId: string };
+    await db.calendarPost.delete({ where: { id: postId } });
+    return { success: true, deletedId: postId };
   });
 
   // POST /api/clients/:clientId/calendar/:month/visual-refs/backfill

@@ -12,7 +12,7 @@ import { readJson } from './lib/safe-storage';
 const isElectron = !!window.electron?.isDesktop;
 const Router = isElectron ? HashRouter : BrowserRouter;
 import { StoreProvider, useStore } from './lib/store';
-import { LayoutDashboard, Calendar, ImagePlus, Image as ImageIcon, Video, Search, UserCircle, ChevronLeft, ChevronRight, FileText, Palette, Layers, Wand2, FolderOpen, Radio, Building2, AlertCircle } from 'lucide-react';
+import { LayoutDashboard, Calendar, ImagePlus, Image as ImageIcon, Video, Search, UserCircle, ChevronLeft, ChevronRight, FileText, Palette, Layers, Wand2, FolderOpen, Radio, Building2, AlertCircle, Sparkles } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import ContentCalendar from './pages/ContentCalendar';
 import Login from './pages/Login';
@@ -31,15 +31,21 @@ import BriefInput from './pages/BriefInput';
 import ContentReview from './pages/ContentReview';
 import Clients from './pages/Clients';
 import CreativeTools from './pages/CreativeTools';
+import Agent from './pages/Agent';
+import { ThemeProvider, useTheme } from './lib/theme-context';
+import { ToastProvider } from './lib/toast-context';
+import { Sun, Moon } from 'lucide-react';
 
 function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { generatedImages, isLoading, error } = useStore();
+  const { theme, toggleTheme } = useTheme();
   
 
   const navigation = [
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+    { name: 'Agent', href: '/agent', icon: Sparkles },
     { name: 'Clients', href: '/clients', icon: Building2 },
     { name: 'New Brief', href: '/brief', icon: FileText },
     { name: 'Review', href: '/content-review', icon: Layers },
@@ -47,34 +53,40 @@ function Layout({ children }: { children: React.ReactNode }) {
     { name: 'Creative Tools', href: '/creative', icon: Wand2 },
   ];
 
+  const isDark = theme === 'dark';
+
   return (
-    <div className="min-h-screen bg-zinc-950 flex font-sans">
-      {/* Sidebar */}
-      <div 
-        className={`${
-          isCollapsed ? 'w-20' : 'w-64'
-        } bg-[#050505] border-r border-white/5 flex flex-col transition-all duration-300 relative z-20 shadow-xl`}
+    <div className={`min-h-screen flex font-sans ${isDark ? 'bg-[#050508]' : 'bg-slate-100'}`}>
+      {/* Sidebar — Glassmorphic */}
+      <div
+        className={`${isCollapsed ? 'w-[72px]' : 'w-[260px]'} ${
+          isDark
+            ? 'bg-[#0a0a0f]/80 backdrop-blur-2xl border-r border-white/[0.06]'
+            : 'bg-white/80 backdrop-blur-2xl border-r border-slate-200/80 shadow-lg'
+        } flex flex-col transition-all duration-300 relative z-20`}
       >
-        {/* Toggle Button */}
-        <button 
+        {/* Collapse Toggle */}
+        <button
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="absolute -right-3 top-6 bg-[#1a1a1a] border border-white/10 text-zinc-400 rounded-full p-1 hover:text-white hover:bg-white/10 transition-colors shadow-lg z-30"
+          className={`absolute -right-3 top-7 z-30 w-6 h-6 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer shadow-lg ${
+            isDark ? 'bg-zinc-800 border border-white/10 text-zinc-400 hover:bg-zinc-700 hover:text-white' : 'bg-white border border-slate-300 text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+          }`}
         >
-          {isCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+          {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
         </button>
 
-        {/* Logo Area */}
-        <div className={`h-20 flex items-center justify-center border-b border-white/5 ${isCollapsed ? 'px-2' : 'px-5'}`}>
+        {/* Logo */}
+        <div className={`h-[72px] flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-5'} border-b ${isDark ? 'border-white/[0.06]' : 'border-slate-200/60'}`}>
           {isCollapsed ? (
-            <img src="./radix-logo.jpg" alt="Radix" className="w-10 h-10 rounded-lg object-cover" />
+            <img src="/radix-logo.jpg" alt="Radix" className="w-9 h-9 rounded-xl object-cover ring-1 ring-white/10" />
           ) : (
             <div className="flex items-center gap-3">
-              <img src="./radix-logo.jpg" alt="Radix" className="w-10 h-10 rounded-lg object-cover" />
+              <img src="/radix-logo.jpg" alt="Radix" className="w-10 h-10 rounded-xl object-cover ring-1 ring-white/10" />
               <div>
-                <span className="text-xl font-black tracking-[0.25em] text-white uppercase" style={{ fontFamily: "'Inter', sans-serif" }}>
+                <span className={`text-lg font-black tracking-[0.3em] uppercase ${isDark ? 'text-white' : 'text-slate-900'}`}>
                   RADIX
                 </span>
-                <div className="text-[9px] font-medium text-zinc-500 uppercase tracking-[0.2em]">
+                <div className={`text-[9px] font-semibold uppercase tracking-[0.2em] ${isDark ? 'text-amber-500/70' : 'text-amber-600/70'}`}>
                   AI Content Planner
                 </div>
               </div>
@@ -83,44 +95,66 @@ function Layout({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto custom-scrollbar">
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
           {navigation.map((item) => {
             const isActive = location.pathname === item.href;
             return (
               <Link
                 key={item.name}
                 to={item.href}
-                className={`group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 relative overflow-hidden ${
-                  isActive 
-                    ? 'text-white bg-white/10' 
-                    : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200'
+                className={`group flex items-center px-3 py-2.5 text-[13px] font-medium rounded-xl transition-all duration-200 relative cursor-pointer ${
+                  isActive
+                    ? isDark
+                      ? 'text-white bg-white/[0.08] shadow-[inset_0_0_20px_rgba(245,158,11,0.05)]'
+                      : 'text-slate-900 bg-amber-50 shadow-sm'
+                    : isDark
+                      ? 'text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.04]'
+                      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
                 } ${isCollapsed ? 'justify-center px-0' : ''}`}
                 title={isCollapsed ? item.name : undefined}
               >
-                {/* Active Indicator */}
                 {isActive && (
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-white rounded-r-full" />
+                  <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full ${isDark ? 'bg-amber-500' : 'bg-amber-500'}`} />
                 )}
-
-                <item.icon className={`${isCollapsed ? '' : 'mr-3'} h-5 w-5 transition-colors duration-200 ${isActive ? 'text-white' : 'group-hover:text-zinc-300'}`} />
-                
+                <item.icon className={`${isCollapsed ? '' : 'mr-3'} h-[18px] w-[18px] transition-all duration-200 ${
+                  isActive ? isDark ? 'text-amber-400' : 'text-amber-600' : isDark ? 'group-hover:text-zinc-300' : 'group-hover:text-slate-700'
+                }`} />
                 {!isCollapsed && <span className="flex-1">{item.name}</span>}
-                
               </Link>
             );
           })}
         </nav>
 
-        {/* User Profile */}
-        <div className="p-4 border-t border-white/5">
-          <Link to="/profile" className={`flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'} p-2 rounded-lg hover:bg-white/5 transition-colors cursor-pointer`}>
-            <div className="h-9 w-9 rounded-full bg-white/10 flex items-center justify-center text-white font-bold shrink-0">
+        {/* Bottom: Theme + Profile */}
+        <div className={`p-3 border-t space-y-1 ${isDark ? 'border-white/[0.06]' : 'border-slate-200/60'}`}>
+          {/* Theme Toggle — Pill Switch */}
+          <button
+            onClick={toggleTheme}
+            className={`flex items-center w-full ${isCollapsed ? 'justify-center' : 'gap-3'} px-3 py-2 rounded-xl transition-all duration-200 cursor-pointer ${
+              isDark ? 'hover:bg-white/[0.04] text-zinc-500 hover:text-zinc-300' : 'hover:bg-slate-100 text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <div className={`relative w-9 h-5 rounded-full transition-colors duration-300 ${isDark ? 'bg-zinc-800' : 'bg-amber-100'}`}>
+              <div className={`absolute top-0.5 w-4 h-4 rounded-full transition-all duration-300 flex items-center justify-center ${isDark ? 'left-0.5 bg-zinc-600' : 'left-[18px] bg-amber-500'}`}>
+                {isDark ? <Moon size={10} className="text-zinc-300" /> : <Sun size={10} className="text-white" />}
+              </div>
+            </div>
+            {!isCollapsed && <span className="text-[13px]">{isDark ? 'Dark' : 'Light'}</span>}
+          </button>
+
+          {/* Profile */}
+          <Link to="/profile" className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} px-3 py-2 rounded-xl transition-all duration-200 cursor-pointer ${
+            isDark ? 'hover:bg-white/[0.04]' : 'hover:bg-slate-100'
+          }`}>
+            <div className={`h-8 w-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${
+              isDark ? 'bg-gradient-to-br from-amber-500/20 to-amber-600/10 text-amber-400 ring-1 ring-amber-500/20' : 'bg-amber-100 text-amber-700 ring-1 ring-amber-200'
+            }`}>
               MS
             </div>
             {!isCollapsed && (
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white truncate">Mohamed S.</p>
-                <p className="text-xs text-zinc-500 truncate">Radix Media</p>
+                <p className={`text-[13px] font-medium truncate ${isDark ? 'text-zinc-200' : 'text-slate-800'}`}>Mohamed S.</p>
+                <p className={`text-[10px] truncate ${isDark ? 'text-zinc-600' : 'text-slate-400'}`}>Radix Media</p>
               </div>
             )}
           </Link>
@@ -128,7 +162,7 @@ function Layout({ children }: { children: React.ReactNode }) {
       </div>
       
       {/* Main content */}
-      <div className="flex-1 flex flex-col overflow-hidden relative bg-[#0a0a0a]">
+      <div className={`flex-1 flex flex-col overflow-hidden relative ${isDark ? 'bg-[#08080c]' : 'bg-slate-50'}`}>
         <main className="flex-1 overflow-y-auto p-8 relative">
           {isLoading && (
             <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#0a0a0a]/80 backdrop-blur-sm">
@@ -227,6 +261,8 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   return (
+    <ThemeProvider>
+    <ToastProvider>
     <StoreProvider>
       <ClientProvider>
       <Router>
@@ -241,6 +277,8 @@ export default function App() {
               <Route path="/textures" element={<DesignTextures />} />
               <Route path="/calendar" element={<ContentCalendar />} />
               <Route path="/creative" element={<CreativeTools />} />
+              <Route path="/agent" element={<Agent />} />
+              <Route path="/agent/:sessionUid" element={<Agent />} />
               {/* Legacy routes redirect to the unified Creative Studio */}
               <Route path="/image-gen" element={<Navigate to="/creative?tab=text-to-image" replace />} />
               <Route path="/image-edit" element={<Navigate to="/creative?tab=image-edit" replace />} />
@@ -261,5 +299,7 @@ export default function App() {
       <DevBanner />
       </ClientProvider>
     </StoreProvider>
+    </ToastProvider>
+    </ThemeProvider>
   );
 }

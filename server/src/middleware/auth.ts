@@ -12,8 +12,14 @@ export function verifyToken(token: string): JwtPayload {
   return jwt.verify(token, env.JWT_SECRET) as JwtPayload;
 }
 
-export function signToken(payload: JwtPayload): string {
-  return jwt.sign(payload, env.JWT_SECRET, { expiresIn: '7d' });
+// Short-lived default (24h) for a single workstation session.  Pass
+// rememberMe=true for a 30-day token — the "keep me signed in" case.
+// Long-lived access tokens are covered by the strict auth rate-limit
+// bucket; a full refresh-token rotation layer is the next gold-standard
+// upgrade but outside this change's scope.
+export function signToken(payload: JwtPayload, rememberMe = false): string {
+  const expiresIn = rememberMe ? '30d' : '24h';
+  return jwt.sign(payload, env.JWT_SECRET, { expiresIn });
 }
 
 // Fastify preHandler hook — attaches user to request

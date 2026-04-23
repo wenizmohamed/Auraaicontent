@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
+import { calendarApi } from '../lib/backend-api';
+import { useToast } from '../lib/toast-context';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FileText, Image as ImageIcon, Video, Film, Layers, Grid, List, Plus,
@@ -206,7 +208,17 @@ export default function ContentPieces() {
     closeModal();
   }
 
-  function handleDelete(id: string) {
+  const { success: toastSuccess, error: toastError } = useToast();
+
+  async function handleDelete(id: string) {
+    if (!confirm('Delete this content piece? This cannot be undone.')) return;
+    try {
+      await calendarApi.deletePost(id);
+      toastSuccess('Post deleted');
+    } catch (err: any) {
+      toastError(err?.message || 'Failed to delete');
+      return;
+    }
     setPieces(prev => prev.filter(p => p.id !== id));
     setSelectedIds(prev => {
       const next = new Set(prev);

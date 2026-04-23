@@ -11,7 +11,7 @@ import { searchPinterest } from '../services/pinterest.service.js';
 import { auditService } from '../services/audit.service.js';
 
 // ─── Claude Client ───────────────────────────────────────────────
-const CLAUDE_MODEL = 'claude-sonnet-4-20250514';
+const CLAUDE_MODEL = process.env.CLAUDE_ASSISTANT_MODEL || 'claude-sonnet-4-20250514';
 let _claude: Anthropic | null = null;
 function getClaude(): Anthropic {
   if (!_claude) {
@@ -89,6 +89,18 @@ ACTIONS:
 
 6. improve_prompt — Improve a creative prompt for image/video generation
    → { "type": "action", "action": "improve_prompt", "params": { "prompt": "a Dubai skyline at sunset" } }
+
+7. delete_calendar — Delete a month's calendar to regenerate it
+   → { "type": "action", "action": "delete_calendar", "params": { "month": "April 2026" } }
+
+8. get_stats — Get dashboard statistics (clients, posts, approvals)
+   → { "type": "action", "action": "get_stats", "params": {} }
+
+9. research — Research a topic for content ideas
+   → { "type": "action", "action": "research", "params": { "query": "Ramadan marketing trends UAE 2026" } }
+
+10. update_post — Update a specific post's caption or status
+    → { "type": "action", "action": "update_post", "params": { "postId": "...", "caption": "new caption", "status": "approved" } }
 
 WHEN TO USE ACTIONS vs JUST RESPOND:
 - User says "generate content for May" → ACTION (generate_content)
@@ -195,6 +207,47 @@ async function executeAction(action: string, params: any, clientId: string | nul
       return { original: prompt, improved: improved.trim() };
     }
 
+    case 'delete_calendar': {
+      if (!clientId) return { error: 'No client selected' };
+      const month = params?.month;
+      if (!month) return { error: 'month is required' };
+      const cal = await db.calendarMonth.findFirst({ where: { clientId, month } });
+      if (!cal) return { error: `No calendar found for "${month}"` };
+      await db.calendarPost.deleteMany({ where: { calendarMonthId: cal.id } });
+      await db.calendarMonth.delete({ where: { id: cal.id } });
+      return { deleted: true, month };
+    }
+
+    case 'get_stats': {
+      const clients = await db.client.count();
+      const posts = await db.calendarPost.count();
+      const approved = await db.calendarPost.count({ where: { status: 'approved' } });
+      const months = await db.calendarMonth.count();
+      return { clients, posts, approved, months, approvalRate: posts > 0 ? Math.round((approved / posts) * 100) : 0 };
+    }
+
+    case 'research': {
+      const query = params?.query || '';
+      if (!query) return { error: 'query is required' };
+      const researchResult = await callClaude(
+        'You are a senior content strategist at a Dubai agency. Research the topic and provide 5-7 actionable content ideas with platform recommendations. Be specific to the UAE/GCC market when relevant. Return as structured text, not JSON.',
+        [{ role: 'user', content: query }],
+      );
+      return { query, insights: researchResult.trim() };
+    }
+
+    case 'update_post': {
+      const postId = params?.postId;
+      if (!postId) return { error: 'postId is required' };
+      const updateData: any = {};
+      if (params?.caption) updateData.caption = params.caption;
+      if (params?.status) updateData.status = params.status;
+      if (params?.title) updateData.title = params.title;
+      if (Object.keys(updateData).length === 0) return { error: 'Nothing to update — provide caption, status, or title' };
+      const post = await db.calendarPost.update({ where: { id: postId }, data: updateData });
+      return { updated: true, postId: post.id, title: post.title, status: post.status };
+    }
+
     default:
       return { error: `Unknown action: ${action}` };
   }
@@ -225,6 +278,18 @@ export async function assistantRoutes(app: FastifyInstance) {
           if (client.brief?.channels) {
             const ch = typeof client.brief.channels === 'string' ? JSON.parse(client.brief.channels) : client.brief.channels;
             if (Array.isArray(ch)) clientContext += `\nChannels: ${ch.join(', ')}`;
+          }
+          if (client.brief?.pillars) clientContext += `\nContent Pillars: ${client.brief.pillars}`;
+          if (client.brief?.products) clientContext += `\nProducts/Services: ${client.brief.products}`;
+          // Add calendar stats
+          const calStats = await db.calendarMonth.findMany({
+            where: { clientId },
+            orderBy: { createdAt: 'desc' },
+            take: 3,
+            select: { month: true, status: true, _count: { select: { posts: true } } },
+          });
+          if (calStats.length > 0) {
+            clientContext += `\nRecent calendars: ${calStats.map(c => `${c.month} (${c._count.posts} posts, ${c.status})`).join(', ')}`;
           }
         }
       } catch { /* best-effort */ }

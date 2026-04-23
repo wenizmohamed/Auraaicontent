@@ -61,6 +61,8 @@ export default function RadixAssistant() {
     { label: 'Calendar', icon: Calendar, prompt: 'What months do we have in the calendar?' },
     { label: 'Visual refs', icon: Search, prompt: `Search for visual references about ${currentClient?.industry || 'luxury branding'}` },
     { label: 'Generate', icon: Zap, prompt: `Generate content for ${new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' })}` },
+    { label: 'Stats', icon: MessageSquare, prompt: 'Show me dashboard stats' },
+    { label: 'Research', icon: Search, prompt: `Research content ideas for ${currentClient?.name || 'our client'}` },
   ];
 
   // Action card renderer
@@ -116,6 +118,31 @@ export default function RadixAssistant() {
               <span className="text-zinc-600 ml-1">· {m.postCount} posts · {m.status}</span>
             </button>
           ))}
+        </div>
+      );
+    }
+
+    if (action.type === 'get_stats' && r.clients !== undefined) {
+      return (
+        <div className="mt-2 grid grid-cols-2 gap-1.5">
+          {[
+            { label: 'Clients', value: r.clients },
+            { label: 'Posts', value: r.posts },
+            { label: 'Approved', value: `${r.approvalRate}%` },
+            { label: 'Months', value: r.months },
+          ].map(s => (
+            <div key={s.label} className="text-[11px] text-zinc-400 bg-white/[0.03] rounded-lg px-2.5 py-1.5 border border-white/[0.04]">
+              <span className="text-zinc-200 font-bold">{s.value}</span> <span className="text-zinc-600">{s.label}</span>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    if (action.type === 'delete_calendar' && r.deleted) {
+      return (
+        <div className="mt-2 text-[11px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-1.5">
+          Deleted calendar for {r.month}. You can now regenerate it.
         </div>
       );
     }

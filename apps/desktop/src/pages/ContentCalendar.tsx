@@ -5,6 +5,7 @@ import { validateCaption } from '../lib/platform-limits';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { useClients } from '../lib/client-context';
 import { calendarApi, reviewApi, exportsApi, jobsApi, visualRefsApi } from '../lib/backend-api';
+import { STATUS_LABEL, normalizeStatus } from '../lib/status-enum';
 import VisualRefGrid from '../components/VisualRefGrid';
 
 const getPlatformIcon = (platform: string) => {
@@ -57,7 +58,7 @@ const EDITABLE_FIELDS = [
   { key: 'visualDirection', label: 'Visual Direction', type: 'textarea' },
   { key: 'referenceQuery', label: 'Reference Query', type: 'text' },
   { key: 'timing', label: 'Timing', type: 'text' },
-  { key: 'status', label: 'Status', type: 'select', options: ['draft', 'approved', 'changes_requested'] },
+  { key: 'status', label: 'Status', type: 'select', options: Object.keys(STATUS_LABEL) },
 ] as const;
 
 export default function ContentCalendar() {
@@ -197,7 +198,7 @@ export default function ContentCalendar() {
       visualDirection: post.visualDirection || '',
       referenceQuery: post.referenceQuery || '',
       timing: post.timing || '',
-      status: post.status || 'draft',
+      status: normalizeStatus(post.status),
     });
     setIsDirty(true);
     setSaveStatus('idle');
@@ -367,7 +368,7 @@ export default function ContentCalendar() {
 
   const selectedPieces = selectedDay ? (filteredDayPieces[selectedDay] || []) : [];
   const totalPieces = allPieces.length;
-  const platforms = [...new Set(allPieces.map(p => p.platform))];
+  const platforms = Array.from(new Set<string>(allPieces.map((p: any) => String(p.platform || ''))).values()).filter(Boolean);
 
   // ─── Render ───────────────────────────────────────────────────
   return (
@@ -648,7 +649,7 @@ export default function ContentCalendar() {
                                 <label className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Status</label>
                                 <select value={editDraft.status} onChange={e => updateDraftField('status', e.target.value)}
                                   className="w-full bg-zinc-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-violet-500/40 mt-0.5">
-                                  {['draft', 'approved', 'changes_requested'].map(s => <option key={s} value={s}>{s}</option>)}
+                                  {Object.keys(STATUS_LABEL).map(s => <option key={s} value={s}>{STATUS_LABEL[s as keyof typeof STATUS_LABEL]}</option>)}
                                 </select>
                               </div>
                               {/* Timing */}

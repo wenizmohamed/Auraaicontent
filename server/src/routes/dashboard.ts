@@ -50,7 +50,10 @@ export async function dashboardRoutes(app: FastifyInstance) {
       ]);
 
       // ── Activity — last 5 calendar months with post count ─────
+      // Exclude smoke-test months from the user-visible Recent Months feed.
+      // (Internal totals above still include them — they're real rows.)
       const recentMonths = await db.calendarMonth.findMany({
+        where: { isTest: false },
         orderBy: { createdAt: 'desc' },
         take: 5,
         include: { _count: { select: { posts: true } } },
