@@ -1,10 +1,11 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { Calendar as CalendarIcon, X, ExternalLink, ChevronLeft, ChevronRight, Instagram, Linkedin, Twitter, Facebook, Video, Sparkles, FileText, ArrowRight, Share2, Loader2, Copy, Download, Edit3, Check, Save, Trash2, Building2, ChevronDown, ImagePlus } from 'lucide-react';
+import { Calendar as CalendarIcon, X, ExternalLink, ChevronLeft, ChevronRight, Instagram, Linkedin, Twitter, Facebook, Video, Sparkles, FileText, ArrowRight, Share2, Loader2, Copy, Download, Edit3, Check, Save, Trash2, Building2, ChevronDown, ImagePlus, Archive, RotateCcw, History, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { validateCaption } from '../lib/platform-limits';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { useClients } from '../lib/client-context';
 import { calendarApi, reviewApi, exportsApi, jobsApi, visualRefsApi } from '../lib/backend-api';
+import type { CalendarMonthSummary } from '../lib/backend-api';
 import { STATUS_LABEL, normalizeStatus } from '../lib/status-enum';
 import VisualRefGrid from '../components/VisualRefGrid';
 
@@ -75,6 +76,12 @@ export default function ContentCalendar() {
   const [copyNotice, setCopyNotice] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportDone, setExportDone] = useState<string | null>(null);
+
+  // Archive / history state — Manus-pattern: reset = archive (reversible) by default.
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [archivedMonths, setArchivedMonths] = useState<CalendarMonthSummary[]>([]);
+  const [loadingArchived, setLoadingArchived] = useState(false);
+  const [pendingHardDelete, setPendingHardDelete] = useState<string | null>(null); // month key awaiting 2nd confirm
 
   // Edit state
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
@@ -303,17 +310,76 @@ export default function ContentCalendar() {
     }
   };
 
-  const handleDeleteMonth = async () => {
+  // Archive the active month (soft delete — reversible via Previous Months drawer).
+  const handleArchiveMonth = async () => {
     if (!urlClient || !backendMonth?.month) return;
-    if (!window.confirm(`Delete ${backendMonth.month} for ${currentClient?.name || 'this client'}? This removes all posts in that month.`)) return;
+    const name = currentClient?.name || 'this client';
+    if (!window.confirm(
+      `Archive ${backendMonth.month} for ${name}?\n\n` +
+      `This moves the month to Previous Months. Posts are preserved and can be restored anytime from the history drawer.\n\n` +
+      `To delete permanently, open Previous Months and use "Delete permanently" there.`
+    )) return;
     try {
-      await calendarApi.deleteMonth(urlClient, backendMonth.month);
-      showStatus(`Deleted ${backendMonth.month}. Redirecting to brief...`, 'ok');
+      await calendarApi.archiveMonth(urlClient, backendMonth.month);
+      showStatus(`${backendMonth.month} archived. Find it in Previous Months.`, 'ok', 5000);
       setBackendMonth(null);
       setSelectedDay(null);
       setTimeout(() => navigate(`/brief?client=${urlClient}`), 1000);
     } catch (err: any) {
-      showStatus('Delete failed: ' + err.message, 'error', 6000);
+      showStatus('Archive failed: ' + err.message, 'error', 6000);
+    }
+  };
+
+  // Load archived months for the active client — used by Previous Months drawer.
+  const loadArchived = useCallback(async () => {
+    if (!urlClient) return;
+    setLoadingArchived(true);
+    try {
+      const list = await calendarApi.listArchived(urlClient);
+      setArchivedMonths(list);
+    } catch (err: any) {
+      showStatus('Failed to load archive: ' + err.message, 'error', 5000);
+    } finally {
+      setLoadingArchived(false);
+    }
+  }, [urlClient]);
+
+  const openHistory = () => {
+    setHistoryOpen(true);
+    setPendingHardDelete(null);
+    loadArchived();
+  };
+
+  const handleRestore = async (month: string) => {
+    if (!urlClient) return;
+    try {
+      await calendarApi.restoreMonth(urlClient, month);
+      showStatus(`${month} restored.`, 'ok');
+      setArchivedMonths(prev => prev.filter(m => m.month !== month));
+      // Navigate user to the restored month so they immediately see their work back.
+      setHistoryOpen(false);
+      navigate(`/calendar?client=${urlClient}&month=${encodeURIComponent(month)}`);
+    } catch (err: any) {
+      showStatus('Restore failed: ' + err.message, 'error', 6000);
+    }
+  };
+
+  const handleHardDelete = async (month: string) => {
+    if (!urlClient) return;
+    // Two-step: first click arms the action, second click executes.
+    if (pendingHardDelete !== month) {
+      setPendingHardDelete(month);
+      showStatus(`Click "Delete permanently" again within 8s to confirm.`, 'info', 8000);
+      setTimeout(() => setPendingHardDelete(curr => (curr === month ? null : curr)), 8000);
+      return;
+    }
+    try {
+      await calendarApi.hardDeleteMonth(urlClient, month);
+      showStatus(`${month} permanently deleted.`, 'ok');
+      setArchivedMonths(prev => prev.filter(m => m.month !== month));
+      setPendingHardDelete(null);
+    } catch (err: any) {
+      showStatus('Hard delete failed: ' + err.message, 'error', 6000);
     }
   };
 
@@ -445,9 +511,14 @@ export default function ContentCalendar() {
               {backfilling ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImagePlus className="w-4 h-4" />}
               {backfilling ? 'Backfilling...' : 'Backfill Refs'}
             </button>
-            <button onClick={handleDeleteMonth}
-              className="flex items-center gap-2 bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-2 rounded-xl text-sm font-medium hover:bg-red-500/20 cursor-pointer">
-              <Trash2 className="w-4 h-4" /> Reset Month
+            <button onClick={openHistory}
+              className="flex items-center gap-2 bg-white/[0.06] border border-white/[0.1] text-zinc-300 px-4 py-2 rounded-xl text-sm font-medium hover:bg-white/[0.1] cursor-pointer">
+              <History className="w-4 h-4" /> Previous Months
+            </button>
+            <button onClick={handleArchiveMonth}
+              title="Archive this month — reversible. Posts are preserved in Previous Months."
+              className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 text-amber-300 px-4 py-2 rounded-xl text-sm font-medium hover:bg-amber-500/20 cursor-pointer">
+              <Archive className="w-4 h-4" /> Archive Month
             </button>
           </div>
         )}
@@ -799,6 +870,114 @@ export default function ContentCalendar() {
           )}
         </>
       )}
+
+      {/* Previous Months drawer — Manus-style history panel */}
+      <AnimatePresence>
+        {historyOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-start justify-end p-0"
+            onClick={() => setHistoryOpen(false)}
+          >
+            <motion.div
+              initial={{ x: 400 }}
+              animate={{ x: 0 }}
+              exit={{ x: 400 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 32 }}
+              className="h-full w-full max-w-md bg-[#0a0a0a] border-l border-white/10 flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between p-5 border-b border-white/[0.06]">
+                <div className="flex items-center gap-2">
+                  <History className="w-5 h-5 text-amber-400" />
+                  <h2 className="text-base font-bold text-white">Previous Months</h2>
+                </div>
+                <button
+                  onClick={() => setHistoryOpen(false)}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-white hover:bg-white/[0.06] cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-5 space-y-3">
+                {loadingArchived && (
+                  <div className="flex items-center justify-center py-10">
+                    <Loader2 className="w-5 h-5 animate-spin text-zinc-500" />
+                  </div>
+                )}
+
+                {!loadingArchived && archivedMonths.length === 0 && (
+                  <div className="text-center py-12">
+                    <Archive className="w-10 h-10 text-zinc-800 mx-auto mb-3" />
+                    <p className="text-sm text-zinc-500">No archived months yet.</p>
+                    <p className="text-xs text-zinc-600 mt-1">When you archive a month it shows up here — restore anytime.</p>
+                  </div>
+                )}
+
+                {!loadingArchived && archivedMonths.map((m) => {
+                  const isArmed = pendingHardDelete === m.month;
+                  return (
+                    <div key={m.id} className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-white truncate">{m.month}</p>
+                          <p className="text-[11px] text-zinc-500 mt-0.5">
+                            {m.postCount} post{m.postCount === 1 ? '' : 's'} · archived {m.archivedAt ? new Date(m.archivedAt).toLocaleDateString() : 'recently'}
+                          </p>
+                        </div>
+                        <span className="text-[10px] uppercase tracking-wider text-amber-400/70 bg-amber-500/10 border border-amber-500/20 rounded-md px-1.5 py-0.5 shrink-0">
+                          {m.status}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-3">
+                        <button
+                          onClick={() => handleRestore(m.month)}
+                          className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs font-semibold px-3 py-2 rounded-lg hover:bg-emerald-500/20 cursor-pointer"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" /> Restore
+                        </button>
+                        <button
+                          onClick={() => handleHardDelete(m.month)}
+                          aria-pressed={isArmed}
+                          aria-label={isArmed
+                            ? `Armed: click again within 8 seconds to permanently delete ${m.month} and all ${m.postCount} posts. This cannot be undone.`
+                            : `Delete ${m.month} permanently. Two-step confirmation will arm the button.`}
+                          className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg cursor-pointer border transition-colors ${
+                            isArmed
+                              ? 'bg-red-500/30 border-red-500/50 text-red-200 animate-pulse'
+                              : 'bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20'
+                          }`}
+                        >
+                          <span aria-live="assertive" aria-atomic="true" className="flex items-center gap-1.5">
+                            {isArmed ? (
+                              <>
+                                <AlertTriangle className="w-3.5 h-3.5" /> Confirm delete
+                              </>
+                            ) : (
+                              <>
+                                <Trash2 className="w-3.5 h-3.5" /> Delete permanently
+                              </>
+                            )}
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="p-4 border-t border-white/[0.06] bg-black/30">
+                <p className="text-[10px] text-zinc-600 leading-relaxed">
+                  Archived months stay safe until you delete them permanently. Hard delete removes the month + all posts and cannot be undone.
+                </p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

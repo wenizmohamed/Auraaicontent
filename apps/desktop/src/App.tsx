@@ -12,7 +12,7 @@ import { readJson } from './lib/safe-storage';
 const isElectron = !!window.electron?.isDesktop;
 const Router = isElectron ? HashRouter : BrowserRouter;
 import { StoreProvider, useStore } from './lib/store';
-import { LayoutDashboard, Calendar, ImagePlus, Image as ImageIcon, Video, Search, UserCircle, ChevronLeft, ChevronRight, FileText, Palette, Layers, Wand2, FolderOpen, Radio, Building2, AlertCircle, Sparkles } from 'lucide-react';
+import { LayoutDashboard, Calendar, ImagePlus, Image as ImageIcon, Video, Search, UserCircle, ChevronLeft, ChevronRight, FileText, Palette, Layers, Wand2, FolderOpen, Radio, Building2, AlertCircle } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import ContentCalendar from './pages/ContentCalendar';
 import Login from './pages/Login';
@@ -31,7 +31,6 @@ import BriefInput from './pages/BriefInput';
 import ContentReview from './pages/ContentReview';
 import Clients from './pages/Clients';
 import CreativeTools from './pages/CreativeTools';
-import Agent from './pages/Agent';
 import { ThemeProvider, useTheme } from './lib/theme-context';
 import { ToastProvider } from './lib/toast-context';
 import { Sun, Moon } from 'lucide-react';
@@ -45,7 +44,6 @@ function Layout({ children }: { children: React.ReactNode }) {
 
   const navigation = [
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-    { name: 'Agent', href: '/agent', icon: Sparkles },
     { name: 'Clients', href: '/clients', icon: Building2 },
     { name: 'New Brief', href: '/brief', icon: FileText },
     { name: 'Review', href: '/content-review', icon: Layers },
@@ -276,8 +274,6 @@ export default function App() {
               <Route path="/textures" element={<DesignTextures />} />
               <Route path="/calendar" element={<ContentCalendar />} />
               <Route path="/creative" element={<CreativeTools />} />
-              <Route path="/agent" element={<Agent />} />
-              <Route path="/agent/:sessionUid" element={<Agent />} />
               {/* Legacy routes redirect to the unified Creative Studio */}
               <Route path="/image-gen" element={<Navigate to="/creative?tab=text-to-image" replace />} />
               <Route path="/image-edit" element={<Navigate to="/creative?tab=image-edit" replace />} />

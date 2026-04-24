@@ -1,0 +1,57 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Server: attach to running pm2/tsx",
+      "type": "node",
+      "request": "attach",
+      "port": 9229,
+      "restart": true,
+      "skipFiles": ["<node_internals>/**", "${workspaceFolder}/server/node_modules/**"],
+      "sourceMaps": true,
+      "outFiles": ["${workspaceFolder}/server/dist/**/*.js"]
+    },
+    {
+      "name": "Server: launch (dev, breakpoints)",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/server",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**", "${workspaceFolder}/server/node_modules/**"],
+      "sourceMaps": true,
+      "env": {
+        "NODE_ENV": "development",
+        "PORT": "8080"
+      }
+    },
+    {
+      "name": "Frontend: Chrome (Vite :3200)",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:3200",
+      "webRoot": "${workspaceFolder}/apps/desktop/src",
+      "sourceMaps": true,
+      "skipFiles": ["<node_internals>/**", "${workspaceFolder}/apps/desktop/node_modules/**"]
+    },
+    {
+      "name": "Frontend: Chrome against live VPS",
+      "type": "chrome",
+      "request": "launch",
+      "url": "https://srv1494206.hstgr.cloud",
+      "webRoot": "${workspaceFolder}/apps/desktop/src",
+      "sourceMaps": true
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Full stack: server + Chrome (local)",
+      "configurations": [
+        "Server: launch (dev, breakpoints)",
+        "Frontend: Chrome (Vite :3200)"
+      ],
+      "stopAll": true
+    }
+  ]
+}

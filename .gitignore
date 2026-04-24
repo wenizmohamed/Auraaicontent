@@ -32,3 +32,13 @@ memory_vault/
 radix ai content lastest.txt
 apps/desktop/pnpm-lock.yaml
 server/pnpm-lock.yaml
+
+# Build artifacts (never commit)
+*.tsbuildinfo
+.firecrawl/
+
+# Debug captures (never commit — large + may contain secrets)
+*.har
+
+# Claude Code local config (per-machine)
+.claude/settings.local.json

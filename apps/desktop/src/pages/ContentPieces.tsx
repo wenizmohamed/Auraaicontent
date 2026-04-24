@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { calendarApi } from '../lib/backend-api';
+import { contentPiecesApi, type ContentPieceRecord } from '../lib/backend-api';
+import { useClients } from '../lib/client-context';
 import { useToast } from '../lib/toast-context';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -64,7 +65,11 @@ const STATION_COLORS: Record<Station, string> = {
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
-function loadPieces(): ContentPiece[] {
+// Legacy localStorage readers — kept only for one-time migration on first load.
+// After pieces are bulk-imported to the backend, the localStorage key is wiped.
+const MIGRATION_DONE_KEY = 'radix_content_pieces_migrated';
+
+function loadLegacyPieces(): ContentPiece[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     return raw ? JSON.parse(raw) : [];
@@ -73,8 +78,21 @@ function loadPieces(): ContentPiece[] {
   }
 }
 
-function savePieces(pieces: ContentPiece[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(pieces));
+function fromRecord(r: ContentPieceRecord): ContentPiece {
+  return {
+    id: r.id,
+    title: r.title,
+    type: r.type as ContentType,
+    station: r.station as Station,
+    topicId: r.topicId,
+    status: r.status as PieceStatus,
+    assignee: r.assignee,
+    deadline: r.deadline,
+    visualRefUrl: r.visualRefUrl,
+    visualRefImage: r.visualRefImage,
+    notes: r.notes,
+    createdAt: r.createdAt,
+  };
 }
 
 function formatDate(dateStr: string): string {
@@ -91,7 +109,9 @@ function isOverdue(deadline: string): boolean {
 // ─── Component ───────────────────────────────────────────────────────
 
 export default function ContentPieces() {
-  const [pieces, setPieces] = useState<ContentPiece[]>(loadPieces);
+  const { selectedClientId } = useClients();
+  const [pieces, setPieces] = useState<ContentPiece[]>([]);
+  const [loadingPieces, setLoadingPieces] = useState(false);
   const [viewMode, setViewMode] = useState<'table' | 'card'>('card');
   const [stationFilter, setStationFilter] = useState<Station | 'All'>('All');
   const [statusFilter, setStatusFilter] = useState<PieceStatus | 'All'>('All');
@@ -120,15 +140,60 @@ export default function ContentPieces() {
   const [form, setForm] = useState(emptyForm);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
-  // Persist to localStorage on change
-  useEffect(() => {
-    savePieces(pieces);
-  }, [pieces]);
-
   // Show/hide bulk bar
   useEffect(() => {
     setShowBulkBar(selectedIds.size > 0);
   }, [selectedIds]);
+
+  // Hydrate pieces from backend when the active client changes.
+  // Also triggers the one-time localStorage → backend migration on first load.
+  useEffect(() => {
+    if (!selectedClientId) {
+      setPieces([]);
+      return;
+    }
+    let cancelled = false;
+
+    (async () => {
+      setLoadingPieces(true);
+      try {
+        const records = await contentPiecesApi.list(selectedClientId);
+        if (cancelled) return;
+
+        // One-time migration: if backend is empty AND localStorage has legacy data,
+        // push it up to backend so users don't lose their pre-backend work.
+        const alreadyMigrated = localStorage.getItem(MIGRATION_DONE_KEY) === '1';
+        if (!alreadyMigrated && records.length === 0) {
+          const legacy = loadLegacyPieces();
+          if (legacy.length > 0) {
+            try {
+              await contentPiecesApi.bulkImport(selectedClientId, legacy);
+              const refreshed = await contentPiecesApi.list(selectedClientId);
+              if (!cancelled) setPieces(refreshed.map(fromRecord));
+              localStorage.setItem(MIGRATION_DONE_KEY, '1');
+              localStorage.removeItem(STORAGE_KEY);
+              return;
+            } catch {
+              // Fall through to normal set — migration will retry next load.
+            }
+          } else {
+            localStorage.setItem(MIGRATION_DONE_KEY, '1');
+          }
+        }
+
+        if (!cancelled) setPieces(records.map(fromRecord));
+      } catch (err: any) {
+        if (!cancelled) {
+          console.error('Failed to load content pieces:', err);
+          setPieces([]);
+        }
+      } finally {
+        if (!cancelled) setLoadingPieces(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [selectedClientId]);
 
   // ─── Filtered & Sorted ──────────────────────────────────────────
 
@@ -187,47 +252,54 @@ export default function ContentPieces() {
     return Object.keys(errors).length === 0;
   }
 
-  function handleSave() {
-    if (!validateForm()) return;
+  const { success: toastSuccess, error: toastError } = useToast();
 
-    if (editingPiece) {
-      setPieces(prev => prev.map(p =>
-        p.id === editingPiece.id
-          ? { ...p, ...form }
-          : p
-      ));
-    } else {
-      const newPiece: ContentPiece = {
-        id: crypto.randomUUID(),
-        ...form,
-        createdAt: new Date().toISOString(),
-      };
-      setPieces(prev => [newPiece, ...prev]);
+  async function handleSave() {
+    if (!validateForm()) return;
+    if (!selectedClientId) {
+      toastError('Select a client before saving pieces.');
+      return;
     }
 
-    closeModal();
+    try {
+      if (editingPiece) {
+        const updated = await contentPiecesApi.update(editingPiece.id, form);
+        setPieces(prev => prev.map(p => (p.id === editingPiece.id ? fromRecord(updated) : p)));
+      } else {
+        const created = await contentPiecesApi.create(selectedClientId, form);
+        setPieces(prev => [fromRecord(created), ...prev]);
+      }
+      closeModal();
+    } catch (err: any) {
+      toastError(err?.message || 'Failed to save piece');
+    }
   }
-
-  const { success: toastSuccess, error: toastError } = useToast();
 
   async function handleDelete(id: string) {
     if (!confirm('Delete this content piece? This cannot be undone.')) return;
     try {
-      await calendarApi.deletePost(id);
-      toastSuccess('Post deleted');
+      await contentPiecesApi.delete(id);
+      toastSuccess('Piece deleted');
+      setPieces(prev => prev.filter(p => p.id !== id));
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     } catch (err: any) {
       toastError(err?.message || 'Failed to delete');
-      return;
     }
-    setPieces(prev => prev.filter(p => p.id !== id));
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
   }
 
-  function handleBulkStatusUpdate() {
+  async function handleBulkStatusUpdate() {
+    const ids = Array.from(selectedIds);
+    const results = await Promise.allSettled(
+      ids.map(id => contentPiecesApi.update(id, { status: bulkStatus })),
+    );
+    const failed = results.filter(r => r.status === 'rejected').length;
+    if (failed > 0) toastError(`${failed} of ${ids.length} updates failed`);
+    else toastSuccess(`${ids.length} piece${ids.length === 1 ? '' : 's'} updated to ${bulkStatus}`);
+
     setPieces(prev => prev.map(p =>
       selectedIds.has(p.id) ? { ...p, status: bulkStatus } : p
     ));

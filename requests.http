@@ -1,0 +1,142 @@
+### Radix V2 REST collection
+### Open in VSCode with the "REST Client" (humao.rest-client) extension.
+### Switch env via Ctrl+Alt+E ("local" vs "vps").
+### Vars come from .vscode/settings.json rest-client.environmentVariables.
+
+### 1. HEALTH
+GET {{baseUrl}}/api/health
+
+
+### 2. LOGIN — grab @authToken for the rest of the collection
+# @name login
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+###
+@authToken = {{login.response.body.accessToken}}
+
+
+### 3. CLIENTS — list all
+GET {{baseUrl}}/api/clients
+Authorization: Bearer {{authToken}}
+
+
+### 4. CALENDAR MONTHS — active only (archived hidden by default)
+GET {{baseUrl}}/api/clients/cmobqsqfa0008kzt94e2mi04m/calendar/months
+Authorization: Bearer {{authToken}}
+
+
+### 5. CALENDAR MONTH — read one
+GET {{baseUrl}}/api/clients/cmobqsqfa0008kzt94e2mi04m/calendar/May%202026
+Authorization: Bearer {{authToken}}
+
+
+### 6. ARCHIVE month (soft, reversible)
+DELETE {{baseUrl}}/api/clients/cmobqsqfa0008kzt94e2mi04m/calendar/May%202026
+Authorization: Bearer {{authToken}}
+
+
+### 7. ARCHIVED list — for the Previous Months drawer
+GET {{baseUrl}}/api/clients/cmobqsqfa0008kzt94e2mi04m/calendar/archived
+Authorization: Bearer {{authToken}}
+
+
+### 8. RESTORE an archived month
+POST {{baseUrl}}/api/clients/cmobqsqfa0008kzt94e2mi04m/calendar/May%202026/restore
+Authorization: Bearer {{authToken}}
+
+
+### 9. HARD DELETE (permanent, requires ?hard=true)
+DELETE {{baseUrl}}/api/clients/cmobqsqfa0008kzt94e2mi04m/calendar/May%202026?hard=true
+Authorization: Bearer {{authToken}}
+
+
+### 10. CONTENT PIECES — list
+GET {{baseUrl}}/api/clients/cmobqsqfa0008kzt94e2mi04m/content-pieces
+Authorization: Bearer {{authToken}}
+
+
+### 11. CONTENT PIECE — create
+# @name createPiece
+POST {{baseUrl}}/api/clients/cmobqsqfa0008kzt94e2mi04m/content-pieces
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "title": "REST-Client smoke: Ramadan hero reel",
+  "type": "Reel",
+  "station": "Lebanon",
+  "status": "Draft",
+  "assignee": "weni",
+  "deadline": "2026-05-15",
+  "notes": "imported from requests.http"
+}
+
+###
+@pieceId = {{createPiece.response.body.id}}
+
+
+### 12. CONTENT PIECE — patch status
+PATCH {{baseUrl}}/api/content-pieces/{{pieceId}}
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "status": "In Review"
+}
+
+
+### 13. CONTENT PIECE — delete
+DELETE {{baseUrl}}/api/content-pieces/{{pieceId}}
+Authorization: Bearer {{authToken}}
+
+
+### 14. ASSISTANT chat — Radix Assistant (Claude Sonnet 4)
+POST {{baseUrl}}/api/assistant/chat
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "message": "give me a one-sentence status check of this content plan"
+}
+
+
+### 15. CREATIVE improve prompt
+POST {{baseUrl}}/api/creative/prompt/improve
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "prompt": "luxury watch lifestyle shot"
+}
+
+
+### 16. CREATIVE image generate (gemini imagen-4.0-fast)
+POST {{baseUrl}}/api/creative/images/generate
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "prompt": "minimalist dark UI dashboard mockup",
+  "aspectRatio": "16:9"
+}
+
+
+### 17. PROVIDERS status — verify fallback chain
+GET {{baseUrl}}/api/providers/status
+Authorization: Bearer {{authToken}}
+
+
+### 18. JOB status — check BullMQ-backed job
+GET {{baseUrl}}/api/jobs/{{jobId}}
+Authorization: Bearer {{authToken}}
+
+
+### 19. AGENT mode endpoints — SHOULD 404 (deleted 2026-04-23)
+GET {{baseUrl}}/api/agent/sessions
+Authorization: Bearer {{authToken}}

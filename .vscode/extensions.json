@@ -1,0 +1,36 @@
+{
+  "recommendations": [
+    "bradlc.vscode-tailwindcss",
+    "Prisma.prisma",
+    "usernamehw.errorlens",
+    "yoavbls.pretty-ts-errors",
+    "rangav.vscode-thunder-client",
+    "WallabyJs.console-ninja",
+    "wix.vscode-import-cost",
+    "mtxr.sqltools",
+    "mtxr.sqltools-driver-pg",
+    "eamodio.gitlens",
+    "GitHub.vscode-pull-request-github",
+    "dsznajder.es7-react-js-snippets",
+    "formulahendry.auto-rename-tag",
+    "formulahendry.auto-close-tag",
+    "christian-kohler.path-intellisense",
+    "naumovs.color-highlight",
+    "heybourn.headwind",
+    "alefragnani.project-manager",
+    "johnpapa.vscode-peacock",
+    "ChakrounAnas.turbo-console-log",
+    "AykutSarac.jsoncrack-vscode",
+    "kisstkondoros.vscode-gutter-preview",
+    "pflannery.vscode-versionlens",
+    "hediet.debug-visualizer",
+    "humao.rest-client"
+  ],
+  "unwantedRecommendations": [
+    "github.copilot",
+    "github.copilot-chat",
+    "TabNine.tabnine-vscode",
+    "Codeium.codeium",
+    "esbenp.prettier-vscode"
+  ]
+}

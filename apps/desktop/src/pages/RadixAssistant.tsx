@@ -4,6 +4,7 @@ import { Bot, Send, X, Loader2, Trash2, MessageSquare, AlertCircle, Zap, Search,
 import { assistantApi, type ChatMessage } from '../lib/backend-api';
 import { useClients } from '../lib/client-context';
 import { useNavigate } from 'react-router-dom';
+import { Z } from '../lib/z-index';
 
 interface ActionResult {
   type: string;
@@ -176,7 +177,8 @@ export default function RadixAssistant() {
       {/* Floating launcher — DNA avatar */}
       <button
         onClick={() => setOpen(!open)}
-        className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full shadow-2xl hover:scale-105 transition-transform cursor-pointer overflow-hidden border-2 border-amber-500/40"
+        style={{ zIndex: Z.widget }}
+        className="fixed bottom-6 right-6 w-14 h-14 rounded-full shadow-2xl hover:scale-105 transition-transform cursor-pointer overflow-hidden border-2 border-amber-500/40"
         title={open ? 'Close assistant' : 'Open Radix Assistant'}
       >
         {open ? <X className="w-6 h-6 text-white absolute inset-0 m-auto z-10" /> : null}
@@ -189,7 +191,8 @@ export default function RadixAssistant() {
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed bottom-24 right-6 z-50 w-[400px] max-w-[calc(100vw-3rem)] h-[600px] max-h-[calc(100vh-8rem)] bg-[#0c0c0c] border border-white/[0.08] rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+            style={{ zIndex: Z.widgetOpen }}
+            className="fixed bottom-24 right-6 w-[400px] max-w-[calc(100vw-3rem)] h-[600px] max-h-[calc(100vh-8rem)] bg-[#0c0c0c] border border-white/[0.08] rounded-2xl shadow-2xl flex flex-col overflow-hidden"
           >
             {/* Header */}
             <div className="px-4 py-3 border-b border-white/[0.06] flex items-center gap-3">

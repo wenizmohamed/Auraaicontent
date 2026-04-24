@@ -259,19 +259,50 @@ export const briefsApi = {
 
 // ─── Calendar ────────────────────────────────────────────────────
 
+export interface CalendarMonthSummary {
+  id: string;
+  month: string;
+  status: string;
+  isTest?: boolean;
+  isArchived?: boolean;
+  archivedAt?: string | null;
+  createdAt: string;
+  postCount: number;
+}
+
 export const calendarApi = {
   generate: (clientId: string, month: string, pieceCount = 18) =>
     request<{ jobId: string }>(`/api/clients/${clientId}/calendar/generate`, { method: 'POST', body: JSON.stringify({ month, pieceCount }) }),
   listMonths: (clientId: string) =>
-    request<{ id: string; month: string; status: string; createdAt: string; postCount: number }[]>(
-      `/api/clients/${clientId}/calendar/months`
-    ),
-  getMonth: (clientId: string, month: string) =>
-    request<any>(`/api/clients/${clientId}/calendar/${encodeURIComponent(month)}`),
+    request<CalendarMonthSummary[]>(`/api/clients/${clientId}/calendar/months`),
+  listArchived: (clientId: string) =>
+    request<CalendarMonthSummary[]>(`/api/clients/${clientId}/calendar/archived`),
+  getMonth: (clientId: string, month: string, opts?: { includeArchived?: boolean }) => {
+    const qs = opts?.includeArchived ? '?includeArchived=true' : '';
+    return request<any>(`/api/clients/${clientId}/calendar/${encodeURIComponent(month)}${qs}`);
+  },
   updatePost: (postId: string, data: any) =>
     request<any>(`/api/calendar-posts/${postId}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deletePost: (postId: string) =>
     request<{ success: boolean; deletedId: string }>(`/api/calendar-posts/${postId}`, { method: 'DELETE' }),
+  // Soft archive (reversible) — Manus-style history preservation.
+  archiveMonth: (clientId: string, month: string) =>
+    request<{ success: boolean; mode: 'archive'; archived: number; month: string; archivedAt: string }>(
+      `/api/clients/${clientId}/calendar/${encodeURIComponent(month)}`,
+      { method: 'DELETE' },
+    ),
+  // Permanent delete — requires explicit ?hard=true. Two-step confirm on the UI side.
+  hardDeleteMonth: (clientId: string, month: string) =>
+    request<{ success: boolean; mode: 'hard'; deleted: number; month: string }>(
+      `/api/clients/${clientId}/calendar/${encodeURIComponent(month)}?hard=true`,
+      { method: 'DELETE' },
+    ),
+  restoreMonth: (clientId: string, month: string) =>
+    request<{ success: boolean; restored: number; month: string }>(
+      `/api/clients/${clientId}/calendar/${encodeURIComponent(month)}/restore`,
+      { method: 'POST' },
+    ),
+  // Back-compat alias — some older callers still import deleteMonth.  Maps to archive.
   deleteMonth: (clientId: string, month: string) =>
     request<any>(`/api/clients/${clientId}/calendar/${encodeURIComponent(month)}`, { method: 'DELETE' }),
   backfillVisualRefs: (clientId: string, month: string, count = 6) =>
@@ -279,6 +310,51 @@ export const calendarApi = {
       `/api/clients/${clientId}/calendar/${encodeURIComponent(month)}/visual-refs/backfill`,
       { method: 'POST', body: JSON.stringify({ count }) },
       { timeoutMs: 240000 },
+    ),
+};
+
+// ─── Content Pieces (production-tracking queue) ──────────────────
+// Separate from CalendarPost — this is the studio-pipeline page at /pieces.
+// Persisted to backend as of 2026-04-24 (was pure localStorage).
+
+export interface ContentPieceRecord {
+  id: string;
+  clientId: string;
+  title: string;
+  type: string;
+  station: string;
+  topicId: string;
+  status: string;
+  assignee: string;
+  deadline: string;
+  visualRefUrl: string;
+  visualRefImage: string;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const contentPiecesApi = {
+  list: (clientId: string) =>
+    request<ContentPieceRecord[]>(`/api/clients/${clientId}/content-pieces`),
+  create: (clientId: string, piece: Partial<ContentPieceRecord>) =>
+    request<ContentPieceRecord>(`/api/clients/${clientId}/content-pieces`, {
+      method: 'POST',
+      body: JSON.stringify(piece),
+    }),
+  update: (id: string, patch: Partial<ContentPieceRecord>) =>
+    request<ContentPieceRecord>(`/api/content-pieces/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    }),
+  delete: (id: string) =>
+    request<{ success: boolean; deletedId: string }>(`/api/content-pieces/${id}`, {
+      method: 'DELETE',
+    }),
+  bulkImport: (clientId: string, pieces: Array<Partial<ContentPieceRecord>>) =>
+    request<{ success: boolean; imported: number; skipped?: number }>(
+      `/api/clients/${clientId}/content-pieces/bulk-import`,
+      { method: 'POST', body: JSON.stringify({ pieces }) },
     ),
 };
 

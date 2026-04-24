@@ -9,6 +9,9 @@
     "dev": "vite --port=3200 --host=0.0.0.0 --strictPort",
     "build": "vite build",
     "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "test": "echo \"no test framework configured — typecheck is the gate\" && tsc --noEmit",
     "electron:dev": "concurrently -k \"vite --port=3000\" \"wait-on http://localhost:3000 && electron .\"",
     "electron:build": "vite build && electron-builder --win --x64",
     "electron:pack": "vite build && electron-builder --dir"

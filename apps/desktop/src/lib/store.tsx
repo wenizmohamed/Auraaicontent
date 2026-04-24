@@ -146,7 +146,11 @@ const defaultState: StoreState = {
   pipelineItems: [],
   generatedImages: [],
   imageHistory: [],
-  posts: readJson('radix_calendar_posts', []),
+  // Posts are NOT cached locally anymore.  CalendarPost is backend-truth via
+  // calendarApi.getMonth/listMonths.  Caching here caused ghost-posts after
+  // archive/delete (LRN-2026-04-23 — the radix_calendar_posts cache survived
+  // backend resets and the merge logic re-hydrated stale data).
+  posts: [],
   activityLogs: [],
   isLoading: true,
   error: null,
@@ -165,18 +169,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setState(prev => ({ ...prev, isLoading: true, error: null }));
       const data = await mockApi.fetchAll();
 
-      // Merge: keep localStorage posts if mockApi returns empty
-      const savedPosts = readJson('radix_calendar_posts', []);
+      // Posts intentionally omitted — pages read CalendarPost via calendarApi directly.
       setState(prev => ({
         ...prev,
         pipelineItems: data.pipelineItems || [],
         generatedImages: data.generatedImages || [],
         imageHistory: data.generatedImages || [],
-        posts: (data.posts && data.posts.length > 0) ? data.posts : (prev.posts.length > 0 ? prev.posts : savedPosts),
+        posts: [],
         activityLogs: data.activityLogs || [],
         savedResearch: data.savedResearch || [],
         isLoading: false
       }));
+      // One-time cleanup: drop the legacy ghost-post cache so users on old
+      // browsers stop seeing phantom posts after backend resets.
+      try { localStorage.removeItem('radix_calendar_posts'); } catch { /* ignore */ }
     } catch (error: any) {
       setState(prev => ({ ...prev, isLoading: false, error: error.message }));
     }
@@ -280,14 +286,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     await addGeneratedImage(image);
   };
 
+  // Kept as a no-op for back-compat — old callers still typecheck.
+  // Real persistence is via calendarApi.updatePost / .archiveMonth / .hardDeleteMonth.
   const setPosts = async (posts: Post[]) => {
     setState(prev => ({ ...prev, posts }));
-    localStorage.setItem('radix_calendar_posts', JSON.stringify(posts));
-    try {
-      await mockApi.setPosts(posts);
-    } catch (error) {
-      console.error(error);
-    }
   };
 
   const logActivity = async (action: string, type: string) => {

@@ -59,6 +59,35 @@ model Client {
   calendarMonths  CalendarMonth[]
   reviewLinks     ReviewLink[]
   agentSessions   AgentSession[]
+  contentPieces   ContentPiece[]
+}
+
+// Production-tracking unit — separate from CalendarPost (which is the marketing
+// calendar output).  A ContentPiece is a produced deliverable: a reel, image,
+// story, article that's assigned to a station + assignee with a deadline + review
+// status.  Pre-2026-04-24 this lived entirely in browser localStorage
+// (radix_content_pieces) — rating P1, now backend-persisted.
+model ContentPiece {
+  id             String   @id @default(cuid())
+  clientId       String
+  title          String
+  type           String   // Image | Video | Reel | Story | Carousel | Article
+  station        String   // Lebanon | Abu Dhabi | Investigations | Clips
+  topicId        String   @default("")
+  status         String   @default("Draft") // Draft | In Design | In Review | Approved | Published
+  assignee       String   @default("")
+  deadline       String   @default("") // ISO date string, empty if unset
+  visualRefUrl   String   @default("")
+  visualRefImage String   @default("")
+  notes          String   @default("")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([clientId, status])
+  @@index([clientId, station])
 }
 
 model ClientBrief {
@@ -133,17 +162,21 @@ model Asset {
 }
 
 model CalendarMonth {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   clientId    String
   month       String
-  status      String   @default("draft")
+  status      String    @default("draft")
   strategy    Json?
-  isTest      Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isTest      Boolean   @default(false)
+  isArchived  Boolean   @default(false)
+  archivedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   client      Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
   posts       CalendarPost[]
+
+  @@index([clientId, isArchived])
 }
 
 model CalendarPost {
