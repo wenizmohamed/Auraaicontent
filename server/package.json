@@ -32,7 +32,6 @@
     "pdf-parse": "^2.4.5",
     "pptxgenjs": "^3.12.0",
     "sharp": "^0.34.0",
-    "socket.io": "^4.8.1",
     "uuid": "^11.1.0"
   },
   "devDependencies": {

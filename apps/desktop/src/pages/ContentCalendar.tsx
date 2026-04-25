@@ -81,6 +81,7 @@ export default function ContentCalendar() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [archivedMonths, setArchivedMonths] = useState<CalendarMonthSummary[]>([]);
   const [loadingArchived, setLoadingArchived] = useState(false);
+  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [pendingHardDelete, setPendingHardDelete] = useState<string | null>(null); // month key awaiting 2nd confirm
 
   // Edit state
@@ -311,14 +312,15 @@ export default function ContentCalendar() {
   };
 
   // Archive the active month (soft delete — reversible via Previous Months drawer).
-  const handleArchiveMonth = async () => {
+  // Two-stage: button click sets state, modal asks for confirmation, confirm fires the call.
+  const handleArchiveMonth = () => {
     if (!urlClient || !backendMonth?.month) return;
-    const name = currentClient?.name || 'this client';
-    if (!window.confirm(
-      `Archive ${backendMonth.month} for ${name}?\n\n` +
-      `This moves the month to Previous Months. Posts are preserved and can be restored anytime from the history drawer.\n\n` +
-      `To delete permanently, open Previous Months and use "Delete permanently" there.`
-    )) return;
+    setShowArchiveConfirm(true);
+  };
+
+  const confirmArchive = async () => {
+    if (!urlClient || !backendMonth?.month) return;
+    setShowArchiveConfirm(false);
     try {
       await calendarApi.archiveMonth(urlClient, backendMonth.month);
       showStatus(`${backendMonth.month} archived. Find it in Previous Months.`, 'ok', 5000);
@@ -973,6 +975,82 @@ export default function ContentCalendar() {
                 <p className="text-[10px] text-zinc-600 leading-relaxed">
                   Archived months stay safe until you delete them permanently. Hard delete removes the month + all posts and cannot be undone.
                 </p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Archive confirm modal — replaces native window.confirm with styled UI */}
+      <AnimatePresence>
+        {showArchiveConfirm && backendMonth && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 z-[110] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setShowArchiveConfirm(false)}
+          >
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="archive-confirm-title"
+              initial={{ opacity: 0, scale: 0.96, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 8 }}
+              transition={{ duration: 0.18, ease: [0.2, 0.8, 0.2, 1] }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md rounded-2xl bg-[#0a0a0a] border border-white/10 shadow-2xl shadow-black/50 overflow-hidden"
+            >
+              <div className="flex items-start gap-3 p-5 border-b border-white/[0.06]">
+                <div className="shrink-0 w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center">
+                  <Archive className="w-4 h-4 text-amber-300" />
+                </div>
+                <div className="min-w-0">
+                  <h2 id="archive-confirm-title" className="text-base font-bold text-white">
+                    Archive {backendMonth.month}?
+                  </h2>
+                  <p className="text-xs text-zinc-400 mt-0.5">
+                    {currentClient?.name || 'this client'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowArchiveConfirm(false)}
+                  aria-label="Cancel"
+                  className="ml-auto w-8 h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-white hover:bg-white/[0.06] cursor-pointer focus:outline-none focus:ring-2 focus:ring-white/20"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-3">
+                <p className="text-sm text-zinc-300 leading-relaxed">
+                  This moves the month to <span className="text-amber-300 font-semibold">Previous Months</span>. Posts are preserved and can be restored anytime from the history drawer.
+                </p>
+                <p className="text-xs text-zinc-500 leading-relaxed">
+                  To delete permanently, open Previous Months and use "Delete permanently" there.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 p-4 border-t border-white/[0.06] bg-black/30">
+                <button
+                  type="button"
+                  onClick={() => setShowArchiveConfirm(false)}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] text-sm font-semibold text-zinc-300 hover:bg-white/[0.08] cursor-pointer focus:outline-none focus:ring-2 focus:ring-white/20"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmArchive}
+                  autoFocus
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 text-black text-sm font-bold hover:bg-amber-400 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-300/60"
+                >
+                  <Archive className="w-4 h-4" />
+                  Archive
+                </button>
               </div>
             </motion.div>
           </motion.div>

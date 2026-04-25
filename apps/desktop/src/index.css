@@ -219,8 +219,78 @@ html {
   50% { box-shadow: 0 0 20px rgba(99, 102, 241, 0.6); } 
 }
 
-.glass { 
-  background: rgba(255,255,255,0.05); 
-  backdrop-filter: blur(10px); 
-  border: 1px solid rgba(255,255,255,0.1); 
+.glass {
+  background: rgba(255,255,255,0.05);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,0.1);
 }
+
+/* ═══ Global focus-visible polish (a11y P2 — 2026-04-25) ═══ */
+/* Use focus-visible so mouse users don't see rings, but keyboard users do. */
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible,
+[role="link"]:focus-visible,
+[role="tab"]:focus-visible,
+[role="menuitem"]:focus-visible,
+input[type="checkbox"]:focus-visible,
+input[type="radio"]:focus-visible,
+input[type="file"]:focus-visible {
+  outline: 2px solid rgba(245, 158, 11, 0.6);
+  outline-offset: 2px;
+  border-radius: 8px;
+  transition: outline-color 120ms ease;
+}
+
+/* Inputs/selects/textarea: focused border + ring instead of outline (matches Tailwind look) */
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.55);
+  transition: box-shadow 120ms ease;
+}
+
+/* Light mode: amber stays, but base outline color for buttons/links picks up theme */
+html.light button:focus-visible,
+html.light a:focus-visible,
+html.light [role="button"]:focus-visible,
+html.light [role="link"]:focus-visible,
+html.light [role="tab"]:focus-visible {
+  outline-color: rgba(180, 83, 9, 0.7);
+}
+
+/* Skip-link for keyboard users — hidden until focused */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: auto;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+.skip-link:focus {
+  position: fixed;
+  left: 1rem;
+  top: 1rem;
+  width: auto;
+  height: auto;
+  padding: 0.5rem 1rem;
+  background: #f59e0b;
+  color: #000;
+  font-weight: 700;
+  border-radius: 8px;
+  z-index: 9999;
+  outline: 2px solid #fff;
+}
+
+/* Reduced motion — respect users who opt out */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+

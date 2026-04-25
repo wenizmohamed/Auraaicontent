@@ -1,8 +1,8 @@
-// Central API URL resolver.  Every file that builds a fetch() URL or a
-// Socket.IO URL MUST import from here — no inline `??'http://127.0.0.1:8080'`
-// fallbacks.  The previous ad-hoc pattern (see 7 files pre-2026-04-23) baked
+// Central API URL resolver.  Every file that builds a fetch() URL MUST
+// import from here — no inline `??'http://127.0.0.1:8080'` fallbacks.
+// The previous ad-hoc pattern (see 7 files pre-2026-04-23) baked
 // 127.0.0.1:8080 into production bundles, so the web build served from
-// srv1494206.hstgr.cloud tried to open WebSockets to a loopback address on
+// srv1494206.hstgr.cloud tried to open requests to a loopback address on
 // users' own machines → flood of ERR_CONNECTION_REFUSED.
 //
 // Resolution order:
@@ -10,8 +10,8 @@
 //   2. window.electron.apiBaseUrl (Electron runtime hint)
 //   3. localStorage 'radix_api_url' (cascade-fallback winner, persisted)
 //   4. Same-origin when running in a browser served from a real host
-//      (e.g. https://srv1494206.hstgr.cloud → '' → /api and /socket.io
-//      resolve against the current origin, which nginx then proxies to :8080)
+//      (e.g. https://srv1494206.hstgr.cloud → '' → /api resolves against
+//      the current origin, which nginx then proxies to :8080)
 //   5. Dev / localhost / Electron-no-hint → http://127.0.0.1:8080
 
 declare global {
