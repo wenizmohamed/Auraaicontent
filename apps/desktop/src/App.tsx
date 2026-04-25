@@ -25,6 +25,7 @@ import RadixAssistant from './pages/RadixAssistant';
 import TopicDesk from './pages/TopicDesk';
 import DesignTextures from './pages/DesignTextures';
 import ContentPieces from './pages/ContentPieces';
+import Knowledge from './pages/Knowledge';
 import AIDesignGenerator from './pages/AIDesignGenerator';
 import VisualReferences from './pages/VisualReferences';
 import BriefInput from './pages/BriefInput';
@@ -280,6 +281,7 @@ export default function App() {
               <Route path="/text-to-video" element={<Navigate to="/creative?tab=text-to-video" replace />} />
               <Route path="/image-to-video" element={<Navigate to="/creative?tab=image-to-video" replace />} />
               <Route path="/pieces" element={<ContentPieces />} />
+              <Route path="/knowledge" element={<Knowledge />} />
               <Route path="/ai-design" element={<AIDesignGenerator />} />
               <Route path="/references" element={<VisualReferences />} />
               <Route path="/video" element={<VideoAnalysis />} />

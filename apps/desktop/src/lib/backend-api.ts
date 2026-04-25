@@ -496,6 +496,49 @@ export const assetsApi = {
   },
 };
 
+// ─── Knowledge (RAG corpus per client) ──────────────────────────
+
+export interface KnowledgeItemRecord {
+  id: string;
+  clientId: string;
+  title: string;
+  type: string;
+  fileUrl: string | null;
+  textContent: string | null;
+  metadata: any;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const knowledgeApi = {
+  list: (clientId: string) =>
+    request<KnowledgeItemRecord[]>(`/api/clients/${clientId}/knowledge`),
+  upload: async (clientId: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    const headers: Record<string, string> = {};
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+    const res = await fetch(`${API_URL}/api/clients/${clientId}/knowledge/upload`, {
+      method: 'POST',
+      headers,
+      body: form,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: res.statusText }));
+      throw new Error(err.error || `Upload failed: ${res.status}`);
+    }
+    return res.json() as Promise<KnowledgeItemRecord>;
+  },
+  remove: (knowledgeItemId: string) =>
+    request<{ success: boolean }>(`/api/knowledge/${knowledgeItemId}`, { method: 'DELETE' }),
+  embed: (knowledgeItemId: string) =>
+    request<{ chunks: number }>(`/api/knowledge/${knowledgeItemId}/embed`, { method: 'POST' }, { timeoutMs: 120000 }),
+  retrieve: (clientId: string, q: string, k = 5) =>
+    request<{ query: string; chunks: Array<{ text: string; score: number; itemTitle?: string }> }>(
+      `/api/clients/${clientId}/knowledge/retrieve?q=${encodeURIComponent(q)}&k=${k}`,
+    ),
+};
+
 // ─── Dashboard ──────────────────────────────────────────────────
 
 export interface DashboardStats {
