@@ -14,16 +14,19 @@
   --color-secondary: #a1a1aa;
   --color-accent: #3b82f6;
 
-  /* Z-index scale (replaces arbitrary z-[60]/z-[100]/z-[110]/z-[9999] sprinkled across the app) */
-  --z-dropdown: 10;
-  --z-sticky: 20;
-  --z-drawer: 30;
-  --z-modal-backdrop: 40;
-  --z-modal: 50;
-  --z-popover: 55;
-  --z-toast: 60;
-  --z-debug: 70;
 }
+
+/* Z-index utilities — Tailwind v4 doesn't auto-generate custom z- utilities
+   from --z-* namespace, so they're declared explicitly via @utility.
+   Replaces arbitrary z-[60]/z-[100]/z-[110]/z-[9999] sprinkled across the app. */
+@utility z-dropdown { z-index: 10; }
+@utility z-sticky { z-index: 20; }
+@utility z-drawer { z-index: 30; }
+@utility z-modal-backdrop { z-index: 40; }
+@utility z-modal { z-index: 50; }
+@utility z-popover { z-index: 55; }
+@utility z-toast { z-index: 60; }
+@utility z-debug { z-index: 70; }
 
 /* ═══ Light Mode Global Overrides ═══ */
 html.light {
