@@ -135,6 +135,49 @@ export async function authRoutes(app: FastifyInstance) {
     return user;
   });
 
+  // PATCH /api/auth/me — update profile (name only; email/role immutable here)
+  app.patch('/me', { preHandler: [authGuard] }, async (request, reply) => {
+    const { userId } = (request as any).user as JwtPayload;
+    const { name } = (request.body ?? {}) as { name?: string };
+    const trimmed = typeof name === 'string' ? name.trim() : '';
+    if (!trimmed || trimmed.length < 2 || trimmed.length > 80) {
+      return reply.status(400).send({ error: 'Name must be 2-80 characters' });
+    }
+    const user = await db.user.update({
+      where: { id: userId },
+      data: { name: trimmed },
+      select: { id: true, email: true, name: true, role: true, createdAt: true },
+    });
+    return user;
+  });
+
+  // POST /api/auth/password — change password (verifies current, then bcrypts new)
+  app.post('/password', { preHandler: [authGuard] }, async (request, reply) => {
+    const { userId } = (request as any).user as JwtPayload;
+    const { currentPassword, newPassword } = (request.body ?? {}) as {
+      currentPassword?: string;
+      newPassword?: string;
+    };
+    if (!currentPassword || !newPassword) {
+      return reply.status(400).send({ error: 'currentPassword and newPassword required' });
+    }
+    if (newPassword.length < 8) {
+      return reply.status(400).send({ error: 'New password must be at least 8 characters' });
+    }
+    const user = await db.user.findUnique({ where: { id: userId } });
+    if (!user) return reply.status(404).send({ error: 'User not found' });
+    const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!valid) return reply.status(401).send({ error: 'Current password is incorrect' });
+    const newHash = await bcrypt.hash(newPassword, 12);
+    await db.user.update({ where: { id: userId }, data: { passwordHash: newHash } });
+    // Revoke all refresh tokens — force re-auth on other sessions for safety.
+    await db.refreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    return { success: true };
+  });
+
   // POST /api/auth/register — dev convenience, disable in production
   app.post('/register', async (request, reply) => {
     const { email, password, name, rememberMe } = request.body as {

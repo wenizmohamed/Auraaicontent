@@ -212,7 +212,17 @@ export const authApi = {
       '/api/auth/register',
       { method: 'POST', body: JSON.stringify({ email, password, name, rememberMe }) },
     ),
-  me: () => request<any>('/api/auth/me'),
+  me: () => request<MeRecord>('/api/auth/me'),
+  updateMe: (data: { name: string }) =>
+    request<MeRecord>('/api/auth/me', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<{ success: boolean }>('/api/auth/password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }),
   // Logout revokes the refresh token server-side so replay can't extend
   // the session.  Access token stays valid until its short TTL expires.
   logout: () =>
@@ -221,6 +231,14 @@ export const authApi = {
       { method: 'POST', body: JSON.stringify({ refreshToken }) },
     ).catch(() => ({ success: false })),  // best-effort
 };
+
+export interface MeRecord {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  createdAt: string;
+}
 
 // ─── Clients ─────────────────────────────────────────────────────
 
