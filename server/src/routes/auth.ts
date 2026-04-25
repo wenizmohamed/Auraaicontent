@@ -1,5 +1,6 @@
-import { FastifyInstance } from 'fastify';
+import { FastifyInstance, FastifyReply } from 'fastify';
 import bcrypt from 'bcryptjs';
+import { z } from 'zod';
 import { db } from '../db/prisma.js';
 import { signToken, authGuard, mintRefreshToken, hashRefreshToken, type JwtPayload } from '../middleware/auth.js';
 
@@ -9,19 +10,49 @@ function reqMeta(request: any): { userAgent: string | null; ip: string | null } 
   return { userAgent: ua, ip };
 }
 
+// Zod schemas — single source of truth for request shape + validation.
+const LoginBody = z.object({
+  email: z.string().email().max(254),
+  password: z.string().min(1).max(200),
+  rememberMe: z.boolean().optional(),
+});
+const RefreshBody = z.object({
+  refreshToken: z.string().min(1).max(512),
+});
+const RegisterBody = z.object({
+  email: z.string().email().max(254),
+  password: z.string().min(8).max(200),
+  name: z.string().min(2).max(80),
+  rememberMe: z.boolean().optional(),
+});
+const UpdateMeBody = z.object({
+  name: z.string().trim().min(2).max(80),
+});
+const PasswordBody = z.object({
+  currentPassword: z.string().min(1).max(200),
+  newPassword: z.string().min(8).max(200),
+});
+
+function parseOr400<T>(schema: z.ZodSchema<T>, body: unknown, reply: FastifyReply): T | null {
+  const r = schema.safeParse(body);
+  if (!r.success) {
+    const first = r.error.issues[0];
+    reply.status(400).send({
+      error: first ? `${first.path.join('.') || 'body'}: ${first.message}` : 'Invalid request body',
+      issues: r.error.issues,
+    });
+    return null;
+  }
+  return r.data;
+}
+
 export async function authRoutes(app: FastifyInstance) {
 
   // POST /api/auth/login
   app.post('/login', async (request, reply) => {
-    const { email, password, rememberMe } = request.body as {
-      email: string;
-      password: string;
-      rememberMe?: boolean;
-    };
-
-    if (!email || !password) {
-      return reply.status(400).send({ error: 'Email and password required' });
-    }
+    const body = parseOr400(LoginBody, request.body, reply);
+    if (!body) return;
+    const { email, password, rememberMe } = body;
 
     const user = await db.user.findUnique({ where: { email } });
     if (!user) {
@@ -61,10 +92,9 @@ export async function authRoutes(app: FastifyInstance) {
   // presented refresh token and issues a new pair.  Reuse of a revoked
   // token triggers a full user-wide revocation (compromise signal).
   app.post('/refresh', async (request, reply) => {
-    const { refreshToken } = (request.body ?? {}) as { refreshToken?: string };
-    if (!refreshToken || typeof refreshToken !== 'string') {
-      return reply.status(400).send({ error: 'refreshToken required' });
-    }
+    const body = parseOr400(RefreshBody, request.body, reply);
+    if (!body) return;
+    const { refreshToken } = body;
     const hash = hashRefreshToken(refreshToken);
     const row = await db.refreshToken.findUnique({ where: { tokenHash: hash }, include: { user: true } });
     if (!row) {
@@ -138,14 +168,11 @@ export async function authRoutes(app: FastifyInstance) {
   // PATCH /api/auth/me — update profile (name only; email/role immutable here)
   app.patch('/me', { preHandler: [authGuard] }, async (request, reply) => {
     const { userId } = (request as any).user as JwtPayload;
-    const { name } = (request.body ?? {}) as { name?: string };
-    const trimmed = typeof name === 'string' ? name.trim() : '';
-    if (!trimmed || trimmed.length < 2 || trimmed.length > 80) {
-      return reply.status(400).send({ error: 'Name must be 2-80 characters' });
-    }
+    const body = parseOr400(UpdateMeBody, request.body, reply);
+    if (!body) return;
     const user = await db.user.update({
       where: { id: userId },
-      data: { name: trimmed },
+      data: { name: body.name },
       select: { id: true, email: true, name: true, role: true, createdAt: true },
     });
     return user;
@@ -154,16 +181,9 @@ export async function authRoutes(app: FastifyInstance) {
   // POST /api/auth/password — change password (verifies current, then bcrypts new)
   app.post('/password', { preHandler: [authGuard] }, async (request, reply) => {
     const { userId } = (request as any).user as JwtPayload;
-    const { currentPassword, newPassword } = (request.body ?? {}) as {
-      currentPassword?: string;
-      newPassword?: string;
-    };
-    if (!currentPassword || !newPassword) {
-      return reply.status(400).send({ error: 'currentPassword and newPassword required' });
-    }
-    if (newPassword.length < 8) {
-      return reply.status(400).send({ error: 'New password must be at least 8 characters' });
-    }
+    const body = parseOr400(PasswordBody, request.body, reply);
+    if (!body) return;
+    const { currentPassword, newPassword } = body;
     const user = await db.user.findUnique({ where: { id: userId } });
     if (!user) return reply.status(404).send({ error: 'User not found' });
     const valid = await bcrypt.compare(currentPassword, user.passwordHash);
@@ -180,16 +200,9 @@ export async function authRoutes(app: FastifyInstance) {
 
   // POST /api/auth/register — dev convenience, disable in production
   app.post('/register', async (request, reply) => {
-    const { email, password, name, rememberMe } = request.body as {
-      email: string;
-      password: string;
-      name: string;
-      rememberMe?: boolean;
-    };
-
-    if (!email || !password || !name) {
-      return reply.status(400).send({ error: 'Email, password, and name required' });
-    }
+    const body = parseOr400(RegisterBody, request.body, reply);
+    if (!body) return;
+    const { email, password, name, rememberMe } = body;
 
     const existing = await db.user.findUnique({ where: { email } });
     if (existing) {

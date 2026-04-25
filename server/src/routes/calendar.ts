@@ -230,29 +230,37 @@ export async function calendarRoutes(app: FastifyInstance) {
     let postsBackfilled = 0;
     const failures: { postId: string; error: string }[] = [];
 
-    for (const p of candidates) {
-      try {
-        const { results } = await visualSearchService.search(p.referenceQuery!, perPost);
-        let position = 0;
-        for (const r of results) {
-          await db.postVisualReference.create({
-            data: {
-              postId: p.id,
-              thumbnailUrl: r.thumbnailUrl,
-              sourceUrl: r.sourceUrl,
-              sourceDomain: r.sourceDomain,
-              sourceType: r.sourceType,
-              title: r.title || null,
-              description: r.description || null,
-              pinId: r.pinId || null,
-              position: position++,
-            },
-          });
-          totalRefsAdded++;
-        }
+    // Run searches in parallel (network-bound) and collapse the per-result
+    // INSERTs into one createMany per post. Was N+1 (1 search + N inserts
+    // per post, serialized across all candidates) — now 1 query total per
+    // candidate, all candidates fanned out concurrently.
+    const results = await Promise.allSettled(
+      candidates.map(async (p) => {
+        const { results: searchResults } = await visualSearchService.search(p.referenceQuery!, perPost);
+        if (searchResults.length === 0) return { postId: p.id, added: 0 };
+        await db.postVisualReference.createMany({
+          data: searchResults.map((r, idx) => ({
+            postId: p.id,
+            thumbnailUrl: r.thumbnailUrl,
+            sourceUrl: r.sourceUrl,
+            sourceDomain: r.sourceDomain,
+            sourceType: r.sourceType,
+            title: r.title || null,
+            description: r.description || null,
+            pinId: r.pinId || null,
+            position: idx,
+          })),
+          skipDuplicates: true,
+        });
+        return { postId: p.id, added: searchResults.length };
+      }),
+    );
+    for (const [i, r] of results.entries()) {
+      if (r.status === 'fulfilled') {
+        totalRefsAdded += r.value.added;
         postsBackfilled++;
-      } catch (err: any) {
-        failures.push({ postId: p.id, error: err?.message || 'unknown' });
+      } else {
+        failures.push({ postId: candidates[i].id, error: r.reason?.message || 'unknown' });
       }
     }
 

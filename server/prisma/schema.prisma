@@ -130,6 +130,8 @@ model KnowledgeItem {
 
   client      Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
   chunks      KnowledgeChunk[]
+
+  @@index([clientId])
 }
 
 model KnowledgeChunk {
@@ -140,6 +142,8 @@ model KnowledgeChunk {
   metadata        Json?
 
   knowledgeItem   KnowledgeItem @relation(fields: [knowledgeItemId], references: [id], onDelete: Cascade)
+
+  @@index([knowledgeItemId])
 }
 
 model Asset {
@@ -159,6 +163,8 @@ model Asset {
 
   client         Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   linkedPosts    CalendarPostAsset[]
+
+  @@index([clientId])
 }
 
 model CalendarMonth {
@@ -176,6 +182,7 @@ model CalendarMonth {
   client      Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
   posts       CalendarPost[]
 
+  @@unique([clientId, month])
   @@index([clientId, isArchived])
 }
 
@@ -207,6 +214,9 @@ model CalendarPost {
   versions        PostVersion[]
   assets          CalendarPostAsset[]
   visualRefs      PostVisualReference[]
+
+  @@unique([calendarMonthId, date])
+  @@index([calendarMonthId])
 }
 
 model PostVisualReference {
@@ -260,6 +270,9 @@ model PostComment {
 
   post       CalendarPost @relation(fields: [postId], references: [id], onDelete: Cascade)
   author     User?        @relation(fields: [authorId], references: [id])
+
+  @@index([postId])
+  @@index([authorId])
 }
 
 model ReviewLink {
@@ -272,6 +285,8 @@ model ReviewLink {
   createdAt       DateTime  @default(now())
 
   client          Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
 }
 
 model ExportJob {
@@ -283,6 +298,8 @@ model ExportJob {
   fileUrl         String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  @@index([clientId])
 }
 
 model AuditLog {
@@ -296,6 +313,10 @@ model AuditLog {
   createdAt  DateTime @default(now())
 
   user       User?    @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([clientId])
+  @@index([createdAt])
 }
 
 // ─── Agent platform (Phase 1: real-time spine) ────────────────────────

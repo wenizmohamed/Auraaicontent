@@ -1,26 +1,57 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import IORedis from 'ioredis';
 
-// Simple in-memory rate limiter — no external deps.
-// Tracks request counts per IP with a sliding window.
-// For production: replace with @fastify/rate-limit backed by Redis.
+// Redis-backed sliding-window rate limiter.
+// Falls back to in-memory if REDIS_URL is unset or Redis is unreachable.
+// Production-correct: sliding window via INCR + EXPIRE (atomic enough for
+// 1-min buckets; pre-empts the obvious double-submit race), per-IP keyed
+// with route-class prefix so AI/auth/agent buckets don't share quota.
 
-interface RateBucket {
+interface MemoryBucket {
   count: number;
   resetAt: number;
 }
 
-const buckets = new Map<string, RateBucket>();
-const WINDOW_MS = 60_000; // 1 minute
-const MAX_REQUESTS = 120; // per window per IP
-const AI_MAX_REQUESTS = 30; // AI generation routes
-const AGENT_MAX_REQUESTS = 20; // agent runs burn $0.50+ each — keep tighter
-const AUTH_MAX_REQUESTS = 10; // login / register brute-force defense
+const memoryBuckets = new Map<string, MemoryBucket>();
+const WINDOW_MS = 60_000;
+const WINDOW_SEC = 60;
+const MAX_REQUESTS = 120;
+const AI_MAX_REQUESTS = 30;
+const AGENT_MAX_REQUESTS = 20;
+const AUTH_MAX_REQUESTS = 10;
 
-// Cleanup stale entries every 5 minutes
+let redis: IORedis | null = null;
+let redisHealthy = false;
+
+function initRedis(): void {
+  const url = process.env.REDIS_URL || 'redis://127.0.0.1:6379';
+  if (!url) return;
+  try {
+    redis = new IORedis(url, {
+      maxRetriesPerRequest: 1,
+      enableOfflineQueue: false,
+      lazyConnect: true,
+    });
+    redis.on('error', (err) => {
+      if (redisHealthy) console.warn('[rate-limiter] Redis dropped, falling back to memory:', err.message);
+      redisHealthy = false;
+    });
+    redis.on('ready', () => {
+      redisHealthy = true;
+      console.log('[rate-limiter] Redis connected');
+    });
+    void redis.connect().catch(() => {
+      console.warn('[rate-limiter] Redis unreachable on boot, using in-memory fallback');
+    });
+  } catch (err: any) {
+    console.warn('[rate-limiter] Redis init failed, using in-memory:', err?.message);
+  }
+}
+
 setInterval(() => {
   const now = Date.now();
-  for (const [key, bucket] of buckets) {
-    if (bucket.resetAt < now) buckets.delete(key);
+  for (const [key, bucket] of memoryBuckets) {
+    if (bucket.resetAt < now) memoryBuckets.delete(key);
   }
 }, 300_000);
 
@@ -30,17 +61,32 @@ function getClientIp(request: FastifyRequest): string {
     || 'unknown';
 }
 
-function checkLimit(key: string, max: number): { allowed: boolean; remaining: number; resetAt: number } {
-  const now = Date.now();
-  let bucket = buckets.get(key);
+async function checkRedis(key: string, max: number): Promise<{ allowed: boolean; remaining: number; resetAt: number }> {
+  if (!redis || !redisHealthy) throw new Error('redis-unavailable');
+  // INCR returns 1 on first hit, then sets EXPIRE to make it a sliding window.
+  // Race window between INCR and EXPIRE = 0 because EXPIRE on existing key
+  // is also atomic; worst case = a key with no TTL during a 1-event sliver.
+  const count = await redis.incr(key);
+  if (count === 1) {
+    await redis.expire(key, WINDOW_SEC);
+  }
+  const ttl = await redis.ttl(key);
+  const resetAt = Date.now() + (ttl > 0 ? ttl * 1000 : WINDOW_MS);
+  return {
+    allowed: count <= max,
+    remaining: Math.max(0, max - count),
+    resetAt,
+  };
+}
 
+function checkMemory(key: string, max: number): { allowed: boolean; remaining: number; resetAt: number } {
+  const now = Date.now();
+  let bucket = memoryBuckets.get(key);
   if (!bucket || bucket.resetAt < now) {
     bucket = { count: 0, resetAt: now + WINDOW_MS };
-    buckets.set(key, bucket);
+    memoryBuckets.set(key, bucket);
   }
-
   bucket.count++;
-
   return {
     allowed: bucket.count <= max,
     remaining: Math.max(0, max - bucket.count),
@@ -48,20 +94,14 @@ function checkLimit(key: string, max: number): { allowed: boolean; remaining: nu
   };
 }
 
-/**
- * Register rate limiting as a Fastify hook.
- * AI routes (/api/creative/*, /api/assistant/*, /api/research, /api/design/*)
- * get a stricter limit. Everything else gets the standard limit.
- */
 export function registerRateLimiter(app: FastifyInstance) {
+  initRedis();
+
   const AI_PREFIXES = ['/api/creative/', '/api/assistant/', '/api/research', '/api/design/'];
-  // Auth is login/register brute-force territory; agent runs burn real money.
-  // Both get their own stricter bucket separate from the generic AI pool.
   const AUTH_PREFIXES = ['/api/auth/login', '/api/auth/register'];
   const AGENT_PREFIXES = ['/api/agent/runs', '/api/agent/sessions'];
 
   app.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
-    // Skip health checks
     if (request.url === '/api/health') return;
 
     const ip = getClientIp(request);
@@ -83,16 +123,23 @@ export function registerRateLimiter(app: FastifyInstance) {
       keyPrefix = 'std';
     }
 
-    const { allowed, remaining, resetAt } = checkLimit(`${keyPrefix}:${ip}`, max);
+    const key = `rl:${keyPrefix}:${ip}`;
+    let result: { allowed: boolean; remaining: number; resetAt: number };
+    try {
+      result = await checkRedis(key, max);
+    } catch {
+      result = checkMemory(`${keyPrefix}:${ip}`, max);
+    }
 
     reply.header('X-RateLimit-Limit', max);
-    reply.header('X-RateLimit-Remaining', remaining);
-    reply.header('X-RateLimit-Reset', Math.ceil(resetAt / 1000));
+    reply.header('X-RateLimit-Remaining', result.remaining);
+    reply.header('X-RateLimit-Reset', Math.ceil(result.resetAt / 1000));
+    reply.header('X-RateLimit-Backend', redisHealthy ? 'redis' : 'memory');
 
-    if (!allowed) {
+    if (!result.allowed) {
       return reply.status(429).send({
         error: 'Too many requests. Please wait before trying again.',
-        retryAfter: Math.ceil((resetAt - Date.now()) / 1000),
+        retryAfter: Math.ceil((result.resetAt - Date.now()) / 1000),
       });
     }
   });

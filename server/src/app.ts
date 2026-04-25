@@ -23,6 +23,7 @@ import { visualRefRoutes } from './routes/visualRefs.js';
 import { dashboardRoutes } from './routes/dashboard.js';
 import { contentPieceRoutes } from './routes/contentPieces.js';
 import { registerRateLimiter } from './middleware/rate-limiter.js';
+import { authGuard } from './middleware/auth.js';
 
 import { execSync } from 'child_process';
 
@@ -153,8 +154,9 @@ export async function buildApp() {
     };
   });
 
-  // Health details (auth-gated) — proves runtime env is fresh
-  app.get('/api/health/details', async () => {
+  // Health details — actually auth-gate this. Was previously open and
+  // leaked GIT_COMMIT, env fingerprints, and routing config to the public.
+  app.get('/api/health/details', { preHandler: [authGuard] }, async () => {
     const fingerprint = (key: string) => {
       const val = process.env[key] || '';
       if (!val) return 'NOT_SET';

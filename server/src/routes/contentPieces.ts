@@ -1,6 +1,55 @@
-import { FastifyInstance } from 'fastify';
+import { FastifyInstance, FastifyReply } from 'fastify';
+import { z } from 'zod';
 import { db } from '../db/prisma.js';
 import { authGuard } from '../middleware/auth.js';
+
+// Zod schemas — single source of truth.
+const PieceCore = {
+  topicId: z.string().max(120).optional().default(''),
+  status: z.enum(['Draft', 'In Review', 'Approved', 'Scheduled', 'Published', 'Rejected']).default('Draft'),
+  assignee: z.string().max(120).optional().default(''),
+  deadline: z.string().max(40).optional().default(''),
+  visualRefUrl: z.string().max(2048).optional().default(''),
+  visualRefImage: z.string().max(2_000_000).optional().default(''), // base64 or URL
+  notes: z.string().max(20_000).optional().default(''),
+};
+
+const CreatePieceBody = z.object({
+  title: z.string().trim().min(1).max(300),
+  type: z.string().min(1).max(80),
+  station: z.string().min(1).max(80),
+  ...PieceCore,
+});
+
+const UpdatePieceBody = z.object({
+  title: z.string().trim().min(1).max(300).optional(),
+  type: z.string().min(1).max(80).optional(),
+  station: z.string().min(1).max(80).optional(),
+  topicId: z.string().max(120).optional(),
+  status: z.enum(['Draft', 'In Review', 'Approved', 'Scheduled', 'Published', 'Rejected']).optional(),
+  assignee: z.string().max(120).optional(),
+  deadline: z.string().max(40).optional(),
+  visualRefUrl: z.string().max(2048).optional(),
+  visualRefImage: z.string().max(2_000_000).optional(),
+  notes: z.string().max(20_000).optional(),
+});
+
+const BulkImportBody = z.object({
+  pieces: z.array(z.record(z.unknown())).max(500).default([]),
+});
+
+function parseOr400<T>(schema: z.ZodSchema<T>, body: unknown, reply: FastifyReply): T | null {
+  const r = schema.safeParse(body);
+  if (!r.success) {
+    const first = r.error.issues[0];
+    reply.status(400).send({
+      error: first ? `${first.path.join('.') || 'body'}: ${first.message}` : 'Invalid request body',
+      issues: r.error.issues,
+    });
+    return null;
+  }
+  return r.data;
+}
 
 // ContentPiece CRUD — production-tracking queue for a client.  Separate from
 // CalendarPost (marketing calendar output); this tracks reels/images/stories
@@ -21,51 +70,24 @@ export async function contentPieceRoutes(app: FastifyInstance) {
   // POST /api/clients/:clientId/content-pieces
   app.post('/clients/:clientId/content-pieces', async (request, reply) => {
     const { clientId } = request.params as { clientId: string };
-    const body = (request.body || {}) as Record<string, unknown>;
+    const body = parseOr400(CreatePieceBody, request.body, reply);
+    if (!body) return;
 
-    const title = typeof body.title === 'string' ? body.title.trim() : '';
-    const type = typeof body.type === 'string' ? body.type : '';
-    const station = typeof body.station === 'string' ? body.station : '';
-    if (!title) return reply.status(400).send({ error: 'title is required' });
-    if (!type) return reply.status(400).send({ error: 'type is required' });
-    if (!station) return reply.status(400).send({ error: 'station is required' });
-
-    // Client must exist
     const client = await db.client.findUnique({ where: { id: clientId }, select: { id: true } });
     if (!client) return reply.status(404).send({ error: 'Client not found' });
 
     return db.contentPiece.create({
-      data: {
-        clientId,
-        title,
-        type,
-        station,
-        topicId: typeof body.topicId === 'string' ? body.topicId : '',
-        status: typeof body.status === 'string' ? body.status : 'Draft',
-        assignee: typeof body.assignee === 'string' ? body.assignee : '',
-        deadline: typeof body.deadline === 'string' ? body.deadline : '',
-        visualRefUrl: typeof body.visualRefUrl === 'string' ? body.visualRefUrl : '',
-        visualRefImage: typeof body.visualRefImage === 'string' ? body.visualRefImage : '',
-        notes: typeof body.notes === 'string' ? body.notes : '',
-      },
+      data: { clientId, ...body },
     });
   });
 
   // PATCH /api/content-pieces/:id
   app.patch('/content-pieces/:id', async (request, reply) => {
     const { id } = request.params as { id: string };
-    const body = (request.body || {}) as Record<string, unknown>;
-
-    // Only permit known fields; drop id/clientId/createdAt/updatedAt to keep ownership immutable.
-    const allowed = ['title', 'type', 'station', 'topicId', 'status', 'assignee', 'deadline', 'visualRefUrl', 'visualRefImage', 'notes'] as const;
-    const data: Record<string, string> = {};
-    for (const key of allowed) {
-      const value = body[key];
-      if (typeof value === 'string') data[key] = value;
-    }
-
+    const body = parseOr400(UpdatePieceBody, request.body, reply);
+    if (!body) return;
     try {
-      return await db.contentPiece.update({ where: { id }, data });
+      return await db.contentPiece.update({ where: { id }, data: body });
     } catch {
       return reply.status(404).send({ error: 'ContentPiece not found' });
     }
@@ -88,8 +110,9 @@ export async function contentPieceRoutes(app: FastifyInstance) {
   // if it detects legacy localStorage data.  Idempotent by (title + createdAt).
   app.post('/clients/:clientId/content-pieces/bulk-import', async (request, reply) => {
     const { clientId } = request.params as { clientId: string };
-    const body = (request.body || {}) as { pieces?: Array<Record<string, unknown>> };
-    const list = Array.isArray(body.pieces) ? body.pieces : [];
+    const body = parseOr400(BulkImportBody, request.body, reply);
+    if (!body) return;
+    const list = body.pieces ?? [];
     if (list.length === 0) return { success: true, imported: 0 };
 
     const client = await db.client.findUnique({ where: { id: clientId }, select: { id: true } });
