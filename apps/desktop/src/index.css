@@ -13,6 +13,16 @@
   --color-primary: #ffffff;
   --color-secondary: #a1a1aa;
   --color-accent: #3b82f6;
+
+  /* Z-index scale (replaces arbitrary z-[60]/z-[100]/z-[110]/z-[9999] sprinkled across the app) */
+  --z-dropdown: 10;
+  --z-sticky: 20;
+  --z-drawer: 30;
+  --z-modal-backdrop: 40;
+  --z-modal: 50;
+  --z-popover: 55;
+  --z-toast: 60;
+  --z-debug: 70;
 }
 
 /* ═══ Light Mode Global Overrides ═══ */

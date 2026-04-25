@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FileText, Upload, Trash2, Search, Loader2, Database, Zap, X, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { FileText, Upload, Trash2, Search, Loader2, Database, Zap, X, AlertCircle, CheckCircle2, Image as ImageIcon, FileType, FileCode, FileJson, Paperclip } from 'lucide-react';
 import { knowledgeApi, type KnowledgeItemRecord } from '../lib/backend-api';
 import { useClients } from '../lib/client-context';
 import { useToast } from '../lib/toast-context';
@@ -22,13 +22,13 @@ function relTime(iso: string): string {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
-function typeIcon(mime: string) {
-  if (mime?.startsWith('image/')) return '🖼️';
-  if (mime?.includes('pdf')) return '📄';
-  if (mime?.includes('text') || mime?.includes('markdown')) return '📝';
-  if (mime?.includes('word') || mime?.includes('document')) return '📃';
-  if (mime?.includes('json')) return '⚙️';
-  return '📎';
+function TypeIcon({ mime, className = 'w-5 h-5' }: { mime: string; className?: string }) {
+  if (mime?.startsWith('image/')) return <ImageIcon className={`${className} text-violet-400`} aria-label="image" />;
+  if (mime?.includes('pdf')) return <FileType className={`${className} text-red-400`} aria-label="pdf" />;
+  if (mime?.includes('text') || mime?.includes('markdown')) return <FileText className={`${className} text-zinc-400`} aria-label="text" />;
+  if (mime?.includes('word') || mime?.includes('document')) return <FileText className={`${className} text-blue-400`} aria-label="document" />;
+  if (mime?.includes('json')) return <FileJson className={`${className} text-emerald-400`} aria-label="json" />;
+  return <Paperclip className={`${className} text-zinc-500`} aria-label="file" />;
 }
 
 export default function Knowledge() {
@@ -252,7 +252,7 @@ export default function Knowledge() {
               >
                 <div className="flex items-start justify-between gap-2 mb-3">
                   <div className="flex items-start gap-2 min-w-0">
-                    <span className="text-2xl shrink-0 leading-none">{typeIcon(item.type)}</span>
+                    <span className="shrink-0 leading-none mt-0.5"><TypeIcon mime={item.type} className="w-5 h-5" /></span>
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-white truncate" title={item.title}>{item.title}</p>
                       <p className="text-[10px] text-zinc-600 mt-0.5">

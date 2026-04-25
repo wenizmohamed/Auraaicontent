@@ -225,7 +225,7 @@ export default function VisualRefSearch({ visualIdea, provider = 'gemini', onSel
 
       {/* Lightbox Preview */}
       {previewRef && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur-sm" onClick={() => setPreviewRef(null)}>
+        <div className="fixed inset-0 z-modal flex items-center justify-center bg-black/90 backdrop-blur-sm" onClick={() => setPreviewRef(null)}>
           <button onClick={() => setPreviewRef(null)} className="absolute top-6 right-6 text-white/50 hover:text-white z-10">
             <X className="w-6 h-6" />
           </button>

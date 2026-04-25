@@ -201,7 +201,7 @@ function DevBanner() {
   const lane = IS_ELECTRON ? 'desktop' : (window.location.hostname === 'localhost' ? 'local_web' : 'vps');
   if (!isDev) return null;
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-[9999] bg-zinc-900/95 border-t border-zinc-800 px-4 py-1.5 flex items-center gap-4 text-[10px] font-mono text-zinc-500">
+    <div className="fixed bottom-0 left-0 right-0 z-debug bg-zinc-900/95 border-t border-zinc-800 px-4 py-1.5 flex items-center gap-4 text-[10px] font-mono text-zinc-500">
       <span className="text-violet-400 font-bold">{lane.toUpperCase()}</span>
       <span className={serverOnline ? 'text-emerald-400' : 'text-red-400'}>{serverOnline ? 'API: ON' : 'API: OFF'}</span>
       <span className={authenticated ? 'text-emerald-400' : 'text-red-400'}>{authenticated ? 'AUTH: OK' : 'AUTH: NO'}</span>
