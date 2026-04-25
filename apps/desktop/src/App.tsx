@@ -26,6 +26,7 @@ import TopicDesk from './pages/TopicDesk';
 import DesignTextures from './pages/DesignTextures';
 import ContentPieces from './pages/ContentPieces';
 import Knowledge from './pages/Knowledge';
+import MobileMenu from './components/MobileMenu';
 import AIDesignGenerator from './pages/AIDesignGenerator';
 import VisualReferences from './pages/VisualReferences';
 import BriefInput from './pages/BriefInput';
@@ -56,13 +57,16 @@ function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className={`min-h-screen flex font-sans ${isDark ? 'bg-[#050508]' : 'bg-slate-100'}`}>
-      {/* Sidebar — Glassmorphic */}
+      {/* Mobile drawer — hamburger + slide-in nav, hidden on lg+ */}
+      <MobileMenu navigation={navigation} isDark={isDark} toggleTheme={toggleTheme} />
+
+      {/* Sidebar — Glassmorphic, desktop only (lg+) */}
       <div
         className={`${isCollapsed ? 'w-[72px]' : 'w-[260px]'} ${
           isDark
             ? 'bg-[#0a0a0f]/80 backdrop-blur-2xl border-r border-white/[0.06]'
             : 'bg-white/80 backdrop-blur-2xl border-r border-slate-200/80 shadow-lg'
-        } flex flex-col transition-all duration-300 relative z-20`}
+        } hidden lg:flex flex-col transition-all duration-300 relative z-sticky`}
       >
         {/* Collapse Toggle */}
         <button
