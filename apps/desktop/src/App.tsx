@@ -293,6 +293,9 @@ export default function App() {
               <Route path="/studio" element={<Studio />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/onboarding" element={<Onboarding />} />
+              {/* Catch-all → bounce to Dashboard. Beats rendering blank for any
+                  typo'd or stale URL (e.g. /dashboard, /home, /admin). */}
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Layout>
         </AuthGate>
