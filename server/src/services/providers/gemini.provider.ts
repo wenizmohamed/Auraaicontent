@@ -153,10 +153,27 @@ export const geminiProvider: AiProvider = {
       }),
       TIMEOUT, 'image',
     ));
-    const part = (response as any).candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData);
+    // SDK v1.48 returns parts with both `inlineData` (camel) and `inline_data`
+    // (snake) on different schema paths depending on alpha vs stable preview
+    // models — match either. Also fall back to scanning the whole candidate
+    // tree because some response variants nest under `data` directly.
+    const cand: any = (response as any).candidates?.[0];
+    const parts: any[] = cand?.content?.parts ?? [];
+    const imgPart = parts.find((p) => p?.inlineData?.data || p?.inline_data?.data);
+    const base64 = imgPart?.inlineData?.data ?? imgPart?.inline_data?.data;
+    if (!base64) {
+      const finishReason = cand?.finishReason ?? cand?.finish_reason ?? 'unknown';
+      const promptFeedback = (response as any).promptFeedback ?? (response as any).prompt_feedback;
+      console.warn('[gemini.image] empty result', {
+        model,
+        finishReason,
+        partTypes: parts.map((p) => Object.keys(p)),
+        promptFeedback,
+      });
+    }
     return {
       provider: 'gemini', model, latencyMs: Date.now() - start, fallbackUsed: false,
-      output: { base64: part?.inlineData?.data },
+      output: { base64 },
     };
   },
 
