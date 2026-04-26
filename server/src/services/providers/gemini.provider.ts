@@ -105,13 +105,16 @@ export const geminiProvider: AiProvider = {
 
   async image(req: ImageRequest): Promise<ProviderResult<{ url?: string; base64?: string }>> {
     const ai = getAI();
-    // Default is imagen-4.0-fast-generate-001 — it's the ONLY Google image
-    // model that currently responds for our API key (verified 2026-04-23 via
-    // direct curl: gemini-3.1-flash-image-preview hangs 70s/no-response,
-    // imagen-4.0-fast returns HTTP 200 in 5s).  Ultra path uses imagen-4 ultra.
+    // Default is gemini-3-pro-image-preview (Nano Banana Pro) — verified
+    // 2026-04-26 via direct curl: HTTP 200 in 19.8s with 776KB JPEG.
+    // Nano Banana 2 (gemini-3.1-flash-image-preview) is preferred for speed
+    // + cost ($0.0672/img vs $0.134/img) but currently 60s-times-out on
+    // free-billing API keys — gated to billing-enabled projects only.
+    // Imagen-4 (imagen-4.0-fast-generate-001) is the legacy path; it works
+    // but isn't in the Nano Banana lineage and will be deprecated.
     const model = req.quality === 'ultra'
-      ? (process.env.GEMINI_IMAGE_ULTRA_MODEL || 'imagen-4.0-ultra-generate-001')
-      : (process.env.GEMINI_IMAGE_MODEL || 'imagen-4.0-fast-generate-001');
+      ? (process.env.GEMINI_IMAGE_ULTRA_MODEL || 'gemini-3-pro-image-preview')
+      : (process.env.GEMINI_IMAGE_MODEL || 'gemini-3-pro-image-preview');
     const start = Date.now();
 
     // Imagen models (imagen-*) live behind the :predict endpoint and are
