@@ -2,8 +2,15 @@ import 'dotenv/config';
 import { env } from './config/env.js';
 import { buildApp } from './app.js';
 import { reconcileStaleJobs, shutdownQueue } from './workers/queue.js';
+import { attachJobSockets } from './sockets/jobs.js';
 
 const app = await buildApp();
+
+// Socket.IO mounts on the same HTTP server Fastify uses. We need
+// app.ready() so app.server is the live http.Server instance, not undefined.
+await app.ready();
+const io = attachJobSockets(app.server);
+app.log.info({ path: '/socket.io' }, '[socket] job-progress namespace attached');
 
 // Reclaim any jobs left in BullMQ active from a prior crash.
 reconcileStaleJobs()
@@ -13,7 +20,8 @@ reconcileStaleJobs()
   .catch((err: Error) => console.warn('[queue] boot reconcile failed:', err?.message));
 
 const shutdown = async (signal: string) => {
-  console.log(`[shutdown] ${signal} received, closing queue + HTTP…`);
+  console.log(`[shutdown] ${signal} received, closing socket + queue + HTTP…`);
+  try { io.close(); } catch (err: any) { console.warn('[shutdown] io.close failed:', err?.message); }
   await shutdownQueue();
   await app.close();
   process.exit(0);

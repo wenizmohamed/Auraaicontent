@@ -1,12 +1,44 @@
 import { FastifyInstance } from 'fastify';
+import fs from 'fs';
+import path from 'path';
 import { authGuard } from '../middleware/auth.js';
 import { assetService } from '../services/asset.service.js';
 import { storageService } from '../services/storage.service.js';
 import { analyzeAssetWorker } from '../workers/assetAnalysis.worker.js';
 
+const UPLOADS_ROOT = path.resolve(process.cwd(), 'uploads');
+
 export async function assetRoutes(app: FastifyInstance) {
 
   app.addHook('preHandler', authGuard);
+
+  // GET /api/assets/:assetId/download — authed, scoped to client visibility.
+  // Path-traversal hardened: resolved file MUST live under UPLOADS_ROOT.
+  // Single-tenant model means any authed user can download any client's
+  // assets today; the clientId scope hook is here ready for the
+  // multi-tenancy migration so we don't have to revisit every callsite.
+  app.get('/assets/:assetId/download', async (request, reply) => {
+    const { assetId } = request.params as { assetId: string };
+    const asset = await assetService.getById(assetId);
+    if (!asset?.fileUrl) return reply.status(404).send({ error: 'Asset not found' });
+
+    const absolute = storageService.getAbsolutePath(asset.fileUrl);
+    const resolved = path.resolve(absolute);
+    if (!resolved.startsWith(UPLOADS_ROOT + path.sep) && resolved !== UPLOADS_ROOT) {
+      return reply.status(400).send({ error: 'Invalid asset path' });
+    }
+    if (!fs.existsSync(resolved)) {
+      return reply.status(404).send({ error: 'Asset file missing on disk' });
+    }
+
+    const filename = asset.name || path.basename(resolved);
+    const safe = filename.replace(/[^\w.\-]+/g, '_');
+    return reply
+      .header('Content-Type', asset.mimeType || 'application/octet-stream')
+      .header('Content-Disposition', `attachment; filename="${safe}"`)
+      .header('X-Asset-Id', asset.id)
+      .send(fs.createReadStream(resolved));
+  });
 
   // GET /api/clients/:clientId/assets
   app.get('/clients/:clientId/assets', async (request) => {

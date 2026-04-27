@@ -8,6 +8,7 @@ import { calendarApi, reviewApi, exportsApi, jobsApi, visualRefsApi } from '../l
 import type { CalendarMonthSummary } from '../lib/backend-api';
 import { STATUS_LABEL, normalizeStatus } from '../lib/status-enum';
 import VisualRefGrid from '../components/VisualRefGrid';
+import MonthlyReportButton from '../components/MonthlyReportButton';
 
 const getPlatformIcon = (platform: string) => {
   const p = platform.toLowerCase();
@@ -499,6 +500,14 @@ export default function ContentCalendar() {
               {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
               {exporting ? 'Exporting...' : 'Export PPTX'}
             </button>
+            {urlClient && backendMonth?.month && (
+              <MonthlyReportButton
+                clientId={urlClient}
+                month={backendMonth.month}
+                postCount={backendMonth.posts?.length ?? 0}
+                onStatus={showStatus}
+              />
+            )}
             {reviewLink && (
               <div className="text-[10px] text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-lg">
                 {copyNotice ? 'Copied!' : 'Link created'}

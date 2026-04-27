@@ -22,6 +22,11 @@ import { analyzeRoutes } from './routes/analyze.js';
 import { visualRefRoutes } from './routes/visualRefs.js';
 import { dashboardRoutes } from './routes/dashboard.js';
 import { contentPieceRoutes } from './routes/contentPieces.js';
+import { apiKeyRoutes } from './routes/api-keys.js';
+import { reportRoutes } from './routes/reports.js';
+import { v2ClientRoutes } from './routes/v2/clients.js';
+import { v2CalendarRoutes } from './routes/v2/calendar.js';
+import { v2PostRoutes } from './routes/v2/posts.js';
 import { registerRateLimiter } from './middleware/rate-limiter.js';
 import { authGuard } from './middleware/auth.js';
 
@@ -208,6 +213,14 @@ export async function buildApp() {
   await app.register(visualRefRoutes, { prefix: '/api' });
   await app.register(dashboardRoutes, { prefix: '/api' });
   await app.register(contentPieceRoutes, { prefix: '/api' });
+  await app.register(apiKeyRoutes, { prefix: '/api' });
+  await app.register(reportRoutes, { prefix: '/api' });
+
+  // /v2 — external integration surface, Bearer sk-radix-{32} auth.
+  // Single-tenant per key: every endpoint is scoped to the key's clientId.
+  await app.register(v2ClientRoutes, { prefix: '/v2' });
+  await app.register(v2CalendarRoutes, { prefix: '/v2' });
+  await app.register(v2PostRoutes, { prefix: '/v2' });
 
   return app;
 }

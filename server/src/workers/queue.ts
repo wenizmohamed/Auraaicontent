@@ -17,7 +17,14 @@
 
 import { Queue, Worker } from 'bullmq';
 import IORedis from 'ioredis';
+import { EventEmitter } from 'events';
 import crypto from 'crypto';
+
+// Job state-change emitter — sockets/jobs.ts subscribes here to push live
+// updates to /socket.io rooms. Decoupled so the queue doesn't depend on the
+// HTTP/socket layer; if no listener is attached, emits are no-ops.
+export const jobEvents = new EventEmitter();
+jobEvents.setMaxListeners(64);
 
 const JOB_TIMEOUT_MS = 15 * 60 * 1000;
 const QUEUE_NAME = 'radix-jobs';
@@ -79,6 +86,7 @@ const bullWorker = new Worker(
       cached.result = result;
       cached.updatedAt = new Date().toISOString();
       localCache.set(id, cached);
+      try { jobEvents.emit('job:update', cached); } catch {}
       handlers.delete(id);
       return result;
     } catch (err: any) {
@@ -88,6 +96,7 @@ const bullWorker = new Worker(
       cached.error = msg;
       cached.updatedAt = new Date().toISOString();
       localCache.set(id, cached);
+      try { jobEvents.emit('job:update', cached); } catch {}
       handlers.delete(id);
       throw err;
     }
@@ -126,6 +135,13 @@ export function updateJob(id: string, updates: Partial<Job>): Job | undefined {
   if (!job) return undefined;
   Object.assign(job, updates, { updatedAt: new Date().toISOString() });
   localCache.set(id, job);
+  // Broadcast to any Socket.IO listeners. Errors are isolated so a bad
+  // listener can never break the job pipeline.
+  try {
+    jobEvents.emit('job:update', job);
+  } catch (err: any) {
+    console.warn('[queue] jobEvents emit failed:', err?.message);
+  }
   return job;
 }
 

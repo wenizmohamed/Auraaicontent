@@ -60,6 +60,29 @@ model Client {
   reviewLinks     ReviewLink[]
   agentSessions   AgentSession[]
   contentPieces   ContentPiece[]
+  apiKeys         ApiKey[]
+}
+
+// External-integration API keys. Plaintext key (sk-radix-{32}) is only ever
+// returned at creation time; only the bcrypt hash + 12-char prefix live in
+// Postgres. Scope is per-Client — agencies issue separate keys per workspace
+// instead of one master key. Revocation is soft (revokedAt) so audit trails
+// survive. lastUsedAt is updated async on every authenticated /v2 request.
+model ApiKey {
+  id          String    @id @default(cuid())
+  clientId    String
+  name        String
+  keyHash     String    @unique
+  keyPrefix   String
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+  revokedAt   DateTime?
+
+  client      Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([keyHash])
 }
 
 // Production-tracking unit — separate from CalendarPost (which is the marketing

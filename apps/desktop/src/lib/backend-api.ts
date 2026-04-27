@@ -378,8 +378,18 @@ export const contentPiecesApi = {
 
 // ─── Jobs ────────────────────────────────────────────────────────
 
+export interface JobRecord {
+  id: string;
+  type: string;
+  status: 'queued' | 'processing' | 'completed' | 'failed';
+  progress: number;
+  result?: any;
+  error?: string | null;
+  createdAt?: string;
+  updatedAt: string;
+}
 export const jobsApi = {
-  get: (jobId: string) => request<{ id: string; status: string; progress: number; result?: any; error?: string }>(`/api/jobs/${jobId}`),
+  get: (jobId: string) => request<JobRecord>(`/api/jobs/${jobId}`),
 };
 
 // ─── Review Links ────────────────────────────────────────────────
@@ -397,6 +407,46 @@ export const exportsApi = {
   list: (clientId: string) =>
     request<any[]>(`/api/exports/${clientId}`),
   downloadUrl: (fileUrl: string) => `${API_URL}${fileUrl}`,
+};
+
+// Monthly client-deliverable report. Different from exportsApi (internal
+// dump): this is the agency-grade themed deck meant to be sent TO the client.
+export type ReportTheme = 'aura' | 'dark' | 'pitch';
+export const reportsApi = {
+  triggerMonthly: (clientId: string, month: string, theme: ReportTheme = 'aura') =>
+    request<{ jobId: string; month: string; theme: ReportTheme; postCount: number }>(
+      `/api/clients/${clientId}/reports/monthly?month=${encodeURIComponent(month)}`,
+      { method: 'POST', body: JSON.stringify({ theme }) },
+    ),
+  list: (clientId: string) =>
+    request<{ id: string; type: string; status: string; fileUrl: string | null; calendarMonthId: string; createdAt: string }[]>(
+      `/api/clients/${clientId}/reports`,
+    ),
+  downloadUrl: (fileUrl: string) => `${API_URL}${fileUrl}`,
+};
+
+// API keys (JWT-authed CRUD for users to manage their workspace's external keys)
+export interface ApiKeyRecord {
+  id: string;
+  name: string;
+  keyPrefix: string;
+  lastUsedAt: string | null;
+  expiresAt: string | null;
+  createdAt: string;
+  revokedAt: string | null;
+}
+export const apiKeysApi = {
+  list: (clientId: string) =>
+    request<ApiKeyRecord[]>(`/api/api-keys?clientId=${encodeURIComponent(clientId)}`),
+  create: (clientId: string, name: string, expiresInDays?: number) =>
+    request<ApiKeyRecord & { key: string; warning: string }>(`/api/api-keys`, {
+      method: 'POST',
+      body: JSON.stringify({ clientId, name, expiresInDays }),
+    }),
+  revoke: (id: string) =>
+    request<{ id: string; revokedAt: string }>(`/api/api-keys/${id}/revoke`, { method: 'POST' }),
+  remove: (id: string) =>
+    request<{ success: boolean }>(`/api/api-keys/${id}`, { method: 'DELETE' }),
 };
 
 // ─── Creative ────────────────────────────────────────────────────
