@@ -1,8 +1,9 @@
-import { FastifyInstance, FastifyReply } from 'fastify';
+import { FastifyInstance } from 'fastify';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { db } from '../db/prisma.js';
 import { signToken, authGuard, mintRefreshToken, hashRefreshToken, type JwtPayload } from '../middleware/auth.js';
+import { parseOr400 } from '../lib/parseOr400.js';
 
 function reqMeta(request: any): { userAgent: string | null; ip: string | null } {
   const ua = (request.headers['user-agent'] as string | undefined)?.slice(0, 300) ?? null;
@@ -33,18 +34,7 @@ const PasswordBody = z.object({
   newPassword: z.string().min(8).max(200),
 });
 
-function parseOr400<T>(schema: z.ZodSchema<T>, body: unknown, reply: FastifyReply): T | null {
-  const r = schema.safeParse(body);
-  if (!r.success) {
-    const first = r.error.issues[0];
-    reply.status(400).send({
-      error: first ? `${first.path.join('.') || 'body'}: ${first.message}` : 'Invalid request body',
-      issues: r.error.issues,
-    });
-    return null;
-  }
-  return r.data;
-}
+// parseOr400 moved to ../lib/parseOr400.js — DRY across the route layer (S2).
 
 export async function authRoutes(app: FastifyInstance) {
 

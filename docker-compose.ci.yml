@@ -1,0 +1,41 @@
+# docker-compose.ci.yml — ephemeral stack for PR-level CI smoke tests.
+# NOT for production. Fresh DB per CI run. Reasons this exists separately:
+# (a) PR-level CI must NOT depend on prod uptime — flaky network breaks CI;
+# (b) JWTs in CI logs leak when smoke runs against live; ephemeral DB sandboxes
+#     synthetic credentials per run.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: radix
+      POSTGRES_PASSWORD: ci_only_not_secret
+      POSTGRES_DB: radix_planner
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U radix -d radix_planner"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+  radix-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.ci
+    environment:
+      DATABASE_URL: "postgres://radix:ci_only_not_secret@postgres:5432/radix_planner"
+      REDIS_URL: "redis://redis:6379"
+      JWT_SECRET: "ci_only_64char_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      NODE_ENV: production
+      PORT: "8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8080:8080"

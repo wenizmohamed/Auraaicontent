@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify';
+import { z } from 'zod';
 import { db } from '../db/prisma.js';
 import { authGuard } from '../middleware/auth.js';
 import { briefService } from '../services/brief.service.js';
@@ -6,6 +7,38 @@ import { auditService } from '../services/audit.service.js';
 import { createJob, processJob } from '../workers/queue.js';
 import { generateMonthWorker } from '../workers/generateMonth.worker.js';
 import { visualSearchService } from '../services/visual-search.service.js';
+import { parseOr400 } from '../lib/parseOr400.js';
+import type { JwtPayload } from '../middleware/auth.js';
+
+type AuthedRequest = { user?: JwtPayload };
+
+const GenerateMonthBody = z.object({
+  month: z.string().min(1).max(60),
+  pieceCount: z.number().int().min(1).max(60).optional(),
+});
+
+const UpdatePostBody = z.object({
+  date: z.string().max(60).optional(),
+  title: z.string().max(300).optional(),
+  pillar: z.string().max(120).optional(),
+  platform: z.string().max(60).optional(),
+  format: z.string().max(120).optional(),
+  hook: z.string().max(500).nullable().optional(),
+  keyMessage: z.string().max(2000).nullable().optional(),
+  caption: z.string().max(8000).optional(),
+  cta: z.string().max(500).nullable().optional(),
+  hashtags: z.any().optional(),
+  visualDirection: z.string().max(2000).nullable().optional(),
+  referenceQuery: z.string().max(500).nullable().optional(),
+  rationale: z.string().max(2000).nullable().optional(),
+  timing: z.string().max(120).nullable().optional(),
+  status: z.string().max(60).optional(),
+  metadata: z.any().optional(),
+}).strict();
+
+const VisualRefsBackfillBody = z.object({
+  count: z.number().int().min(1).max(12).optional(),
+});
 
 export async function calendarRoutes(app: FastifyInstance) {
 
@@ -14,9 +47,9 @@ export async function calendarRoutes(app: FastifyInstance) {
   // POST /api/clients/:clientId/calendar/generate → { jobId }
   app.post('/clients/:clientId/calendar/generate', async (request, reply) => {
     const { clientId } = request.params as { clientId: string };
-    const { month, pieceCount } = (request.body as any) || {};
-
-    if (!month) return reply.status(400).send({ error: 'month is required (e.g. "August 2026")' });
+    const body = parseOr400(GenerateMonthBody, request.body, reply);
+    if (!body) return;
+    const { month, pieceCount } = body;
 
     // Block duplicate month generation — archived months don't block (soft-archive is for history).
     const existing = await db.calendarMonth.findFirst({ where: { clientId, month, isArchived: false } });
@@ -36,7 +69,7 @@ export async function calendarRoutes(app: FastifyInstance) {
     processJob(job.id, generateMonthWorker);
 
     // Audit
-    const userId = (request as any).user?.id;
+    const userId = (request as AuthedRequest).user?.userId;
     auditService.log({ userId, clientId, action: 'generate', entityType: 'CalendarMonth', payload: { month, pieceCount, jobId: job.id } });
 
     return reply.status(202).send({ jobId: job.id });
@@ -185,11 +218,11 @@ export async function calendarRoutes(app: FastifyInstance) {
   });
 
   // PATCH /api/calendar-posts/:postId
-  app.patch('/calendar-posts/:postId', async (request) => {
+  app.patch('/calendar-posts/:postId', async (request, reply) => {
     const { postId } = request.params as { postId: string };
-    const updates = request.body as any;
-    const { id, calendarMonthId, createdAt, updatedAt, ...data } = updates;
-    return db.calendarPost.update({ where: { id: postId }, data });
+    const body = parseOr400(UpdatePostBody, request.body, reply);
+    if (!body) return;
+    return db.calendarPost.update({ where: { id: postId }, data: body });
   });
 
   // DELETE /api/calendar-posts/:postId
@@ -205,8 +238,9 @@ export async function calendarRoutes(app: FastifyInstance) {
   app.post('/clients/:clientId/calendar/:month/visual-refs/backfill', async (request, reply) => {
     const { clientId, month } = request.params as { clientId: string; month: string };
     const decodedMonth = decodeURIComponent(month);
-    const { count } = (request.body as { count?: number }) || {};
-    const perPost = Math.max(1, Math.min(12, count || 6));
+    const body = parseOr400(VisualRefsBackfillBody, request.body ?? {}, reply);
+    if (!body) return;
+    const perPost = body.count ?? 6;
 
     const calMonth = await db.calendarMonth.findFirst({
       where: { clientId, month: decodedMonth },

@@ -1,8 +1,14 @@
 import { FastifyInstance } from 'fastify';
+import { z } from 'zod';
 import { db } from '../db/prisma.js';
 import { authGuard } from '../middleware/auth.js';
 import { createJob, processJob } from '../workers/queue.js';
 import { exportWorker } from '../workers/export.worker.js';
+import { parseOr400 } from '../lib/parseOr400.js';
+
+const ExportTriggerBody = z.object({
+  type: z.enum(['pptx']).default('pptx'),
+});
 
 export async function exportRoutes(app: FastifyInstance) {
 
@@ -10,12 +16,10 @@ export async function exportRoutes(app: FastifyInstance) {
   // Triggers an export job (PPTX or PDF)
   app.post('/clients/:clientId/calendar/:month/export', { preHandler: [authGuard] }, async (request, reply) => {
     const { clientId, month } = request.params as { clientId: string; month: string };
-    const { type = 'pptx' } = (request.body as any) || {};
+    const body = parseOr400(ExportTriggerBody, request.body ?? {}, reply);
+    if (!body) return;
+    const { type } = body;
     const decodedMonth = decodeURIComponent(month);
-
-    if (!['pptx'].includes(type)) {
-      return reply.status(400).send({ error: `Unsupported export type: ${type}. Supported: pptx` });
-    }
 
     const calendarMonth = await db.calendarMonth.findFirst({
       where: { clientId, month: decodedMonth },
