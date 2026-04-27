@@ -9,6 +9,7 @@ import { db } from '../db/prisma.js';
 import { searchPinterest, searchPinterestMulti, fetchPinterestImageBase64 } from '../services/pinterest.service.js';
 import type { Job } from '../workers/queue.js';
 import { parseOr400 } from '../lib/parseOr400.js';
+import { errMsg } from '../lib/err.js';
 
 const ASPECT_IMAGE = z.enum(['1:1', '4:5', '9:16', '16:9', '3:4']);
 const ASPECT_VIDEO = z.enum(['16:9', '9:16', '1:1']);
@@ -74,7 +75,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         assetId: savedAsset?.id || null,
         assetUrl: savedAsset?.fileUrl || result.output.url || null,
       };
-    } catch (err: any) {
+    } catch (err: unknown) {
       return sendAiError(reply, err, 'Image generation failed');
     }
   });
@@ -102,7 +103,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         assetId: savedAsset?.id || null,
         assetUrl: savedAsset?.fileUrl || result.output.url || null,
       };
-    } catch (err: any) {
+    } catch (err: unknown) {
       return sendAiError(reply, err, 'AI operation failed');
     }
   });
@@ -220,7 +221,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         provider: result.provider,
         latencyMs: result.latencyMs,
       };
-    } catch (err: any) {
+    } catch (err: unknown) {
       return sendAiError(reply, err, 'Prompt improver failed');
     }
   });
@@ -236,7 +237,7 @@ export async function creativeRoutes(app: FastifyInstance) {
       const lim = limit ? Math.min(parseInt(limit), 25) : 12;
       const { results, nextBookmark } = await searchPinterest(q, lim, bookmark);
       return { query: q, count: results.length, results, nextBookmark };
-    } catch (err: any) {
+    } catch (err: unknown) {
       return sendAiError(reply, err, 'AI operation failed');
     }
   });
@@ -277,13 +278,13 @@ export async function creativeRoutes(app: FastifyInstance) {
               safeForClient: true,
             },
           });
-        } catch (saveErr: any) {
-          console.error('[pinterest] Failed to save asset:', saveErr.message);
+        } catch (saveErr: unknown) {
+          console.error('[pinterest] Failed to save asset:', errMsg(saveErr));
         }
       }
 
       return { count: results.length, results, savedAsset };
-    } catch (err: any) {
+    } catch (err: unknown) {
       return sendAiError(reply, err, 'AI operation failed');
     }
   });

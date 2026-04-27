@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import fs from 'fs';
 import path from 'path';
 import { authGuard } from '../middleware/auth.js';
+import { errMsg } from '../lib/err.js';
 import { assetService } from '../services/asset.service.js';
 import { storageService } from '../services/storage.service.js';
 import { analyzeAssetWorker } from '../workers/assetAnalysis.worker.js';
@@ -72,15 +73,15 @@ export async function assetRoutes(app: FastifyInstance) {
     try {
       const analysis = await analyzeAssetWorker(assetId);
       return { assetId, analysis };
-    } catch (err: any) {
-      return reply.status(422).send({ error: err.message });
+    } catch (err: unknown) {
+      return reply.status(422).send({ error: errMsg(err) });
     }
   });
 
   // PATCH /api/assets/:assetId
   app.patch('/assets/:assetId', async (request) => {
     const { assetId } = request.params as { assetId: string };
-    const { name, tags, safeForClient } = request.body as any;
+    const { name, tags, safeForClient } = request.body as { name?: string; tags?: string[]; safeForClient?: boolean };
     return assetService.update(assetId, { name, tags, safeForClient });
   });
 

@@ -109,15 +109,16 @@ export class AllProvidersFailedError extends Error {
  * HTTP status (429 for rate-limit, 503 for unavailable) and includes per-provider
  * failure summaries. Falls back to 502 for generic errors.
  */
-export function sendAiError(reply: FastifyReply, err: any, fallbackMessage: string) {
+export function sendAiError(reply: FastifyReply, err: unknown, fallbackMessage: string) {
   if (err instanceof AllProvidersFailedError) {
     return reply.status(err.statusCode).send({
       error: err.message,
       providers: err.failures,
     });
   }
-  const status = err?.statusCode || 502;
+  const e = err as { statusCode?: number; message?: string } | null;
+  const status = e?.statusCode ?? 502;
   return reply.status(status).send({
-    error: err?.message || fallbackMessage,
+    error: e?.message ?? fallbackMessage,
   });
 }

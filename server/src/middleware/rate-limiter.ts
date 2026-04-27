@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import IORedis from 'ioredis';
+import { errMsg } from '../lib/err.js';
 
 // Redis-backed sliding-window rate limiter.
 // Falls back to in-memory if REDIS_URL is unset or Redis is unreachable.
@@ -43,8 +44,8 @@ function initRedis(): void {
     void redis.connect().catch(() => {
       console.warn('[rate-limiter] Redis unreachable on boot, using in-memory fallback');
     });
-  } catch (err: any) {
-    console.warn('[rate-limiter] Redis init failed, using in-memory:', err?.message);
+  } catch (err: unknown) {
+    console.warn('[rate-limiter] Redis init failed, using in-memory:', errMsg(err));
   }
 }
 

@@ -10,6 +10,7 @@
 import crypto from 'crypto';
 import { aiRouter } from './providers/ai-router.js';
 import { searchPinterest, type PinterestImage } from './pinterest.service.js';
+import { errMsg } from '../lib/err.js';
 
 export interface VisualSearchResult {
   thumbnailUrl: string;
@@ -117,8 +118,8 @@ export const visualSearchService = {
         merged.push(pinterestToVisualRef(p));
       }
       if (merged.length > 0) providerLabel = 'pinterest';
-    } catch (err: any) {
-      console.warn('[visualSearch] Pinterest failed:', err?.message || err);
+    } catch (err: unknown) {
+      console.warn('[visualSearch] Pinterest failed:', errMsg(err));
     }
 
     // 2. AI router fallback if Pinterest came up short
@@ -145,8 +146,8 @@ export const visualSearchService = {
         if (aiResults.length > 0) {
           providerLabel = providerLabel ? `${providerLabel}+${result.provider}` : result.provider;
         }
-      } catch (err: any) {
-        console.warn('[visualSearch] AI fallback failed:', err?.message || err);
+      } catch (err: unknown) {
+        console.warn('[visualSearch] AI fallback failed:', errMsg(err));
       }
     }
 

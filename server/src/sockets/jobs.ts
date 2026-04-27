@@ -18,6 +18,7 @@ import type { Server as HttpServer } from 'http';
 import { Server as SocketIOServer, type Socket } from 'socket.io';
 import { verifyToken } from '../middleware/auth.js';
 import { jobEvents, getJob, type Job } from '../workers/queue.js';
+import { errMsg } from '../lib/err.js';
 
 interface AuthedSocket extends Socket {
   data: {
@@ -95,8 +96,8 @@ export function attachJobSockets(httpServer: HttpServer): SocketIOServer {
   jobEvents.on('job:update', (job: Job) => {
     try {
       io.to(`job:${job.id}`).emit('job:update', job);
-    } catch (err: any) {
-      console.warn('[socket] job emit failed:', err?.message);
+    } catch (err: unknown) {
+      console.warn('[socket] job emit failed:', errMsg(err));
     }
   });
 

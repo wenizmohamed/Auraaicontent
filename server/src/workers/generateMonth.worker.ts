@@ -5,6 +5,7 @@ import { buildPlanningPrompt, parseBriefChannels } from '../services/prompt.serv
 import { visualSearchService } from '../services/visual-search.service.js';
 import { retrieveContext } from '../services/retrieval.service.js';
 import { type Job, updateJob } from './queue.js';
+import { errMsg } from '../lib/err.js';
 
 export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: string; provider: string; model: string; latencyMs: number; fallbackUsed: boolean }> {
   const { clientId, month, pieceCount } = job.data;
@@ -31,8 +32,8 @@ export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: 
       if (knowledgeContext.length > 0) {
         console.log(`[generateMonth] Retrieved ${knowledgeContext.length} knowledge chunks for ${client.name} (top score: ${knowledgeContext[0].score.toFixed(3)})`);
       }
-    } catch (err: any) {
-      console.warn(`[generateMonth] Knowledge retrieval failed, continuing without it:`, err?.message || err);
+    } catch (err: unknown) {
+      console.warn(`[generateMonth] Knowledge retrieval failed, continuing without it:`, errMsg(err));
     }
   }
 
@@ -152,8 +153,8 @@ export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: 
         });
         refsAdded++;
       }
-    } catch (err: any) {
-      console.warn(`[generateMonth] visual ref population failed for post ${p.id}:`, err?.message || err);
+    } catch (err: unknown) {
+      console.warn(`[generateMonth] visual ref population failed for post ${p.id}:`, errMsg(err));
     }
   }
   console.log(`[generateMonth] auto-populated ${refsAdded} visual refs across ${createdPostIds.length} posts`);

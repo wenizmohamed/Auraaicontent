@@ -76,10 +76,10 @@ export async function embedText(text: string): Promise<number[]> {
     const embedding = response.embeddings?.[0]?.values;
     if (!embedding?.length) throw new Error('Gemini returned empty embedding');
     return embedding;
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof GeminiUnavailableError) throw err;
     // Wrap raw Google SDK errors with a clean message
-    const msg = err?.message || String(err);
+    const msg = err instanceof Error ? err.message : String(err);
     if (/rate.?limit|429|too many requests|quota/i.test(msg)) {
       throw new GeminiUnavailableError('Gemini rate-limited. Knowledge embedding temporarily unavailable.');
     }

@@ -86,7 +86,7 @@ export async function calendarRoutes(app: FastifyInstance) {
     const showTest = includeTest === 'true' || includeTest === '1';
     const showArchived = includeArchived === 'true' || includeArchived === '1';
 
-    const where: any = { clientId };
+    const where: Record<string, unknown> = { clientId };
     if (!showTest) where.isTest = false;
     if (!showArchived) where.isArchived = false;
 
@@ -153,7 +153,7 @@ export async function calendarRoutes(app: FastifyInstance) {
     const showArchived = includeArchived === 'true' || includeArchived === '1';
     const decodedMonth = decodeURIComponent(month);
 
-    const where: any = { clientId, month: decodedMonth };
+    const where: Record<string, unknown> = { clientId, month: decodedMonth };
     if (!showArchived) where.isArchived = false;
 
     const calendarMonth = await db.calendarMonth.findFirst({

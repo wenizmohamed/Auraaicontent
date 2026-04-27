@@ -25,11 +25,11 @@ const UpdateClientBody = z.object({
 
 // Bridge zod's nullable→undefined so it matches `field?: string` service shape.
 function stripNulls<T extends Record<string, unknown>>(obj: T): { [K in keyof T]: Exclude<T[K], null> } {
-  const out: any = {};
+  const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(obj)) {
     if (v !== null) out[k] = v;
   }
-  return out;
+  return out as { [K in keyof T]: Exclude<T[K], null> };
 }
 
 export async function clientRoutes(app: FastifyInstance) {
@@ -49,8 +49,9 @@ export async function clientRoutes(app: FastifyInstance) {
     try {
       const client = await clientService.create(stripNulls(body));
       return reply.status(201).send(client);
-    } catch (err: any) {
-      if (err.statusCode === 409) return reply.status(409).send({ error: err.message });
+    } catch (err: unknown) {
+      const e = err as { statusCode?: number; message?: string } | null;
+      if (e?.statusCode === 409) return reply.status(409).send({ error: e?.message });
       throw err;
     }
   });

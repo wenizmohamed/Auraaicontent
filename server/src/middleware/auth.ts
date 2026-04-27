@@ -9,6 +9,14 @@ export interface JwtPayload {
   role: string;
 }
 
+// Fastify module augmentation — `request.user` is set by authGuard.
+// Optional because non-authed routes don't have it.
+declare module 'fastify' {
+  interface FastifyRequest {
+    user?: JwtPayload;
+  }
+}
+
 export function verifyToken(token: string): JwtPayload {
   return jwt.verify(token, env.JWT_SECRET) as JwtPayload;
 }
@@ -54,7 +62,7 @@ export async function authGuard(request: FastifyRequest, reply: FastifyReply) {
   try {
     const token = authHeader.slice(7);
     const payload = verifyToken(token);
-    (request as any).user = payload;
+    request.user = payload;
   } catch {
     return reply.status(401).send({ error: 'Invalid or expired token' });
   }

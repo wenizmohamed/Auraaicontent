@@ -56,10 +56,10 @@ export async function briefRoutes(app: FastifyInstance) {
     }
     try {
       return await briefService.upsert(clientId, body);
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Defensive: if a race condition deletes the client between the check above
       // and the upsert, surface the FK violation as a 404 too.
-      if (err?.code === 'P2003') {
+      if ((err as { code?: string } | null)?.code === 'P2003') {
         return reply.status(404).send({ error: `Client ${clientId} no longer exists.` });
       }
       throw err;
@@ -67,7 +67,7 @@ export async function briefRoutes(app: FastifyInstance) {
   });
 
   // GET /api/clients/:clientId/brief/completeness
-  app.get('/clients/:clientId/brief/completeness', async (request, reply) => {
+  app.get('/clients/:clientId/brief/completeness', async (request) => {
     const { clientId } = request.params as { clientId: string };
     const brief = await briefService.getByClientId(clientId);
     return briefService.completeness(brief);

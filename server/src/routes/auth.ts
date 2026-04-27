@@ -1,13 +1,13 @@
-import { FastifyInstance } from 'fastify';
+import { FastifyInstance, FastifyRequest } from 'fastify';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { db } from '../db/prisma.js';
 import { signToken, authGuard, mintRefreshToken, hashRefreshToken, type JwtPayload } from '../middleware/auth.js';
 import { parseOr400 } from '../lib/parseOr400.js';
 
-function reqMeta(request: any): { userAgent: string | null; ip: string | null } {
-  const ua = (request.headers['user-agent'] as string | undefined)?.slice(0, 300) ?? null;
-  const ip = (request.ip as string | undefined) ?? null;
+function reqMeta(request: FastifyRequest): { userAgent: string | null; ip: string | null } {
+  const ua = request.headers['user-agent']?.slice(0, 300) ?? null;
+  const ip = request.ip ?? null;
   return { userAgent: ua, ip };
 }
 
@@ -144,7 +144,7 @@ export async function authRoutes(app: FastifyInstance) {
 
   // GET /api/auth/me — requires valid token
   app.get('/me', { preHandler: [authGuard] }, async (request) => {
-    const { userId } = (request as any).user as JwtPayload;
+    const { userId } = request.user as JwtPayload;
     const user = await db.user.findUnique({
       where: { id: userId },
       select: { id: true, email: true, name: true, role: true, createdAt: true },
@@ -157,7 +157,7 @@ export async function authRoutes(app: FastifyInstance) {
 
   // PATCH /api/auth/me — update profile (name only; email/role immutable here)
   app.patch('/me', { preHandler: [authGuard] }, async (request, reply) => {
-    const { userId } = (request as any).user as JwtPayload;
+    const { userId } = request.user as JwtPayload;
     const body = parseOr400(UpdateMeBody, request.body, reply);
     if (!body) return;
     const user = await db.user.update({
@@ -170,7 +170,7 @@ export async function authRoutes(app: FastifyInstance) {
 
   // POST /api/auth/password — change password (verifies current, then bcrypts new)
   app.post('/password', { preHandler: [authGuard] }, async (request, reply) => {
-    const { userId } = (request as any).user as JwtPayload;
+    const { userId } = request.user as JwtPayload;
     const body = parseOr400(PasswordBody, request.body, reply);
     if (!body) return;
     const { currentPassword, newPassword } = body;

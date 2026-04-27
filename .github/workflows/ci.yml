@@ -23,9 +23,8 @@ jobs:
         run: cd server && npm run typecheck
 
       - name: Server lint (route boundary)
+        # Blocking as of 2026-04-27 sweep: no-explicit-any across routes is now zero.
         run: cd server && npm run lint
-        # Allowed to fail until Task 9 lands the ESLint config.
-        continue-on-error: true
 
       - name: Server npm audit (production, high+)
         run: cd server && npm audit --production --audit-level=high

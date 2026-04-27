@@ -18,6 +18,7 @@
 import { Queue, Worker } from 'bullmq';
 import IORedis from 'ioredis';
 import { EventEmitter } from 'events';
+import { errMsg, errStack } from '../lib/err.js';
 import crypto from 'crypto';
 
 // Job state-change emitter — sockets/jobs.ts subscribes here to push live
@@ -108,9 +109,9 @@ const bullWorker = new Worker(
       try { jobEvents.emit('job:update', cached); } catch {}
       handlers.delete(id);
       return result;
-    } catch (err: any) {
-      const msg = err?.message || String(err);
-      console.error(`[JOB FAILED] ${cached.type} (${id}): ${msg}`, err?.stack || '');
+    } catch (err: unknown) {
+      const msg = errMsg(err);
+      console.error(`[JOB FAILED] ${cached.type} (${id}): ${msg}`, errStack(err) || '');
       cached.status = 'failed';
       cached.error = msg;
       cached.updatedAt = new Date().toISOString();
@@ -158,8 +159,8 @@ export function updateJob(id: string, updates: Partial<Job>): Job | undefined {
   // listener can never break the job pipeline.
   try {
     jobEvents.emit('job:update', job);
-  } catch (err: any) {
-    console.warn('[queue] jobEvents emit failed:', err?.message);
+  } catch (err: unknown) {
+    console.warn('[queue] jobEvents emit failed:', errMsg(err));
   }
   return job;
 }
@@ -201,8 +202,8 @@ export async function reconcileStaleJobs(): Promise<{ reconciled: number }> {
       }
     }
     return { reconciled };
-  } catch (err: any) {
-    console.warn('[queue] stale-job reconcile failed:', err?.message);
+  } catch (err: unknown) {
+    console.warn('[queue] stale-job reconcile failed:', errMsg(err));
     return { reconciled: 0 };
   }
 }
@@ -213,7 +214,7 @@ export async function shutdownQueue(): Promise<void> {
     await bullWorker.close();
     await queue.close();
     await connection.quit();
-  } catch (err: any) {
-    console.warn('[queue] shutdown error:', err?.message);
+  } catch (err: unknown) {
+    console.warn('[queue] shutdown error:', errMsg(err));
   }
 }

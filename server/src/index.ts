@@ -3,6 +3,7 @@ import { env } from './config/env.js';
 import { buildApp } from './app.js';
 import { reconcileStaleJobs, shutdownQueue } from './workers/queue.js';
 import { attachJobSockets } from './sockets/jobs.js';
+import { errMsg } from './lib/err.js';
 
 const app = await buildApp();
 
@@ -21,7 +22,7 @@ reconcileStaleJobs()
 
 const shutdown = async (signal: string) => {
   console.log(`[shutdown] ${signal} received, closing socket + queue + HTTP…`);
-  try { io.close(); } catch (err: any) { console.warn('[shutdown] io.close failed:', err?.message); }
+  try { io.close(); } catch (err: unknown) { console.warn('[shutdown] io.close failed:', errMsg(err)); }
   await shutdownQueue();
   await app.close();
   process.exit(0);

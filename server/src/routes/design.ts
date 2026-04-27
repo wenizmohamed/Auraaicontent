@@ -65,35 +65,39 @@ export async function designRoutes(app: FastifyInstance) {
 
     try {
       const result = await aiRouter.text({ prompt, json: true });
-      const out = result.output as any;
+      const out = result.output as Record<string, unknown> | null;
+      const typo = (out?.typography ?? {}) as Record<string, unknown>;
+      const copy = (out?.copy ?? {}) as Record<string, unknown>;
+      const pickStr = (obj: Record<string, unknown>, key: string, fallback: string) =>
+        typeof obj[key] === 'string' ? (obj[key] as string) : fallback;
 
       // Best-effort normalization
       const safe = {
         visualDirection: typeof out?.visualDirection === 'string' ? out.visualDirection : '',
         colorPalette: Array.isArray(out?.colorPalette)
-          ? out.colorPalette
-              .filter((c: any) => c && typeof c === 'object' && typeof c.hex === 'string')
-              .map((c: any) => ({ name: typeof c.name === 'string' ? c.name : 'Color', hex: c.hex }))
+          ? (out.colorPalette as unknown[])
+              .filter((c: unknown): c is { hex: string; name?: unknown } => !!c && typeof c === 'object' && typeof (c as { hex?: unknown }).hex === 'string')
+              .map((c) => ({ name: typeof c.name === 'string' ? c.name : 'Color', hex: c.hex }))
           : [],
         typography: {
-          heading: typeof out?.typography?.heading === 'string' ? out.typography.heading : 'Inter',
-          body: typeof out?.typography?.body === 'string' ? out.typography.body : 'Inter',
-          accent: typeof out?.typography?.accent === 'string' ? out.typography.accent : 'Inter',
+          heading: pickStr(typo, 'heading', 'Inter'),
+          body: pickStr(typo, 'body', 'Inter'),
+          accent: pickStr(typo, 'accent', 'Inter'),
         },
         layoutDescription: typeof out?.layoutDescription === 'string' ? out.layoutDescription : '',
         copy: {
-          headline: typeof out?.copy?.headline === 'string' ? out.copy.headline : '',
-          subheadline: typeof out?.copy?.subheadline === 'string' ? out.copy.subheadline : '',
-          body: typeof out?.copy?.body === 'string' ? out.copy.body : '',
-          cta: typeof out?.copy?.cta === 'string' ? out.copy.cta : '',
+          headline: pickStr(copy, 'headline', ''),
+          subheadline: pickStr(copy, 'subheadline', ''),
+          body: pickStr(copy, 'body', ''),
+          cta: pickStr(copy, 'cta', ''),
         },
         imagePrompts: Array.isArray(out?.imagePrompts)
-          ? out.imagePrompts.filter((p: any) => typeof p === 'string')
+          ? (out.imagePrompts as unknown[]).filter((p: unknown) => typeof p === 'string')
           : [],
         dimensions: Array.isArray(out?.dimensions)
-          ? out.dimensions
-              .filter((d: any) => d && typeof d === 'object')
-              .map((d: any) => ({
+          ? (out.dimensions as unknown[])
+              .filter((d: unknown): d is Record<string, unknown> => !!d && typeof d === 'object')
+              .map((d) => ({
                 platform: typeof d.platform === 'string' ? d.platform : 'Unknown',
                 size: typeof d.size === 'string' ? d.size : '',
               }))
@@ -105,7 +109,7 @@ export async function designRoutes(app: FastifyInstance) {
         provider: result.provider,
         latencyMs: result.latencyMs,
       };
-    } catch (err: any) {
+    } catch (err: unknown) {
       return sendAiError(reply, err, 'Design brief failed');
     }
   });

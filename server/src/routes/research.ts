@@ -47,20 +47,21 @@ export async function researchRoutes(app: FastifyInstance) {
 
     try {
       const result = await aiRouter.text({ prompt, json: true });
-      const out = result.output as any;
+      const out = result.output as Record<string, unknown> | string | null;
+      const outObj = (out && typeof out === 'object') ? out : null;
 
       // Tolerate non-conforming outputs
-      const summary = typeof out?.summary === 'string' ? out.summary : (typeof out === 'string' ? out : '');
-      const keyPoints = Array.isArray(out?.keyPoints) ? out.keyPoints.filter((s: any) => typeof s === 'string') : [];
-      const sources = Array.isArray(out?.sources)
-        ? out.sources
-            .filter((s: any) => s && typeof s === 'object')
-            .map((s: any) => ({
+      const summary = typeof outObj?.summary === 'string' ? outObj.summary : (typeof out === 'string' ? out : '');
+      const keyPoints = Array.isArray(outObj?.keyPoints) ? (outObj.keyPoints as unknown[]).filter((s: unknown) => typeof s === 'string') : [];
+      const sources = Array.isArray(outObj?.sources)
+        ? (outObj.sources as unknown[])
+            .filter((s: unknown): s is Record<string, unknown> => !!s && typeof s === 'object')
+            .map((s) => ({
               title: typeof s.title === 'string' ? s.title : 'Untitled',
               url: typeof s.url === 'string' ? s.url : '',
               snippet: typeof s.snippet === 'string' ? s.snippet : undefined,
             }))
-            .filter((s: any) => s.url)
+            .filter((s) => !!s.url)
         : [];
 
       return {
@@ -70,7 +71,7 @@ export async function researchRoutes(app: FastifyInstance) {
         provider: result.provider,
         latencyMs: result.latencyMs,
       };
-    } catch (err: any) {
+    } catch (err: unknown) {
       return sendAiError(reply, err, 'Research failed');
     }
   });
@@ -146,12 +147,12 @@ export async function researchRoutes(app: FastifyInstance) {
         8192,
       );
       const stripped = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
-      let parsed: any = null;
+      let parsed: Record<string, unknown> | null = null;
       try { parsed = JSON.parse(stripped); } catch {
         return { raw: text, provider: 'moonshot', model, latencyMs, inputChars, parseError: 'could not parse JSON' };
       }
       return { ...parsed, provider: 'moonshot', model, latencyMs, inputChars };
-    } catch (err: any) {
+    } catch (err: unknown) {
       return sendAiError(reply, err, 'Brand synthesis failed');
     }
   });
