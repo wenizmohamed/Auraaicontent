@@ -29,6 +29,7 @@ import { v2CalendarRoutes } from './routes/v2/calendar.js';
 import { v2PostRoutes } from './routes/v2/posts.js';
 import { registerRateLimiter } from './middleware/rate-limiter.js';
 import { authGuard } from './middleware/auth.js';
+import { checkDb, checkRedis, checkQueueStats } from './lib/health-checks.js';
 
 import { execSync } from 'child_process';
 
@@ -159,20 +160,30 @@ export async function buildApp() {
     };
   });
 
-  // Health details — actually auth-gate this. Was previously open and
-  // leaked GIT_COMMIT, env fingerprints, and routing config to the public.
+  // Health details — auth-gate + quantitative checks for queue/db/redis (O3).
+  // db.reachable: SELECT 1 < 500ms.  redis.reachable: PING < 200ms.
+  // queue.healthy: waiting < 1000 && active < 50 && lastCompletedAt < 5min ago
+  //   (or null for fresh-boot).
   app.get('/api/health/details', { preHandler: [authGuard] }, async () => {
     const fingerprint = (key: string) => {
       const val = process.env[key] || '';
       if (!val) return 'NOT_SET';
       return crypto.createHash('sha256').update(val.slice(0, 8)).digest('hex').slice(0, 12);
     };
+    const [dbReachable, redisReachable, queueState] = await Promise.all([
+      checkDb(),
+      checkRedis(),
+      checkQueueStats(),
+    ]);
     return {
       status: 'ok',
       commit: GIT_COMMIT,
       processStart: PROCESS_START,
       cwd: process.cwd(),
       nodeVersion: process.version,
+      db: { reachable: dbReachable },
+      redis: { reachable: redisReachable },
+      queue: queueState,
       envFingerprints: {
         GEMINI_API_KEY: fingerprint('GEMINI_API_KEY'),
         XAI_API_KEY: fingerprint('XAI_API_KEY'),
@@ -221,6 +232,25 @@ export async function buildApp() {
   await app.register(v2ClientRoutes, { prefix: '/v2' });
   await app.register(v2CalendarRoutes, { prefix: '/v2' });
   await app.register(v2PostRoutes, { prefix: '/v2' });
+
+  // 5xx alerting via Slack webhook (O4). Sentry is YAGNI for one-agency deploy;
+  // a single Slack channel is enough to catch real incidents fast.
+  const SLACK_ALERT_WEBHOOK_URL = process.env.SLACK_ALERT_WEBHOOK_URL?.trim();
+  app.setErrorHandler((err: any, request, reply) => {
+    const status = err?.statusCode ?? 500;
+    app.log.error({ err, path: request.url, method: request.method }, 'unhandled error');
+    if (SLACK_ALERT_WEBHOOK_URL && status >= 500) {
+      // Fire-and-forget so the request response isn't blocked on Slack latency.
+      fetch(SLACK_ALERT_WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: `:rotating_light: radix-api ${status}: ${err?.message ?? 'unknown'}\n${request.method} ${request.url}`,
+        }),
+      }).catch(() => { /* swallow alert failures */ });
+    }
+    reply.status(status).send({ error: err?.message ?? 'Internal Server Error' });
+  });
 
   return app;
 }

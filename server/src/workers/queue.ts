@@ -24,6 +24,24 @@ import crypto from 'crypto';
 // updates to /socket.io rooms. Decoupled so the queue doesn't depend on the
 // HTTP/socket layer; if no listener is attached, emits are no-ops.
 export const jobEvents = new EventEmitter();
+
+// Last successful job completion timestamp — read by /api/health/details O3
+// gate to detect a stuck queue (no completion in > 5min while jobs waiting).
+// Reset on every successful completion; never reset to null.
+let lastCompletedAt: Date | null = null;
+
+export async function getQueueStats(): Promise<{ waiting: number; active: number; lastCompletedAt: Date | null }> {
+  try {
+    const counts = await queue.getJobCounts('waiting', 'active');
+    return {
+      waiting: Number(counts.waiting ?? 0),
+      active: Number(counts.active ?? 0),
+      lastCompletedAt,
+    };
+  } catch {
+    return { waiting: 0, active: 0, lastCompletedAt };
+  }
+}
 jobEvents.setMaxListeners(64);
 
 const JOB_TIMEOUT_MS = 15 * 60 * 1000;
@@ -85,6 +103,7 @@ const bullWorker = new Worker(
       cached.progress = 100;
       cached.result = result;
       cached.updatedAt = new Date().toISOString();
+      lastCompletedAt = new Date();
       localCache.set(id, cached);
       try { jobEvents.emit('job:update', cached); } catch {}
       handlers.delete(id);
