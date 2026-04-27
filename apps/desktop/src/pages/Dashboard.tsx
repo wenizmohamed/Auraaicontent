@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom';
 import { Calendar, FileText, Layers, Wand2, ArrowRight, Activity, CheckCircle2, Zap, Clock, ArrowUpRight, BarChart3, Users, Database, Sparkles, TrendingUp, AlertTriangle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useClients } from '../lib/client-context';
-import { dashboardApi, type DashboardStats } from '../lib/backend-api';
+import { dashboardApi, authApi, type DashboardStats } from '../lib/backend-api';
 import { useTheme } from '../lib/theme-context';
+import { greeting } from '../lib/greeting';
 
 // Valid month format: "Month YYYY" e.g. "April 2026"
 const VALID_MONTH_RE = /^[A-Z][a-z]+ \d{4}$/;
@@ -58,6 +59,7 @@ export default function Dashboard() {
   const isDark = theme === 'dark';
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [userName, setUserName] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authenticated) return;
@@ -65,11 +67,15 @@ export default function Dashboard() {
       .then(setStats)
       .catch(() => setStats(null))
       .finally(() => setLoading(false));
+    authApi.me()
+      .then((me) => setUserName(me?.name ?? null))
+      .catch(() => setUserName(null));
   }, [authenticated]);
 
   const currentDate = new Date().toLocaleDateString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
   });
+  const heroGreeting = greeting(new Date().getHours(), userName?.split(' ')[0]);
 
   const totalPosts = stats?.content.totalPosts || 0;
   const approvedPosts = stats?.content.byStatus.approved || 0;
@@ -138,7 +144,7 @@ export default function Dashboard() {
         <motion.div {...fadeUp(0.1)} className="col-span-12 lg:col-span-4 flex flex-col gap-5">
           <div className={`flex-1 flex flex-col justify-center rounded-2xl p-6 ${glassStatic}`}>
             <p className={`text-[10px] font-semibold uppercase tracking-[0.2em] mb-2 ${textMuted}`}>{currentDate}</p>
-            <h2 className={`text-2xl font-bold mb-1 ${textPrimary}`}>Welcome back</h2>
+            <h2 className={`text-2xl font-bold mb-1 ${textPrimary}`}>{heroGreeting}</h2>
             <p className={`text-sm ${textSecondary}`}>{currentClient?.name || 'Select a client'}</p>
           </div>
 
