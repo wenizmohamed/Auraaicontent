@@ -5,11 +5,18 @@
 #     synthetic credentials per run.
 services:
   postgres:
-    image: postgres:16-alpine
+    # pgvector/pgvector ships pgvector preinstalled — required for the
+    # KnowledgeChunk.embedding column in migration 20260408145852_init.
+    # Stock postgres:16-alpine fails the migration with "type vector does not exist".
+    image: pgvector/pgvector:pg16
     environment:
       POSTGRES_USER: radix
       POSTGRES_PASSWORD: ci_only_not_secret
       POSTGRES_DB: radix_planner
+    volumes:
+      # Auto-runs `CREATE EXTENSION vector;` on first boot, before prisma
+      # migrate deploy connects.
+      - ./.ci/postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U radix -d radix_planner"]
       interval: 2s
