@@ -116,6 +116,22 @@ export default function Dashboard() {
             <div className={`absolute -bottom-24 -left-24 w-72 h-72 rounded-full blur-3xl ${isDark ? 'bg-blue-500/[0.03]' : 'bg-blue-100/30'}`} />
 
             <div className="relative z-10">
+              {/* Greeting strip — merged from former right-column card per Weni's
+                  ask 2026-04-27. Date + greeting + selected client all live
+                  inside the hero now so the eye lands on identity + intent
+                  in one read instead of two stacked cards. */}
+              <div className={`flex flex-wrap items-center gap-x-4 gap-y-1 mb-6 pb-6 border-b ${isDark ? 'border-white/[0.06]' : 'border-slate-200/80'}`}>
+                <p className={`text-[10px] font-semibold uppercase tracking-[0.2em] ${textMuted}`}>{currentDate}</p>
+                <span className={`text-[10px] ${textDim}`}>·</span>
+                <p className={`text-sm font-semibold ${textPrimary}`}>{heroGreeting}</p>
+                {currentClient?.name && (
+                  <>
+                    <span className={`text-[10px] ${textDim}`}>·</span>
+                    <p className={`text-sm ${textSecondary}`}>{currentClient.name}</p>
+                  </>
+                )}
+              </div>
+
               <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-[0.15em] mb-6 ${isDark ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-emerald-50 text-emerald-600 border border-emerald-200'}`}>
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 AI Ready
@@ -140,24 +156,22 @@ export default function Dashboard() {
           </Link>
         </motion.div>
 
-        {/* Right column: Welcome + Quick Stat */}
+        {/* Right column: Quick Stat + Latest Activity (greeting moved into hero on 2026-04-27,
+            split into two tiles 2026-04-27 to balance the hero's vertical mass) */}
         <motion.div {...fadeUp(0.1)} className="col-span-12 lg:col-span-4 flex flex-col gap-5">
-          <div className={`flex-1 flex flex-col justify-center rounded-2xl p-6 ${glassStatic}`}>
-            <p className={`text-[10px] font-semibold uppercase tracking-[0.2em] mb-2 ${textMuted}`}>{currentDate}</p>
-            <h2 className={`text-2xl font-bold mb-1 ${textPrimary}`}>{heroGreeting}</h2>
-            <p className={`text-sm ${textSecondary}`}>{currentClient?.name || 'Select a client'}</p>
-          </div>
-
-          <div className={`flex-1 rounded-2xl p-6 ${glassStatic}`}>
+          {/* Top tile — total posts */}
+          <div className={`rounded-2xl p-6 ${glassStatic}`}>
             {loading || stats == null ? (
               <div className="space-y-3"><Skeleton className="h-4 w-20" /><SkeletonTile isDark={isDark} /><Skeleton className="h-3 w-32" /></div>
             ) : (
               <>
                 <div className="flex items-center justify-between mb-3">
-                  <Zap className="w-5 h-5 text-amber-500" />
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${isDark ? 'bg-amber-500/10' : 'bg-amber-50'}`}>
+                    <Zap className="w-4 h-4 text-amber-500" />
+                  </div>
                   {stats.content.totalMonths > 0 && (
                     <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">
-                      {stats.content.totalMonths} months
+                      {stats.content.totalMonths} {stats.content.totalMonths === 1 ? 'month' : 'months'}
                     </span>
                   )}
                 </div>
@@ -168,6 +182,50 @@ export default function Dashboard() {
               </>
             )}
           </div>
+
+          {/* Bottom tile — latest activity peek (fills the dead space + gives an
+              entry point straight to the most recent month from row 1) */}
+          <Link
+            to={(() => {
+              const list: any[] = (stats?.activity.recentMonths as any[]) || [];
+              const m = list.find((x) => !SMOKE_RE.test(x.month || ''));
+              const briefId = m?.briefId || m?.brief_id || m?.id;
+              return m ? `/calendar?month=${encodeURIComponent(m.month)}${briefId ? `&brief=${encodeURIComponent(briefId)}` : ''}` : '/calendar';
+            })()}
+            className={`rounded-2xl p-6 group transition-all duration-200 cursor-pointer ${glass}`}
+          >
+            {loading || stats == null ? (
+              <div className="space-y-3"><Skeleton className="h-4 w-24" /><Skeleton className="h-6 w-32" /><Skeleton className="h-3 w-40" /></div>
+            ) : (() => {
+              const recent = stats.activity.recentMonths?.find((m: any) => !SMOKE_RE.test(m.month || ''));
+              if (!recent) {
+                return (
+                  <div className="h-full flex flex-col justify-center">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 ${isDark ? 'bg-white/[0.04]' : 'bg-slate-100'}`}>
+                      <Sparkles className={`w-4 h-4 ${textMuted}`} />
+                    </div>
+                    <p className={`text-sm font-medium ${textPrimary}`}>No activity yet</p>
+                    <p className={`text-xs mt-1 ${textMuted}`}>Generate your first month to see it here</p>
+                  </div>
+                );
+              }
+              return (
+                <>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${isDark ? 'bg-blue-500/10' : 'bg-blue-50'}`}>
+                      <Activity className="w-4 h-4 text-blue-400" />
+                    </div>
+                    <span className={`text-[10px] uppercase tracking-wider font-semibold ${textMuted}`}>Latest</span>
+                  </div>
+                  <p className={`text-base font-semibold transition-colors ${isDark ? 'text-zinc-100 group-hover:text-white' : 'text-slate-800 group-hover:text-slate-900'}`}>{recent.month}</p>
+                  <div className="flex items-center justify-between mt-1">
+                    <p className={`text-xs ${textMuted}`}>{recent.postCount} posts · {getRelativeTime(recent.createdAt)}</p>
+                    <ArrowRight className={`w-3.5 h-3.5 transition-all duration-200 group-hover:translate-x-0.5 ${isDark ? 'text-zinc-700 group-hover:text-zinc-400' : 'text-slate-300 group-hover:text-slate-500'}`} />
+                  </div>
+                </>
+              );
+            })()}
+          </Link>
         </motion.div>
       </div>
 
@@ -272,26 +330,42 @@ export default function Dashboard() {
                 LinkedIn: 'bg-gradient-to-r from-blue-500 to-blue-400', X: 'bg-gradient-to-r from-sky-500 to-sky-400',
                 Facebook: 'bg-gradient-to-r from-indigo-500 to-indigo-400',
               };
+              // Solid dot colors paired with each gradient bar — gives the legend
+              // affordance (which color = which platform) without needing a separate
+              // legend block.
+              const dots: Record<string, string> = {
+                Instagram: 'bg-pink-500', TikTok: 'bg-zinc-300',
+                LinkedIn: 'bg-blue-500', X: 'bg-sky-500', Facebook: 'bg-indigo-500',
+              };
               const entries = Object.entries(platforms).sort(([,a], [,b]) => b - a);
               if (entries.length === 0) return <p className={`text-xs text-center py-6 ${textMuted}`}>No posts yet</p>;
               return (
                 <div className="space-y-4">
-                  {entries.map(([platform, count]) => (
-                    <div key={platform}>
-                      <div className="flex items-center justify-between text-xs mb-1.5">
-                        <span className={textSecondary}>{platform}</span>
-                        <span className={`font-medium tabular-nums ${textPrimary}`}>{count}</span>
+                  {entries.map(([platform, count]) => {
+                    const pct = Math.round((count / total) * 100);
+                    return (
+                      <div key={platform}>
+                        <div className="flex items-center justify-between text-xs mb-1.5">
+                          <span className={`flex items-center gap-2 ${textSecondary}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${dots[platform] || 'bg-amber-500'}`} aria-hidden="true" />
+                            {platform}
+                          </span>
+                          <span className={`flex items-baseline gap-2 tabular-nums`}>
+                            <span className={`text-[10px] ${textMuted}`}>{pct}%</span>
+                            <span className={`font-semibold ${textPrimary}`}>{count}</span>
+                          </span>
+                        </div>
+                        <div className={`h-2 w-full rounded-full overflow-hidden ${isDark ? 'bg-white/[0.04]' : 'bg-slate-100'}`}>
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${Math.max((count / total) * 100, 8)}%` }}
+                            transition={{ duration: 1, delay: 0.5, ease: 'easeOut' }}
+                            className={`h-full rounded-full ${colors[platform] || 'bg-amber-500'}`}
+                          />
+                        </div>
                       </div>
-                      <div className={`h-2 w-full rounded-full overflow-hidden ${isDark ? 'bg-white/[0.04]' : 'bg-slate-100'}`}>
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${Math.max((count / total) * 100, 8)}%` }}
-                          transition={{ duration: 1, delay: 0.5, ease: 'easeOut' }}
-                          className={`h-full rounded-full ${colors[platform] || 'bg-amber-500'}`}
-                        />
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               );
             })()}
@@ -355,21 +429,21 @@ export default function Dashboard() {
         {/* Quick Actions */}
         <motion.div {...fadeUp(0.4)} className="col-span-12 lg:col-span-3 flex flex-col gap-3">
           {[
-            { label: 'Review Content', href: '/content-review', icon: Layers, desc: 'Approve pieces', color: 'text-purple-400', bg: isDark ? 'bg-purple-500/10' : 'bg-purple-50' },
-            { label: 'Calendar', href: '/calendar', icon: Calendar, desc: 'View schedule', color: 'text-blue-400', bg: isDark ? 'bg-blue-500/10' : 'bg-blue-50' },
-            { label: 'Creative Tools', href: '/creative', icon: Wand2, desc: 'Generate visuals', color: 'text-amber-400', bg: isDark ? 'bg-amber-500/10' : 'bg-amber-50' },
+            { label: 'Review Content', href: '/content-review', icon: Layers, desc: 'Approve pieces', color: 'text-purple-400', bg: isDark ? 'bg-purple-500/10' : 'bg-purple-50', ring: 'group-hover:ring-purple-500/30' },
+            { label: 'Calendar', href: '/calendar', icon: Calendar, desc: 'View schedule', color: 'text-blue-400', bg: isDark ? 'bg-blue-500/10' : 'bg-blue-50', ring: 'group-hover:ring-blue-500/30' },
+            { label: 'Creative Tools', href: '/creative', icon: Wand2, desc: 'Generate visuals', color: 'text-amber-400', bg: isDark ? 'bg-amber-500/10' : 'bg-amber-50', ring: 'group-hover:ring-amber-500/30' },
           ].map((action) => (
             <Link
               key={action.label}
               to={action.href}
               className={`flex items-center gap-3 rounded-2xl p-4 group transition-all duration-200 cursor-pointer flex-1 ${glass}`}
             >
-              <div className={`w-10 h-10 rounded-xl ${action.bg} flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-105`}>
-                <action.icon className={`w-4.5 h-4.5 ${action.color}`} />
+              <div className={`w-11 h-11 rounded-xl ${action.bg} flex items-center justify-center shrink-0 ring-1 ring-transparent ${action.ring} transition-all duration-200`}>
+                <action.icon className={`w-5 h-5 ${action.color}`} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className={`text-sm font-medium transition-colors ${isDark ? 'text-zinc-200 group-hover:text-white' : 'text-slate-700 group-hover:text-slate-900'}`}>{action.label}</p>
-                <p className={`text-[10px] ${textMuted}`}>{action.desc}</p>
+                <p className={`text-sm font-semibold transition-colors ${isDark ? 'text-zinc-200 group-hover:text-white' : 'text-slate-700 group-hover:text-slate-900'}`}>{action.label}</p>
+                <p className={`text-[11px] ${textMuted}`}>{action.desc}</p>
               </div>
               <ArrowRight className={`w-3.5 h-3.5 transition-all duration-200 group-hover:translate-x-0.5 ${isDark ? 'text-zinc-700 group-hover:text-zinc-400' : 'text-slate-300 group-hover:text-slate-500'}`} />
             </Link>

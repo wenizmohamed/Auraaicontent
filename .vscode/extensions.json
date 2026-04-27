@@ -24,7 +24,8 @@
     "kisstkondoros.vscode-gutter-preview",
     "pflannery.vscode-versionlens",
     "hediet.debug-visualizer",
-    "humao.rest-client"
+    "humao.rest-client",
+    "hyrious.import-cost"
   ],
   "unwantedRecommendations": [
     "github.copilot",
