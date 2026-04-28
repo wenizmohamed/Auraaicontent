@@ -1,5 +1,92 @@
 const { app, BrowserWindow, shell, Menu, Tray, nativeImage, ipcMain } = require('electron');
 const path = require('path');
+const { fork } = require('child_process');
+const fs = require('fs');
+const net = require('net');
+const crypto = require('crypto');
+
+let serverChild = null;
+let serverPort = null;
+let serverReadyPromise = null;
+
+function pickFreePort() {
+  return new Promise((resolve, reject) => {
+    const srv = net.createServer();
+    srv.unref();
+    srv.on('error', reject);
+    srv.listen(0, '127.0.0.1', () => {
+      const { port } = srv.address();
+      srv.close(() => resolve(port));
+    });
+  });
+}
+
+function getOrCreateJwtSecret() {
+  // Persist a random JWT secret per-install in userData so tokens survive restarts.
+  const file = path.join(app.getPath('userData'), 'jwt.secret');
+  try {
+    return fs.readFileSync(file, 'utf8').trim();
+  } catch {
+    const secret = crypto.randomBytes(48).toString('hex');
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, secret, { mode: 0o600 });
+    return secret;
+  }
+}
+
+async function forkServer() {
+  if (serverReadyPromise) return serverReadyPromise;
+
+  // In dev: server is at ../../../server/dist/index.js (workspace root)
+  // In packaged: extraResources places it at process.resourcesPath/server/dist/index.js
+  const serverEntry = app.isPackaged
+    ? path.join(process.resourcesPath, 'server', 'dist', 'index.js')
+    : path.join(__dirname, '..', '..', '..', 'server', 'dist', 'index.js');
+
+  if (!fs.existsSync(serverEntry)) {
+    throw new Error(`[radix] backend bundle not found at ${serverEntry} — did you run pnpm build:desktop in /server?`);
+  }
+
+  const port = await pickFreePort();
+  const dbPath = path.join(app.getPath('userData'), 'radix.db');
+
+  serverChild = fork(serverEntry, [], {
+    env: {
+      ...process.env,
+      NODE_ENV: 'production',
+      DB_TARGET: 'sqlite',
+      DATABASE_URL: `file:${dbPath}`,
+      PORT: String(port),
+      HOST: '127.0.0.1',
+      JWT_SECRET: getOrCreateJwtSecret(),
+      // Disable BullMQ/Redis dependence — desktop has no Redis. Server falls back to in-memory.
+      DISABLE_BULLMQ: '1',
+    },
+    silent: false,
+    stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
+  });
+
+  serverChild.on('exit', (code, signal) => {
+    console.error(`[radix] backend exited (code=${code} signal=${signal})`);
+    serverChild = null;
+    serverPort = null;
+    serverReadyPromise = null;
+  });
+
+  serverReadyPromise = new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('[radix] backend ready handshake timed out (10s)')), 10_000);
+    serverChild.on('message', (msg) => {
+      if (msg && msg.type === 'radix:ready') {
+        clearTimeout(timeout);
+        serverPort = msg.port;
+        console.log(`[radix] backend ready on port ${serverPort}`);
+        resolve(serverPort);
+      }
+    });
+  });
+
+  return serverReadyPromise;
+}
 
 let mainWindow = null;
 let tray = null;
@@ -92,8 +179,20 @@ ipcMain.on('window-maximize', () => {
 });
 ipcMain.on('window-close', () => mainWindow?.close());
 
+ipcMain.handle('radix:get-server-port', async () => {
+  if (serverPort) return serverPort;
+  if (serverReadyPromise) return await serverReadyPromise;
+  return null; // fallback — renderer cascades to VPS
+});
+
 // App lifecycle
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  try {
+    await forkServer();
+  } catch (err) {
+    console.error('[radix] failed to start backend:', err);
+    // Fall through — frontend will degrade to VPS via existing cascade in backend-api.ts
+  }
   createWindow();
   createTray();
 
@@ -109,6 +208,11 @@ app.on('window-all-closed', () => {
   }
 });
 
-app.on('before-quit', () => {
+app.on('before-quit', async () => {
   app.isQuitting = true;
+  if (serverChild) {
+    serverChild.kill('SIGTERM');
+    // Force-kill after 5s if still alive
+    setTimeout(() => { if (serverChild) serverChild.kill('SIGKILL'); }, 5000);
+  }
 });
