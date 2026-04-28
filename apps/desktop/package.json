@@ -11,9 +11,11 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
-    "test": "echo \"no test framework configured — typecheck is the gate\" && tsc --noEmit",
+    "test": "echo \"no test framework configured \u2014 typecheck is the gate\" && tsc --noEmit",
     "electron:dev": "concurrently -k \"vite --port=3000\" \"wait-on http://localhost:3000 && electron .\"",
     "electron:build": "vite build && electron-builder --win --x64",
+    "electron:build:mac": "vite build && electron-builder --mac --x64 --arm64",
+    "electron:build:all": "vite build && electron-builder --win --x64 --mac --x64 --arm64",
     "electron:pack": "vite build && electron-builder --dir"
   },
   "build": {
@@ -58,6 +60,36 @@
         ]
       }
     },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "public/radix-icon.png",
+      "category": "public.app-category.business",
+      "identity": null,
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Office",
+      "icon": "public/radix-icon.png"
+    },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
@@ -71,8 +103,8 @@
     },
     "publish": {
       "provider": "github",
-      "owner": "RadixMedia",
-      "repo": "radix-content-planner-desktop",
+      "owner": "wenizmohamed",
+      "repo": "radixcontent",
       "releaseType": "release"
     }
   },
@@ -97,6 +129,7 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@electron/packager": "^20.0.0",
     "@types/node": "^22.14.0",
     "autoprefixer": "^10.4.21",
     "concurrently": "^9.2.1",

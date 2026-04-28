@@ -1,0 +1,141 @@
+name: Desktop Release (Win + Mac + Linux)
+
+# Trigger: pushing a tag like v1.0.0, v1.0.1 etc.
+# Output: cross-platform installers attached to a GitHub Release.
+# Auto-update: electron-updater on Win/Mac reads this Release's latest.yml/latest-mac.yml
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:  # manual trigger from the Actions tab
+
+permissions:
+  contents: write  # needed to upload artifacts to a Release
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: --win --x64
+            artifact_glob: |
+              apps/desktop/release/*.exe
+              apps/desktop/release/latest.yml
+          - os: macos-latest
+            target: --mac --x64 --arm64
+            artifact_glob: |
+              apps/desktop/release/*.dmg
+              apps/desktop/release/*.zip
+              apps/desktop/release/latest-mac.yml
+          - os: ubuntu-latest
+            target: --linux
+            artifact_glob: |
+              apps/desktop/release/*.AppImage
+              apps/desktop/release/latest-linux.yml
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      # Workspace install — root + apps/desktop + server
+      - name: pnpm install (root)
+        run: pnpm install --no-frozen-lockfile
+
+      - name: pnpm install (server)
+        run: cd server && pnpm install --no-frozen-lockfile
+
+      - name: pnpm install (apps/desktop)
+        run: cd apps/desktop && pnpm install --no-frozen-lockfile
+
+      # Server bundle — TS compile + SQLite Prisma client generate
+      - name: Server build (TypeScript + SQLite Prisma client)
+        run: cd server && pnpm build:desktop
+
+      # Bake AI provider keys into electron/keys-baked.env
+      # Secrets must be set in repo Settings → Secrets and variables → Actions
+      - name: Bake AI provider keys (from GitHub secrets)
+        shell: bash
+        run: |
+          cat > apps/desktop/electron/keys-baked.env <<EOF
+          GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+          GEMINI_IMAGE_MODEL=${{ secrets.GEMINI_IMAGE_MODEL || 'gemini-3.1-flash-image-preview' }}
+          GEMINI_IMAGE_ULTRA_MODEL=${{ secrets.GEMINI_IMAGE_ULTRA_MODEL || 'gemini-3-pro-image-preview' }}
+          GEMINI_IMAGE_EDIT_MODEL=${{ secrets.GEMINI_IMAGE_EDIT_MODEL || 'gemini-3.1-flash-image-preview' }}
+          GEMINI_TIMEOUT_MS=${{ secrets.GEMINI_TIMEOUT_MS || '60000' }}
+          XAI_API_KEY=${{ secrets.XAI_API_KEY }}
+          XAI_TIMEOUT_MS=${{ secrets.XAI_TIMEOUT_MS || '180000' }}
+          MOONSHOT_API_KEY=${{ secrets.MOONSHOT_API_KEY }}
+          AI_TEXT_PRIMARY=${{ secrets.AI_TEXT_PRIMARY || 'gemini' }}
+          AI_IMAGE_PRIMARY=${{ secrets.AI_IMAGE_PRIMARY || 'gemini' }}
+          AI_VIDEO_PRIMARY=${{ secrets.AI_VIDEO_PRIMARY || 'gemini' }}
+          AI_ANALYSIS_PRIMARY=${{ secrets.AI_ANALYSIS_PRIMARY || 'gemini' }}
+          AI_ENABLE_FALLBACK=${{ secrets.AI_ENABLE_FALLBACK || 'true' }}
+          EOF
+
+      # Windows code signing — optional, ships unsigned if PFX_BASE64 secret missing
+      - name: Decode Windows signing cert (optional)
+        if: matrix.os == 'windows-latest' && env.WIN_PFX_BASE64 != ''
+        shell: bash
+        run: |
+          mkdir -p apps/desktop/build
+          echo "${{ secrets.WIN_PFX_BASE64 }}" | base64 -d > apps/desktop/build/cert.pfx
+        env:
+          WIN_PFX_BASE64: ${{ secrets.WIN_PFX_BASE64 }}
+
+      # electron-builder
+      - name: electron-builder (${{ matrix.target }})
+        run: cd apps/desktop && pnpm exec electron-builder ${{ matrix.target }} --publish=never
+        env:
+          CSC_KEY_PASSWORD: ${{ secrets.WIN_PFX_PASSWORD }}
+          # Apple notarize (optional — set these to enable on macOS)
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      # Upload installers as workflow artifacts (for non-tag runs)
+      - name: Upload artifacts (workflow run)
+        if: github.event_name != 'push' || !startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-artifact@v4
+        with:
+          name: radix-desktop-${{ matrix.os }}
+          path: ${{ matrix.artifact_glob }}
+          if-no-files-found: error
+
+      # Attach to GitHub Release (for tag pushes)
+      - name: Create / update GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.artifact_glob }}
+          draft: false
+          prerelease: false
+          name: ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          body: |
+            ## RADIX AI Content Planner ${{ github.ref_name }}
+
+            Cross-platform desktop release with bundled SQLite + Fastify backend.
+
+            ### Downloads
+            - **Windows**: `RADIX AI Content Planner Setup ${{ github.ref_name }}.exe` (NSIS) or Portable
+            - **macOS**: `RADIX AI Content Planner-${{ github.ref_name }}.dmg` (Intel) / `-arm64.dmg` (Apple Silicon)
+            - **Linux**: `RADIX AI Content Planner-${{ github.ref_name }}.AppImage`
+
+            ### First-launch
+            - Auto-seeds `demo-admin@radix.local` / `demoAdmin2026!`
+            - SQLite db at `%APPDATA%\RADIX AI Content Planner\` (Win) or `~/Library/Application Support/RADIX AI Content Planner/` (Mac)
+            - AI providers (Gemini, xAI, Moonshot) keys baked at build time
+
+            Auto-update via `electron-updater` checks this Release 5s post-launch.

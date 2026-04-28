@@ -6,6 +6,33 @@ const net = require('net');
 const crypto = require('crypto');
 const { autoUpdater } = require('electron-updater');
 
+// Load AI provider keys baked into the build at compile time. The keys-baked.env
+// file is gitignored — only the developer who builds the installer knows the
+// values. End users never see plaintext, but a determined attacker COULD extract
+// them from the asar — rotate keys after wide distribution.
+function loadBakedKeys() {
+  const candidates = [
+    path.join(__dirname, 'keys-baked.env'),                   // dev mode
+    path.join(process.resourcesPath || '', 'app.asar', 'electron', 'keys-baked.env'), // packaged (asar)
+    path.join(process.resourcesPath || '', 'electron', 'keys-baked.env'), // packaged (unpacked)
+  ];
+  for (const file of candidates) {
+    try {
+      if (!fs.existsSync(file)) continue;
+      const env = {};
+      for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
+        const m = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/);
+        if (m) env[m[1]] = m[2].replace(/^["']|["']$/g, '');
+      }
+      console.log(`[radix] loaded ${Object.keys(env).length} baked AI provider keys`);
+      return env;
+    } catch {}
+  }
+  console.warn('[radix] keys-baked.env not found — AI features will fail');
+  return {};
+}
+const BAKED_AI_KEYS = loadBakedKeys();
+
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
 autoUpdater.on('update-available', (info) => {
@@ -105,6 +132,7 @@ async function forkServer() {
   serverChild = fork(serverEntry, [], {
     env: {
       ...process.env,
+      ...BAKED_AI_KEYS, // GEMINI/XAI/MOONSHOT keys + AI_*_PRIMARY routing — baked at build
       NODE_ENV: 'production',
       DB_TARGET: 'sqlite',
       DATABASE_URL: `file:${dbPath}`,

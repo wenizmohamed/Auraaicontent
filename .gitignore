@@ -66,3 +66,4 @@ release-shareable/
 
 # Empty-by-design folder Vite/electron-builder may scaffold (root, not desktop)
 /public/
+apps/desktop/electron/keys-baked.env
