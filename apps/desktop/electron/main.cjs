@@ -4,6 +4,20 @@ const { fork } = require('child_process');
 const fs = require('fs');
 const net = require('net');
 const crypto = require('crypto');
+const { autoUpdater } = require('electron-updater');
+
+autoUpdater.autoDownload = true;
+autoUpdater.autoInstallOnAppQuit = true;
+autoUpdater.on('update-available', (info) => {
+  console.log(`[radix-updater] update available: v${info.version}`);
+});
+autoUpdater.on('update-downloaded', (info) => {
+  console.log(`[radix-updater] update downloaded: v${info.version} — will install on quit`);
+  // Optional: prompt user via dialog
+});
+autoUpdater.on('error', (err) => {
+  console.error('[radix-updater] error:', err.message);
+});
 
 let serverChild = null;
 let serverPort = null;
@@ -195,6 +209,11 @@ app.whenReady().then(async () => {
   }
   createWindow();
   createTray();
+
+  if (app.isPackaged) {
+    // Wait 5s post-launch so the user sees the app, then check for updates
+    setTimeout(() => autoUpdater.checkForUpdatesAndNotify().catch(console.error), 5000);
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
