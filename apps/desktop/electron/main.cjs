@@ -49,11 +49,17 @@ function getOrCreateJwtSecret() {
 }
 
 // First-launch detector + migration applier. Runs ONCE per install, before
-// the server is forked. Uses better-sqlite3 (bundled as a runtime dep) to
-// exec the bundled 0_init/migration.sql against the userData/radix.db file.
-// Avoids Prisma's `migrate deploy` which would hit the Postgres migration_lock
-// (both schemas live in server/prisma/, so Prisma can't tell them apart).
-function applyFirstLaunchMigrationIfNeeded(dbPath) {
+// the server is forked. Uses sql.js (pure-JS WASM SQLite, no native binding,
+// no electron-rebuild) to exec the bundled 0_init/migration.sql, then writes
+// the resulting db buffer to userData/radix.db. Subsequent reads/writes go
+// through Prisma's own SQLite engine inside the forked server.
+//
+// Why not better-sqlite3? No prebuilt binary exists for Electron 41 + node-gyp
+// can't rebuild on this machine (no VS Build Tools, project path has spaces).
+// Why not Prisma's `migrate deploy`? It collides with the Postgres
+// migration_lock since both schemas live in server/prisma/ — Prisma can't tell
+// them apart at the migrations-folder resolution layer.
+async function applyFirstLaunchMigrationIfNeeded(dbPath) {
   if (fs.existsSync(dbPath)) return false; // already migrated, not first launch
   console.log('[radix] first launch detected — applying SQLite migration');
   const migrationSqlPath = app.isPackaged
@@ -65,11 +71,14 @@ function applyFirstLaunchMigrationIfNeeded(dbPath) {
   const sql = fs.readFileSync(migrationSqlPath, 'utf8');
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const Database = require('better-sqlite3');
-  const db = new Database(dbPath);
+  const initSqlJs = require('sql.js');
+  const SQL = await initSqlJs();
+  const db = new SQL.Database();
   try {
     db.exec(sql);
-    console.log(`[radix] migration applied → ${dbPath}`);
+    const buffer = db.export();
+    fs.writeFileSync(dbPath, Buffer.from(buffer));
+    console.log(`[radix] migration applied → ${dbPath} (${buffer.length} bytes)`);
   } finally {
     db.close();
   }
@@ -91,7 +100,7 @@ async function forkServer() {
 
   const port = await pickFreePort();
   const dbPath = path.join(app.getPath('userData'), 'radix.db');
-  const isFirstLaunch = applyFirstLaunchMigrationIfNeeded(dbPath);
+  const isFirstLaunch = await applyFirstLaunchMigrationIfNeeded(dbPath);
 
   serverChild = fork(serverEntry, [], {
     env: {

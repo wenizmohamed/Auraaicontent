@@ -80,7 +80,6 @@
     "@google/genai": "^1.47.0",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
-    "better-sqlite3": "^11.10.0",
     "clsx": "^2.1.1",
     "electron-updater": "^6.8.3",
     "framer-motion": "^12.38.0",
@@ -92,6 +91,7 @@
     "react-router-dom": "^7.13.1",
     "recharts": "^3.8.1",
     "socket.io-client": "^4.8.3",
+    "sql.js": "^1.14.1",
     "tailwind-merge": "^3.5.0",
     "vite": "^6.2.0",
     "zustand": "^5.0.12"
