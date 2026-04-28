@@ -28,17 +28,34 @@
       "public/**/*"
     ],
     "extraResources": [
-      { "from": "../../server/dist", "to": "server/dist" },
-      { "from": "../../server/node_modules/.prisma/client-sqlite", "to": "server/node_modules/.prisma/client-sqlite" },
-      { "from": "../../server/prisma/schema-sqlite.prisma", "to": "server/prisma/schema-sqlite.prisma" },
-      { "from": "../../server/prisma/migrations-sqlite", "to": "server/prisma/migrations-sqlite" }
+      {
+        "from": "../../server/dist",
+        "to": "server/dist"
+      },
+      {
+        "from": "../../server/node_modules/.prisma/client-sqlite",
+        "to": "server/node_modules/.prisma/client-sqlite"
+      },
+      {
+        "from": "../../server/prisma/schema-sqlite.prisma",
+        "to": "server/prisma/schema-sqlite.prisma"
+      },
+      {
+        "from": "../../server/prisma/migrations-sqlite",
+        "to": "server/prisma/migrations-sqlite"
+      }
     ],
     "win": {
-      "target": ["nsis", "portable"],
+      "target": [
+        "nsis",
+        "portable"
+      ],
       "icon": "public/radix-icon.png",
       "signtoolOptions": {
         "certificateFile": "build/cert.pfx",
-        "signingHashAlgorithms": ["sha256"]
+        "signingHashAlgorithms": [
+          "sha256"
+        ]
       }
     },
     "nsis": {
@@ -63,6 +80,7 @@
     "@google/genai": "^1.47.0",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
+    "better-sqlite3": "^11.10.0",
     "clsx": "^2.1.1",
     "electron-updater": "^6.8.3",
     "framer-motion": "^12.38.0",

@@ -48,6 +48,34 @@ function getOrCreateJwtSecret() {
   }
 }
 
+// First-launch detector + migration applier. Runs ONCE per install, before
+// the server is forked. Uses better-sqlite3 (bundled as a runtime dep) to
+// exec the bundled 0_init/migration.sql against the userData/radix.db file.
+// Avoids Prisma's `migrate deploy` which would hit the Postgres migration_lock
+// (both schemas live in server/prisma/, so Prisma can't tell them apart).
+function applyFirstLaunchMigrationIfNeeded(dbPath) {
+  if (fs.existsSync(dbPath)) return false; // already migrated, not first launch
+  console.log('[radix] first launch detected — applying SQLite migration');
+  const migrationSqlPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'server', 'prisma', 'migrations-sqlite', '0_init', 'migration.sql')
+    : path.join(__dirname, '..', '..', '..', 'server', 'prisma', 'migrations-sqlite', '0_init', 'migration.sql');
+  if (!fs.existsSync(migrationSqlPath)) {
+    throw new Error(`[radix] migration SQL missing at ${migrationSqlPath}`);
+  }
+  const sql = fs.readFileSync(migrationSqlPath, 'utf8');
+  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const Database = require('better-sqlite3');
+  const db = new Database(dbPath);
+  try {
+    db.exec(sql);
+    console.log(`[radix] migration applied → ${dbPath}`);
+  } finally {
+    db.close();
+  }
+  return true; // first launch, server should auto-seed demo-admin
+}
+
 async function forkServer() {
   if (serverReadyPromise) return serverReadyPromise;
 
@@ -63,6 +91,7 @@ async function forkServer() {
 
   const port = await pickFreePort();
   const dbPath = path.join(app.getPath('userData'), 'radix.db');
+  const isFirstLaunch = applyFirstLaunchMigrationIfNeeded(dbPath);
 
   serverChild = fork(serverEntry, [], {
     env: {
@@ -75,6 +104,9 @@ async function forkServer() {
       JWT_SECRET: getOrCreateJwtSecret(),
       // Disable BullMQ/Redis dependence — desktop has no Redis. Server falls back to in-memory.
       DISABLE_BULLMQ: '1',
+      // First launch: server upserts a demo-admin user so the installer is
+      // shareable to anyone with no manual seed step. Subsequent launches: '0'.
+      RADIX_AUTOSEED: isFirstLaunch ? '1' : '0',
     },
     silent: false,
     stdio: ['inherit', 'inherit', 'inherit', 'ipc'],

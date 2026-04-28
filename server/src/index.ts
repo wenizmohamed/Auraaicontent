@@ -1,9 +1,11 @@
 import 'dotenv/config';
+import bcrypt from 'bcryptjs';
 import { env } from './config/env.js';
 import { buildApp } from './app.js';
 import { reconcileStaleJobs, shutdownQueue } from './workers/queue.js';
 import { attachJobSockets } from './sockets/jobs.js';
 import { errMsg } from './lib/err.js';
+import { db } from './db/prisma.js';
 
 const app = await buildApp();
 
@@ -31,7 +33,25 @@ process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
 await app.listen({ port: env.PORT, host: '0.0.0.0' });
-console.log(`Radix server running on http://localhost:${env.PORT} (queue: bullmq+redis)`);
+const queueMode = process.env.DISABLE_BULLMQ === '1' ? 'in-memory (desktop)' : 'bullmq+redis';
+console.log(`Radix server running on http://localhost:${env.PORT} (queue: ${queueMode})`);
+
+// First-launch seed for desktop mode — Electron's main.cjs sets RADIX_AUTOSEED=1
+// only when the SQLite db file didn't exist at boot, so this runs ONCE per install.
+// Creates the demo-admin user so the shareable installer works out of the box.
+if (process.env.RADIX_AUTOSEED === '1' && process.env.DB_TARGET === 'sqlite') {
+  try {
+    const passwordHash = await bcrypt.hash('demoAdmin2026!', 12);
+    await db.user.upsert({
+      where: { email: 'demo-admin@radix.local' },
+      update: {},
+      create: { email: 'demo-admin@radix.local', name: 'Demo Admin', passwordHash, role: 'admin' },
+    });
+    console.log('[radix] auto-seeded demo-admin (first launch)');
+  } catch (err: unknown) {
+    console.warn('[radix] auto-seed failed:', errMsg(err));
+  }
+}
 
 // IPC handshake to Electron parent (only when forked with stdio: ['inherit','inherit','inherit','ipc']).
 // Tells the parent the server is bound and ready to accept connections.
