@@ -5,7 +5,8 @@ declare global {
     electron?: {
       platform?: string;
       isDesktop?: boolean;
-      apiBaseUrl?: string;
+      apiBaseUrl?: string | null;
+      getServerPort?: () => Promise<number | null>;
       minimize?: () => void;
       maximize?: () => void;
       close?: () => void;
