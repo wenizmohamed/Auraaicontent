@@ -42,3 +42,27 @@ server/pnpm-lock.yaml
 
 # Claude Code local config (per-machine)
 .claude/settings.local.json
+
+# Playwright / test screenshot debris (never commit — pollutes repo root)
+.playwright-mcp/
+calendar-*.png
+dashboard-*.png
+getting-started-*.png
+profile-*.png
+walkthrough-*.png
+
+# Skill/scrape leftovers (never commit)
+upstream-*.md
+upstream-*.txt
+upstream-*.json
+.remember/
+
+# Self-signed code-signing cert (never commit — exported per-developer)
+apps/desktop/build/cert.pfx
+apps/desktop/build/cert.cer
+
+# Curated shareable releases (built artifacts, distribute out-of-band)
+release-shareable/
+
+# Empty-by-design folder Vite/electron-builder may scaffold (root, not desktop)
+/public/
