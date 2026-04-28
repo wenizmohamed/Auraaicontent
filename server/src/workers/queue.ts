@@ -32,6 +32,7 @@ export const jobEvents = new EventEmitter();
 let lastCompletedAt: Date | null = null;
 
 export async function getQueueStats(): Promise<{ waiting: number; active: number; lastCompletedAt: Date | null }> {
+  if (!queue) return { waiting: 0, active: 0, lastCompletedAt };
   try {
     const counts = await queue.getJobCounts('waiting', 'active');
     return {
@@ -50,15 +51,22 @@ const QUEUE_NAME = 'radix-jobs';
 const CONCURRENCY = parseInt(process.env.QUEUE_CONCURRENCY || '4', 10);
 const REDIS_URL = process.env.REDIS_URL || 'redis://127.0.0.1:6379';
 
+// Desktop mode (Electron-forked server with no Redis available) skips BullMQ
+// entirely and runs handlers in-process via setImmediate. Single-user desktop
+// has no need for queue persistence — process exit = state lost is acceptable.
+const BULLMQ_DISABLED = process.env.DISABLE_BULLMQ === '1';
+
 // BullMQ requires maxRetriesPerRequest=null so blocking commands work.
-const connection = new IORedis(REDIS_URL, {
+const connection = BULLMQ_DISABLED ? null : new IORedis(REDIS_URL, {
   maxRetriesPerRequest: null,
   enableReadyCheck: true,
 });
 
-connection.on('error', (err) => {
-  console.error('[queue] redis connection error:', err.message);
-});
+if (connection) {
+  connection.on('error', (err) => {
+    console.error('[queue] redis connection error:', err.message);
+  });
+}
 
 export interface Job {
   id: string;
@@ -79,52 +87,59 @@ type WorkerFn = (job: Job) => Promise<any>;
 const handlers = new Map<string, WorkerFn>();
 const localCache = new Map<string, Job>();
 
-const queue = new Queue(QUEUE_NAME, { connection });
+// In desktop mode (BULLMQ_DISABLED) we don't construct a real queue/worker —
+// processJob runs handlers in-process via setImmediate. Type the locals as
+// nullable; downstream code-paths skip them when null.
+const queue: Queue | null = (BULLMQ_DISABLED || !connection)
+  ? null
+  : new Queue(QUEUE_NAME, { connection });
 
 // Worker picks up each queued job, looks up the handler, runs it, and
 // reflects state back into localCache + BullMQ job state.
-const bullWorker = new Worker(
-  QUEUE_NAME,
-  async (bullJob) => {
-    const id = bullJob.id!;
-    const fn = handlers.get(id);
-    const cached = localCache.get(id);
-    if (!fn || !cached) {
-      // Server restarted or job registered from a different process.
-      throw new Error(`No handler registered for job ${id} (type: ${bullJob.name})`);
-    }
+const bullWorker: Worker | null = (BULLMQ_DISABLED || !connection)
+  ? null
+  : new Worker(
+      QUEUE_NAME,
+      async (bullJob) => {
+        const id = bullJob.id!;
+        const fn = handlers.get(id);
+        const cached = localCache.get(id);
+        if (!fn || !cached) {
+          // Server restarted or job registered from a different process.
+          throw new Error(`No handler registered for job ${id} (type: ${bullJob.name})`);
+        }
 
-    cached.status = 'processing';
-    cached.updatedAt = new Date().toISOString();
-    localCache.set(id, cached);
+        cached.status = 'processing';
+        cached.updatedAt = new Date().toISOString();
+        localCache.set(id, cached);
 
-    try {
-      const result = await fn(cached);
-      cached.status = 'completed';
-      cached.progress = 100;
-      cached.result = result;
-      cached.updatedAt = new Date().toISOString();
-      lastCompletedAt = new Date();
-      localCache.set(id, cached);
-      try { jobEvents.emit('job:update', cached); } catch {}
-      handlers.delete(id);
-      return result;
-    } catch (err: unknown) {
-      const msg = errMsg(err);
-      console.error(`[JOB FAILED] ${cached.type} (${id}): ${msg}`, errStack(err) || '');
-      cached.status = 'failed';
-      cached.error = msg;
-      cached.updatedAt = new Date().toISOString();
-      localCache.set(id, cached);
-      try { jobEvents.emit('job:update', cached); } catch {}
-      handlers.delete(id);
-      throw err;
-    }
-  },
-  { connection, concurrency: CONCURRENCY, lockDuration: JOB_TIMEOUT_MS },
-);
+        try {
+          const result = await fn(cached);
+          cached.status = 'completed';
+          cached.progress = 100;
+          cached.result = result;
+          cached.updatedAt = new Date().toISOString();
+          lastCompletedAt = new Date();
+          localCache.set(id, cached);
+          try { jobEvents.emit('job:update', cached); } catch {}
+          handlers.delete(id);
+          return result;
+        } catch (err: unknown) {
+          const msg = errMsg(err);
+          console.error(`[JOB FAILED] ${cached.type} (${id}): ${msg}`, errStack(err) || '');
+          cached.status = 'failed';
+          cached.error = msg;
+          cached.updatedAt = new Date().toISOString();
+          localCache.set(id, cached);
+          try { jobEvents.emit('job:update', cached); } catch {}
+          handlers.delete(id);
+          throw err;
+        }
+      },
+      { connection, concurrency: CONCURRENCY, lockDuration: JOB_TIMEOUT_MS },
+    );
 
-bullWorker.on('error', (err) => {
+bullWorker?.on('error', (err) => {
   console.error('[queue] worker error:', err.message);
 });
 
@@ -173,6 +188,33 @@ export function processJob(id: string, worker: WorkerFn): void {
   job.status = 'processing';
   job.updatedAt = new Date().toISOString();
 
+  // Desktop mode: no Redis/BullMQ — run handler in-process via setImmediate.
+  // Mirrors the Worker callback's status/result lifecycle so callers see the
+  // same Job state transitions as the BullMQ path.
+  if (!queue) {
+    setImmediate(async () => {
+      try {
+        const result = await worker(job);
+        job.status = 'completed';
+        job.progress = 100;
+        job.result = result;
+        job.updatedAt = new Date().toISOString();
+        lastCompletedAt = new Date();
+        try { jobEvents.emit('job:update', job); } catch {}
+        handlers.delete(id);
+      } catch (err: unknown) {
+        const msg = errMsg(err);
+        console.error(`[JOB FAILED] ${job.type} (${id}): ${msg}`, errStack(err) || '');
+        job.status = 'failed';
+        job.error = msg;
+        job.updatedAt = new Date().toISOString();
+        try { jobEvents.emit('job:update', job); } catch {}
+        handlers.delete(id);
+      }
+    });
+    return;
+  }
+
   queue
     .add(job.type, job.data, { jobId: id, removeOnComplete: 100, removeOnFail: 200 })
     .catch((err) => {
@@ -188,6 +230,7 @@ export function processJob(id: string, worker: WorkerFn): void {
 // a crash is reclaimed and marked failed.  Same-process local cache is empty
 // so the Worker would throw "no handler" — moveToFailed keeps Redis tidy.
 export async function reconcileStaleJobs(): Promise<{ reconciled: number }> {
+  if (!queue) return { reconciled: 0 };
   try {
     const active = await queue.getActive();
     let reconciled = 0;
@@ -210,6 +253,7 @@ export async function reconcileStaleJobs(): Promise<{ reconciled: number }> {
 
 // Graceful shutdown — close worker + queue so node exits cleanly.
 export async function shutdownQueue(): Promise<void> {
+  if (!bullWorker || !queue || !connection) return;
   try {
     await bullWorker.close();
     await queue.close();
