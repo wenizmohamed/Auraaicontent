@@ -32,3 +32,11 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 
 await app.listen({ port: env.PORT, host: '0.0.0.0' });
 console.log(`Radix server running on http://localhost:${env.PORT} (queue: bullmq+redis)`);
+
+// IPC handshake to Electron parent (only when forked with stdio: ['inherit','inherit','inherit','ipc']).
+// Tells the parent the server is bound and ready to accept connections.
+if (typeof process.send === 'function') {
+  const addr = app.server.address();
+  const boundPort = typeof addr === 'object' && addr ? addr.port : env.PORT;
+  process.send({ type: 'radix:ready', port: boundPort });
+}
