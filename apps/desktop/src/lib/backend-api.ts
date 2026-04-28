@@ -10,19 +10,76 @@
 //   5. prod web mode → '' (relative URL — nginx serves /api/* on the same host)
 const PRODUCTION_VPS_URL = 'https://srv1494206.hstgr.cloud';
 
+// Desktop (Electron) port resolution — lazy with dedup
+let DESKTOP_PORT_RESOLVED: number | null | undefined;
+let DESKTOP_PORT_PROMISE: Promise<number | null> | null = null;
+
+function resolveDesktopPort(): Promise<number | null> {
+  if (typeof window === 'undefined') {
+    return Promise.resolve(null);
+  }
+  const electron = window.electron as any;
+  if (!electron?.isDesktop) {
+    return Promise.resolve(null);
+  }
+  // Already resolved: return cached port
+  if (DESKTOP_PORT_RESOLVED !== undefined) {
+    return Promise.resolve(DESKTOP_PORT_RESOLVED);
+  }
+  // In-flight: dedup by returning existing promise
+  if (DESKTOP_PORT_PROMISE) {
+    return DESKTOP_PORT_PROMISE;
+  }
+  // First call: fetch and cache
+  DESKTOP_PORT_PROMISE = (async () => {
+    try {
+      const port = await electron.getServerPort?.();
+      DESKTOP_PORT_RESOLVED = typeof port === 'number' ? port : null;
+      return DESKTOP_PORT_RESOLVED;
+    } catch {
+      DESKTOP_PORT_RESOLVED = null;
+      return null;
+    }
+  })();
+  return DESKTOP_PORT_PROMISE;
+}
+
 function computeCandidates(): string[] {
   const explicit = import.meta.env.VITE_API_URL as string | undefined;
   if (explicit) return [explicit];
   const stored = typeof window !== 'undefined' ? localStorage.getItem('radix_api_url') : null;
-  const runtimeHint = typeof window !== 'undefined' && window.electron?.isDesktop
-    ? window.electron.apiBaseUrl || null
-    : null;
   const isDev = import.meta.env.DEV;
   const isElectron = typeof window !== 'undefined' && window.electron?.isDesktop;
 
   const list: string[] = [];
   if (stored) list.push(stored);
-  if (runtimeHint) list.push(runtimeHint);
+  // Desktop: don't use runtimeHint (apiBaseUrl is null). Instead, we'll add the
+  // resolved port via computeCandidatesAsync() below.
+  if (isElectron || isDev) list.push('http://127.0.0.1:8080');
+  if (isElectron) list.push(PRODUCTION_VPS_URL);
+  if (!list.length) list.push(''); // prod web: same-origin
+  return [...new Set(list)];
+}
+
+async function computeCandidatesAsync(): Promise<string[]> {
+  const explicit = import.meta.env.VITE_API_URL as string | undefined;
+  if (explicit) return [explicit];
+  const stored = typeof window !== 'undefined' ? localStorage.getItem('radix_api_url') : null;
+  const isDev = import.meta.env.DEV;
+  const isElectron = typeof window !== 'undefined' && window.electron?.isDesktop;
+
+  const list: string[] = [];
+  if (stored) list.push(stored);
+
+  // Desktop: resolve the dynamic port and insert it as the first candidate
+  // (after stored override, which persists from previous successful probes)
+  if (isElectron) {
+    const port = await resolveDesktopPort();
+    if (port !== null) {
+      list.push(`http://127.0.0.1:${port}`);
+    }
+  }
+
   if (isElectron || isDev) list.push('http://127.0.0.1:8080');
   if (isElectron) list.push(PRODUCTION_VPS_URL);
   if (!list.length) list.push(''); // prod web: same-origin
@@ -45,9 +102,12 @@ async function probeHealthy(url: string, timeoutMs = 2000): Promise<boolean> {
  * Cascade the candidate list: return the first URL whose /api/health responds
  * inside `timeoutMs`. Persist the winner to localStorage so subsequent launches
  * skip the probe. Called from isServerAvailable() at bootstrap.
+ *
+ * On desktop, awaits the dynamic port resolution before probing.
  */
 async function pickHealthyBackend(timeoutMs = 2000): Promise<string | null> {
-  for (const candidate of computeCandidates()) {
+  const candidates = await computeCandidatesAsync();
+  for (const candidate of candidates) {
     if (await probeHealthy(candidate, timeoutMs)) {
       API_URL = candidate;
       try { localStorage.setItem('radix_api_url', candidate); } catch {}
