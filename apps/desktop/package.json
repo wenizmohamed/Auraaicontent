@@ -27,19 +27,36 @@
       "electron/**/*",
       "public/**/*"
     ],
+    "extraResources": [
+      { "from": "../../server/dist", "to": "server/dist" },
+      { "from": "../../server/node_modules/.prisma/client-sqlite", "to": "server/node_modules/.prisma/client-sqlite" },
+      { "from": "../../server/prisma/schema-sqlite.prisma", "to": "server/prisma/schema-sqlite.prisma" },
+      { "from": "../../server/prisma/migrations-sqlite", "to": "server/prisma/migrations-sqlite" },
+      { "from": "../../server/node_modules/.prisma/client-sqlite/query_engine-windows.dll.node", "to": "server/node_modules/.prisma/client-sqlite/query_engine-windows.dll.node" }
+    ],
     "win": {
-      "target": [
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
+      "target": ["nsis", "portable"],
+      "certificateFile": "build/cert.pfx",
+      "certificatePassword": "${env.CSC_KEY_PASSWORD}",
+      "signingHashAlgorithms": ["sha256"],
       "icon": "public/radix-icon.png"
     },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "RADIX"
+    },
     "portable": {
-      "artifactName": "RADIX-Content-Planner-Portable-v2.exe"
+      "artifactName": "RADIX-Content-Planner-Portable-v${version}.exe"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "RadixMedia",
+      "repo": "radix-content-planner-desktop",
+      "releaseType": "release"
     }
   },
   "dependencies": {
@@ -47,6 +64,7 @@
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
     "clsx": "^2.1.1",
+    "electron-updater": "^6.8.3",
     "framer-motion": "^12.38.0",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
