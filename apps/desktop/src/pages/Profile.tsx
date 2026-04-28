@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Mail, Shield, Calendar, Sun, Moon, Lock,
-  LogOut, Check, AlertCircle, Loader2, Eye, EyeOff,
+  LogOut, Check, AlertCircle, Loader2, Eye, EyeOff, RotateCcw,
 } from 'lucide-react';
 import { authApi, type MeRecord } from '../lib/backend-api';
 import { useTheme } from '../lib/theme-context';
 import { useClients } from '../lib/client-context';
+import { dispatchReplay as dispatchWalkthroughReplay } from '../lib/walkthrough-config';
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -291,6 +292,27 @@ export default function Profile() {
                 ? <Moon className="w-3 h-3 text-amber-500" />
                 : <Sun className="w-3 h-3 text-amber-500" />}
             </span>
+          </button>
+        </div>
+
+        {/* Walkthrough replay row — separated by a subtle border */}
+        <div className="mt-5 pt-5 border-t border-white/[0.06] flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <h3 className="text-sm font-medium text-white">Replay walkthrough</h3>
+            <p className="text-xs text-zinc-400 mt-0.5">
+              Re-play the 7-step product tour anytime.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              dispatchWalkthroughReplay();
+              setToast({ kind: 'success', msg: 'Walkthrough started — open the Dashboard to see it.' });
+            }}
+            className="cursor-pointer inline-flex items-center gap-1.5 text-xs font-medium px-3.5 py-2 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-zinc-200 transition-colors"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            Replay tour
           </button>
         </div>
       </motion.section>

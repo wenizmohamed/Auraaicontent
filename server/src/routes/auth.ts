@@ -74,7 +74,7 @@ export async function authRoutes(app: FastifyInstance) {
       refreshToken: refresh.raw,
       refreshExpiresAt: refresh.expiresAt.toISOString(),
       rememberMe: Boolean(rememberMe),
-      user: { id: user.id, email: user.email, name: user.name, role: user.role },
+      user: { id: user.id, email: user.email, name: user.name, role: user.role, createdAt: user.createdAt.toISOString() },
     };
   });
 
@@ -123,7 +123,7 @@ export async function authRoutes(app: FastifyInstance) {
       token: newAccess,
       refreshToken: fresh.raw,
       refreshExpiresAt: fresh.expiresAt.toISOString(),
-      user: { id: user.id, email: user.email, name: user.name, role: user.role },
+      user: { id: user.id, email: user.email, name: user.name, role: user.role, createdAt: user.createdAt.toISOString() },
     };
   });
 
