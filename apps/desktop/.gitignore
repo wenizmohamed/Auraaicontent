@@ -1,0 +1,4 @@
+# Code signing
+build/cert.pfx
+build/cert.cer
+.env
