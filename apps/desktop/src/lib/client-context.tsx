@@ -78,9 +78,7 @@ export function ClientProvider({ children }: { children: ReactNode }) {
     if (existingToken) {
       setAuthToken(existingToken);
       try {
-        const me = await authApi.me();
-        // Stash createdAt for the walkthrough first-time auto-fire heuristic.
-        try { if (me?.createdAt) localStorage.setItem('radix_user_created_at', me.createdAt); } catch {}
+        await authApi.me();
         setAuthenticated(true);
         await fetchAndReconcile();
       } catch {
@@ -99,25 +97,23 @@ export function ClientProvider({ children }: { children: ReactNode }) {
   // ─── Auth actions ───────────────────────────────────────────────
 
   const login = useCallback(async (email: string, password: string, rememberMe = false) => {
-    const res = await authApi.login(email, password, rememberMe);
-    setAuthToken(res.token);
-    setRefreshToken(res.refreshToken ?? null);
+    const { token, refreshToken } = await authApi.login(email, password, rememberMe);
+    setAuthToken(token);
+    setRefreshToken(refreshToken ?? null);
     // Remember-me preference is surfaced to the UI for display. The access
     // token is short-lived (1h / 7d with rememberMe); backend-api silently
     // rotates via /api/auth/refresh using the 30-day refresh token.
     try { localStorage.setItem('radix_remember_me', rememberMe ? '1' : '0'); } catch {}
-    try { if (res.user?.createdAt) localStorage.setItem('radix_user_created_at', res.user.createdAt); } catch {}
     setAuthenticated(true);
     setAuthError(null);
     await fetchAndReconcile();
   }, [fetchAndReconcile]);
 
   const register = useCallback(async (email: string, password: string, name: string, rememberMe = false) => {
-    const res = await authApi.register(email, password, name, rememberMe);
-    setAuthToken(res.token);
-    setRefreshToken(res.refreshToken ?? null);
+    const { token, refreshToken } = await authApi.register(email, password, name, rememberMe);
+    setAuthToken(token);
+    setRefreshToken(refreshToken ?? null);
     try { localStorage.setItem('radix_remember_me', rememberMe ? '1' : '0'); } catch {}
-    try { if (res.user?.createdAt) localStorage.setItem('radix_user_created_at', res.user.createdAt); } catch {}
     setAuthenticated(true);
     setAuthError(null);
     await fetchAndReconcile();

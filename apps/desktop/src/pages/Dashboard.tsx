@@ -6,7 +6,6 @@ import { useClients } from '../lib/client-context';
 import { dashboardApi, authApi, type DashboardStats } from '../lib/backend-api';
 import { useTheme } from '../lib/theme-context';
 import { greeting } from '../lib/greeting';
-import WalkthroughTour from '../components/WalkthroughTour';
 
 // Valid month format: "Month YYYY" e.g. "April 2026"
 const VALID_MONTH_RE = /^[A-Z][a-z]+ \d{4}$/;
@@ -102,7 +101,6 @@ export default function Dashboard() {
 
   return (
     <div className="max-w-[1400px] mx-auto space-y-5">
-      <WalkthroughTour />
 
       {/* ─── ROW 1: Hero CTA + Welcome ─── */}
       <div className="grid grid-cols-12 gap-5">

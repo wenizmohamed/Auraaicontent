@@ -12,11 +12,12 @@ import { readJson } from './lib/safe-storage';
 const isElectron = !!window.electron?.isDesktop;
 const Router = isElectron ? HashRouter : BrowserRouter;
 import { StoreProvider, useStore } from './lib/store';
-import { LayoutDashboard, Calendar, ImagePlus, Image as ImageIcon, Video, Search, UserCircle, ChevronLeft, ChevronRight, FileText, Palette, Layers, Wand2, FolderOpen, Radio, Building2, AlertCircle } from 'lucide-react';
+import { LayoutDashboard, Calendar, ImagePlus, Image as ImageIcon, Video, Search, UserCircle, ChevronLeft, ChevronRight, FileText, Palette, Layers, Wand2, FolderOpen, Radio, Building2, AlertCircle, Compass } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import ContentCalendar from './pages/ContentCalendar';
 import Login from './pages/Login';
 import Onboarding from './pages/Onboarding';
+import GettingStarted from './pages/GettingStarted';
 import VideoAnalysis from './pages/VideoAnalysis';
 import Research from './pages/Research';
 import Profile from './pages/Profile';
@@ -51,6 +52,7 @@ function Layout({ children }: { children: React.ReactNode }) {
     { name: 'Review', href: '/content-review', icon: Layers },
     { name: 'Calendar', href: '/calendar', icon: Calendar },
     { name: 'Creative Tools', href: '/creative', icon: Wand2 },
+    { name: 'Getting Started', href: '/getting-started', icon: Compass },
   ];
 
   const isDark = theme === 'dark';
@@ -293,6 +295,7 @@ export default function App() {
               <Route path="/studio" element={<Studio />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/onboarding" element={<Onboarding />} />
+              <Route path="/getting-started" element={<GettingStarted />} />
               {/* Catch-all → bounce to Dashboard. Beats rendering blank for any
                   typo'd or stale URL (e.g. /dashboard, /home, /admin). */}
               <Route path="*" element={<Navigate to="/" replace />} />
