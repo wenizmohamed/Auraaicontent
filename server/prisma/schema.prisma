@@ -16,8 +16,27 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  comments     PostComment[]
-  auditLogs    AuditLog[]
+  comments       PostComment[]
+  auditLogs      AuditLog[]
+  agentSessions  AgentSession[]
+  refreshTokens  RefreshToken[]
+}
+
+model RefreshToken {
+  id          String    @id @default(cuid())
+  userId      String
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+  revokedAt   DateTime?
+  replacedBy  String?
+  userAgent   String?
+  ip          String?
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 model Client {
@@ -39,6 +58,59 @@ model Client {
   knowledgeItems  KnowledgeItem[]
   calendarMonths  CalendarMonth[]
   reviewLinks     ReviewLink[]
+  agentSessions   AgentSession[]
+  contentPieces   ContentPiece[]
+  apiKeys         ApiKey[]
+}
+
+// External-integration API keys. Plaintext key (sk-radix-{32}) is only ever
+// returned at creation time; only the bcrypt hash + 12-char prefix live in
+// Postgres. Scope is per-Client — agencies issue separate keys per workspace
+// instead of one master key. Revocation is soft (revokedAt) so audit trails
+// survive. lastUsedAt is updated async on every authenticated /v2 request.
+model ApiKey {
+  id          String    @id @default(cuid())
+  clientId    String
+  name        String
+  keyHash     String    @unique
+  keyPrefix   String
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+  revokedAt   DateTime?
+
+  client      Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([keyHash])
+}
+
+// Production-tracking unit — separate from CalendarPost (which is the marketing
+// calendar output).  A ContentPiece is a produced deliverable: a reel, image,
+// story, article that's assigned to a station + assignee with a deadline + review
+// status.  Pre-2026-04-24 this lived entirely in browser localStorage
+// (radix_content_pieces) — rating P1, now backend-persisted.
+model ContentPiece {
+  id             String   @id @default(cuid())
+  clientId       String
+  title          String
+  type           String   // Image | Video | Reel | Story | Carousel | Article
+  station        String   // Lebanon | Abu Dhabi | Investigations | Clips
+  topicId        String   @default("")
+  status         String   @default("Draft") // Draft | In Design | In Review | Approved | Published
+  assignee       String   @default("")
+  deadline       String   @default("") // ISO date string, empty if unset
+  visualRefUrl   String   @default("")
+  visualRefImage String   @default("")
+  notes          String   @default("")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([clientId, status])
+  @@index([clientId, station])
 }
 
 model ClientBrief {
@@ -81,6 +153,8 @@ model KnowledgeItem {
 
   client      Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
   chunks      KnowledgeChunk[]
+
+  @@index([clientId])
 }
 
 model KnowledgeChunk {
@@ -91,6 +165,8 @@ model KnowledgeChunk {
   metadata        Json?
 
   knowledgeItem   KnowledgeItem @relation(fields: [knowledgeItemId], references: [id], onDelete: Cascade)
+
+  @@index([knowledgeItemId])
 }
 
 model Asset {
@@ -110,19 +186,27 @@ model Asset {
 
   client         Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   linkedPosts    CalendarPostAsset[]
+
+  @@index([clientId])
 }
 
 model CalendarMonth {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   clientId    String
   month       String
-  status      String   @default("draft")
+  status      String    @default("draft")
   strategy    Json?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isTest      Boolean   @default(false)
+  isArchived  Boolean   @default(false)
+  archivedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   client      Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
   posts       CalendarPost[]
+
+  @@unique([clientId, month])
+  @@index([clientId, isArchived])
 }
 
 model CalendarPost {
@@ -144,6 +228,7 @@ model CalendarPost {
   timing          String?
   status          String   @default("draft")
   version         Int      @default(1)
+  metadata        Json?    // agent annotations: compliance findings, tool provenance, etc.
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -152,6 +237,9 @@ model CalendarPost {
   versions        PostVersion[]
   assets          CalendarPostAsset[]
   visualRefs      PostVisualReference[]
+
+  @@unique([calendarMonthId, date])
+  @@index([calendarMonthId])
 }
 
 model PostVisualReference {
@@ -205,6 +293,9 @@ model PostComment {
 
   post       CalendarPost @relation(fields: [postId], references: [id], onDelete: Cascade)
   author     User?        @relation(fields: [authorId], references: [id])
+
+  @@index([postId])
+  @@index([authorId])
 }
 
 model ReviewLink {
@@ -217,6 +308,8 @@ model ReviewLink {
   createdAt       DateTime  @default(now())
 
   client          Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
 }
 
 model ExportJob {
@@ -228,6 +321,8 @@ model ExportJob {
   fileUrl         String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  @@index([clientId])
 }
 
 model AuditLog {
@@ -241,4 +336,54 @@ model AuditLog {
   createdAt  DateTime @default(now())
 
   user       User?    @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([clientId])
+  @@index([createdAt])
+}
+
+// ─── Agent platform (Phase 1: real-time spine) ────────────────────────
+model AgentSession {
+  id        String   @id @default(cuid())
+  uid       String   @unique
+  userId    String?   // per-user ownership; nullable for legacy rows pre-migration
+  clientId  String?
+  title     String
+  status    String   @default("active")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  client    Client?        @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  messages  AgentMessage[]
+  events    AgentEvent[]
+
+  @@index([userId])
+  @@index([clientId])
+  @@index([updatedAt])
+}
+
+model AgentMessage {
+  id         String   @id @default(cuid())
+  sessionId  String
+  role       String
+  content    String
+  toolCallId String?
+  createdAt  DateTime @default(now())
+
+  session    AgentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+}
+
+model AgentEvent {
+  id        String   @id @default(cuid())
+  sessionId String
+  type      String
+  payload   Json
+  createdAt DateTime @default(now())
+
+  session   AgentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
 }

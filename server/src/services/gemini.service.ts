@@ -62,12 +62,43 @@ export async function generateJson<T>(
 // ─── embedText (stays Gemini-only — no xAI embeddings) ──────────
 
 export async function embedText(text: string): Promise<number[]> {
-  const client = getClient();
-  const response = await client.models.embedContent({
-    model: MODELS.embedding,
-    contents: text,
-  });
-  const embedding = response.embeddings?.[0]?.values;
-  if (!embedding?.length) throw new Error('Gemini returned empty embedding');
-  return embedding;
+  let client;
+  try {
+    client = getClient();
+  } catch {
+    throw new GeminiUnavailableError('Gemini API key not configured. Knowledge embedding requires Gemini.');
+  }
+  try {
+    const response = await client.models.embedContent({
+      model: MODELS.embedding,
+      contents: text,
+    });
+    const embedding = response.embeddings?.[0]?.values;
+    if (!embedding?.length) throw new Error('Gemini returned empty embedding');
+    return embedding;
+  } catch (err: unknown) {
+    if (err instanceof GeminiUnavailableError) throw err;
+    // Wrap raw Google SDK errors with a clean message
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/rate.?limit|429|too many requests|quota/i.test(msg)) {
+      throw new GeminiUnavailableError('Gemini rate-limited. Knowledge embedding temporarily unavailable.');
+    }
+    if (/403|permission|denied|billing/i.test(msg)) {
+      throw new GeminiUnavailableError('Gemini permission denied. Check API key and billing.');
+    }
+    throw new GeminiUnavailableError(`Gemini embedding failed: ${msg.slice(0, 150)}`);
+  }
+}
+
+/**
+ * Clean error for Gemini-only features (knowledge embedding/retrieval).
+ * Signals to the caller that this feature requires Gemini and it's currently unavailable.
+ */
+export class GeminiUnavailableError extends Error {
+  public statusCode = 503;
+  public geminiOnly = true;
+  constructor(message: string) {
+    super(message);
+    this.name = 'GeminiUnavailableError';
+  }
 }

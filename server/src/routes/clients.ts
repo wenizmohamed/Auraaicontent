@@ -1,6 +1,36 @@
 import { FastifyInstance } from 'fastify';
+import { z } from 'zod';
 import { clientService } from '../services/client.service.js';
 import { authGuard } from '../middleware/auth.js';
+import { parseOr400 } from '../lib/parseOr400.js';
+
+// Common client fields shared between create + update.
+// Service auto-derives slug + ignores timezone, so neither belongs in the body.
+// nullable() permits clients sending `null` to clear a field; .optional()
+// permits omitting it entirely. The service signature accepts `field?: string`
+// (not nullable), so we strip nulls at the boundary.
+const ClientBaseFields = {
+  name: z.string().min(1).max(200),
+  industry: z.string().max(200).nullable().optional(),
+  website: z.string().max(500).nullable().optional(),
+  instagramHandle: z.string().max(60).nullable().optional(),
+  primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional(),
+  logoUrl: z.string().max(2000).nullable().optional(),
+};
+const CreateClientBody = z.object(ClientBaseFields);
+const UpdateClientBody = z.object({
+  ...ClientBaseFields,
+  name: z.string().min(1).max(200).optional(),
+});
+
+// Bridge zod's nullable→undefined so it matches `field?: string` service shape.
+function stripNulls<T extends Record<string, unknown>>(obj: T): { [K in keyof T]: Exclude<T[K], null> } {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v !== null) out[k] = v;
+  }
+  return out as { [K in keyof T]: Exclude<T[K], null> };
+}
 
 export async function clientRoutes(app: FastifyInstance) {
 
@@ -14,14 +44,14 @@ export async function clientRoutes(app: FastifyInstance) {
 
   // POST /api/clients
   app.post('/', async (request, reply) => {
-    const { name, industry, website, instagramHandle, primaryColor, logoUrl } =
-      request.body as any;
-    if (!name) return reply.status(400).send({ error: 'Client name is required' });
+    const body = parseOr400(CreateClientBody, request.body, reply);
+    if (!body) return;
     try {
-      const client = await clientService.create({ name, industry, website, instagramHandle, primaryColor, logoUrl });
+      const client = await clientService.create(stripNulls(body));
       return reply.status(201).send(client);
-    } catch (err: any) {
-      if (err.statusCode === 409) return reply.status(409).send({ error: err.message });
+    } catch (err: unknown) {
+      const e = err as { statusCode?: number; message?: string } | null;
+      if (e?.statusCode === 409) return reply.status(409).send({ error: e?.message });
       throw err;
     }
   });
@@ -35,9 +65,11 @@ export async function clientRoutes(app: FastifyInstance) {
   });
 
   // PATCH /api/clients/:clientId
-  app.patch('/:clientId', async (request) => {
+  app.patch('/:clientId', async (request, reply) => {
     const { clientId } = request.params as { clientId: string };
-    return clientService.update(clientId, request.body as any);
+    const body = parseOr400(UpdateClientBody, request.body, reply);
+    if (!body) return;
+    return clientService.update(clientId, stripNulls(body));
   });
 
   // DELETE /api/clients/:clientId

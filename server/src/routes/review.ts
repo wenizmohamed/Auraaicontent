@@ -1,8 +1,20 @@
 import { FastifyInstance } from 'fastify';
+import { z } from 'zod';
 import { db } from '../db/prisma.js';
 import { authGuard } from '../middleware/auth.js';
 import { reviewService } from '../services/review.service.js';
 import { env } from '../config/env.js';
+import { parseOr400 } from '../lib/parseOr400.js';
+
+const CreateReviewLinkBody = z.object({
+  expiresInDays: z.number().int().min(1).max(90).default(30),
+});
+
+const AddCommentBody = z.object({
+  authorName: z.string().min(1).max(120),
+  comment: z.string().min(1).max(5000),
+  status: z.string().max(60).optional(),
+});
 
 export async function reviewRoutes(app: FastifyInstance) {
 
@@ -10,7 +22,9 @@ export async function reviewRoutes(app: FastifyInstance) {
   // POST /api/clients/:clientId/calendar/:month/review-links
   app.post('/clients/:clientId/calendar/:month/review-links', { preHandler: [authGuard] }, async (request, reply) => {
     const { clientId, month } = request.params as { clientId: string; month: string };
-    const { expiresInDays } = (request.body as any) || {};
+    const body = parseOr400(CreateReviewLinkBody, request.body ?? {}, reply);
+    if (!body) return;
+    const { expiresInDays } = body;
     const decodedMonth = decodeURIComponent(month);
 
     const calendarMonth = await db.calendarMonth.findFirst({ where: { clientId, month: decodedMonth } });
@@ -42,8 +56,9 @@ export async function reviewRoutes(app: FastifyInstance) {
     const link = await reviewService.getByToken(token);
     if (!link) return reply.status(404).send({ error: 'Review link not found or expired' });
 
-    const { authorName, comment, status } = request.body as { authorName: string; comment: string; status?: string };
-    if (!authorName || !comment) return reply.status(400).send({ error: 'authorName and comment are required' });
+    const body = parseOr400(AddCommentBody, request.body, reply);
+    if (!body) return;
+    const { authorName, comment, status } = body;
 
     const result = await reviewService.addComment(postId, authorName, comment, status);
     return reply.status(201).send(result);

@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { authGuard } from '../middleware/auth.js';
+import { errMsg } from '../lib/err.js';
 import { knowledgeService } from '../services/knowledge.service.js';
 import { storageService } from '../services/storage.service.js';
 import { embedKnowledgeItem } from '../workers/embeddings.worker.js';
@@ -49,8 +50,13 @@ export async function knowledgeRoutes(app: FastifyInstance) {
     try {
       const result = await embedKnowledgeItem(knowledgeItemId);
       return result;
-    } catch (err: any) {
-      return reply.status(422).send({ error: err.message });
+    } catch (err: unknown) {
+      const e = err as { statusCode?: number; geminiOnly?: boolean; message?: string } | null;
+      const status = e?.statusCode || (e?.geminiOnly ? 503 : 422);
+      return reply.status(status).send({
+        error: errMsg(err),
+        ...(e?.geminiOnly ? { geminiOnly: true } : {}),
+      });
     }
   });
 

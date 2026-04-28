@@ -6,6 +6,7 @@ export interface TextRequest {
   system?: string;
   temperature?: number;
   json?: boolean;
+  maxTokens?: number;
 }
 
 export interface ImageRequest {
@@ -16,6 +17,7 @@ export interface ImageRequest {
   mimeType?: string;
   referenceImages?: { base64: string; mimeType: string }[];
   grounded?: boolean;
+  quality?: 'standard' | 'ultra';  // ultra → imagen-4.0-ultra
 }
 
 export interface VideoRequest {
@@ -26,6 +28,7 @@ export interface VideoRequest {
   imageBase64?: string;
   mimeType?: string;
   referenceImageUrls?: string[];
+  fast?: boolean;  // fast → veo-3.1-fast for quicker gen
 }
 
 export interface AnalysisRequest {

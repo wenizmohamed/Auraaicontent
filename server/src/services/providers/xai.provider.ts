@@ -65,9 +65,18 @@ export const xaiProvider: AiProvider = {
   async text(req: TextRequest): Promise<ProviderResult<string | object>> {
     const model = process.env.XAI_TEXT_MODEL || 'grok-4-fast-reasoning';
     const start = Date.now();
+    // 8192 covers month-strategy JSON (~6KB typical) without tripping the
+    // model's default cap that was truncating responses mid-string and
+    // causing safeJsonParse to fail with "JSON parse failed" (incident
+    // 2026-04-23, jobs 0b5c8a3c + earlier generate-month failures).
+    // 16384 covers month-strategy JSON (~12KB typical).  Was 8192 and still
+    // hit truncation on the Al Fardan 18-post brief+pillars payload — the
+    // response would end mid-string and safeJsonParse couldn't recover.
+    const maxTokens = req.maxTokens ?? (req.json ? 16384 : 2048);
     const data = await xaiFetch('/chat/completions', {
       model,
       temperature: req.temperature ?? 0.7,
+      max_tokens: maxTokens,
       messages: [
         ...(req.system ? [{ role: 'system', content: req.system }] : []),
         { role: 'user', content: req.prompt },

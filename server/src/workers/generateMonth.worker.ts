@@ -1,9 +1,11 @@
 import { db } from '../db/prisma.js';
 import { aiRouter } from '../services/providers/ai-router.js';
 import { briefService } from '../services/brief.service.js';
-import { buildPlanningPrompt } from '../services/prompt.service.js';
+import { buildPlanningPrompt, parseBriefChannels } from '../services/prompt.service.js';
 import { visualSearchService } from '../services/visual-search.service.js';
+import { retrieveContext } from '../services/retrieval.service.js';
 import { type Job, updateJob } from './queue.js';
+import { errMsg } from '../lib/err.js';
 
 export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: string; provider: string; model: string; latencyMs: number; fallbackUsed: boolean }> {
   const { clientId, month, pieceCount } = job.data;
@@ -21,6 +23,20 @@ export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: 
   const { score } = briefService.completeness(client.brief);
   if (score < 50) throw new Error(`Brief completeness too low (${score}%). Need at least 50%.`);
 
+  // 2b. Retrieve brand knowledge context (best-effort — generation continues without it)
+  let knowledgeContext: { text: string; score: number }[] = [];
+  if (client.brief.objective) {
+    try {
+      const chunks = await retrieveContext(clientId, client.brief.objective, 5);
+      knowledgeContext = chunks.map(c => ({ text: c.text, score: c.score }));
+      if (knowledgeContext.length > 0) {
+        console.log(`[generateMonth] Retrieved ${knowledgeContext.length} knowledge chunks for ${client.name} (top score: ${knowledgeContext[0].score.toFixed(3)})`);
+      }
+    } catch (err: unknown) {
+      console.warn(`[generateMonth] Knowledge retrieval failed, continuing without it:`, errMsg(err));
+    }
+  }
+
   // 3. Build prompt
   updateJob(job.id, { progress: 20 });
   const prompt = buildPlanningPrompt({
@@ -29,6 +45,7 @@ export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: 
     assets: client.assets || [],
     month,
     pieceCount: pieceCount || 18,
+    knowledgeContext,
   });
 
   // 4. Call AI via router (Grok primary, Gemini fallback)
@@ -42,6 +59,35 @@ export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: 
   const parsed = result.output as { strategySummary?: any; posts?: any[] };
   if (!parsed.posts || !Array.isArray(parsed.posts)) {
     throw new Error(`AI (${result.provider}/${result.model}) did not return a valid posts array`);
+  }
+
+  // 4b. Defense in depth: enforce that every generated post uses an ALLOWED platform
+  // from the saved brief. If the AI ignores the prompt restriction (happens rarely),
+  // we coerce stray platforms back into the allowed set rather than accept the drift.
+  const allowedChannels = parseBriefChannels(client.brief.channels);
+  const fallbackPlatform = allowedChannels[0] || 'Instagram';
+  const allowedSet = new Set(allowedChannels.length > 0 ? allowedChannels : ['Instagram']);
+
+  const canonicalize = (p: any): string => {
+    if (typeof p !== 'string') return fallbackPlatform;
+    const lower = p.trim().toLowerCase();
+    if (lower === 'instagram' && allowedSet.has('Instagram')) return 'Instagram';
+    if (lower === 'tiktok' && allowedSet.has('TikTok')) return 'TikTok';
+    if (lower === 'linkedin' && allowedSet.has('LinkedIn')) return 'LinkedIn';
+    if ((lower === 'x' || lower === 'twitter' || lower === 'x (twitter)') && allowedSet.has('X')) return 'X';
+    if (lower === 'facebook' && allowedSet.has('Facebook')) return 'Facebook';
+    return fallbackPlatform; // coerce unknown/disallowed platforms
+  };
+
+  let coerced = 0;
+  for (const post of parsed.posts) {
+    const original = post.platform;
+    const normalized = canonicalize(original);
+    if (normalized !== original) coerced++;
+    post.platform = normalized;
+  }
+  if (coerced > 0) {
+    console.warn(`[generateMonth] Coerced ${coerced}/${parsed.posts.length} posts to allowed platforms [${allowedChannels.join(', ')}] — AI ignored prompt restriction`);
   }
 
   // 5. Save CalendarMonth
@@ -65,7 +111,7 @@ export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: 
         date: post.date || '',
         title: post.title || '',
         pillar: post.pillar || '',
-        platform: post.platform || 'Instagram',
+        platform: post.platform, // Already validated/coerced above
         format: post.format || 'Static',
         hook: post.hook || null,
         keyMessage: post.keyMessage || null,
@@ -107,8 +153,8 @@ export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: 
         });
         refsAdded++;
       }
-    } catch (err: any) {
-      console.warn(`[generateMonth] visual ref population failed for post ${p.id}:`, err?.message || err);
+    } catch (err: unknown) {
+      console.warn(`[generateMonth] visual ref population failed for post ${p.id}:`, errMsg(err));
     }
   }
   console.log(`[generateMonth] auto-populated ${refsAdded} visual refs across ${createdPostIds.length} posts`);

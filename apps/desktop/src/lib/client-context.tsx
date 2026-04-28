@@ -1,9 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
-import { clientsApi, authApi, setAuthToken, clearAuthToken, isServerAvailable, type BackendClient } from './backend-api';
-
-// Internal dev credentials — auto-login on startup
-const DEV_EMAIL = 'mohamed@radixmedia.ae';
-const DEV_PASSWORD = 'Radix2026';
+import { clientsApi, authApi, setAuthToken, setRefreshToken, clearAuthToken, onForcedLogout, isServerAvailable, type BackendClient } from './backend-api';
 
 interface ClientContextType {
   clients: BackendClient[];
@@ -18,6 +14,9 @@ interface ClientContextType {
   createClient: (data: { name: string; industry?: string; website?: string }) => Promise<BackendClient>;
   updateClient: (id: string, data: Partial<BackendClient>) => Promise<BackendClient>;
   deleteClient: (id: string) => Promise<void>;
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
+  register: (email: string, password: string, name: string, rememberMe?: boolean) => Promise<void>;
+  logout: () => void;
 }
 
 const ClientContext = createContext<ClientContextType | undefined>(undefined);
@@ -30,7 +29,38 @@ export function ClientProvider({ children }: { children: ReactNode }) {
   const [authError, setAuthError] = useState<string | null>(null);
   const [serverOnline, setServerOnline] = useState(false);
 
-  // Auto-login then fetch clients — uses local variable, not stale React state
+  // Fetch clients and reconcile the persisted selection with the live list
+  const fetchAndReconcile = useCallback(async () => {
+    try {
+      const data = await clientsApi.list();
+      setClients(data);
+
+      // Reconcile persisted selection:
+      //   - If selectedClientId is missing OR refers to a deleted client, fall back to first available.
+      //   - Fixes "Save brief failed: Internal Server Error" from a stale id pointing to a deleted client.
+      const persisted = localStorage.getItem('radix_selected_client');
+      const stillExists = persisted && data.some(c => c.id === persisted);
+      if (!stillExists) {
+        if (persisted) {
+          console.warn(`[client-context] Persisted client ${persisted} no longer exists — falling back`);
+        }
+        if (data.length > 0) {
+          const first = data[0].id;
+          setSelectedClientId(first);
+          localStorage.setItem('radix_selected_client', first);
+        } else {
+          setSelectedClientId(null);
+          localStorage.removeItem('radix_selected_client');
+        }
+      } else {
+        setSelectedClientId(persisted);
+      }
+    } catch (err: any) {
+      setAuthError(`Failed to load clients: ${err.message}`);
+    }
+  }, []);
+
+  // Bootstrap — only checks for an existing valid token. Never auto-logs in with baked credentials.
   const bootstrap = useCallback(async () => {
     setLoading(true);
     setAuthError(null);
@@ -43,75 +73,81 @@ export function ClientProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    let isAuthed = false;
-
-    // Try existing token first
+    // Try existing token — if valid, user is signed in; if not, show login screen.
     const existingToken = localStorage.getItem('radix_auth_token');
     if (existingToken) {
       setAuthToken(existingToken);
       try {
         await authApi.me();
-        isAuthed = true;
         setAuthenticated(true);
+        await fetchAndReconcile();
       } catch {
         clearAuthToken();
+        setAuthenticated(false);
       }
+    } else {
+      setAuthenticated(false);
     }
 
-    // Auto-login if token was missing or expired
-    if (!isAuthed) {
-      try {
-        const { token } = await authApi.login(DEV_EMAIL, DEV_PASSWORD);
-        setAuthToken(token);
-        setAuthenticated(true);
-        isAuthed = true;
-      } catch {
-        // Try register on first run
-        try {
-          const { token } = await authApi.register(DEV_EMAIL, DEV_PASSWORD, 'Mohamed S.');
-          setAuthToken(token);
-          setAuthenticated(true);
-          isAuthed = true;
-        } catch (regErr: any) {
-          setAuthError(`Auth failed: ${regErr.message}`);
-          setLoading(false);
-          return;
-        }
+    setLoading(false);
+  }, [fetchAndReconcile]);
+
+  useEffect(() => { bootstrap(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ─── Auth actions ───────────────────────────────────────────────
+
+  const login = useCallback(async (email: string, password: string, rememberMe = false) => {
+    const { token, refreshToken } = await authApi.login(email, password, rememberMe);
+    setAuthToken(token);
+    setRefreshToken(refreshToken ?? null);
+    // Remember-me preference is surfaced to the UI for display. The access
+    // token is short-lived (1h / 7d with rememberMe); backend-api silently
+    // rotates via /api/auth/refresh using the 30-day refresh token.
+    try { localStorage.setItem('radix_remember_me', rememberMe ? '1' : '0'); } catch {}
+    setAuthenticated(true);
+    setAuthError(null);
+    await fetchAndReconcile();
+  }, [fetchAndReconcile]);
+
+  const register = useCallback(async (email: string, password: string, name: string, rememberMe = false) => {
+    const { token, refreshToken } = await authApi.register(email, password, name, rememberMe);
+    setAuthToken(token);
+    setRefreshToken(refreshToken ?? null);
+    try { localStorage.setItem('radix_remember_me', rememberMe ? '1' : '0'); } catch {}
+    setAuthenticated(true);
+    setAuthError(null);
+    await fetchAndReconcile();
+  }, [fetchAndReconcile]);
+
+  const logout = useCallback(() => {
+    // Fire-and-forget revoke the refresh token server-side before wiping local state.
+    void authApi.logout();
+    clearAuthToken();
+    setAuthenticated(false);
+    setClients([]);
+    setSelectedClientId(null);
+    localStorage.removeItem('radix_selected_client');
+  }, []);
+
+  // When backend-api detects refresh expiry or reuse-revocation, it fires
+  // onForcedLogout -> we flip the React state to show the login screen.
+  useEffect(() => {
+    const unsubscribe = onForcedLogout((reason) => {
+      console.warn('[auth] forced logout:', reason);
+      setAuthenticated(false);
+      setClients([]);
+      setSelectedClientId(null);
+      localStorage.removeItem('radix_selected_client');
+      if (reason === 'refresh-reuse') {
+        setAuthError('Session revoked for security — please log in again.');
+      } else if (reason === 'refresh-expired') {
+        setAuthError('Session expired — please log in again.');
       }
-    }
+    });
+    return () => { unsubscribe(); };
+  }, []);
 
-    // Fetch clients
-    try {
-      const data = await clientsApi.list();
-      setClients(data);
-
-      // Reconcile persisted selection with the live list:
-      //   - If selectedClientId is missing OR refers to a client that no longer exists,
-      //     drop the stale value and fall back to the first available client.
-      //   - This is the fix for "Save brief failed: Internal Server Error" caused by a
-      //     stale id in localStorage pointing to a deleted client (Prisma P2003).
-      const stillExists = selectedClientId && data.some(c => c.id === selectedClientId);
-      if (!stillExists) {
-        if (selectedClientId) {
-          console.warn(`[client-context] Persisted client ${selectedClientId} no longer exists — falling back`);
-        }
-        if (data.length > 0) {
-          const first = data[0].id;
-          setSelectedClientId(first);
-          localStorage.setItem('radix_selected_client', first);
-        } else {
-          setSelectedClientId(null);
-          localStorage.removeItem('radix_selected_client');
-        }
-      }
-    } catch (err: any) {
-      setAuthError(`Failed to load clients: ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedClientId]);
-
-  useEffect(() => { bootstrap(); }, []);
+  // ─── Client actions ─────────────────────────────────────────────
 
   const fetchClients = useCallback(async () => {
     try {
@@ -160,6 +196,7 @@ export function ClientProvider({ children }: { children: ReactNode }) {
     <ClientContext.Provider value={{
       clients, selectedClientId, currentClient, loading, authenticated, authError, serverOnline,
       setSelectedClientId: handleSelectClient, fetchClients, createClient, updateClient, deleteClient,
+      login, register, logout,
     }}>
       {children}
     </ClientContext.Provider>

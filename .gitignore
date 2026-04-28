@@ -3,12 +3,42 @@ dist/
 release/
 *.exe
 .env
+.env.*
+!.env.example
 .DS_Store
 *.log
 .turbo/
 apps/desktop/dist/
 apps/desktop/release/
+apps/desktop/.env
+apps/desktop/.env.*
 apps/preview-web/dist/
+apps/preview-web/.env
+apps/preview-web/.env.*
 server/dist/
 server/.env
+server/.env.*
 server/uploads/
+server/workspace/
+*.sqlite
+*.sqlite-*
+*.db
+.chroma/
+
+# AURA-local working artifacts (never commit)
+memory_vault/
+.vs/
+*.mp4
+radix ai content lastest.txt
+apps/desktop/pnpm-lock.yaml
+server/pnpm-lock.yaml
+
+# Build artifacts (never commit)
+*.tsbuildinfo
+.firecrawl/
+
+# Debug captures (never commit — large + may contain secrets)
+*.har
+
+# Claude Code local config (per-machine)
+.claude/settings.local.json

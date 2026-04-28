@@ -1,0 +1,25 @@
+name: Smoke (prod)
+# Runs the existing 18-test contract suite against the live VPS every 4h
+# + on-demand. Separated from PR-level CI on purpose so that PR velocity
+# doesn't depend on prod uptime + JWTs never leak into PR logs.
+on:
+  schedule:
+    - cron: '17 */4 * * *'
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install
+        run: cd server && npm ci
+
+      - name: Smoke against live VPS
+        run: cd server && SMOKE_BASE_URL=https://srv1494206.hstgr.cloud npx vitest run

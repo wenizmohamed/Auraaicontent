@@ -1,142 +1,125 @@
-# RADIX AI Content Planner
+# RADIX AI Content Planner v2
 
-AI-powered content planning dashboard for Radix Media. Takes a client brief and generates 18 platform-optimized content pieces with captions, visual references, and hashtags in one click.
+Production-grade AI content-planning workspace for Radix Media. A single-tenant SaaS dashboard the agency uses to brief, generate, review, schedule, and export 18 platform-optimized content pieces per client per month.
 
-## Quick Start
-
-```bash
-# 1. Clone
-git clone https://github.com/wenimohamed2/radix-ai-content-planner.git
-cd radix-ai-content-planner
-
-# 2. Install
-npm install
-
-# 3. Add API keys
-cp .env.example .env
-# Edit .env with your keys:
-#   GEMINI_API_KEY=your_gemini_key
-#   ANTHROPIC_API_KEY=your_claude_key
-
-# 4. Run
-npm run dev
-# Opens at http://localhost:3000
-```
-
-## Desktop App (Electron)
-
-```bash
-# Dev mode (hot reload)
-npm run electron:dev
-
-# Build portable exe (Windows)
-npm run electron:build
-
-# Build Mac app (run on Mac)
-npm run electron:build
-```
-
-## What It Does
-
-**Core Workflow: Brief → 18 Content Pieces**
-
-1. **Dashboard** — Stats, quick actions, recent briefs
-2. **New Brief** — Input client brief (campaigns, occasions, platforms, piece count)
-3. **AI Generates** — Claude Opus / Gemini creates all content pieces in one shot
-4. **Review** — Approve/edit/reject each piece with live character counters
-5. **Calendar** — Content calendar view with visual references
-
-Each generated piece includes:
-- Platform-optimized caption (within character limits)
-- Creative copy (art direction for designers)
-- Visual reference images (Pinterest-sourced)
-- Hashtags (within platform limits)
-- Suggested posting date
-- Campaign assignment
-
-## Platform Limits (Built-in, April 2026)
-
-| Platform | Caption Max | Optimal | Hashtags |
-|----------|------------|---------|----------|
-| Instagram | 2,200 | 180 | 5 |
-| TikTok | 4,000 | 100 | 5 |
-| LinkedIn | 3,000 | 1,900 | 5 |
-| X/Twitter | 280 | 85 | 2 |
-| Facebook | 63,206 | 60 | 3 |
+**Live**: `https://srv1494206.hstgr.cloud` · **Branch**: `main` · **Hardening branch**: `million-dollar-hardening`
 
 ## Tech Stack
 
-- **Frontend:** React 19, TypeScript, Tailwind CSS 4, Framer Motion
-- **AI:** Gemini 2.5 Flash / 3.1 Flash (Nano Banana 2) + Claude Opus (fallback)
-- **Build:** Vite 6
-- **Desktop:** Electron 41
-- **Data:** localStorage (no backend needed)
-- **Video Gen:** Veo 3.1
+| Layer | Stack |
+|---|---|
+| Frontend | React 19 + TypeScript + Vite 6 + Tailwind v4 + framer-motion + lucide-react |
+| Backend | Fastify 5 + Prisma 6 + PostgreSQL 16 + ioredis + BullMQ |
+| Auth | JWT (Bearer in `Authorization` header) + 30-day refresh-token rotation + revocation |
+| AI providers | Gemini 3.1 Pro / Flash / Image (primary) → xAI Grok (fallback) → Kimi K2 (tertiary) |
+| Desktop | Electron 41 (optional shell, web works standalone) |
+| Deploy | Hostinger VPS · pm2 (`radix-api`) · nginx · Postgres `radix_planner` · Redis 6379 |
+| Test | Vitest (smoke contract tests against live VPS) · `tsc --noEmit` (typecheck) |
 
-## Pages
-
-| Page | Route | Purpose |
-|------|-------|---------|
-| Dashboard | `/` | Home, stats, "Start New Brief" CTA |
-| New Brief | `/brief` | Client brief input form |
-| Review | `/content-review` | Review/approve generated pieces |
-| Calendar | `/calendar` | Content calendar with visual refs |
-| Creative Tools | `/image-gen` | Text-to-Image, Text-to-Video, Image-to-Video, Prompt Improver |
-
-## Project Structure
-
-```
-src/
-├── pages/           # 17 React pages
-├── components/      # VisualRefSearch, etc.
-├── lib/
-│   ├── ai.ts        # Gemini + Claude dual AI with fallback
-│   ├── clients.ts   # Client knowledge base (Al Fardan pre-loaded)
-│   ├── prompts.ts   # Centralized AI prompt templates
-│   ├── platform-limits.ts  # 2026 social media character limits
-│   ├── store.tsx    # React Context state management
-│   └── gemini.ts    # Gemini SDK wrapper
-├── services/
-│   └── api.ts       # localStorage mock API
-electron/
-├── main.cjs         # Electron main process
-└── preload.cjs      # Context bridge
-```
-
-## Pre-loaded Client: Al Fardan Exchange
-
-The app comes with Al Fardan Exchange fully configured:
-- 6 products (Money Transfers, Currency Exchange, Travelez Card, AlfaPay, WPS, Value-Added Services)
-- 7 default campaigns from real briefing template
-- 10 UAE special occasions
-- Brand guidelines, tone, compliance notes
-- CBUAE regulatory compliance built into prompts
-
-## AI Models Used
-
-| Purpose | Model |
-|---------|-------|
-| Text-to-Image | `gemini-3.1-flash-image-preview` (Nano Banana 2) |
-| Text Generation | `gemini-2.5-flash` |
-| Content Generation | `claude-opus-4-0-20250514` (primary) |
-| Video Generation | `veo-3.1-generate-preview` |
-| Research | `gemini-3.1-pro-preview` + Google Search |
-| Image Editing | `gemini-2.5-flash-image` |
-
-## For Mac Pro Setup
+## Quick Start (local)
 
 ```bash
-# Install Node.js if not installed
-brew install node
-
-# Clone and run
-git clone https://github.com/wenimohamed2/radix-ai-content-planner.git
-cd radix-ai-content-planner
+# 1. Install everything (server + frontend, monorepo workspaces)
 npm install
-cp .env.example .env
-# Add your API keys to .env
-npm run dev
+
+# 2. Server-side setup
+cd server
+cp .env.example .env                   # fill in DATABASE_URL, JWT_SECRET, GEMINI_API_KEY, XAI_API_KEY
+npm run prisma:generate                # build typed Prisma client
+npm run prisma:migrate                 # apply schema (uses .env DATABASE_URL)
+npm run prisma:seed                    # OPTIONAL — Al Fardan demo data + 2 demo users
+npm run dev                            # starts on :8787
+
+# 3. In a second terminal, frontend
+cd apps/desktop
+npm run dev                            # starts on :3200, proxies /api/* to :8787
 ```
+
+Demo credentials after seeding:
+- `demo-admin@radix.local` / `demoAdmin2026!`
+- `demo-member@radix.local` / `demoMember2026!`
+
+## Test
+
+```bash
+cd server
+npm run typecheck          # tsc --noEmit, both workspaces have this script
+npm run test               # vitest — runs smoke tests against the LIVE VPS
+npm run test:smoke:local   # smoke tests against local :8787 (set SMOKE_BASE_URL)
+npm run test:coverage      # vitest with v8 coverage report
+
+cd apps/desktop
+npm run typecheck
+```
+
+The smoke suite covers 17 endpoint contracts — auth boundary, public endpoints, protected-route 401s, rate-limit headers, agent-mode-removal verification.
+
+## Deploy (current setup)
+
+Hostinger VPS, pm2-managed, nginx-fronted. The deploy is two tar-pipes + a pm2 reload:
+
+```bash
+# From repo root
+cd server && npm run build && cd ..
+tar -czf - -C server dist | ssh -i ~/.ssh/radix_vps root@srv1494206.hstgr.cloud \
+  "cd /opt/radix-v2/server && rm -rf dist && tar -xzf - && pm2 reload radix-api"
+
+cd apps/desktop && npm run build && cd ../..
+tar -czf - -C apps/desktop dist | ssh -i ~/.ssh/radix_vps root@srv1494206.hstgr.cloud \
+  "cd /opt/radix-v2/frontend && rm -rf dist && tar -xzf -"
+
+# After schema changes
+ssh root@srv1494206.hstgr.cloud "cd /opt/radix-v2/server && npx prisma migrate deploy"
+```
+
+After deploy: hard-refresh browser (Ctrl+Shift+R) so the new bundle hash loads.
+
+## Architecture (one-screen tour)
+
+```
+apps/desktop/        React 19 frontend (Vite, electron-optional)
+  src/pages/          17 routes: Dashboard, NewBrief, Calendar, Knowledge, Profile, etc.
+  src/components/     MobileMenu, RadixAssistant widget, etc.
+  src/lib/            backend-api.ts (fetch wrapper + token rotation),
+                      client-context.tsx (auth + selected client state),
+                      theme-context.tsx (light/dark)
+
+server/              Fastify 5 backend
+  src/routes/         18 route modules (auth, clients, calendar, contentPieces, knowledge, ...)
+  src/services/       providers/ (gemini, xai, kimi), embeddings, visual-search, llm/chat
+  src/middleware/     auth (JWT + refresh), rate-limiter (Redis-backed, in-memory fallback),
+                      sanitize
+  src/workers/        queue.ts (BullMQ + ioredis, single Worker concurrency=4)
+  src/db/             prisma client singleton
+  prisma/             schema.prisma (User, Client, ClientBrief, CalendarMonth + Post, ContentPiece,
+                      KnowledgeItem + Chunk, Asset, ReviewLink, ExportJob, AuditLog,
+                      AgentSession + Message + Event)
+  prisma/migrations/  all migrations checked in
+  prisma/seed.ts      Al Fardan demo data + 2 demo users
+  test/smoke.test.ts  17 contract tests against live VPS
+```
+
+## Security model (honest, not hand-wavy)
+
+| Concern | Status |
+|---|---|
+| Authentication | JWT in `Authorization: Bearer …` header, 1h TTL (7d if `rememberMe`). Refresh-token rotation with reuse-detection (any reuse revokes ALL sessions for that user). |
+| CSRF | **Not vulnerable.** Bearer-token auth in a header is immune by design — browsers don't auto-attach `Authorization` cross-origin like they do with cookies. No CSRF middleware needed. |
+| Rate limiting | Per-IP sliding window via Redis (`X-RateLimit-Backend: redis` in response headers). Falls back to in-memory if Redis is down. Buckets: auth=10/min, agent=20/min, AI=30/min, generic=120/min. |
+| Password storage | bcrypt cost 12. |
+| CORS | Env-allowlisted (`HTTP_CORS_ORIGINS`), fails closed in prod. |
+| CSP | Strict via `@fastify/helmet` (no `'unsafe-inline'` script), HSTS in prod. |
+| Multi-tenancy | **Single-tenant by design.** Every authed user sees every Client. Auth gates entry; inside the wall the workspace is shared (matches Radix Media's one-agency model). Adding a second agency requires an `Organization` model + `orgId` on Client + scoping every query handler — not done. |
+| File uploads | 25MB limit via `@fastify/multipart`. |
+| Audit log | Append-only `AuditLog` table with `userId` + `clientId` + `action` + `entityType`. |
+
+## Database
+
+PostgreSQL 16. Schema declares unique constraints + FK indexes for hot joins (KnowledgeItem.clientId, Asset.clientId, CalendarPost.calendarMonthId, PostComment.{postId,authorId}, ReviewLink.clientId, ExportJob.clientId, AuditLog.{userId,clientId,createdAt}, KnowledgeChunk.knowledgeItemId, plus `(clientId, month)` and `(calendarMonthId, date)` uniques for idempotent upserts). Migrations live in `server/prisma/migrations/` and apply with `prisma migrate deploy`.
+
+## Background jobs
+
+BullMQ queue `radix-jobs` backed by Redis. One Worker, concurrency 4. On boot, `reconcileStaleJobs()` reclaims any active-but-orphaned jobs from a prior crash. SIGTERM/SIGINT trigger graceful queue drain via `shutdownQueue()`.
 
 ## License
 
@@ -144,4 +127,4 @@ Private — Radix Media internal tool.
 
 ---
 
-Built by Mohamed (Weni) + CLAUDI | April 2026
+Built by Weni Mohamed + AURA · April 2026

@@ -1,5 +1,6 @@
 import { ExternalLink, Image as ImageIcon, Search } from 'lucide-react';
 import type { VisualRef } from '../lib/backend-api';
+import { ArtifactRenderer, classifyPath } from './ArtifactRenderer';
 
 // Legacy local-store shape (from contentBriefs in store.tsx)
 interface LegacyVisualRefImage {
@@ -156,13 +157,28 @@ export default function VisualRefGrid({ post, onSearchClick, className = '', col
           {assets.map((link, i) => {
             const a = link.asset || link;
             const src = a.thumbUrl || a.fileUrl || '';
+            const fileUrl = a.fileUrl || src;
+            const kind = classifyPath(a.name || fileUrl, a.mimeType);
+            // Image assets: keep tight thumbnail grid (existing Card).
+            // Non-image (pdf/video/pptx): inline ArtifactRenderer so users see real previews.
+            if (kind === 'image') {
+              return (
+                <Card
+                  key={a.id || i}
+                  thumbnailUrl={src}
+                  sourceUrl={fileUrl}
+                  sourceDomain="internal"
+                  title={a.name}
+                />
+              );
+            }
             return (
-              <Card
+              <ArtifactRenderer
                 key={a.id || i}
-                thumbnailUrl={src}
-                sourceUrl={a.fileUrl || src}
-                sourceDomain="internal"
-                title={a.name}
+                url={fileUrl}
+                name={a.name}
+                mimeType={a.mimeType}
+                className="aspect-square"
               />
             );
           })}

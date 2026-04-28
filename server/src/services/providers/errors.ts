@@ -1,3 +1,5 @@
+import type { FastifyReply } from 'fastify';
+
 // Retryable errors that should trigger fallback to the next provider
 // Non-retryable errors (bad request, auth, safety) should NOT fallback
 
@@ -67,4 +69,56 @@ export class AiProviderError extends Error {
     super(`[${provider}/${task}] ${message}`);
     this.name = 'AiProviderError';
   }
+}
+
+export interface ProviderFailure {
+  provider: string;
+  message: string;
+  retryable: boolean;
+}
+
+/**
+ * Thrown when ALL providers in the fallback chain have failed.
+ * Carries per-provider failure summaries and a synthesized HTTP status code.
+ */
+export class AllProvidersFailedError extends Error {
+  public failures: ProviderFailure[];
+  public statusCode: number;
+
+  constructor(task: string, failures: ProviderFailure[]) {
+    const providerNames = failures.map(f => f.provider).join(', ');
+    const allRateLimited = failures.length > 0 && failures.every(f =>
+      /rate.?limit|429|too many requests/i.test(f.message),
+    );
+    const status = allRateLimited ? 429 : 503;
+
+    super(
+      allRateLimited
+        ? `All AI providers rate-limited for ${task}. Try again shortly.`
+        : `All AI providers failed for ${task} (${providerNames}). ${failures[failures.length - 1]?.message || 'Unknown error'}`,
+    );
+
+    this.name = 'AllProvidersFailedError';
+    this.failures = failures;
+    this.statusCode = status;
+  }
+}
+
+/**
+ * Send a structured AI error response. Maps AllProvidersFailedError to the correct
+ * HTTP status (429 for rate-limit, 503 for unavailable) and includes per-provider
+ * failure summaries. Falls back to 502 for generic errors.
+ */
+export function sendAiError(reply: FastifyReply, err: unknown, fallbackMessage: string) {
+  if (err instanceof AllProvidersFailedError) {
+    return reply.status(err.statusCode).send({
+      error: err.message,
+      providers: err.failures,
+    });
+  }
+  const e = err as { statusCode?: number; message?: string } | null;
+  const status = e?.statusCode ?? 502;
+  return reply.status(status).send({
+    error: e?.message ?? fallbackMessage,
+  });
 }

@@ -1,0 +1,77 @@
+name: CI
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, million-dollar-hardening]
+
+jobs:
+  static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install server deps
+        run: cd server && npm ci
+
+      - name: Server typecheck
+        run: cd server && npm run typecheck
+
+      - name: Server lint (route boundary)
+        # Blocking as of 2026-04-27 sweep: no-explicit-any across routes is now zero.
+        run: cd server && npm run lint
+
+      - name: Server npm audit (production, high+)
+        run: cd server && npm audit --production --audit-level=high
+        continue-on-error: true
+
+      - name: Frontend deps
+        run: cd apps/desktop && npm ci
+
+      - name: Frontend typecheck
+        run: cd apps/desktop && npm run typecheck
+
+      - name: Frontend npm audit
+        run: cd apps/desktop && npm audit --production --audit-level=high
+        continue-on-error: true
+
+  smoke:
+    runs-on: ubuntu-latest
+    needs: static
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+
+      - name: Spin up ephemeral stack (postgres + redis + radix-api)
+        run: docker compose -f docker-compose.ci.yml up --build -d
+
+      - name: Wait for radix-api to become healthy
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fs http://localhost:8080/api/health; then
+              echo " radix-api ready after ${i}s"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "radix-api never became healthy"
+          docker compose -f docker-compose.ci.yml logs --tail=200
+          exit 1
+
+      - name: Install + run smoke
+        run: |
+          cd server && npm ci
+          SMOKE_BASE_URL=http://localhost:8080 npx vitest run
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.ci.yml down -v

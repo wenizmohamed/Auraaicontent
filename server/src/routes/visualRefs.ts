@@ -95,7 +95,7 @@ export async function visualRefRoutes(app: FastifyInstance) {
     const existing = await db.postVisualReference.findUnique({ where: { id: refId } });
     if (!existing) return reply.status(404).send({ error: 'visual ref not found' });
 
-    const data: any = {};
+    const data: Record<string, unknown> = {};
     if (typeof body.thumbnailUrl === 'string') data.thumbnailUrl = body.thumbnailUrl;
     if (typeof body.sourceUrl === 'string') {
       data.sourceUrl = body.sourceUrl;

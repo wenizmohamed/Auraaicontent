@@ -5,11 +5,13 @@ import {
   ArrowLeft, Search, LayoutGrid, List, CheckCircle2, XCircle, Edit3,
   RefreshCw, ChevronDown, Printer, Hash, Calendar, Eye, Users,
   Filter, CheckSquare, Square, Image as ImageIcon, Sparkles, X,
+  Download, Loader2,
 } from 'lucide-react';
 import { useStore, ContentBrief } from '../lib/store';
 import { validateCaption, PLATFORM_LIMITS } from '../lib/platform-limits';
 import { useClients } from '../lib/client-context';
-import { calendarApi, reviewApi, visualRefsApi } from '../lib/backend-api';
+import { calendarApi, reviewApi, visualRefsApi, exportsApi, jobsApi } from '../lib/backend-api';
+import { ContentStatus, STATUS_LABEL, STATUS_COLOR, normalizeStatus } from '../lib/status-enum';
 import VisualRefGrid from '../components/VisualRefGrid';
 
 // ─── Types ──────────────────────────────────────────────────────
@@ -32,7 +34,7 @@ interface GeneratedPiece {
   charCount: number;
   charLimit: number;
   charStatus: 'good' | 'warning' | 'over';
-  status: 'generated' | 'approved' | 'edited' | 'rejected';
+  status: ContentStatus;
 }
 
 // ─── Constants ──────────────────────────────────────────────────
@@ -57,19 +59,9 @@ const PLATFORM_DOT_COLORS: Record<string, string> = {
   snapchat: 'bg-yellow-400',
 };
 
-const STATUS_COLORS: Record<string, string> = {
-  generated: 'bg-zinc-500/20 text-zinc-400 border-zinc-500/30',
-  approved: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
-  edited: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-  rejected: 'bg-red-500/20 text-red-400 border-red-500/30',
-};
-
-const STATUS_DOT: Record<string, string> = {
-  generated: 'bg-zinc-400',
-  approved: 'bg-emerald-400',
-  edited: 'bg-blue-400',
-  rejected: 'bg-red-400',
-};
+// Status colors/labels now come from ../lib/status-enum (canonical vocabulary
+// shared with ContentCalendar). Local STATUS_COLORS/STATUS_DOT maps were
+// removed as part of the H2 vocabulary unification.
 
 // ─── Component ──────────────────────────────────────────────────
 
@@ -153,7 +145,7 @@ export default function ContentReview() {
           charCount: (p.caption || '').length,
           charLimit: 2200,
           charStatus: 'good' as const,
-          status: p.status || 'generated',
+          status: normalizeStatus(p.status),
         })),
         createdAt: backendMonth.createdAt,
       }
@@ -173,14 +165,24 @@ export default function ContentReview() {
   const [editCreativeCopy, setEditCreativeCopy] = useState('');
   const [loadingRefs, setLoadingRefs] = useState<Set<string>>(new Set());
   const [showFilters, setShowFilters] = useState(false);
+  const [focusedIndex, setFocusedIndex] = useState(0);
+  const [exporting, setExporting] = useState(false);
+  const [exportDone, setExportDone] = useState<string | null>(null);
   const fetchedRef = useRef<Set<string>>(new Set());
+  const cardRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
   // Sync pieces from brief.
   // Include backendMonth.posts so re-fetching the same month (same id)
   // still refreshes visualRefs/assets in the Review grid.
+  // Normalize status at the boundary so legacy tokens from the local zustand
+  // store ('generated', 'edited') are mapped to canonical ContentStatus.
   useEffect(() => {
     if (brief?.pieces) {
-      setPieces(brief.pieces as GeneratedPiece[]);
+      const normalized = (brief.pieces as any[]).map(p => ({
+        ...p,
+        status: normalizeStatus(p.status),
+      })) as GeneratedPiece[];
+      setPieces(normalized);
     }
   }, [brief?.id, backendMonth?.posts]);
 
@@ -231,9 +233,11 @@ export default function ContentReview() {
 
   const stats = useMemo(() => ({
     total: pieces.length,
-    generated: pieces.filter(p => p.status === 'generated').length,
+    draft: pieces.filter(p => p.status === 'draft').length,
+    in_review: pieces.filter(p => p.status === 'in_review').length,
     approved: pieces.filter(p => p.status === 'approved').length,
-    edited: pieces.filter(p => p.status === 'edited').length,
+    changes_requested: pieces.filter(p => p.status === 'changes_requested').length,
+    published: pieces.filter(p => p.status === 'published').length,
     rejected: pieces.filter(p => p.status === 'rejected').length,
   }), [pieces]);
 
@@ -263,7 +267,7 @@ export default function ContentReview() {
             charCount: validation.length,
             charLimit: validation.max,
             charStatus: validation.status,
-            status: 'edited' as const,
+            status: 'changes_requested' as const,
           }
         : p
     ));
@@ -272,7 +276,7 @@ export default function ContentReview() {
       await calendarApi.updatePost(editingId, {
         caption: editCaption,
         visualDirection: editCreativeCopy,
-        status: 'edited',
+        status: 'changes_requested',
       });
     } catch (err: any) {
       console.error('Failed to save edit to backend:', err);
@@ -316,8 +320,95 @@ export default function ContentReview() {
   };
 
   const handleRegenerate = (id: string) => {
-    handleStatusChange(id, 'generated');
+    handleStatusChange(id, 'draft');
   };
+
+  const handleExportPptx = async () => {
+    const cId = urlClient || selectedClientId || '';
+    const month = brief?.month;
+    if (!cId || !month) return;
+    setExporting(true);
+    setExportDone(null);
+    try {
+      const { jobId } = await exportsApi.trigger(cId, month);
+      let attempts = 0;
+      while (attempts < 40) {
+        await new Promise(r => setTimeout(r, 2000));
+        const job = await jobsApi.get(jobId);
+        if (job.status === 'completed') {
+          const downloadUrl = exportsApi.downloadUrl(job.result?.fileUrl);
+          setExportDone(downloadUrl);
+          setExporting(false);
+          const a = document.createElement('a');
+          a.href = downloadUrl;
+          a.download = '';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          return;
+        }
+        if (job.status === 'failed') {
+          console.error('Export failed:', job.error);
+          break;
+        }
+        attempts++;
+      }
+    } catch (err) {
+      console.error('Export PPTX failed:', err);
+    }
+    setExporting(false);
+  };
+
+  // ─── Keyboard shortcuts ───────────────────────────────────
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // Skip when editing or when an input/textarea is focused
+      if (editingId) return;
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+      switch (e.key) {
+        case 'j': {
+          e.preventDefault();
+          setFocusedIndex(prev => {
+            const next = Math.min(prev + 1, filteredPieces.length - 1);
+            cardRefs.current.get(next)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            return next;
+          });
+          break;
+        }
+        case 'k': {
+          e.preventDefault();
+          setFocusedIndex(prev => {
+            const next = Math.max(prev - 1, 0);
+            cardRefs.current.get(next)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            return next;
+          });
+          break;
+        }
+        case 'a': {
+          e.preventDefault();
+          const piece = filteredPieces[focusedIndex];
+          if (piece) handleStatusChange(piece.id, 'approved');
+          break;
+        }
+        case 'r': {
+          e.preventDefault();
+          const piece = filteredPieces[focusedIndex];
+          if (piece) handleStatusChange(piece.id, 'rejected');
+          break;
+        }
+        case 'e': {
+          e.preventDefault();
+          const piece = filteredPieces[focusedIndex];
+          if (piece) handleStartEdit(piece);
+          break;
+        }
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [editingId, filteredPieces, focusedIndex]);
 
   // ─── Character Counter ──────────────────────────────────────
 
@@ -336,9 +427,11 @@ export default function ContentReview() {
   if (!brief) {
     return (
       <div className="max-w-2xl mx-auto mt-20 text-center">
-        <Sparkles className="w-12 h-12 text-amber-400 mx-auto mb-4" />
-        <h2 className="text-2xl font-bold text-white mb-4">No Content to Review</h2>
-        <p className="text-zinc-400 mb-8">
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 mb-5 shadow-[0_0_40px_-10px_rgba(245,158,11,0.35)]">
+          <Sparkles className="w-7 h-7 text-amber-400" />
+        </div>
+        <h2 className="text-2xl font-bold text-white mb-2 tracking-tight">No Content to Review</h2>
+        <p className="text-zinc-400 mb-8 max-w-md mx-auto leading-relaxed">
           {currentClient
             ? `No generated content found for ${currentClient.name}. Create a brief to generate content.`
             : 'Pick a client and create a content brief to generate content for review.'}
@@ -346,13 +439,13 @@ export default function ContentReview() {
         <div className="flex items-center justify-center gap-3">
           <button
             onClick={() => navigate('/brief')}
-            className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-black font-medium rounded-xl transition-colors"
+            className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-black font-medium rounded-xl transition-colors duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
           >
             Create New Brief
           </button>
           <button
             onClick={() => navigate('/calendar')}
-            className="px-6 py-3 bg-white/10 hover:bg-white/15 text-white font-medium rounded-xl transition-colors"
+            className="px-6 py-3 bg-white/[0.06] hover:bg-white/[0.1] text-white font-medium rounded-xl border border-white/10 transition-colors duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
           >
             Open Calendar
           </button>
@@ -364,12 +457,14 @@ export default function ContentReview() {
   if (!pieces.length) {
     return (
       <div className="max-w-2xl mx-auto mt-20 text-center">
-        <Sparkles className="w-12 h-12 text-amber-400 mx-auto mb-4" />
-        <h2 className="text-2xl font-bold text-white mb-4">No Content Generated Yet</h2>
-        <p className="text-zinc-400 mb-8">This brief has no generated pieces to review.</p>
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 mb-5 shadow-[0_0_40px_-10px_rgba(245,158,11,0.35)]">
+          <Sparkles className="w-7 h-7 text-amber-400" />
+        </div>
+        <h2 className="text-2xl font-bold text-white mb-2 tracking-tight">No Content Generated Yet</h2>
+        <p className="text-zinc-400 mb-8 max-w-md mx-auto leading-relaxed">This brief has no generated pieces to review.</p>
         <button
           onClick={() => navigate('/brief')}
-          className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-black font-medium rounded-xl transition-colors"
+          className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-black font-medium rounded-xl transition-colors duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
         >
           Create New Brief
         </button>
@@ -394,7 +489,7 @@ export default function ContentReview() {
             const m = brief?.month ? encodeURIComponent(brief.month) : '';
             navigate(cId && m ? `/calendar?client=${cId}&month=${m}` : '/calendar');
           }}
-          className="flex items-center gap-2 text-zinc-400 hover:text-white mb-4 transition-colors print:hidden"
+          className="flex items-center gap-2 text-zinc-400 hover:text-white mb-4 transition-colors duration-200 cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/30 print:hidden"
         >
           <ArrowLeft className="w-4 h-4" />
           Back to Calendar
@@ -417,16 +512,18 @@ export default function ContentReview() {
           {/* Stats bar */}
           <div className="flex gap-3 flex-wrap">
             {[
-              { label: 'Generated', value: stats.generated, color: 'text-zinc-400' },
-              { label: 'Approved', value: stats.approved, color: 'text-emerald-400' },
-              { label: 'Edited', value: stats.edited, color: 'text-blue-400' },
-              { label: 'Rejected', value: stats.rejected, color: 'text-red-400' },
+              { label: STATUS_LABEL.draft, value: stats.draft, color: 'text-zinc-400' },
+              { label: STATUS_LABEL.in_review, value: stats.in_review, color: 'text-amber-400' },
+              { label: STATUS_LABEL.approved, value: stats.approved, color: 'text-emerald-400' },
+              { label: STATUS_LABEL.changes_requested, value: stats.changes_requested, color: 'text-blue-400' },
+              { label: STATUS_LABEL.published, value: stats.published, color: 'text-white' },
+              { label: STATUS_LABEL.rejected, value: stats.rejected, color: 'text-red-400' },
             ].map(s => (
               <div
                 key={s.label}
-                className="bg-[#111] border border-white/10 rounded-xl px-4 py-2 text-center min-w-[80px]"
+                className="bg-[#111] border border-white/10 rounded-xl px-4 py-2 text-center min-w-[92px]"
               >
-                <div className={`text-xl font-bold ${s.color}`}>{s.value}</div>
+                <div className={`text-xl font-bold tabular-nums ${s.color}`}>{s.value}</div>
                 <div className="text-[10px] text-zinc-500 uppercase tracking-wider">{s.label}</div>
               </div>
             ))}
@@ -496,6 +593,14 @@ export default function ContentReview() {
             <Printer className="w-4 h-4" />
             Export PDF
           </button>
+          <button
+            onClick={handleExportPptx}
+            disabled={exporting}
+            className="flex items-center gap-2 px-4 py-2.5 bg-zinc-900 border border-white/10 rounded-xl text-sm text-zinc-400 hover:text-white transition-colors disabled:opacity-50"
+          >
+            {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            {exporting ? 'Exporting...' : 'Export PPTX'}
+          </button>
         </div>
 
         {/* Expanded filters */}
@@ -528,10 +633,9 @@ export default function ContentReview() {
                   className="bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500/50"
                 >
                   <option value="all">All Statuses</option>
-                  <option value="generated">Generated</option>
-                  <option value="approved">Approved</option>
-                  <option value="edited">Edited</option>
-                  <option value="rejected">Rejected</option>
+                  {(Object.keys(STATUS_LABEL) as ContentStatus[]).map(s => (
+                    <option key={s} value={s}>{STATUS_LABEL[s]}</option>
+                  ))}
                 </select>
 
                 {/* Campaign filter */}
@@ -569,6 +673,36 @@ export default function ContentReview() {
         </AnimatePresence>
       </motion.div>
 
+      {/* ── Approval Progress ────────────────────────────── */}
+      {pieces.length > 0 && (
+        <div className="mb-4 px-1 print:hidden">
+          <div className="flex items-center justify-between mb-1.5">
+            <p className="text-sm font-medium text-zinc-300">
+              {stats.approved === stats.total ? (
+                <span className="text-emerald-400">All approved — ready to export &#10003;</span>
+              ) : (
+                <>
+                  <span className="text-emerald-400 tabular-nums">{stats.approved}</span>
+                  <span className="text-zinc-500">/{stats.total}</span>
+                  {' approved — '}
+                  <span className="text-zinc-400 tabular-nums">
+                    {stats.total > 0 ? Math.round((stats.approved / stats.total) * 100) : 0}% complete
+                  </span>
+                </>
+              )}
+            </p>
+          </div>
+          <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+            <motion.div
+              className="h-full bg-emerald-500 rounded-full"
+              initial={{ width: 0 }}
+              animate={{ width: `${stats.total > 0 ? (stats.approved / stats.total) * 100 : 0}%` }}
+              transition={{ duration: 0.5, ease: 'easeOut' }}
+            />
+          </div>
+        </div>
+      )}
+
       {/* ── Results count ──────────────────────────────────── */}
       <div className="flex items-center justify-between mb-4 px-1 print:hidden">
         <p className="text-sm text-zinc-500">
@@ -583,13 +717,16 @@ export default function ContentReview() {
             {filteredPieces.map((piece, idx) => (
               <motion.div
                 key={piece.id}
+                ref={(el: HTMLDivElement | null) => { if (el) cardRefs.current.set(idx, el); else cardRefs.current.delete(idx); }}
                 layout
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ delay: idx * 0.03, duration: 0.25 }}
                 className={`bg-[#111] border rounded-2xl overflow-hidden transition-colors ${
-                  selectedIds.has(piece.id) ? 'border-amber-500/50 ring-1 ring-amber-500/20' : 'border-white/10'
+                  selectedIds.has(piece.id) ? 'border-amber-500/50 ring-1 ring-amber-500/20'
+                  : focusedIndex === idx ? 'border-amber-500/30 ring-1 ring-amber-500/10'
+                  : 'border-white/10'
                 }`}
               >
                 {/* Card Header */}
@@ -598,7 +735,8 @@ export default function ContentReview() {
                     {/* Select checkbox */}
                     <button
                       onClick={() => toggleSelect(piece.id)}
-                      className="text-zinc-500 hover:text-white transition-colors print:hidden"
+                      aria-label={selectedIds.has(piece.id) ? 'Deselect post' : 'Select post'}
+                      className="text-zinc-500 hover:text-white transition-colors duration-200 cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 print:hidden"
                     >
                       {selectedIds.has(piece.id)
                         ? <CheckSquare className="w-4 h-4 text-amber-400" />
@@ -622,10 +760,10 @@ export default function ContentReview() {
 
                   {/* Status badge */}
                   <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border ${
-                    STATUS_COLORS[piece.status]
+                    STATUS_COLOR[piece.status].badge
                   }`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[piece.status]}`} />
-                    {piece.status.charAt(0).toUpperCase() + piece.status.slice(1)}
+                    <span className={`w-1.5 h-1.5 rounded-full ${STATUS_COLOR[piece.status].dot}`} />
+                    {STATUS_LABEL[piece.status]}
                   </span>
                 </div>
 
@@ -666,7 +804,7 @@ export default function ContentReview() {
                   </div>
 
                   {/* COPY SECTION — Key Message + Caption + CTA + Hashtags */}
-                  <div className="space-y-3 bg-white/[0.01] rounded-xl p-3 border border-white/[0.04]">
+                  <div className="space-y-3 bg-white/[0.02] rounded-xl p-3 border border-white/[0.08]">
                     <div className="flex items-center gap-2 mb-1">
                       <Hash className="w-3.5 h-3.5 text-zinc-500" />
                       <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Copy</span>
@@ -885,10 +1023,10 @@ export default function ContentReview() {
                       </td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium border ${
-                          STATUS_COLORS[piece.status]
+                          STATUS_COLOR[piece.status].badge
                         }`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[piece.status]}`} />
-                          {piece.status.charAt(0).toUpperCase() + piece.status.slice(1)}
+                          <span className={`w-1.5 h-1.5 rounded-full ${STATUS_COLOR[piece.status].dot}`} />
+                          {STATUS_LABEL[piece.status]}
                         </span>
                       </td>
                       <td className="px-4 py-3 print:hidden">
@@ -1012,6 +1150,23 @@ export default function ContentReview() {
           );
         })()}
       </AnimatePresence>
+
+      {/* ── Keyboard Hint Bar ────────────────────────────── */}
+      {!editingId && pieces.length > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 z-30 flex justify-center py-2 pointer-events-none print:hidden">
+          <div className="px-4 py-1.5 bg-zinc-900/80 backdrop-blur-sm border border-white/5 rounded-lg">
+            <span className="text-[11px] text-zinc-500 font-mono tracking-wide">
+              <kbd className="px-1.5 py-0.5 bg-white/5 rounded text-zinc-400 text-[10px]">j</kbd>/<kbd className="px-1.5 py-0.5 bg-white/5 rounded text-zinc-400 text-[10px]">k</kbd> navigate
+              <span className="mx-2 text-zinc-700">&middot;</span>
+              <kbd className="px-1.5 py-0.5 bg-white/5 rounded text-zinc-400 text-[10px]">a</kbd> approve
+              <span className="mx-2 text-zinc-700">&middot;</span>
+              <kbd className="px-1.5 py-0.5 bg-white/5 rounded text-zinc-400 text-[10px]">r</kbd> reject
+              <span className="mx-2 text-zinc-700">&middot;</span>
+              <kbd className="px-1.5 py-0.5 bg-white/5 rounded text-zinc-400 text-[10px]">e</kbd> edit
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* ── Bulk Actions Bar ───────────────────────────────── */}
       <AnimatePresence>

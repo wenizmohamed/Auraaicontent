@@ -36,7 +36,8 @@ function createWindow() {
 
   // Load app
   if (isDev) {
-    mainWindow.loadURL('http://localhost:3000');
+    const devUrl = process.env.VITE_DEV_URL || 'http://localhost:3200';
+    mainWindow.loadURL(devUrl);
     // Open DevTools in dev
     // mainWindow.webContents.openDevTools();
   } else {

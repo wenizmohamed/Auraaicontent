@@ -1,0 +1,66 @@
+{
+  "prisma.pinToPrisma6": true,
+
+  "tailwindCSS.includeLanguages": {
+    "typescript": "javascript",
+    "typescriptreact": "javascript"
+  },
+
+  "headwind.runOnSave": true,
+
+  "errorLens.enabledDiagnosticLevels": ["error", "warning"],
+  "errorLens.excludeBySource": ["ts(6133)"],
+
+  "typescript.preferences.importModuleSpecifier": "relative",
+  "typescript.updateImportsOnFileMove.enabled": "always",
+  "typescript.tsdk": "node_modules/typescript/lib",
+
+  "editor.formatOnSave": false,
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": "explicit"
+  },
+
+  "color-highlight.markerType": "background",
+
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/dist/**": true,
+    "**/.firecrawl/**": true,
+    "**/uploads/**": true,
+    "**/server/prisma/migrations/**": true
+  },
+  "files.exclude": {
+    "**/tsconfig.tsbuildinfo": true
+  },
+
+  "sqltools.connections": [
+    {
+      "name": "Radix V2 VPS",
+      "driver": "PostgreSQL",
+      "previewLimit": 50,
+      "server": "srv1494206.hstgr.cloud",
+      "port": 5432,
+      "database": "radix_planner",
+      "username": "radix",
+      "askForPassword": true,
+      "connectionTimeout": 30
+    }
+  ],
+
+  "thunder-client.saveToWorkspace": true,
+  "thunder-client.workspaceRelativePath": ".vscode/thunder-tests",
+
+  "rest-client.previewResponseInUntitledDocument": true,
+  "rest-client.environmentVariables": {
+    "local": {
+      "baseUrl": "http://127.0.0.1:8080",
+      "email": "smoke@radix.local",
+      "password": "smoke-test-pw-2026"
+    },
+    "vps": {
+      "baseUrl": "https://srv1494206.hstgr.cloud",
+      "email": "smoke@radix.local",
+      "password": "smoke-test-pw-2026"
+    }
+  }
+}

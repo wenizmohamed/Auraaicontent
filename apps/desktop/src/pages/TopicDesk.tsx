@@ -4,7 +4,8 @@ import {
   FileText, Plus, Filter, Columns, Grid, Download, Tag, Users,
   MessageSquare, X, ChevronRight, ChevronDown, Hash, Mic, Search,
   GripVertical, Radio, Tv, Newspaper, Film, MoreHorizontal, Trash2, Edit3,
-  Sparkles, Link as LinkIcon, Paperclip, AlignLeft, Loader2, Wand2, Lightbulb, ExternalLink
+  Sparkles, Link as LinkIcon, Paperclip, AlignLeft, Loader2, Wand2, Lightbulb, ExternalLink,
+  Link2, Palette
 } from 'lucide-react';
 import { expandTopicBrief, suggestTopics, generateTopicOutline, type AIProvider, type VisualReference as AIVisualRef } from '../lib/ai';
 import VisualRefSearch from '../components/VisualRefSearch';
@@ -878,7 +879,7 @@ export default function TopicDesk() {
 
     return (
       <div
-        className="fixed z-[60] bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl py-1 min-w-[160px] animate-fade-in"
+        className="fixed z-popover bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl py-1 min-w-[160px] animate-fade-in"
         style={{ top: contextMenu.y, left: contextMenu.x }}
         onClick={e => e.stopPropagation()}
       >
@@ -1133,12 +1134,18 @@ export default function TopicDesk() {
                 <input value={refForm.url} onChange={e => setRefForm({ ...refForm, url: e.target.value })} placeholder="Paste URL..."
                   className="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder-zinc-600 focus:ring-2 focus:ring-cyan-500 focus:border-transparent" />
                 <div className="flex gap-1">
-                  {(['url', 'pdf', 'moodboard'] as const).map(t => (
-                    <button key={t} onClick={() => setRefForm({ ...refForm, type: t })}
-                      className={`px-2 py-2 rounded-lg text-[10px] font-medium transition-all ${refForm.type === t ? 'bg-cyan-500/20 text-cyan-400' : 'bg-white/5 text-zinc-600'}`}>
-                      {t === 'url' ? '🔗' : t === 'pdf' ? '📄' : '🎨'}
-                    </button>
-                  ))}
+                  {(['url', 'pdf', 'moodboard'] as const).map(t => {
+                    const Icon = t === 'url' ? Link2 : t === 'pdf' ? FileText : Palette;
+                    const label = t === 'url' ? 'URL reference' : t === 'pdf' ? 'PDF reference' : 'Moodboard reference';
+                    return (
+                      <button key={t} onClick={() => setRefForm({ ...refForm, type: t })}
+                        aria-label={label}
+                        title={label}
+                        className={`px-2 py-2 rounded-lg text-[10px] font-medium transition-all ${refForm.type === t ? 'bg-cyan-500/20 text-cyan-400' : 'bg-white/5 text-zinc-600'}`}>
+                        <Icon className="w-4 h-4" />
+                      </button>
+                    );
+                  })}
                 </div>
                 <input value={refForm.note} onChange={e => setRefForm({ ...refForm, note: e.target.value })} placeholder="Note..."
                   className="w-32 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder-zinc-600 focus:ring-2 focus:ring-cyan-500 focus:border-transparent" />
