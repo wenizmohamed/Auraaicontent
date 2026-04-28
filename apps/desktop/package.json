@@ -31,15 +31,15 @@
       { "from": "../../server/dist", "to": "server/dist" },
       { "from": "../../server/node_modules/.prisma/client-sqlite", "to": "server/node_modules/.prisma/client-sqlite" },
       { "from": "../../server/prisma/schema-sqlite.prisma", "to": "server/prisma/schema-sqlite.prisma" },
-      { "from": "../../server/prisma/migrations-sqlite", "to": "server/prisma/migrations-sqlite" },
-      { "from": "../../server/node_modules/.prisma/client-sqlite/query_engine-windows.dll.node", "to": "server/node_modules/.prisma/client-sqlite/query_engine-windows.dll.node" }
+      { "from": "../../server/prisma/migrations-sqlite", "to": "server/prisma/migrations-sqlite" }
     ],
     "win": {
       "target": ["nsis", "portable"],
-      "certificateFile": "build/cert.pfx",
-      "certificatePassword": "${env.CSC_KEY_PASSWORD}",
-      "signingHashAlgorithms": ["sha256"],
-      "icon": "public/radix-icon.png"
+      "icon": "public/radix-icon.png",
+      "signtoolOptions": {
+        "certificateFile": "build/cert.pfx",
+        "signingHashAlgorithms": ["sha256"]
+      }
     },
     "nsis": {
       "oneClick": false,
