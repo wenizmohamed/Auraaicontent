@@ -38,4 +38,15 @@ describe('createPrismaClient', () => {
     expect(client).toBeDefined();
     await client.$disconnect();
   });
+
+  it('accepts log options and returns a functional client', async () => {
+    delete process.env.DB_TARGET;
+    process.env.DATABASE_URL = 'postgresql://user:pass@localhost:5432/test';
+    const { createPrismaClient } = await import('../src/db/index.js?t=' + Date.now());
+    const client = createPrismaClient({ log: ['error'] });
+    expect(client).toBeDefined();
+    expect(typeof client.$connect).toBe('function');
+    expect(typeof client.$disconnect).toBe('function');
+    await client.$disconnect();
+  });
 });

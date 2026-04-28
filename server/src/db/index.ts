@@ -6,12 +6,14 @@
 // before forking server/dist/index.js. The VPS keeps the existing env shape.
 
 import { createRequire } from 'node:module';
-import type { PrismaClient as PrismaClientType } from '@prisma/client';
+import type { PrismaClient as PrismaClientType, Prisma } from '@prisma/client';
 
 // createRequire lets ESM files load CJS modules (both Prisma generated clients are CJS).
 const require = createRequire(import.meta.url);
 
-export function createPrismaClient(): PrismaClientType {
+type PrismaClientOptions = Prisma.PrismaClientOptions;
+
+export function createPrismaClient(options?: PrismaClientOptions): PrismaClientType {
   const target = process.env.DB_TARGET ?? 'postgres';
 
   if (target === 'sqlite') {
@@ -19,10 +21,10 @@ export function createPrismaClient(): PrismaClientType {
     // and vice-versa. Both clients are independent files thanks to `output =` in schemas.
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { PrismaClient } = require('../../node_modules/.prisma/client-sqlite');
-    return new PrismaClient();
+    return new PrismaClient(options);
   }
 
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { PrismaClient } = require('@prisma/client');
-  return new PrismaClient();
+  return new PrismaClient(options);
 }
