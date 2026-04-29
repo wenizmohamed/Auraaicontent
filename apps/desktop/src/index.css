@@ -530,6 +530,71 @@ html.light [role="tab"]:focus-visible {
   }
 }
 
+/* driver.js (onboarding tour) — restyle into our token system. */
+.driver-popover.radix-driver-popover {
+  background: var(--color-bg-elevated);
+  color: var(--color-fg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-4);
+  font-family: var(--font-sans);
+}
+.radix-driver-popover .driver-popover-title {
+  font-family: var(--font-display);
+  color: var(--color-fg);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.radix-driver-popover .driver-popover-description {
+  color: var(--color-fg-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.radix-driver-popover .driver-popover-footer button {
+  background: var(--color-surface-hover);
+  color: var(--color-fg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  font-size: 12px;
+  padding: 6px 12px;
+  text-shadow: none;
+}
+.radix-driver-popover .driver-popover-footer button.driver-popover-next-btn {
+  background: var(--color-accent);
+  color: var(--color-fg-on-accent);
+  border-color: var(--color-accent);
+}
+.radix-driver-popover .driver-popover-progress-text {
+  color: var(--color-fg-subtle);
+  font-size: 11px;
+}
+.radix-driver-popover .driver-popover-arrow-side-top { border-top-color: var(--color-bg-elevated); }
+.radix-driver-popover .driver-popover-arrow-side-bottom { border-bottom-color: var(--color-bg-elevated); }
+.radix-driver-popover .driver-popover-arrow-side-left { border-left-color: var(--color-bg-elevated); }
+.radix-driver-popover .driver-popover-arrow-side-right { border-right-color: var(--color-bg-elevated); }
+
+/* AI streaming text — subtle shimmer on the trailing characters of an
+   in-flight stream so the user perceives "tokens are arriving now". Wrap
+   the partial buffer with <span class="ai-streaming">…</span>. */
+.ai-streaming {
+  background: linear-gradient(
+    90deg,
+    var(--color-fg) 0%,
+    var(--color-fg) 60%,
+    var(--color-accent) 75%,
+    var(--color-fg) 90%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer 1.6s var(--ease-out-expo) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ai-streaming { animation: none; -webkit-text-fill-color: var(--color-fg); }
+}
+
 /* AR ↔ EN locale flip — wedge made visible. Triggered by LocaleToggle
    adding .locale-flipping to <body> just before the reload that swaps
    dir + lang attributes. The flip plays through and the reload happens

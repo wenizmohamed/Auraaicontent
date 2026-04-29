@@ -54,6 +54,8 @@ import { ShortcutCheatSheet } from './components/ShortcutCheatSheet';
 import { TooltipProvider, Tooltip } from './components/ui/Tooltip';
 import { useShortcut } from './lib/shortcuts';
 import { Toaster } from 'sonner';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from './lib/query-client';
 
 // Email allowlist for the Team page (mirrors server-side TEAM_ADMIN_EMAILS).
 // Anyone not listed here doesn't see the nav item AND gets bounced from the
@@ -397,6 +399,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   return (
+    <QueryClientProvider client={queryClient}>
     <ThemeProvider>
     <TooltipProvider>
     <ToastProvider>
@@ -448,5 +451,6 @@ export default function App() {
     </ToastProvider>
     </TooltipProvider>
     </ThemeProvider>
+    </QueryClientProvider>
   );
 }
