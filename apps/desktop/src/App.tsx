@@ -128,16 +128,16 @@ function Layout({ children }: { children: React.ReactNode }) {
     onTrigger: () => toggleTheme(),
   });
 
-  const navigation = [
-    { name: t('nav.dashboard'), href: '/', icon: LayoutDashboard },
-    { name: t('nav.clients'), href: '/clients', icon: Building2 },
-    { name: t('nav.brief'), href: '/brief', icon: FileText },
-    { name: t('nav.review'), href: '/content-review', icon: Layers },
-    { name: t('nav.calendar'), href: '/calendar', icon: Calendar },
-    { name: t('nav.creative'), href: '/creative', icon: Wand2 },
-    { name: t('nav.gallery'), href: '/gallery', icon: ImageIcon },
-    ...(showTeam ? [{ name: t('nav.members'), href: '/settings/members', icon: UserCircle }] : []),
-    { name: t('nav.billing'), href: '/settings/billing', icon: UserCircle },
+  const navigation: { name: string; href: string; icon: any; prefetch?: () => Promise<unknown> }[] = [
+    { name: t('nav.dashboard'), href: '/',                     icon: LayoutDashboard, prefetch: () => import('./pages/Dashboard') },
+    { name: t('nav.clients'),   href: '/clients',              icon: Building2,       prefetch: () => import('./pages/Clients') },
+    { name: t('nav.brief'),     href: '/brief',                icon: FileText,        prefetch: () => import('./pages/BriefInput') },
+    { name: t('nav.review'),    href: '/content-review',       icon: Layers,          prefetch: () => import('./pages/ContentReview') },
+    { name: t('nav.calendar'),  href: '/calendar',             icon: Calendar,        prefetch: () => import('./pages/ContentCalendar') },
+    { name: t('nav.creative'),  href: '/creative',             icon: Wand2,           prefetch: () => import('./pages/CreativeTools') },
+    { name: t('nav.gallery'),   href: '/gallery',              icon: ImageIcon,       prefetch: () => import('./pages/Gallery') },
+    ...(showTeam ? [{ name: t('nav.members'), href: '/settings/members', icon: UserCircle, prefetch: () => import('./pages/Members') }] : []),
+    { name: t('nav.billing'),   href: '/settings/billing',     icon: UserCircle,      prefetch: () => import('./pages/Billing') },
   ];
 
   // Studio is a dark high-contrast palette; treat it as "dark chrome" for layout ternaries.
@@ -219,6 +219,8 @@ function Layout({ children }: { children: React.ReactNode }) {
               <Link
                 key={item.name}
                 to={item.href}
+                onMouseEnter={() => { item.prefetch?.().catch(() => {}); }}
+                onFocus={() => { item.prefetch?.().catch(() => {}); }}
                 className={`group flex items-center px-3 py-2.5 text-[13px] font-medium rounded-xl transition-all duration-200 relative cursor-pointer ${
                   isActive
                     ? isDark

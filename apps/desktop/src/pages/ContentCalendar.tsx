@@ -78,6 +78,21 @@ export default function ContentCalendar() {
   const [showHijri, setShowHijri] = useState<boolean>(() => {
     try { return localStorage.getItem('radix.calendar.hijri') === '1'; } catch { return false; }
   });
+  type Density = 'compact' | 'comfortable' | 'spacious';
+  const [density, setDensity] = useState<Density>(() => {
+    try {
+      const saved = localStorage.getItem('radix.calendar.density') as Density | null;
+      return saved === 'compact' || saved === 'spacious' ? saved : 'comfortable';
+    } catch { return 'comfortable'; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('radix.calendar.density', density); } catch { /* ssr */ }
+  }, [density]);
+  const densityClasses = {
+    compact:     { gap: 'gap-1', padding: 'p-1.5', dayText: 'text-[11px]', subText: 'text-[8px]' },
+    comfortable: { gap: 'gap-2', padding: 'p-2',   dayText: 'text-xs',     subText: 'text-[9px]' },
+    spacious:    { gap: 'gap-3', padding: 'p-3',   dayText: 'text-sm',     subText: 'text-[10px]' },
+  }[density];
   const [backendMonth, setBackendMonth] = useState<any>(null);
   const [loadingBackend, setLoadingBackend] = useState(false);
   const [reviewLink, setReviewLink] = useState<string | null>(null);
@@ -588,6 +603,24 @@ export default function ContentCalendar() {
                 }`}>
                 ه Hijri
               </button>
+              {/* Density toggle — compact / comfortable / spacious */}
+              <div className="inline-flex items-center rounded-lg border" style={{ borderColor: 'var(--color-border)' }}>
+                {(['compact','comfortable','spacious'] as const).map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => setDensity(d)}
+                    title={`${d[0].toUpperCase() + d.slice(1)} density`}
+                    aria-pressed={density === d}
+                    className="px-2 py-1 text-[10px] font-medium uppercase tracking-wider transition-colors cursor-pointer first:rounded-l-lg last:rounded-r-lg"
+                    style={{
+                      background: density === d ? 'var(--color-surface-active)' : 'transparent',
+                      color: density === d ? 'var(--color-fg)' : 'var(--color-fg-subtle)',
+                    }}
+                  >
+                    {d === 'compact' ? '·' : d === 'comfortable' ? '··' : '···'}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="flex items-center gap-1.5">
               {['All', ...platforms].map(p => (
@@ -606,12 +639,12 @@ export default function ContentCalendar() {
           {/* Calendar Grid */}
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ ...motionBase, delay: 0.1 }}
             className="rounded-3xl bg-[#0c0c0c] border border-white/[0.06] p-5">
-            <div className="grid grid-cols-7 gap-2 mb-2">
+            <div className={`grid grid-cols-7 ${densityClasses.gap} mb-2`}>
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
                 <div key={d} className="text-center text-[10px] font-bold text-zinc-700 uppercase tracking-wider py-2">{d}</div>
               ))}
             </div>
-            <div className="grid grid-cols-7 gap-2">
+            <div className={`grid grid-cols-7 ${densityClasses.gap}`}>
               {Array.from({ length: firstDayOffset }).map((_, i) => (
                 <div key={`empty-${i}`} className="aspect-square rounded-xl bg-white/[0.01]" />
               ))}
@@ -628,7 +661,7 @@ export default function ContentCalendar() {
                   <button key={day}
                     onClick={() => setSelectedDay(isSelected ? null : day)}
                     title={dayHolidays.map((h) => h.name).join(' · ') || (hijri || undefined)}
-                    className={`aspect-square rounded-xl border p-2 flex flex-col transition-all cursor-pointer relative ${
+                    className={`aspect-square rounded-xl border ${densityClasses.padding} flex flex-col transition-all cursor-pointer relative ${
                       isSelected ? 'bg-white/[0.08] border-white/[0.2]'
                         : dayHolidays.length > 0 ? 'bg-amber-500/[0.06] border-amber-500/30 hover:border-amber-500/50'
                         : ramadan ? 'bg-emerald-500/[0.04] border-emerald-500/20 hover:border-emerald-500/40'

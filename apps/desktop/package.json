@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
+    "lint:a11y": "eslint --ext .tsx,.ts src",
     "test": "echo \"no test framework configured — typecheck is the gate\" && tsc --noEmit",
     "electron:dev": "concurrently -k \"vite --port=3000\" \"wait-on http://localhost:3000 && electron .\"",
     "electron:build": "vite build && electron-builder --win --x64",
@@ -75,8 +76,10 @@
   },
   "devDependencies": {
     "@axe-core/react": "^4.11.2",
+    "@eslint/js": "^10.0.1",
     "@types/diff": "^7.0.2",
     "@types/node": "^22.14.0",
+    "@typescript-eslint/parser": "^8.59.1",
     "autoprefixer": "^10.4.21",
     "concurrently": "^9.2.1",
     "electron": "41.1.1",
