@@ -22,6 +22,7 @@ import {
 import { creativeApi } from '../lib/backend-api';
 import { useClients } from '../lib/client-context';
 import { readJson } from '../lib/safe-storage';
+import { motionUI, motionBase } from '../lib/motion';
 
 // ─── Prompt History ─────────────────────────────────────────────
 
@@ -371,7 +372,7 @@ export default function CreativeTools() {
       </motion.div>
 
       {/* ─── Mode Tabs ──────────────────────────────────────────── */}
-      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ ...motionUI, delay: 0.05 }}
         className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {MODES.map(m => {
           const Icon = m.icon;
@@ -410,7 +411,7 @@ export default function CreativeTools() {
         key={mode}
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.25 }}
+        transition={motionBase}
         className="rounded-3xl bg-[#0c0c0c] border border-white/[0.06] p-6 space-y-6"
       >
         {/* Studio sub-header */}
@@ -767,7 +768,7 @@ export default function CreativeTools() {
       </motion.div>
 
       {/* ─── Secondary Tools (demoted) ──────────────────────────── */}
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ ...motionUI, delay: 0.1 }}
         className="pt-4">
         <div className="flex items-center gap-2 mb-3">
           <Sparkles className="w-3.5 h-3.5 text-zinc-600" />

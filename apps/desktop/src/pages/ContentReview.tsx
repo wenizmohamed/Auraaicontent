@@ -14,6 +14,7 @@ import { useClients } from '../lib/client-context';
 import { calendarApi, reviewApi, visualRefsApi, exportsApi, jobsApi } from '../lib/backend-api';
 import { ContentStatus, STATUS_LABEL, STATUS_COLOR, normalizeStatus } from '../lib/status-enum';
 import { EmptyState } from '../components/ui/EmptyState';
+import { motionUI, motionInstant, motionBase } from '../lib/motion';
 import VisualRefGrid from '../components/VisualRefGrid';
 
 // ─── Types ──────────────────────────────────────────────────────
@@ -545,7 +546,7 @@ export default function ContentReview() {
       <motion.div
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.05 }}
+        transition={{ ...motionUI, delay: 0.05 }}
         className="bg-[#111] border border-white/10 rounded-2xl p-4 mb-6 print:hidden"
       >
         <div className="flex flex-col md:flex-row md:items-center gap-3">
@@ -620,7 +621,7 @@ export default function ContentReview() {
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.2 }}
+              transition={motionInstant}
               className="overflow-hidden"
             >
               <div className="flex flex-wrap gap-3 pt-4 mt-4 border-t border-white/5">
@@ -732,7 +733,7 @@ export default function ContentReview() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ delay: idx * 0.03, duration: 0.25 }}
+                transition={{ ...motionBase, delay: idx * 0.03 }}
                 className={`bg-[#111] border rounded-2xl overflow-hidden transition-colors ${
                   selectedIds.has(piece.id) ? 'border-amber-500/50 ring-1 ring-amber-500/20'
                   : focusedIndex === idx ? 'border-amber-500/30 ring-1 ring-amber-500/10'

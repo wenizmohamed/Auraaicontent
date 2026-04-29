@@ -24,6 +24,7 @@ import {
 import { useStore, type ContentBrief } from '../lib/store';
 import { useClients } from '../lib/client-context';
 import { briefsApi, calendarApi, jobsApi, assistantApi } from '../lib/backend-api';
+import { motionUI } from '../lib/motion';
 import { InlineAITextHost, type InlineAIAction } from '../components/ui/InlineAITextToolbar';
 import { toast } from 'sonner';
 
@@ -530,7 +531,7 @@ export default function BriefInput() {
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.05 }}
+            transition={{ ...motionUI, delay: 0.05 }}
             className="grid gap-6 sm:grid-cols-2"
           >
             {/* Client selector */}
@@ -580,7 +581,7 @@ export default function BriefInput() {
           <motion.section
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
+            transition={{ ...motionUI, delay: 0.1 }}
           >
             <div className="mb-4 flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -685,7 +686,7 @@ export default function BriefInput() {
           <motion.section
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 }}
+            transition={{ ...motionUI, delay: 0.15 }}
           >
             <div className="mb-4 flex items-center gap-2">
               <CalendarHeart className="h-4 w-4 text-fuchsia-400" />
@@ -758,7 +759,7 @@ export default function BriefInput() {
           <motion.section
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
+            transition={{ ...motionUI, delay: 0.2 }}
           >
             <div className="mb-4 flex items-center gap-2">
               <MonitorPlay className="h-4 w-4 text-violet-400" />
@@ -819,7 +820,7 @@ export default function BriefInput() {
           <motion.section
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.25 }}
+            transition={{ ...motionUI, delay: 0.25 }}
             className="grid gap-6 lg:grid-cols-3"
           >
             {/* Piece count slider */}
@@ -900,7 +901,7 @@ export default function BriefInput() {
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
+            transition={{ ...motionUI, delay: 0.3 }}
             className="pt-2"
           >
             <button

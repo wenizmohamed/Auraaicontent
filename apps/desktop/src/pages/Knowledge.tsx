@@ -7,6 +7,9 @@ import { useToast } from '../lib/toast-context';
 import { EmptyState, EmptyStateAction } from '../components/ui/EmptyState';
 import { SkeletonRow, SkeletonAnnouncer } from '../components/ui/Skeleton';
 import { motionUI } from '../lib/motion';
+import { useMultiSelect } from '../lib/use-multi-select';
+import { BulkActionBar } from '../components/ui/BulkActionBar';
+import { Square, CheckSquare } from 'lucide-react';
 
 function formatBytes(bytes: number): string {
   if (!bytes) return '--';
@@ -46,6 +49,9 @@ export default function Knowledge() {
   const [retrieveResults, setRetrieveResults] = useState<Array<{ text: string; score: number; itemTitle?: string }>>([]);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Multi-select for bulk delete (Phase 5).
+  const ms = useMultiSelect<string>(items.map((i) => i.id));
 
   useEffect(() => {
     if (!selectedClientId) {
@@ -112,6 +118,15 @@ export default function Knowledge() {
     } finally {
       setPendingDelete(null);
     }
+  }
+
+  async function handleBulkDelete(ids: string[]) {
+    const results = await Promise.allSettled(ids.map((id) => knowledgeApi.remove(id)));
+    const ok = results.filter((r) => r.status === 'fulfilled').length;
+    const fail = results.length - ok;
+    setItems((prev) => prev.filter((i) => !ids.includes(i.id)));
+    if (fail === 0) toastSuccess(`Deleted ${ok} items`);
+    else toastError(`Deleted ${ok}, ${fail} failed`);
   }
 
   async function handleRetrieve() {
@@ -258,9 +273,25 @@ export default function Knowledge() {
                 key={item.id}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="rounded-2xl bg-white/[0.03] border border-white/[0.06] p-4 group hover:border-white/[0.12] transition-colors"
+                className={`relative rounded-2xl border p-4 group transition-colors ${
+                  ms.isSelected(item.id)
+                    ? 'bg-amber-500/[0.06] border-amber-500/40'
+                    : 'bg-white/[0.03] border-white/[0.06] hover:border-white/[0.12]'
+                }`}
               >
-                <div className="flex items-start justify-between gap-2 mb-3">
+                {/* Multi-select checkbox — visible on hover or when any row is selected */}
+                <button
+                  type="button"
+                  onClick={(e) => ms.onRowClick(item.id, e)}
+                  aria-label={ms.isSelected(item.id) ? 'Deselect' : 'Select'}
+                  className={`absolute top-3 right-3 z-10 rounded-md p-1 transition-opacity cursor-pointer ${
+                    ms.hasSelection || ms.isSelected(item.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                  }`}
+                  style={{ color: ms.isSelected(item.id) ? 'var(--color-accent)' : 'var(--color-fg-subtle)' }}
+                >
+                  {ms.isSelected(item.id) ? <CheckSquare size={16} /> : <Square size={16} />}
+                </button>
+                <div className="flex items-start justify-between gap-2 mb-3 pr-8">
                   <div className="flex items-start gap-2 min-w-0">
                     <span className="shrink-0 leading-none mt-0.5"><TypeIcon mime={item.type} className="w-5 h-5" /></span>
                     <div className="min-w-0">
@@ -315,6 +346,22 @@ export default function Knowledge() {
           })}
         </div>
       )}
+
+      {/* Bulk action bar — slides up when ≥1 item is selected. */}
+      <BulkActionBar count={ms.count} onClear={ms.clear}>
+        <button
+          type="button"
+          onClick={async () => {
+            const ids = [...ms.selected];
+            ms.clear();
+            await handleBulkDelete(ids);
+          }}
+          className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer"
+          style={{ background: 'var(--color-danger)', color: 'var(--color-fg-on-accent)' }}
+        >
+          <Trash2 size={12} /> Delete
+        </button>
+      </BulkActionBar>
     </div>
   );
 }
