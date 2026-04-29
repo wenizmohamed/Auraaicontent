@@ -43,7 +43,7 @@ import LocaleToggle from './components/LocaleToggle';
 import { ThemeProvider, useTheme } from './lib/theme-context';
 import { ToastProvider } from './lib/toast-context';
 import { t } from './i18n';
-import { Sun, Moon } from 'lucide-react';
+import { Sun, Moon, Sparkles } from 'lucide-react';
 
 // Email allowlist for the Team page (mirrors server-side TEAM_ADMIN_EMAILS).
 // Anyone not listed here doesn't see the nav item AND gets bounced from the
@@ -82,7 +82,9 @@ function Layout({ children }: { children: React.ReactNode }) {
     { name: t('nav.billing'), href: '/settings/billing', icon: UserCircle },
   ];
 
-  const isDark = theme === 'dark';
+  // Studio is a dark high-contrast palette; treat it as "dark chrome" for layout ternaries.
+  const isDark = theme !== 'light';
+  const themeLabel = theme === 'dark' ? 'Dark' : theme === 'light' ? 'Light' : 'Studio';
 
   return (
     <div className={`min-h-screen flex font-sans ${isDark ? 'bg-[#050508]' : 'bg-slate-100'}`}>
@@ -168,12 +170,12 @@ function Layout({ children }: { children: React.ReactNode }) {
               isDark ? 'hover:bg-white/[0.04] text-zinc-500 hover:text-zinc-300' : 'hover:bg-slate-100 text-slate-500 hover:text-slate-700'
             }`}
           >
-            <div className={`relative w-9 h-5 rounded-full transition-colors duration-300 ${isDark ? 'bg-zinc-800' : 'bg-amber-100'}`}>
-              <div className={`absolute top-0.5 w-4 h-4 rounded-full transition-all duration-300 flex items-center justify-center ${isDark ? 'left-0.5 bg-zinc-600' : 'left-[18px] bg-amber-500'}`}>
-                {isDark ? <Moon size={10} className="text-zinc-300" /> : <Sun size={10} className="text-white" />}
+            <div className={`relative w-12 h-5 rounded-full transition-colors duration-300 ${theme === 'dark' ? 'bg-zinc-800' : theme === 'studio' ? 'bg-white/10' : 'bg-amber-100'}`}>
+              <div className={`absolute top-0.5 w-4 h-4 rounded-full transition-all duration-300 flex items-center justify-center ${theme === 'dark' ? 'left-0.5 bg-zinc-600' : theme === 'studio' ? 'left-[14px] bg-white' : 'left-[28px] bg-amber-500'}`}>
+                {theme === 'dark' ? <Moon size={10} className="text-zinc-300" /> : theme === 'studio' ? <Sparkles size={10} className="text-black" /> : <Sun size={10} className="text-white" />}
               </div>
             </div>
-            {!isCollapsed && <span className="text-[13px]">{isDark ? 'Dark' : 'Light'}</span>}
+            {!isCollapsed && <span className="text-[13px]">{themeLabel}</span>}
           </button>
 
           {/* Profile */}
