@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { authGuard } from '../middleware/auth.js';
 import { db } from '../db/prisma.js';
 import { visualSearchService } from '../services/visual-search.service.js';
+import { assertCalendarPostInOrg } from '../lib/tenant.js';
 
 interface AddRefBody {
   thumbnailUrl?: string;
@@ -38,9 +39,9 @@ function safeDomain(rawUrl: string): string {
   }
 }
 
-async function nextPosition(postId: string): Promise<number> {
+async function nextPosition(orgId: string, postId: string): Promise<number> {
   const last = await db.postVisualReference.findFirst({
-    where: { postId },
+    where: { orgId, postId },
     orderBy: { position: 'desc' },
     select: { position: true },
   });
@@ -51,10 +52,15 @@ export async function visualRefRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authGuard);
 
   // GET /api/calendar-posts/:postId/visual-refs
-  app.get('/calendar-posts/:postId/visual-refs', async (request) => {
+  app.get('/calendar-posts/:postId/visual-refs', async (request, reply) => {
     const { postId } = request.params as { postId: string };
+    try {
+      await assertCalendarPostInOrg(postId, request.orgId);
+    } catch (err: any) {
+      return reply.status(err.statusCode || 500).send({ error: err.message });
+    }
     return db.postVisualReference.findMany({
-      where: { postId },
+      where: { orgId: request.orgId!, postId },
       orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
     });
   });
@@ -62,16 +68,20 @@ export async function visualRefRoutes(app: FastifyInstance) {
   // POST /api/calendar-posts/:postId/visual-refs
   app.post('/calendar-posts/:postId/visual-refs', async (request, reply) => {
     const { postId } = request.params as { postId: string };
+    const orgId = request.orgId!;
+    try {
+      await assertCalendarPostInOrg(postId, orgId);
+    } catch (err: any) {
+      return reply.status(err.statusCode || 500).send({ error: err.message });
+    }
     const body = (request.body as AddRefBody) || {};
     if (!body.thumbnailUrl || !body.sourceUrl) {
       return reply.status(400).send({ error: 'thumbnailUrl and sourceUrl are required' });
     }
 
-    const post = await db.calendarPost.findUnique({ where: { id: postId }, select: { id: true } });
-    if (!post) return reply.status(404).send({ error: 'post not found' });
-
     const ref = await db.postVisualReference.create({
       data: {
+        orgId,
         postId,
         thumbnailUrl: body.thumbnailUrl,
         sourceUrl: body.sourceUrl,
@@ -80,7 +90,7 @@ export async function visualRefRoutes(app: FastifyInstance) {
         title: body.title || null,
         description: body.description || null,
         pinId: body.pinId || null,
-        position: await nextPosition(postId),
+        position: await nextPosition(orgId, postId),
       },
     });
 
@@ -90,12 +100,13 @@ export async function visualRefRoutes(app: FastifyInstance) {
   // PATCH /api/visual-refs/:refId
   app.patch('/visual-refs/:refId', async (request, reply) => {
     const { refId } = request.params as { refId: string };
+    const orgId = request.orgId!;
     const body = (request.body as UpdateRefBody) || {};
 
-    const existing = await db.postVisualReference.findUnique({ where: { id: refId } });
+    const existing = await db.postVisualReference.findUnique({ where: { id: refId, orgId } });
     if (!existing) return reply.status(404).send({ error: 'visual ref not found' });
 
-    const data: Record<string, unknown> = {};
+    const data: any = {};
     if (typeof body.thumbnailUrl === 'string') data.thumbnailUrl = body.thumbnailUrl;
     if (typeof body.sourceUrl === 'string') {
       data.sourceUrl = body.sourceUrl;
@@ -105,15 +116,16 @@ export async function visualRefRoutes(app: FastifyInstance) {
     if (typeof body.description === 'string') data.description = body.description;
     if (typeof body.position === 'number') data.position = body.position;
 
-    return db.postVisualReference.update({ where: { id: refId }, data });
+    return db.postVisualReference.update({ where: { id: refId, orgId }, data });
   });
 
   // DELETE /api/visual-refs/:refId
   app.delete('/visual-refs/:refId', async (request, reply) => {
     const { refId } = request.params as { refId: string };
-    const existing = await db.postVisualReference.findUnique({ where: { id: refId }, select: { id: true } });
+    const orgId = request.orgId!;
+    const existing = await db.postVisualReference.findUnique({ where: { id: refId, orgId }, select: { orgId: true } });
     if (!existing) return reply.status(404).send({ error: 'visual ref not found' });
-    await db.postVisualReference.delete({ where: { id: refId } });
+    await db.postVisualReference.delete({ where: { id: refId, orgId } });
     return { success: true };
   });
 
@@ -130,21 +142,28 @@ export async function visualRefRoutes(app: FastifyInstance) {
   // POST /api/calendar-posts/:postId/visual-refs/auto-populate
   app.post('/calendar-posts/:postId/visual-refs/auto-populate', async (request, reply) => {
     const { postId } = request.params as { postId: string };
+    const orgId = request.orgId!;
+    try {
+      await assertCalendarPostInOrg(postId, orgId);
+    } catch (err: any) {
+      return reply.status(err.statusCode || 500).send({ error: err.message });
+    }
     const { count } = (request.body as AutoPopulateBody) || {};
 
-    const post = await db.calendarPost.findUnique({ where: { id: postId } });
+    const post = await db.calendarPost.findUnique({ where: { id: postId, orgId } });
     if (!post) return reply.status(404).send({ error: 'post not found' });
     if (!post.referenceQuery || !post.referenceQuery.trim()) {
       return reply.status(422).send({ error: 'post has no referenceQuery — add a referenceQuery first or use the manual add endpoint' });
     }
 
     const { results } = await visualSearchService.search(post.referenceQuery, count || 6);
-    let position = await nextPosition(postId);
+    let position = await nextPosition(orgId, postId);
 
     const created = [];
     for (const r of results) {
       const ref = await db.postVisualReference.create({
         data: {
+          orgId,
           postId,
           thumbnailUrl: r.thumbnailUrl,
           sourceUrl: r.sourceUrl,

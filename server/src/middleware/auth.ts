@@ -7,14 +7,8 @@ export interface JwtPayload {
   userId: string;
   email: string;
   role: string;
-}
-
-// Fastify module augmentation — `request.user` is set by authGuard.
-// Optional because non-authed routes don't have it.
-declare module 'fastify' {
-  interface FastifyRequest {
-    user?: JwtPayload;
-  }
+  orgId: string;        // active organization for tenant scoping
+  orgRole?: string;     // OWNER | ADMIN | EDITOR | VIEWER for the active org
 }
 
 export function verifyToken(token: string): JwtPayload {
@@ -52,7 +46,19 @@ export function hashRefreshToken(raw: string): string {
   return crypto.createHash('sha256').update(raw).digest('hex');
 }
 
-// Fastify preHandler hook — attaches user to request
+// Augment the Fastify request type with `user` and `orgId` so route
+// handlers can read them without casting through `any`.
+declare module 'fastify' {
+  interface FastifyRequest {
+    user?: JwtPayload;
+    orgId?: string;
+  }
+}
+
+// Fastify preHandler hook — attaches user + active orgId to request.
+// Tenant-scoped routes can read request.orgId directly; missing orgId
+// in the token means the user has no active organization (legacy token
+// from before the multi-tenancy migration) → reject and force re-login.
 export async function authGuard(request: FastifyRequest, reply: FastifyReply) {
   const authHeader = request.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) {
@@ -62,8 +68,22 @@ export async function authGuard(request: FastifyRequest, reply: FastifyReply) {
   try {
     const token = authHeader.slice(7);
     const payload = verifyToken(token);
+    if (!payload.orgId) {
+      return reply.status(401).send({ error: 'Token missing org scope', requireLogin: true });
+    }
     request.user = payload;
+    request.orgId = payload.orgId;
   } catch {
     return reply.status(401).send({ error: 'Invalid or expired token' });
   }
+}
+
+// Role gate — wrap routes that should only fire for OWNER/ADMIN.
+export function requireOrgRole(...allowed: string[]) {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
+    const role = request.user?.orgRole;
+    if (!role || !allowed.includes(role)) {
+      return reply.status(403).send({ error: 'Insufficient role for this organization' });
+    }
+  };
 }

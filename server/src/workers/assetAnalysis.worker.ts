@@ -3,8 +3,8 @@ import { aiRouter } from '../services/providers/ai-router.js';
 import { assetService } from '../services/asset.service.js';
 import { storageService } from '../services/storage.service.js';
 
-export async function analyzeAssetWorker(assetId: string): Promise<any> {
-  const asset = await assetService.getById(assetId);
+export async function analyzeAssetWorker(orgId: string, assetId: string): Promise<any> {
+  const asset = await assetService.getById(orgId, assetId);
   if (!asset) throw new Error('Asset not found');
   if (!asset.mimeType.startsWith('image/')) throw new Error('Only image assets can be analyzed');
 
@@ -27,7 +27,7 @@ export async function analyzeAssetWorker(assetId: string): Promise<any> {
   });
 
   const analysis = result.output as any;
-  await assetService.update(assetId, { analysis, tags: analysis.tags || [] });
+  await assetService.update(orgId, assetId, { analysis, tags: analysis.tags || [] });
 
   console.log(`[assetAnalysis] ${assetId}: analyzed via ${result.provider}/${result.model} (${result.latencyMs}ms)`);
   return analysis;

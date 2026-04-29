@@ -1,36 +1,6 @@
 import { FastifyInstance } from 'fastify';
-import { z } from 'zod';
 import { clientService } from '../services/client.service.js';
 import { authGuard } from '../middleware/auth.js';
-import { parseOr400 } from '../lib/parseOr400.js';
-
-// Common client fields shared between create + update.
-// Service auto-derives slug + ignores timezone, so neither belongs in the body.
-// nullable() permits clients sending `null` to clear a field; .optional()
-// permits omitting it entirely. The service signature accepts `field?: string`
-// (not nullable), so we strip nulls at the boundary.
-const ClientBaseFields = {
-  name: z.string().min(1).max(200),
-  industry: z.string().max(200).nullable().optional(),
-  website: z.string().max(500).nullable().optional(),
-  instagramHandle: z.string().max(60).nullable().optional(),
-  primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional(),
-  logoUrl: z.string().max(2000).nullable().optional(),
-};
-const CreateClientBody = z.object(ClientBaseFields);
-const UpdateClientBody = z.object({
-  ...ClientBaseFields,
-  name: z.string().min(1).max(200).optional(),
-});
-
-// Bridge zod's nullable→undefined so it matches `field?: string` service shape.
-function stripNulls<T extends Record<string, unknown>>(obj: T): { [K in keyof T]: Exclude<T[K], null> } {
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(obj)) {
-    if (v !== null) out[k] = v;
-  }
-  return out as { [K in keyof T]: Exclude<T[K], null> };
-}
 
 export async function clientRoutes(app: FastifyInstance) {
 
@@ -38,20 +8,20 @@ export async function clientRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authGuard);
 
   // GET /api/clients
-  app.get('/', async () => {
-    return clientService.list();
+  app.get('/', async (request) => {
+    return clientService.list(request.orgId!);
   });
 
   // POST /api/clients
   app.post('/', async (request, reply) => {
-    const body = parseOr400(CreateClientBody, request.body, reply);
-    if (!body) return;
+    const { name, industry, website, instagramHandle, primaryColor, logoUrl, locale, dialect, whatsappNumber } =
+      request.body as any;
+    if (!name) return reply.status(400).send({ error: 'Client name is required' });
     try {
-      const client = await clientService.create(stripNulls(body));
+      const client = await clientService.create(request.orgId!, { name, industry, website, instagramHandle, primaryColor, logoUrl, locale, dialect, whatsappNumber });
       return reply.status(201).send(client);
-    } catch (err: unknown) {
-      const e = err as { statusCode?: number; message?: string } | null;
-      if (e?.statusCode === 409) return reply.status(409).send({ error: e?.message });
+    } catch (err: any) {
+      if (err.statusCode === 409) return reply.status(409).send({ error: err.message });
       throw err;
     }
   });
@@ -59,7 +29,7 @@ export async function clientRoutes(app: FastifyInstance) {
   // GET /api/clients/:clientId
   app.get('/:clientId', async (request, reply) => {
     const { clientId } = request.params as { clientId: string };
-    const client = await clientService.getById(clientId);
+    const client = await clientService.getById(request.orgId!, clientId);
     if (!client) return reply.status(404).send({ error: 'Client not found' });
     return client;
   });
@@ -67,15 +37,23 @@ export async function clientRoutes(app: FastifyInstance) {
   // PATCH /api/clients/:clientId
   app.patch('/:clientId', async (request, reply) => {
     const { clientId } = request.params as { clientId: string };
-    const body = parseOr400(UpdateClientBody, request.body, reply);
-    if (!body) return;
-    return clientService.update(clientId, stripNulls(body));
+    try {
+      return await clientService.update(request.orgId!, clientId, request.body as any);
+    } catch (err: any) {
+      if (err.statusCode === 404) return reply.status(404).send({ error: err.message });
+      throw err;
+    }
   });
 
   // DELETE /api/clients/:clientId
-  app.delete('/:clientId', async (request) => {
+  app.delete('/:clientId', async (request, reply) => {
     const { clientId } = request.params as { clientId: string };
-    await clientService.remove(clientId);
-    return { success: true };
+    try {
+      await clientService.remove(request.orgId!, clientId);
+      return { success: true };
+    } catch (err: any) {
+      if (err.statusCode === 404) return reply.status(404).send({ error: err.message });
+      throw err;
+    }
   });
 }

@@ -1,8 +1,8 @@
-// Single source of truth for prompt templates — server-side only
-// packages/prompts/ is the canonical reference but tsc can't cross-workspace import
-// This file IS the working implementation. packages/prompts/ is documentation/reference only.
+// Single source of truth for prompt templates — server-side only.
+// packages/prompts/ is documentation; tsc can't cross-workspace import,
+// so the actual builder is here. Arabic and English variants live side
+// by side; client.locale picks which one runs.
 
-// Platform character/hashtag limits — keyed by canonical platform name
 const PLATFORM_LIMITS: Record<string, string> = {
   Instagram: 'Instagram: max 2200 chars, 5 hashtags',
   TikTok: 'TikTok: max 4000 chars, 5 hashtags',
@@ -11,8 +11,55 @@ const PLATFORM_LIMITS: Record<string, string> = {
   Facebook: 'Facebook: max 63206 chars, 3 hashtags',
 };
 
-// Parse a brief.channels field (array or JSON string) into a normalized platform list.
-// Returns canonical platform names that match PLATFORM_LIMITS keys.
+export type ArabicDialect = 'MSA' | 'KHALEEJI' | 'EGYPTIAN' | 'LEVANTINE';
+
+const DIALECT_GUIDANCE: Record<ArabicDialect, string> = {
+  MSA:       'الفصحى الحديثة (MSA). Neutral pan-Arab tone, no slang.',
+  KHALEEJI:  'لهجة خليجية. Gulf vocabulary (شلونك، إن شاء الله). UAE/KSA/Qatar/Bahrain/Kuwait/Oman audience.',
+  EGYPTIAN:  'لهجة مصرية. Cairene vocabulary (إزيك، يعني). Egyptian/pop-Arab audience.',
+  LEVANTINE: 'لهجة شامية. Beirut/Damascus/Amman vocabulary.',
+};
+
+// GCC + MENA holidays for 2026. Update annually.
+interface HolidayRow { name: string; date: string; type: 'religious' | 'national' | 'cultural'; countries?: string[]; toneGuidance?: string }
+const MENA_HOLIDAYS_2026: HolidayRow[] = [
+  { name: 'Ramadan begins', date: '2026-02-17', type: 'religious', toneGuidance: 'Reflective, community. Avoid food/drink imagery before iftar.' },
+  { name: 'Mid-Ramadan', date: '2026-03-04', type: 'religious', toneGuidance: 'Charity, reflection.' },
+  { name: 'Laylat al-Qadr', date: '2026-03-13', type: 'religious', toneGuidance: 'Spiritual, no promotional pushes.' },
+  { name: 'Eid al-Fitr', date: '2026-03-19', type: 'religious', toneGuidance: 'Celebratory, family, gifting.' },
+  { name: 'Eid al-Adha', date: '2026-05-26', type: 'religious', toneGuidance: 'Celebratory, sacrifice.' },
+  { name: 'Hijri New Year (1448)', date: '2026-06-15', type: 'religious' },
+  { name: 'Mawlid al-Nabi', date: '2026-08-23', type: 'religious' },
+  { name: 'Saudi National Day', date: '2026-09-23', type: 'national', countries: ['SA'], toneGuidance: 'Patriotic, Vision 2030.' },
+  { name: 'Oman National Day', date: '2026-11-18', type: 'national', countries: ['OM'] },
+  { name: 'UAE National Day', date: '2026-12-02', type: 'national', countries: ['AE'], toneGuidance: 'Patriotic, unity.' },
+  { name: 'Bahrain National Day', date: '2026-12-16', type: 'national', countries: ['BH'] },
+  { name: 'Qatar National Day', date: '2026-12-18', type: 'national', countries: ['QA'] },
+  { name: 'Kuwait National Day', date: '2027-02-25', type: 'national', countries: ['KW'] },
+  { name: 'Emirati Women\'s Day', date: '2026-08-28', type: 'cultural', countries: ['AE'] },
+  { name: 'Saudi Founding Day', date: '2026-02-22', type: 'cultural', countries: ['SA'] },
+  { name: 'International Women\'s Day', date: '2026-03-08', type: 'cultural' },
+];
+
+export function getUpcomingHolidays(monthLabel: string, country?: string): HolidayRow[] {
+  // Best-effort parse of "May 2026" / "2026-05" formats. Falls back to
+  // current date if parsing fails — better than throwing inside the worker.
+  const fallback = new Date();
+  let start = fallback;
+  const m = monthLabel.match(/(\d{4})-(\d{2})/);
+  const m2 = monthLabel.match(/(\w+)\s+(\d{4})/);
+  if (m) start = new Date(`${m[1]}-${m[2]}-01`);
+  else if (m2) start = new Date(`${m2[1]} 1, ${m2[2]}`);
+  if (isNaN(start.getTime())) start = fallback;
+  const end = new Date(start.getTime() + 45 * 86400000);
+  return MENA_HOLIDAYS_2026.filter((h) => {
+    const d = new Date(h.date);
+    if (d < start || d >= end) return false;
+    if (country && h.countries && !h.countries.includes(country)) return false;
+    return true;
+  });
+}
+
 export function parseBriefChannels(raw: any): string[] {
   if (!raw) return [];
   let arr: any = raw;
@@ -20,7 +67,6 @@ export function parseBriefChannels(raw: any): string[] {
     try { arr = JSON.parse(raw); } catch { return []; }
   }
   if (!Array.isArray(arr)) return [];
-  // Canonicalize: case-insensitive match, trim, map "twitter" -> "X"
   const canonical: string[] = [];
   for (const v of arr) {
     if (typeof v !== 'string') continue;
@@ -31,13 +77,42 @@ export function parseBriefChannels(raw: any): string[] {
     else if (lower === 'linkedin') canonical.push('LinkedIn');
     else if (lower === 'x' || lower === 'twitter' || lower === 'x (twitter)') canonical.push('X');
     else if (lower === 'facebook') canonical.push('Facebook');
-    // Unknown platform names are dropped — the brief UI only emits the 5 known ones
   }
-  // Dedupe while preserving order
   return [...new Set(canonical)];
 }
 
-export function buildPlanningPrompt(p: { client: any; brief: any; assets: any[]; month: string; pieceCount: number; knowledgeContext?: { text: string; score: number }[] }): string {
+interface BuildArgs {
+  client: any;
+  brief: any;
+  assets: any[];
+  month: string;
+  pieceCount: number;
+  knowledgeContext?: { text: string; score: number }[];
+}
+
+// Picks Arabic vs English based on client.locale. Dialect defaults to
+// MSA if not set. Country derived from timezone for holiday filtering.
+export function buildPlanningPrompt(p: BuildArgs): string {
+  const locale = (p.client?.locale || 'en').toLowerCase();
+  if (locale.startsWith('ar')) {
+    return buildArabicPrompt(p);
+  }
+  return buildEnglishPrompt(p);
+}
+
+function clientCountry(client: any): string | undefined {
+  // Timezone heuristic: 'Asia/Dubai' → AE, 'Asia/Riyadh' → SA, etc.
+  const tz = (client?.timezone || '').toLowerCase();
+  if (tz.includes('dubai')) return 'AE';
+  if (tz.includes('riyadh')) return 'SA';
+  if (tz.includes('doha') || tz.includes('qatar')) return 'QA';
+  if (tz.includes('kuwait')) return 'KW';
+  if (tz.includes('bahrain')) return 'BH';
+  if (tz.includes('muscat')) return 'OM';
+  return undefined;
+}
+
+function buildEnglishPrompt(p: BuildArgs): string {
   const s: string[] = [];
   s.push(`You are an expert social media content strategist for ${p.client.name}, a ${p.client.industry || 'general'} company.`);
   s.push('\n=== CLIENT ===');
@@ -45,7 +120,6 @@ export function buildPlanningPrompt(p: { client: any; brief: any; assets: any[];
   if (p.client.industry) s.push(`Industry: ${p.client.industry}`);
   if (p.client.website) s.push(`Website: ${p.client.website}`);
 
-  // Selected platforms — the ONLY platforms the AI is allowed to use
   const channels = parseBriefChannels(p.brief?.channels);
 
   if (p.brief) {
@@ -62,7 +136,15 @@ export function buildPlanningPrompt(p: { client: any; brief: any; assets: any[];
     fmtArr('Campaign Moments', p.brief.campaignMoments);
   }
 
-  // Platforms block — HARD RESTRICTION on what the AI can output
+  // Inject holidays even on English prompts — helps US/EU brands targeting GCC.
+  const holidays = getUpcomingHolidays(p.month, clientCountry(p.client));
+  if (holidays.length > 0) {
+    s.push('\n=== UPCOMING HOLIDAYS / OCCASIONS ===');
+    for (const h of holidays) {
+      s.push(`- ${h.date}: ${h.name}${h.toneGuidance ? ` — ${h.toneGuidance}` : ''}`);
+    }
+  }
+
   s.push('\n=== ALLOWED PLATFORMS (HARD RESTRICTION) ===');
   if (channels.length > 0) {
     s.push(`You may ONLY generate posts for these exact platforms: ${channels.join(', ')}.`);
@@ -77,12 +159,10 @@ export function buildPlanningPrompt(p: { client: any; brief: any; assets: any[];
       if (PLATFORM_LIMITS[ch]) s.push(`- ${PLATFORM_LIMITS[ch]}`);
     }
   } else {
-    // Fallback: if no channels configured (shouldn't happen — brief completeness gate requires it)
     s.push('No channels specified in brief. Default to Instagram only.');
     s.push('- ' + PLATFORM_LIMITS.Instagram);
   }
 
-  // Brand knowledge from uploaded documents (RAG retrieval)
   if (p.knowledgeContext && p.knowledgeContext.length > 0) {
     s.push('\n=== BRAND KNOWLEDGE ===');
     s.push('The following knowledge was uploaded by the client. Use it to inform your content strategy:');
@@ -100,5 +180,78 @@ export function buildPlanningPrompt(p: { client: any; brief: any; assets: any[];
 3. Vary formats (Static/Carousel/Reel/Video) and pillars across posts.
 4. Distribute posts evenly across the calendar month.
 5. Return ONLY valid JSON. No markdown, no commentary.`);
+  return s.join('\n');
+}
+
+function buildArabicPrompt(p: BuildArgs): string {
+  const dialect = (p.client?.dialect as ArabicDialect) || 'MSA';
+  const country = clientCountry(p.client);
+  const holidays = getUpcomingHolidays(p.month, country);
+  const channels = parseBriefChannels(p.brief?.channels);
+  const s: string[] = [];
+
+  s.push(`أنت استراتيجي محتوى عربي محترف لشركة ${p.client.name}. You are a senior Arabic-language social content strategist for ${p.client.name}, a ${p.client.industry || 'general'} company.`);
+  s.push('');
+  s.push(`DIALECT: ${dialect} — ${DIALECT_GUIDANCE[dialect]}`);
+
+  s.push('\n=== CLIENT ===');
+  s.push(`Name: ${p.client.name}`);
+  if (p.client.industry) s.push(`Industry: ${p.client.industry}`);
+  if (p.client.website) s.push(`Website: ${p.client.website}`);
+
+  if (p.brief) {
+    s.push('\n=== BRIEF ===');
+    if (p.brief.objective) s.push(`Objective: ${p.brief.objective}`);
+    if (p.brief.audience) s.push(`Audience: ${p.brief.audience}`);
+    if (p.brief.tone) s.push(`Tone: ${p.brief.tone}`);
+    if (p.brief.brandDo) s.push(`Brand Do: ${p.brief.brandDo}`);
+    if (p.brief.brandDont) s.push(`Brand Don't: ${p.brief.brandDont}`);
+    if (p.brief.complianceNotes) s.push(`Compliance: ${p.brief.complianceNotes}`);
+    const fmtArr = (l: string, v: any) => { try { const a = typeof v === 'string' ? JSON.parse(v) : v; if (Array.isArray(a) && a.length) s.push(`${l}: ${a.join(', ')}`); } catch {} };
+    fmtArr('Products', p.brief.products);
+    fmtArr('Pillars', p.brief.pillars);
+    fmtArr('Campaign Moments', p.brief.campaignMoments);
+  }
+
+  if (holidays.length > 0) {
+    s.push('\n=== UPCOMING HOLIDAYS / OCCASIONS ===');
+    for (const h of holidays) {
+      s.push(`- ${h.date}: ${h.name}${h.toneGuidance ? ` — ${h.toneGuidance}` : ''}`);
+    }
+    s.push('Tone guidance: For Ramadan posts, avoid food/drink imagery before iftar. Emphasize community, family, charity, reflection. For Eid posts, celebratory tone (عيد مبارك). For National Days, patriotic but not jingoistic.');
+  }
+
+  s.push('\n=== ALLOWED PLATFORMS (HARD RESTRICTION) ===');
+  if (channels.length > 0) {
+    s.push(`You may ONLY generate posts for these exact platforms: ${channels.join(', ')}.`);
+    s.push('\nPlatform limits (Arabic chars count the same as Latin):');
+    for (const ch of channels) {
+      if (PLATFORM_LIMITS[ch]) s.push(`- ${PLATFORM_LIMITS[ch]}`);
+    }
+  } else {
+    s.push('No channels specified in brief. Default to Instagram only.');
+    s.push('- ' + PLATFORM_LIMITS.Instagram);
+  }
+
+  if (p.knowledgeContext && p.knowledgeContext.length > 0) {
+    s.push('\n=== BRAND KNOWLEDGE ===');
+    p.knowledgeContext.forEach((chunk, i) => {
+      s.push(`${i + 1}. ${chunk.text}`);
+    });
+  }
+
+  s.push(`\n=== TASK ===\nGenerate exactly ${p.pieceCount} content pieces for ${p.month} as JSON.`);
+  s.push('CRITICAL — write all user-facing strings (title, hook, keyMessage, caption, cta, hashtags) in ARABIC using the dialect above.');
+  s.push('Keep JSON keys, platform names, and date strings in English/numeric form. referenceSearchQuery stays in English so Pinterest/DDG returns visual references.');
+  s.push('Hashtags: prefer Arabic when audience-natural (#رمضان_كريم), mix with English for international reach.');
+
+  s.push('\nReturn: {"strategySummary":{"overview":"ملخص الاستراتيجية","themes":["موضوع١"],"channelFocus":{"Instagram":40}},"posts":[{"date":"...","title":"عنوان","pillar":"الركيزة","platform":"Instagram","format":"Static","hook":"جملة افتتاحية","keyMessage":"الرسالة","caption":"النص الكامل","cta":"دعوة","hashtags":["#وسم"],"visualDirection":"توجيه فني","referenceSearchQuery":"english search keywords","ideaRationale":"المنطق","timing":"توقيت"}]}');
+  const allowedList = channels.length > 0 ? channels.join('|') : 'Instagram';
+  s.push(`\nRULES:
+1. كل post.platform يجب أن يكون من: ${allowedList}.
+2. كل caption يجب أن يحترم حدود الأحرف.
+3. توزيع التدوينات على مدار الشهر.
+4. مزج الصيغ والركائز.
+5. أعد JSON صحيحاً فقط — بدون Markdown أو تعليقات.`);
   return s.join('\n');
 }

@@ -1,44 +1,12 @@
 import { FastifyInstance } from 'fastify';
-import { z } from 'zod';
 import { db } from '../db/prisma.js';
 import { authGuard } from '../middleware/auth.js';
 import { briefService } from '../services/brief.service.js';
 import { auditService } from '../services/audit.service.js';
-import { createJob, processJob } from '../workers/queue.js';
+import { createJob, processJob, findInflightGenerateJob } from '../workers/queue.js';
 import { generateMonthWorker } from '../workers/generateMonth.worker.js';
 import { visualSearchService } from '../services/visual-search.service.js';
-import { parseOr400 } from '../lib/parseOr400.js';
-import type { JwtPayload } from '../middleware/auth.js';
-
-type AuthedRequest = { user?: JwtPayload };
-
-const GenerateMonthBody = z.object({
-  month: z.string().min(1).max(60),
-  pieceCount: z.number().int().min(1).max(60).optional(),
-});
-
-const UpdatePostBody = z.object({
-  date: z.string().max(60).optional(),
-  title: z.string().max(300).optional(),
-  pillar: z.string().max(120).optional(),
-  platform: z.string().max(60).optional(),
-  format: z.string().max(120).optional(),
-  hook: z.string().max(500).nullable().optional(),
-  keyMessage: z.string().max(2000).nullable().optional(),
-  caption: z.string().max(8000).optional(),
-  cta: z.string().max(500).nullable().optional(),
-  hashtags: z.any().optional(),
-  visualDirection: z.string().max(2000).nullable().optional(),
-  referenceQuery: z.string().max(500).nullable().optional(),
-  rationale: z.string().max(2000).nullable().optional(),
-  timing: z.string().max(120).nullable().optional(),
-  status: z.string().max(60).optional(),
-  metadata: z.any().optional(),
-}).strict();
-
-const VisualRefsBackfillBody = z.object({
-  count: z.number().int().min(1).max(12).optional(),
-});
+import { assertClientInOrg, assertCalendarPostInOrg } from '../lib/tenant.js';
 
 export async function calendarRoutes(app: FastifyInstance) {
 
@@ -47,59 +15,78 @@ export async function calendarRoutes(app: FastifyInstance) {
   // POST /api/clients/:clientId/calendar/generate → { jobId }
   app.post('/clients/:clientId/calendar/generate', async (request, reply) => {
     const { clientId } = request.params as { clientId: string };
-    const body = parseOr400(GenerateMonthBody, request.body, reply);
-    if (!body) return;
-    const { month, pieceCount } = body;
+    const { month, pieceCount } = (request.body as any) || {};
+    const orgId = request.orgId!;
 
-    // Block duplicate month generation — archived months don't block (soft-archive is for history).
-    const existing = await db.calendarMonth.findFirst({ where: { clientId, month, isArchived: false } });
+    if (!month) return reply.status(400).send({ error: 'month is required (e.g. "August 2026")' });
+
+    try {
+      await assertClientInOrg(clientId, orgId);
+    } catch (err: any) {
+      return reply.status(err.statusCode || 500).send({ error: err.message });
+    }
+
+    // Block duplicate month generation. Even soft-archived months count
+    // because @@unique([clientId, month]) blocks insert. The error message
+    // MUST contain "already exists" so the frontend conflict modal triggers.
+    const existing = await db.calendarMonth.findFirst({ where: { orgId, clientId, month } });
     if (existing) {
-      return reply.status(409).send({ error: `Calendar for "${month}" already exists. Archive it first or use a different month.`, existingId: existing.id });
+      const msg = existing.isArchived
+        ? `Calendar for "${month}" already exists (archived). Delete and regenerate, or restore from Archived.`
+        : `Calendar for "${month}" already exists. Delete it first or use a different month.`;
+      return reply.status(409).send({ error: msg, existingId: existing.id, isArchived: existing.isArchived });
+    }
+
+    // Race-condition guard: if a worker is already processing this exact
+    // clientId+month, return the in-progress jobId instead of starting a
+    // second worker.
+    const userId = request.user?.userId;
+
+    const inflight = findInflightGenerateJob(clientId, month);
+    if (inflight) {
+      auditService.log({ orgId, userId, clientId, action: 'generate-deduped', entityType: 'CalendarMonth', payload: { month, existingJobId: inflight.id } });
+      return { jobId: inflight.id, deduped: true };
     }
 
     // Validate brief completeness
-    const brief = await briefService.getByClientId(clientId);
+    const brief = await briefService.getByClientId(orgId, clientId);
     const { score } = briefService.completeness(brief);
     if (score < 50) {
       return reply.status(422).send({ error: `Brief completeness too low (${score}%). Need at least 50%.` });
     }
 
-    // Create and process job
-    const job = createJob('generate-month', { clientId, month, pieceCount: pieceCount || 18 });
+    // Create and process job — orgId travels with the payload so the worker
+    // doesn't need to re-resolve it from the request context.
+    const job = createJob('generate-month', { orgId, clientId, month, pieceCount: pieceCount || 18 });
     processJob(job.id, generateMonthWorker);
 
-    // Audit
-    const userId = (request as AuthedRequest).user?.userId;
-    auditService.log({ userId, clientId, action: 'generate', entityType: 'CalendarMonth', payload: { month, pieceCount, jobId: job.id } });
+    auditService.log({ orgId, userId, clientId, action: 'generate', entityType: 'CalendarMonth', payload: { month, pieceCount, jobId: job.id } });
 
     return reply.status(202).send({ jobId: job.id });
   });
 
   // GET /api/clients/:clientId/calendar/months
-  // Returns ACTIVE (non-archived) months by default. Pass ?includeArchived=true to
-  // get archived ones mixed in, or use /calendar/archived for archived-only.
-  // Smoke-test months (isTest=true) are hidden by default; pass ?includeTest=true
-  // for dev tooling that needs to see them.
-  app.get('/clients/:clientId/calendar/months', async (request) => {
+  app.get('/clients/:clientId/calendar/months', async (request, reply) => {
     const { clientId } = request.params as { clientId: string };
-    const { includeTest, includeArchived } = (request.query as { includeTest?: string; includeArchived?: string }) || {};
+    const orgId = request.orgId!;
+    try {
+      await assertClientInOrg(clientId, orgId);
+    } catch (err: any) {
+      return reply.status(err.statusCode || 500).send({ error: err.message });
+    }
+    const { includeTest } = (request.query as { includeTest?: string }) || {};
     const showTest = includeTest === 'true' || includeTest === '1';
-    const showArchived = includeArchived === 'true' || includeArchived === '1';
-
-    const where: Record<string, unknown> = { clientId };
-    if (!showTest) where.isTest = false;
-    if (!showArchived) where.isArchived = false;
 
     const months = await db.calendarMonth.findMany({
-      where,
+      where: showTest
+        ? { orgId, clientId, isArchived: false }
+        : { orgId, clientId, isTest: false, isArchived: false },
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
         month: true,
         status: true,
         isTest: true,
-        isArchived: true,
-        archivedAt: true,
         createdAt: true,
         _count: { select: { posts: true } },
       },
@@ -109,55 +96,24 @@ export async function calendarRoutes(app: FastifyInstance) {
       month: m.month,
       status: m.status,
       isTest: m.isTest,
-      isArchived: m.isArchived,
-      archivedAt: m.archivedAt,
-      createdAt: m.createdAt,
-      postCount: m._count.posts,
-    }));
-  });
-
-  // GET /api/clients/:clientId/calendar/archived — archived-only, newest-archive first.
-  // Drives the "Previous Months" drawer on the Calendar page (Manus-style history).
-  app.get('/clients/:clientId/calendar/archived', async (request) => {
-    const { clientId } = request.params as { clientId: string };
-    const months = await db.calendarMonth.findMany({
-      where: { clientId, isArchived: true },
-      orderBy: [{ archivedAt: 'desc' }, { createdAt: 'desc' }],
-      select: {
-        id: true,
-        month: true,
-        status: true,
-        isTest: true,
-        archivedAt: true,
-        createdAt: true,
-        _count: { select: { posts: true } },
-      },
-    });
-    return months.map(m => ({
-      id: m.id,
-      month: m.month,
-      status: m.status,
-      isTest: m.isTest,
-      archivedAt: m.archivedAt,
       createdAt: m.createdAt,
       postCount: m._count.posts,
     }));
   });
 
   // GET /api/clients/:clientId/calendar/:month
-  // Default: returns the ACTIVE (non-archived) month. Pass ?includeArchived=true
-  // to fetch an archived month for read-only history viewing.
   app.get('/clients/:clientId/calendar/:month', async (request, reply) => {
     const { clientId, month } = request.params as { clientId: string; month: string };
-    const { includeArchived } = (request.query as { includeArchived?: string }) || {};
-    const showArchived = includeArchived === 'true' || includeArchived === '1';
+    const orgId = request.orgId!;
+    try {
+      await assertClientInOrg(clientId, orgId);
+    } catch (err: any) {
+      return reply.status(err.statusCode || 500).send({ error: err.message });
+    }
     const decodedMonth = decodeURIComponent(month);
 
-    const where: Record<string, unknown> = { clientId, month: decodedMonth };
-    if (!showArchived) where.isArchived = false;
-
     const calendarMonth = await db.calendarMonth.findFirst({
-      where,
+      where: { orgId, clientId, month: decodedMonth },
       include: {
         posts: {
           orderBy: { date: 'asc' },
@@ -175,75 +131,117 @@ export async function calendarRoutes(app: FastifyInstance) {
   });
 
   // DELETE /api/clients/:clientId/calendar/:month
-  // Default: SOFT-ARCHIVE (reversible). Posts + month stay in DB, just flagged.
-  // Pass ?hard=true to permanently delete (cascades CalendarPost via schema).
-  // Manus pattern: destructive actions are always explicit + reversible by default.
   app.delete('/clients/:clientId/calendar/:month', async (request, reply) => {
     const { clientId, month } = request.params as { clientId: string; month: string };
+    const orgId = request.orgId!;
+    try {
+      await assertClientInOrg(clientId, orgId);
+    } catch (err: any) {
+      return reply.status(err.statusCode || 500).send({ error: err.message });
+    }
     const { hard } = (request.query as { hard?: string }) || {};
-    const permanent = hard === 'true' || hard === '1';
     const decodedMonth = decodeURIComponent(month);
+    const isHard = hard === 'true' || hard === '1';
 
-    const all = await db.calendarMonth.findMany({ where: { clientId, month: decodedMonth } });
+    const all = await db.calendarMonth.findMany({ where: { orgId, clientId, month: decodedMonth } });
     if (all.length === 0) return reply.status(404).send({ error: 'Calendar month not found' });
 
-    if (permanent) {
-      // Hard delete — CalendarPost cascades via Prisma schema relation
+    if (isHard) {
       for (const m of all) {
-        await db.calendarMonth.delete({ where: { id: m.id } });
+        await db.calendarMonth.delete({ where: { id: m.id, orgId } });
       }
-      return { success: true, mode: 'hard', deleted: all.length, month: decodedMonth };
+      return { success: true, mode: 'hard' as const, deleted: all.length, month: decodedMonth };
     }
 
-    // Soft archive — data stays, restoreable via POST /restore
-    const now = new Date();
-    await db.calendarMonth.updateMany({
-      where: { clientId, month: decodedMonth, isArchived: false },
-      data: { isArchived: true, archivedAt: now },
-    });
-    return { success: true, mode: 'archive', archived: all.length, month: decodedMonth, archivedAt: now.toISOString() };
+    const archivedAt = new Date();
+    for (const m of all) {
+      await db.calendarMonth.update({
+        where: { id: m.id, orgId },
+        data: { isArchived: true, archivedAt },
+      });
+    }
+    return { success: true, mode: 'archive' as const, archived: all.length, month: decodedMonth, archivedAt: archivedAt.toISOString() };
   });
 
-  // POST /api/clients/:clientId/calendar/:month/restore — un-archive
+  // POST /api/clients/:clientId/calendar/:month/restore — undo archive
   app.post('/clients/:clientId/calendar/:month/restore', async (request, reply) => {
     const { clientId, month } = request.params as { clientId: string; month: string };
+    const orgId = request.orgId!;
+    try {
+      await assertClientInOrg(clientId, orgId);
+    } catch (err: any) {
+      return reply.status(err.statusCode || 500).send({ error: err.message });
+    }
     const decodedMonth = decodeURIComponent(month);
+    const all = await db.calendarMonth.findMany({ where: { orgId, clientId, month: decodedMonth, isArchived: true } });
+    if (all.length === 0) return reply.status(404).send({ error: 'No archived months to restore' });
+    for (const m of all) {
+      await db.calendarMonth.update({ where: { id: m.id, orgId }, data: { isArchived: false, archivedAt: null } });
+    }
+    return { success: true, restored: all.length, month: decodedMonth };
+  });
 
-    const result = await db.calendarMonth.updateMany({
-      where: { clientId, month: decodedMonth, isArchived: true },
-      data: { isArchived: false, archivedAt: null },
+  // GET /api/clients/:clientId/calendar/archived — list archived months
+  app.get('/clients/:clientId/calendar/archived', async (request, reply) => {
+    const { clientId } = request.params as { clientId: string };
+    const orgId = request.orgId!;
+    try {
+      await assertClientInOrg(clientId, orgId);
+    } catch (err: any) {
+      return reply.status(err.statusCode || 500).send({ error: err.message });
+    }
+    const months = await db.calendarMonth.findMany({
+      where: { orgId, clientId, isArchived: true },
+      orderBy: { archivedAt: 'desc' },
+      select: { id: true, month: true, status: true, isTest: true, createdAt: true, archivedAt: true, _count: { select: { posts: true } } },
     });
-    if (result.count === 0) return reply.status(404).send({ error: 'No archived month to restore' });
-    return { success: true, restored: result.count, month: decodedMonth };
+    return months.map(m => ({
+      id: m.id, month: m.month, status: m.status, isTest: m.isTest,
+      createdAt: m.createdAt, archivedAt: m.archivedAt,
+      postCount: m._count.posts,
+    }));
   });
 
   // PATCH /api/calendar-posts/:postId
   app.patch('/calendar-posts/:postId', async (request, reply) => {
     const { postId } = request.params as { postId: string };
-    const body = parseOr400(UpdatePostBody, request.body, reply);
-    if (!body) return;
-    return db.calendarPost.update({ where: { id: postId }, data: body });
+    try {
+      await assertCalendarPostInOrg(postId, request.orgId);
+    } catch (err: any) {
+      return reply.status(err.statusCode || 500).send({ error: err.message });
+    }
+    const updates = request.body as any;
+    const { id, calendarMonthId, orgId: _omitOrgId, createdAt, updatedAt, ...data } = updates;
+    return db.calendarPost.update({ where: { id: postId, orgId: request.orgId }, data });
   });
 
   // DELETE /api/calendar-posts/:postId
-  app.delete('/calendar-posts/:postId', async (request) => {
+  app.delete('/calendar-posts/:postId', async (request, reply) => {
     const { postId } = request.params as { postId: string };
-    await db.calendarPost.delete({ where: { id: postId } });
+    try {
+      await assertCalendarPostInOrg(postId, request.orgId);
+    } catch (err: any) {
+      return reply.status(err.statusCode || 500).send({ error: err.message });
+    }
+    await db.calendarPost.delete({ where: { id: postId, orgId: request.orgId } });
     return { success: true, deletedId: postId };
   });
 
   // POST /api/clients/:clientId/calendar/:month/visual-refs/backfill
-  // Auto-populates visual refs for every post in that month that has a referenceQuery and 0 refs.
-  // Safe to call repeatedly — only fills gaps.
   app.post('/clients/:clientId/calendar/:month/visual-refs/backfill', async (request, reply) => {
     const { clientId, month } = request.params as { clientId: string; month: string };
+    const orgId = request.orgId!;
+    try {
+      await assertClientInOrg(clientId, orgId);
+    } catch (err: any) {
+      return reply.status(err.statusCode || 500).send({ error: err.message });
+    }
     const decodedMonth = decodeURIComponent(month);
-    const body = parseOr400(VisualRefsBackfillBody, request.body ?? {}, reply);
-    if (!body) return;
-    const perPost = body.count ?? 6;
+    const { count } = (request.body as { count?: number }) || {};
+    const perPost = Math.max(1, Math.min(12, count || 6));
 
     const calMonth = await db.calendarMonth.findFirst({
-      where: { clientId, month: decodedMonth },
+      where: { orgId, clientId, month: decodedMonth },
       include: {
         posts: {
           select: {
@@ -264,37 +262,30 @@ export async function calendarRoutes(app: FastifyInstance) {
     let postsBackfilled = 0;
     const failures: { postId: string; error: string }[] = [];
 
-    // Run searches in parallel (network-bound) and collapse the per-result
-    // INSERTs into one createMany per post. Was N+1 (1 search + N inserts
-    // per post, serialized across all candidates) — now 1 query total per
-    // candidate, all candidates fanned out concurrently.
-    const results = await Promise.allSettled(
-      candidates.map(async (p) => {
-        const { results: searchResults } = await visualSearchService.search(p.referenceQuery!, perPost);
-        if (searchResults.length === 0) return { postId: p.id, added: 0 };
-        await db.postVisualReference.createMany({
-          data: searchResults.map((r, idx) => ({
-            postId: p.id,
-            thumbnailUrl: r.thumbnailUrl,
-            sourceUrl: r.sourceUrl,
-            sourceDomain: r.sourceDomain,
-            sourceType: r.sourceType,
-            title: r.title || null,
-            description: r.description || null,
-            pinId: r.pinId || null,
-            position: idx,
-          })),
-          skipDuplicates: true,
-        });
-        return { postId: p.id, added: searchResults.length };
-      }),
-    );
-    for (const [i, r] of results.entries()) {
-      if (r.status === 'fulfilled') {
-        totalRefsAdded += r.value.added;
+    for (const p of candidates) {
+      try {
+        const { results } = await visualSearchService.search(p.referenceQuery!, perPost);
+        let position = 0;
+        for (const r of results) {
+          await db.postVisualReference.create({
+            data: {
+              orgId,
+              postId: p.id,
+              thumbnailUrl: r.thumbnailUrl,
+              sourceUrl: r.sourceUrl,
+              sourceDomain: r.sourceDomain,
+              sourceType: r.sourceType,
+              title: r.title || null,
+              description: r.description || null,
+              pinId: r.pinId || null,
+              position: position++,
+            },
+          });
+          totalRefsAdded++;
+        }
         postsBackfilled++;
-      } else {
-        failures.push({ postId: candidates[i].id, error: r.reason?.message || 'unknown' });
+      } catch (err: any) {
+        failures.push({ postId: p.id, error: err?.message || 'unknown' });
       }
     }
 
@@ -311,7 +302,6 @@ export async function calendarRoutes(app: FastifyInstance) {
   // POST /api/calendar-posts/:postId/regenerate → { jobId } (stub)
   app.post('/calendar-posts/:postId/regenerate', async (request, reply) => {
     const { postId } = request.params as { postId: string };
-    // Stub — full single-post regeneration in a later commit
     return reply.status(501).send({ error: 'Single post regeneration not yet implemented', postId });
   });
 }

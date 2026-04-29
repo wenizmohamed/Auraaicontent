@@ -7,19 +7,101 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ─── Multi-tenancy primitives ─────────────────────────────────────────
+// An Organization is a billing + workspace boundary. Every tenant-scoped
+// row carries `orgId` so a single missed scope cannot leak data across
+// agencies. Plan/status/stripeCustomerId hang here so billing webhooks
+// have one obvious target.
+model Organization {
+  id               String    @id @default(cuid())
+  name             String
+  slug             String    @unique
+  plan             String    @default("trial") // trial | free | starter | studio | agency
+  status           String    @default("active") // active | past_due | canceled
+  stripeCustomerId String?
+  trialEndsAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  memberships     OrgMembership[]
+  invitations     Invitation[]
+  clients         Client[]
+  apiKeys         ApiKey[]
+  contentPieces   ContentPiece[]
+  briefs          ClientBrief[]
+  knowledgeItems  KnowledgeItem[]
+  knowledgeChunks KnowledgeChunk[]
+  assets          Asset[]
+  calendarMonths  CalendarMonth[]
+  calendarPosts   CalendarPost[]
+  postVisualRefs  PostVisualReference[]
+  postAssetLinks  CalendarPostAsset[]
+  postVersions    PostVersion[]
+  postComments    PostComment[]
+  reviewLinks     ReviewLink[]
+  exportJobs      ExportJob[]
+  auditLogs       AuditLog[]
+  agentSessions   AgentSession[]
+  agentMessages   AgentMessage[]
+  agentEvents     AgentEvent[]
+  usageEvents     UsageEvent[]
+}
+
+enum OrgRole {
+  OWNER
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+model OrgMembership {
+  id        String   @id @default(cuid())
+  userId    String
+  orgId     String
+  role      OrgRole  @default(EDITOR)
+  createdAt DateTime @default(now())
+
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, orgId])
+  @@index([orgId])
+}
+
+model Invitation {
+  id          String    @id @default(cuid())
+  orgId       String
+  email       String
+  role        OrgRole   @default(EDITOR)
+  token       String    @unique
+  invitedById String?
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([email])
+}
+
+// ─── Users & auth ─────────────────────────────────────────────────────
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  name         String
-  passwordHash String
-  role         String   @default("member")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String
+  passwordHash  String
+  role          String   @default("member") // legacy field — use OrgMembership.role
+  currentOrgId  String?  // pointer to user's active org (drives JWT-issuing)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   comments       PostComment[]
   auditLogs      AuditLog[]
   agentSessions  AgentSession[]
   refreshTokens  RefreshToken[]
+  memberships    OrgMembership[]
+  usageEvents    UsageEvent[]
 }
 
 model RefreshToken {
@@ -39,10 +121,12 @@ model RefreshToken {
   @@index([expiresAt])
 }
 
+// ─── Tenant-scoped business models ────────────────────────────────────
 model Client {
   id              String   @id @default(cuid())
+  orgId           String
   name            String
-  slug            String   @unique
+  slug            String
   logoUrl         String?
   primaryColor    String?
   timezone        String?
@@ -50,9 +134,14 @@ model Client {
   website         String?
   instagramHandle String?
   status          String   @default("active")
+  // GCC wedge — Phase 3
+  locale          String   @default("en") // en | ar
+  dialect         String?  // MSA | KHALEEJI | EGYPTIAN | LEVANTINE
+  whatsappNumber  String?  // E.164 format for WhatsApp Business export
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  org             Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
   brief           ClientBrief?
   assets          Asset[]
   knowledgeItems  KnowledgeItem[]
@@ -61,6 +150,9 @@ model Client {
   agentSessions   AgentSession[]
   contentPieces   ContentPiece[]
   apiKeys         ApiKey[]
+
+  @@unique([orgId, slug])
+  @@index([orgId])
 }
 
 // External-integration API keys. Plaintext key (sk-radix-{32}) is only ever
@@ -70,6 +162,7 @@ model Client {
 // survive. lastUsedAt is updated async on every authenticated /v2 request.
 model ApiKey {
   id          String    @id @default(cuid())
+  orgId       String
   clientId    String
   name        String
   keyHash     String    @unique
@@ -79,8 +172,10 @@ model ApiKey {
   createdAt   DateTime  @default(now())
   revokedAt   DateTime?
 
-  client      Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  client      Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
+  @@index([orgId])
   @@index([clientId])
   @@index([keyHash])
 }
@@ -92,6 +187,7 @@ model ApiKey {
 // (radix_content_pieces) — rating P1, now backend-persisted.
 model ContentPiece {
   id             String   @id @default(cuid())
+  orgId          String
   clientId       String
   title          String
   type           String   // Image | Video | Reel | Story | Carousel | Article
@@ -106,8 +202,10 @@ model ContentPiece {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  org    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  client Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
+  @@index([orgId])
   @@index([clientId])
   @@index([clientId, status])
   @@index([clientId, station])
@@ -115,6 +213,7 @@ model ContentPiece {
 
 model ClientBrief {
   id                  String   @id @default(cuid())
+  orgId               String
   clientId            String   @unique
   objective           String
   audience            String
@@ -137,11 +236,15 @@ model ClientBrief {
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
-  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  org    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  client Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
 }
 
 model KnowledgeItem {
   id          String   @id @default(cuid())
+  orgId       String
   clientId    String
   title       String
   type        String
@@ -151,26 +254,32 @@ model KnowledgeItem {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  org         Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
   client      Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
   chunks      KnowledgeChunk[]
 
+  @@index([orgId])
   @@index([clientId])
 }
 
 model KnowledgeChunk {
   id              String   @id @default(cuid())
+  orgId           String
   knowledgeItemId String
   chunkText       String
   // embedding    Unsupported("vector")?  // Requires pgvector — enabled in Commit 8
   metadata        Json?
 
+  org             Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
   knowledgeItem   KnowledgeItem @relation(fields: [knowledgeItemId], references: [id], onDelete: Cascade)
 
+  @@index([orgId])
   @@index([knowledgeItemId])
 }
 
 model Asset {
   id             String   @id @default(cuid())
+  orgId          String
   clientId       String
   name           String
   fileUrl        String
@@ -184,14 +293,18 @@ model Asset {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  client         Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  org            Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  client         Client              @relation(fields: [clientId], references: [id], onDelete: Cascade)
   linkedPosts    CalendarPostAsset[]
 
+  @@index([orgId])
   @@index([clientId])
+  @@index([mimeType, createdAt])
 }
 
 model CalendarMonth {
   id          String    @id @default(cuid())
+  orgId       String
   clientId    String
   month       String
   status      String    @default("draft")
@@ -202,15 +315,18 @@ model CalendarMonth {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
+  org         Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
   client      Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
   posts       CalendarPost[]
 
   @@unique([clientId, month])
+  @@index([orgId])
   @@index([clientId, isArchived])
 }
 
 model CalendarPost {
   id              String   @id @default(cuid())
+  orgId           String
   calendarMonthId String
   date            String
   title           String
@@ -232,6 +348,7 @@ model CalendarPost {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  org             Organization          @relation(fields: [orgId], references: [id], onDelete: Cascade)
   calendarMonth   CalendarMonth         @relation(fields: [calendarMonthId], references: [id], onDelete: Cascade)
   comments        PostComment[]
   versions        PostVersion[]
@@ -239,11 +356,15 @@ model CalendarPost {
   visualRefs      PostVisualReference[]
 
   @@unique([calendarMonthId, date])
+  @@index([orgId])
   @@index([calendarMonthId])
+  @@index([createdAt])
+  @@index([status])
 }
 
 model PostVisualReference {
   id            String   @id @default(cuid())
+  orgId         String
   postId        String
   thumbnailUrl  String
   sourceUrl     String
@@ -255,34 +376,44 @@ model PostVisualReference {
   position      Int      @default(0)
   createdAt     DateTime @default(now())
 
+  org           Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   post          CalendarPost @relation(fields: [postId], references: [id], onDelete: Cascade)
 
+  @@index([orgId])
   @@index([postId])
   @@index([sourceDomain])
 }
 
 model CalendarPostAsset {
+  orgId   String
   postId  String
   assetId String
 
+  org     Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   post    CalendarPost @relation(fields: [postId], references: [id], onDelete: Cascade)
   asset   Asset        @relation(fields: [assetId], references: [id], onDelete: Cascade)
 
   @@id([postId, assetId])
+  @@index([orgId])
 }
 
 model PostVersion {
   id        String   @id @default(cuid())
+  orgId     String
   postId    String
   snapshot  Json
   createdAt DateTime @default(now())
   createdBy String?
 
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   post      CalendarPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
 }
 
 model PostComment {
   id         String   @id @default(cuid())
+  orgId      String
   postId     String
   authorId   String?
   authorName String
@@ -291,15 +422,18 @@ model PostComment {
   status     String?
   createdAt  DateTime @default(now())
 
+  org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   post       CalendarPost @relation(fields: [postId], references: [id], onDelete: Cascade)
   author     User?        @relation(fields: [authorId], references: [id])
 
+  @@index([orgId])
   @@index([postId])
   @@index([authorId])
 }
 
 model ReviewLink {
   id              String    @id @default(cuid())
+  orgId           String
   clientId        String
   calendarMonthId String
   token           String    @unique
@@ -307,26 +441,33 @@ model ReviewLink {
   isActive        Boolean   @default(true)
   createdAt       DateTime  @default(now())
 
-  client          Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  client          Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
+  @@index([orgId])
   @@index([clientId])
 }
 
 model ExportJob {
   id              String   @id @default(cuid())
+  orgId           String
   clientId        String
   calendarMonthId String
-  type            String
+  type            String   // pptx | pdf | whatsapp
   status          String   @default("queued")
   fileUrl         String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
   @@index([clientId])
 }
 
 model AuditLog {
   id         String   @id @default(cuid())
+  orgId      String
   userId     String?
   clientId   String?
   action     String
@@ -335,8 +476,10 @@ model AuditLog {
   payload    Json?
   createdAt  DateTime @default(now())
 
-  user       User?    @relation(fields: [userId], references: [id])
+  org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user       User?        @relation(fields: [userId], references: [id])
 
+  @@index([orgId])
   @@index([userId])
   @@index([clientId])
   @@index([createdAt])
@@ -345,19 +488,22 @@ model AuditLog {
 // ─── Agent platform (Phase 1: real-time spine) ────────────────────────
 model AgentSession {
   id        String   @id @default(cuid())
+  orgId     String
   uid       String   @unique
-  userId    String?   // per-user ownership; nullable for legacy rows pre-migration
+  userId    String?  // per-user ownership; nullable for legacy rows pre-migration
   clientId  String?
   title     String
   status    String   @default("active")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  org       Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
   user      User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
   client    Client?        @relation(fields: [clientId], references: [id], onDelete: SetNull)
   messages  AgentMessage[]
   events    AgentEvent[]
 
+  @@index([orgId])
   @@index([userId])
   @@index([clientId])
   @@index([updatedAt])
@@ -365,25 +511,54 @@ model AgentSession {
 
 model AgentMessage {
   id         String   @id @default(cuid())
+  orgId      String
   sessionId  String
   role       String
   content    String
   toolCallId String?
   createdAt  DateTime @default(now())
 
+  org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   session    AgentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
+  @@index([orgId])
   @@index([sessionId])
 }
 
 model AgentEvent {
   id        String   @id @default(cuid())
+  orgId     String
   sessionId String
   type      String
   payload   Json
   createdAt DateTime @default(now())
 
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   session   AgentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
+  @@index([orgId])
   @@index([sessionId, createdAt])
+}
+
+// ─── Billing & metering (Phase 2) ─────────────────────────────────────
+// Every AI provider call writes one UsageEvent. Cost in USD is computed
+// from token counts at write time so price-table changes don't retroactively
+// rewrite history. enforceQuota() reads SUM(units) WHERE orgId=? AND kind=?
+// AND createdAt > start_of_billing_period.
+model UsageEvent {
+  id        String   @id @default(cuid())
+  orgId     String
+  userId    String?
+  kind      String   // ai.text | ai.image | ai.video | ai.embedding | export | seat
+  units     Int      @default(1) // tokens for ai.*, count for others
+  costUsd   Decimal  @db.Decimal(10, 6) @default(0)
+  ref       String?  // jobId, postId, exportId, etc.
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user      User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([orgId, createdAt])
+  @@index([orgId, kind, createdAt])
 }

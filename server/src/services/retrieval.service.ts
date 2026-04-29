@@ -35,6 +35,7 @@ function cosineSimilarity(a: number[], b: number[]): number {
 }
 
 export async function retrieveContext(
+  orgId: string,
   clientId: string,
   query: string,
   topK: number = 8,
@@ -45,7 +46,7 @@ export async function retrieveContext(
 
   // 2. Get all chunks for this client that have cached embeddings
   const items = await db.knowledgeItem.findMany({
-    where: { clientId },
+    where: { orgId, clientId },
     select: { id: true, chunks: { select: { id: true, chunkText: true, metadata: true } } },
   });
 

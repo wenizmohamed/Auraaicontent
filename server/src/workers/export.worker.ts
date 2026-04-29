@@ -23,28 +23,30 @@ function getPlatformColor(platform: string): string {
 }
 
 export async function exportWorker(job: Job): Promise<{ exportJobId: string; fileUrl: string }> {
-  const { clientId, calendarMonthId, type } = job.data;
+  const { orgId, clientId, calendarMonthId, type } = job.data;
+  if (!orgId) throw new Error('export job missing orgId');
 
   // 1. Fetch data
   updateJob(job.id, { progress: 10 });
   const calendarMonth = await db.calendarMonth.findUnique({
-    where: { id: calendarMonthId },
+    where: { id: calendarMonthId, orgId },
     include: { posts: { orderBy: { date: 'asc' } } },
   });
   if (!calendarMonth) throw new Error('Calendar month not found');
 
-  const client = await db.client.findUnique({ where: { id: clientId } });
+  const client = await db.client.findUnique({ where: { id: clientId, orgId } });
   if (!client) throw new Error('Client not found');
 
   updateJob(job.id, { progress: 20 });
 
   if (type === 'pptx') {
-    return await generatePptx(job, client, calendarMonth);
+    return await generatePptx(orgId, job, client, calendarMonth);
   }
   throw new Error(`Unsupported export type: ${type}`);
 }
 
 async function generatePptx(
+  orgId: string,
   job: Job,
   client: any,
   calendarMonth: any & { posts: any[] },
@@ -263,6 +265,7 @@ async function generatePptx(
   // Save to ExportJob table
   const exportRecord = await db.exportJob.create({
     data: {
+      orgId,
       clientId: client.id,
       calendarMonthId: calendarMonth.id,
       type: 'pptx',

@@ -10,16 +10,23 @@ const REQUIRED_ARRAYS = [
 ] as const;
 
 export const briefService = {
-  async getByClientId(clientId: string) {
-    return db.clientBrief.findUnique({ where: { clientId } });
+  async getByClientId(orgId: string, clientId: string) {
+    // clientId is unique on ClientBrief (1-to-1), so we filter by it then
+    // verify orgId.  findFirst lets us include orgId in the where without
+    // needing a composite unique index.
+    return db.clientBrief.findFirst({ where: { clientId, orgId } });
   },
 
-  // Upsert — create if missing, update if exists
-  async upsert(clientId: string, data: any) {
-    const { id, clientId: _, createdAt, updatedAt, client, ...briefData } = data;
+  // Upsert — create if missing, update if exists. orgId required because
+  // ClientBrief.orgId is NOT NULL post-migration.
+  async upsert(orgId: string, clientId: string, data: any) {
+    const { id, clientId: _, orgId: __, createdAt, updatedAt, client, ...briefData } = data;
+    // ClientBrief has @@unique([clientId]) — we can upsert by clientId and
+    // include orgId in create.  Existing rows already carry the right orgId
+    // from the multi-tenancy migration backfill.
     return db.clientBrief.upsert({
       where: { clientId },
-      create: { clientId, ...briefData },
+      create: { clientId, orgId, ...briefData },
       update: briefData,
     });
   },
@@ -58,6 +65,8 @@ export const briefService = {
     if (client.industry) sections.push(`INDUSTRY: ${client.industry}`);
     if (client.website) sections.push(`WEBSITE: ${client.website}`);
     if (client.instagramHandle) sections.push(`INSTAGRAM: ${client.instagramHandle}`);
+    if (client.locale) sections.push(`LOCALE: ${client.locale}`);
+    if (client.dialect) sections.push(`DIALECT: ${client.dialect}`);
 
     sections.push('');
     sections.push('=== BRIEF ===');

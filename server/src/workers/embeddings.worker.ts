@@ -72,8 +72,8 @@ function chunkText(text: string, maxTokens: number = 800, overlap: number = 100)
 
 // ─── Embed worker ────────────────────────────────────────────────
 
-export async function embedKnowledgeItem(knowledgeItemId: string): Promise<{ chunksCreated: number; embeddingsGenerated: number }> {
-  const item = await knowledgeService.getById(knowledgeItemId);
+export async function embedKnowledgeItem(orgId: string, knowledgeItemId: string): Promise<{ chunksCreated: number; embeddingsGenerated: number }> {
+  const item = await knowledgeService.getById(orgId, knowledgeItemId);
   if (!item) throw new Error('Knowledge item not found');
 
   // 1. Extract text
@@ -81,7 +81,7 @@ export async function embedKnowledgeItem(knowledgeItemId: string): Promise<{ chu
   if (!text && item.fileUrl) {
     text = await extractText(item.fileUrl, item.type);
     // Save extracted text back to item
-    await db.knowledgeItem.update({ where: { id: knowledgeItemId }, data: { textContent: text } });
+    await db.knowledgeItem.update({ where: { id: knowledgeItemId, orgId }, data: { textContent: text } });
   }
   if (!text.trim()) throw new Error('No text content to embed');
 
@@ -89,7 +89,7 @@ export async function embedKnowledgeItem(knowledgeItemId: string): Promise<{ chu
   const textChunks = chunkText(text);
 
   // 3. Delete existing chunks (re-embed)
-  await db.knowledgeChunk.deleteMany({ where: { knowledgeItemId } });
+  await db.knowledgeChunk.deleteMany({ where: { orgId, knowledgeItemId } });
 
   // 4. Embed each chunk and save
   let embeddingsGenerated = 0;
@@ -99,6 +99,7 @@ export async function embedKnowledgeItem(knowledgeItemId: string): Promise<{ chu
       const embedding = await embedText(chunkText);
       await db.knowledgeChunk.create({
         data: {
+          orgId,
           knowledgeItemId,
           chunkText,
           metadata: { embedding, chunkIndex: i, totalChunks: textChunks.length },
@@ -109,6 +110,7 @@ export async function embedKnowledgeItem(knowledgeItemId: string): Promise<{ chu
       // Save chunk without embedding on failure
       await db.knowledgeChunk.create({
         data: {
+          orgId,
           knowledgeItemId,
           chunkText,
           metadata: { chunkIndex: i, totalChunks: textChunks.length, embeddingError: String(err) },
