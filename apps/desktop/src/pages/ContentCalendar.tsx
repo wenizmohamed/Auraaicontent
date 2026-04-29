@@ -10,6 +10,7 @@ import type { CalendarMonthSummary } from '../lib/backend-api';
 import { hijriDateLabel, holidaysForDate, isInRamadan, type Holiday } from '../lib/gcc-holidays';
 import { SkeletonRow, SkeletonAnnouncer } from '../components/ui/Skeleton';
 import { motionUI, motionBase, motionInstant, motionHero } from '../lib/motion';
+import { HoverCard } from '../components/ui/HoverCard';
 import { STATUS_LABEL, normalizeStatus } from '../lib/status-enum';
 import VisualRefGrid from '../components/VisualRefGrid';
 import MonthlyReportButton from '../components/MonthlyReportButton';
@@ -658,7 +659,9 @@ export default function ContentCalendar() {
                 const hijri = showHijri ? hijriDateLabel(cellDate) : '';
                 const hijriShort = hijri ? hijri.split(' ').slice(0, 2).join(' ') : '';
                 return (
-                  <button key={day}
+                  <HoverCard.Root key={day} openDelay={pieces.length > 0 ? 250 : 9_999_999}>
+                  <HoverCard.Trigger asChild>
+                  <button
                     onClick={() => setSelectedDay(isSelected ? null : day)}
                     title={dayHolidays.map((h) => h.name).join(' · ') || (hijri || undefined)}
                     className={`aspect-square rounded-xl border ${densityClasses.padding} flex flex-col transition-all cursor-pointer relative ${
@@ -691,6 +694,38 @@ export default function ContentCalendar() {
                       </div>
                     )}
                   </button>
+                  </HoverCard.Trigger>
+                  {pieces.length > 0 && (
+                    <HoverCard.Content side="top" align="center">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--color-fg-subtle)' }}>
+                            {new Date(displayDate.getFullYear(), displayDate.getMonth(), day).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}
+                          </span>
+                          <span className="text-[10px] tabular-nums" style={{ color: 'var(--color-fg-muted)' }}>
+                            {pieces.length} post{pieces.length === 1 ? '' : 's'}
+                          </span>
+                        </div>
+                        {pieces.slice(0, 3).map((p: any, j: number) => (
+                          <div key={j} className="flex items-start gap-2 rounded-lg p-2" style={{ background: 'var(--color-surface)' }}>
+                            <div className={`mt-0.5 h-2 w-2 shrink-0 rounded-full ${getPlatformColor(p.platform).dot}`} />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-fg-muted)' }}>{p.platform}</p>
+                              <p className="mt-0.5 line-clamp-2 text-[12px] leading-snug" style={{ color: 'var(--color-fg)' }}>
+                                {p.caption || p.brief || '(no caption)'}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                        {pieces.length > 3 && (
+                          <p className="text-center text-[10px]" style={{ color: 'var(--color-fg-subtle)' }}>
+                            + {pieces.length - 3} more — click to open
+                          </p>
+                        )}
+                      </div>
+                    </HoverCard.Content>
+                  )}
+                  </HoverCard.Root>
                 );
               })}
             </div>
