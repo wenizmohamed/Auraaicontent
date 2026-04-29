@@ -9,6 +9,7 @@ import { calendarApi, reviewApi, exportsApi, jobsApi, visualRefsApi } from '../l
 import type { CalendarMonthSummary } from '../lib/backend-api';
 import { hijriDateLabel, holidaysForDate, isInRamadan, type Holiday } from '../lib/gcc-holidays';
 import { SkeletonRow, SkeletonAnnouncer } from '../components/ui/Skeleton';
+import { motionUI, motionBase, motionInstant, motionHero } from '../lib/motion';
 import { STATUS_LABEL, normalizeStatus } from '../lib/status-enum';
 import VisualRefGrid from '../components/VisualRefGrid';
 import MonthlyReportButton from '../components/MonthlyReportButton';
@@ -543,7 +544,7 @@ export default function ContentCalendar() {
 
       {/* Empty state */}
       {totalPieces === 0 && (
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ ...motionBase, delay: 0.1 }}
           className="rounded-3xl bg-[#0c0c0c] border border-white/[0.06] p-12 text-center">
           <CalendarIcon className="w-12 h-12 text-zinc-800 mx-auto mb-4" />
           <h2 className="text-xl font-bold text-zinc-400 mb-2">No content scheduled</h2>
@@ -559,7 +560,7 @@ export default function ContentCalendar() {
       {totalPieces > 0 && (
         <>
           {/* Controls */}
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ ...motionBase, delay: 0.05 }}
             className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <button onClick={() => setMonthOffset(o => o - 1)}
@@ -603,7 +604,7 @@ export default function ContentCalendar() {
           </motion.div>
 
           {/* Calendar Grid */}
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ ...motionBase, delay: 0.1 }}
             className="rounded-3xl bg-[#0c0c0c] border border-white/[0.06] p-5">
             <div className="grid grid-cols-7 gap-2 mb-2">
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
@@ -686,7 +687,7 @@ export default function ContentCalendar() {
 
                     return (
                       <motion.div key={piece.id || i}
-                        initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
+                        initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ ...motionUI, delay: i * 0.05 }}
                         className={`rounded-2xl border p-5 space-y-3 ${isEditing ? 'bg-white/[0.04] border-violet-500/30' : 'bg-white/[0.02] border-white/[0.05]'}`}>
 
                         {/* Header: Platform + Format + Edit/Save buttons */}
@@ -1036,7 +1037,7 @@ export default function ContentCalendar() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
+            transition={motionInstant}
             className="fixed inset-0 z-popover bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
             onClick={() => setShowArchiveConfirm(false)}
           >
@@ -1047,7 +1048,7 @@ export default function ContentCalendar() {
               initial={{ opacity: 0, scale: 0.96, y: 8 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 8 }}
-              transition={{ duration: 0.18, ease: [0.2, 0.8, 0.2, 1] }}
+              transition={motionUI}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-md rounded-2xl bg-[#0a0a0a] border border-white/10 shadow-2xl shadow-black/50 overflow-hidden"
             >

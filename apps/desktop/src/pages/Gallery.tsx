@@ -6,6 +6,7 @@ import { useClients } from '../lib/client-context';
 import { galleryApi, type GalleryAsset } from '../lib/backend-api';
 import { useToast } from '../lib/toast-context';
 import { Skeleton, SkeletonAnnouncer } from '../components/ui/Skeleton';
+import { motionUI, motionBase, motionInstant } from '../lib/motion';
 
 type FilterType = 'all' | 'image' | 'video';
 
@@ -94,7 +95,7 @@ export default function Gallery() {
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
+        transition={motionBase}
         className="flex flex-wrap items-center justify-between gap-4"
       >
         <div>
@@ -114,7 +115,7 @@ export default function Gallery() {
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.05 }}
+        transition={{ ...motionBase, delay: 0.05 }}
         className={`rounded-2xl p-4 border ${cardBg}`}
       >
         <div className="flex flex-wrap items-center gap-3">
@@ -205,7 +206,7 @@ export default function Gallery() {
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ duration: 0.3, delay: Math.min(i * 0.02, 0.5) }}
+                  transition={{ ...motionUI, delay: Math.min(i * 0.02, 0.5) }}
                   className={`break-inside-avoid mb-3 rounded-xl overflow-hidden border cursor-pointer group transition-all ${cardBg} ${cardBgHover}`}
                   onClick={() => setPreview(asset)}
                 >
@@ -254,7 +255,7 @@ export default function Gallery() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
+            transition={motionInstant}
             className="fixed inset-0 z-modal flex items-center justify-center bg-black/90 backdrop-blur-md p-4 cursor-pointer"
             onClick={() => setPreview(null)}
             role="dialog"
@@ -272,7 +273,7 @@ export default function Gallery() {
               initial={{ scale: 0.95, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.95, y: 20 }}
-              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+              transition={motionBase}
               className="max-w-6xl w-full max-h-[90vh] flex flex-col items-center cursor-default"
               onClick={e => e.stopPropagation()}
             >
