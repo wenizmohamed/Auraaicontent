@@ -23,11 +23,16 @@ export default function LocaleToggle({ collapsed }: Props) {
 
   function toggle() {
     const next: Locale = locale === 'en' ? 'ar' : 'en';
-    setI18nLocale(next);
+    // Cinematic AR↔EN flip — wedge made visible. The CSS class triggers a
+    // 360ms scaleX horizontal flip on <body>; we kick the locale change at
+    // mid-flip (180ms) so the reload's blank-frame falls inside the
+    // animation, then the new layout settles into the second half.
+    document.body.classList.add('locale-flipping');
     setLocale(next);
-    // t() is module-state, not React state — only a full reload guarantees
-    // every component re-evaluates with the new dictionary.
-    window.location.reload();
+    setTimeout(() => {
+      setI18nLocale(next);
+      window.location.reload();
+    }, 180);
   }
 
   return (

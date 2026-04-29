@@ -528,3 +528,21 @@ html.light [role="tab"]:focus-visible {
     scroll-behavior: auto !important;
   }
 }
+
+/* AR ↔ EN locale flip — wedge made visible. Triggered by LocaleToggle
+   adding .locale-flipping to <body> just before the reload that swaps
+   dir + lang attributes. The flip plays through and the reload happens
+   mid-animation so the blank repaint frame is invisible. */
+@keyframes localeFlip {
+  0%   { transform: perspective(1200px) rotateY(0deg);   filter: brightness(1); }
+  50%  { transform: perspective(1200px) rotateY(90deg);  filter: brightness(0.7); }
+  100% { transform: perspective(1200px) rotateY(180deg); filter: brightness(1); }
+}
+body.locale-flipping {
+  animation: localeFlip 360ms var(--ease-out-expo) forwards;
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+}
+@media (prefers-reduced-motion: reduce) {
+  body.locale-flipping { animation: none; }
+}
