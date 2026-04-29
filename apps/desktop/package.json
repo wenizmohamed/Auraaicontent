@@ -12,6 +12,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
     "lint:a11y": "eslint --ext .tsx,.ts src",
+    "storybook": "storybook dev -p 6006",
+    "storybook:build": "storybook build",
     "test": "echo \"no test framework configured — typecheck is the gate\" && tsc --noEmit",
     "electron:dev": "concurrently -k \"vite --port=3000\" \"wait-on http://localhost:3000 && electron .\"",
     "electron:build": "vite build && electron-builder --win --x64",
@@ -90,6 +92,9 @@
   "devDependencies": {
     "@axe-core/react": "^4.11.2",
     "@eslint/js": "^10.0.1",
+    "@storybook/addon-a11y": "^8.6.18",
+    "@storybook/addon-essentials": "^8.6.14",
+    "@storybook/react-vite": "^8.6.18",
     "@types/diff": "^7.0.2",
     "@types/node": "^22.14.0",
     "@typescript-eslint/parser": "^8.59.1",
@@ -100,6 +105,7 @@
     "eslint": "^10.2.1",
     "eslint-plugin-jsx-a11y": "^6.10.2",
     "eslint-plugin-react-hooks": "^7.1.1",
+    "storybook": "^8.6.18",
     "tailwindcss": "^4.1.14",
     "typescript": "~5.8.2",
     "wait-on": "^9.0.4"
