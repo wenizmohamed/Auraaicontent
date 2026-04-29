@@ -7,6 +7,7 @@ import { galleryApi, type GalleryAsset } from '../lib/backend-api';
 import { useToast } from '../lib/toast-context';
 import { Skeleton, SkeletonAnnouncer } from '../components/ui/Skeleton';
 import { motionUI, motionBase, motionInstant } from '../lib/motion';
+import { Image } from '../components/ui/Image';
 
 type FilterType = 'all' | 'image' | 'video';
 
@@ -224,11 +225,10 @@ export default function Gallery() {
                         </div>
                       </>
                     ) : (
-                      <img
+                      <Image
                         src={asset.thumbUrl || asset.fileUrl}
                         alt={asset.name}
-                        loading="lazy"
-                        className="w-full h-full object-cover"
+                        className="w-full h-full"
                       />
                     )}
 

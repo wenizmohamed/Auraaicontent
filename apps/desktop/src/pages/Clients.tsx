@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Building2, Check, X, Loader2, Trash2, Edit3, Save } from 'lucide-react';
 import { EmptyState, EmptyStateAction } from '../components/ui/EmptyState';
 import { SkeletonRow, SkeletonAnnouncer } from '../components/ui/Skeleton';
+import { toast } from 'sonner';
 
 interface ClientForm {
   name: string;
@@ -25,17 +26,36 @@ export default function Clients() {
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const handleDelete = async (e: React.MouseEvent, id: string, name: string) => {
+  const handleDelete = (e: React.MouseEvent, id: string, name: string) => {
     e.stopPropagation();
-    if (!window.confirm(`Delete client "${name}"? This removes all briefs, calendars, assets and review links for this client. This cannot be undone.`)) return;
-    setDeletingId(id);
-    try {
-      await deleteClient(id);
-    } catch (err: any) {
-      alert(`Delete failed: ${err.message}`);
-    } finally {
-      setDeletingId(null);
-    }
+    // Phase 5 — undo-toast pattern. Delete is deferred 6s; clicking Undo
+    // on the sonner toast cancels the timer before the API call fires.
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      if (cancelled) return;
+      setDeletingId(id);
+      try {
+        await deleteClient(id);
+        toast.success(`Deleted "${name}"`);
+      } catch (err: any) {
+        toast.error(`Delete failed: ${err.message}`);
+      } finally {
+        setDeletingId(null);
+      }
+    }, 6000);
+
+    toast(`Deleting "${name}" in 6s…`, {
+      description: 'All briefs, calendars, assets, and review links will be removed.',
+      duration: 6000,
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          cancelled = true;
+          window.clearTimeout(timer);
+          toast.success('Cancelled');
+        },
+      },
+    });
   };
 
   const openCreate = () => {
