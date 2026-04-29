@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Image, Link as LinkIcon, Tag, FolderOpen, Plus, Search, Download, Pin, Eye, X, ExternalLink, Filter } from 'lucide-react';
 import { visualRefsApi } from '../lib/backend-api';
 import { useToast } from '../lib/toast-context';
+import { Image as LazyImage } from '../components/ui/Image';
 
 interface VisualRef {
   id: string;
@@ -140,8 +141,13 @@ export default function VisualReferences() {
           {filtered.map(ref => (
             <div key={ref.id} className="break-inside-avoid bg-[#111] border border-white/10 rounded-xl overflow-hidden group">
               <div className="relative cursor-pointer" onClick={() => setPreview(ref)}>
-                <img src={ref.imageUrl} alt="reference" className="w-full object-cover" loading="lazy"
-                  onError={e => { (e.target as HTMLImageElement).src = 'https://picsum.photos/seed/fallback/400/300'; }} />
+                <LazyImage
+                  src={ref.imageUrl}
+                  alt="reference"
+                  className="w-full"
+                  style={{ aspectRatio: '4 / 3' }}
+                  onError={(e: any) => { (e.target as HTMLImageElement).src = 'https://picsum.photos/seed/fallback/400/300'; }}
+                />
                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                   <button className="p-2 bg-violet-500 rounded-lg text-white"><Eye className="h-4 w-4" /></button>
                   <a href={ref.sourceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
