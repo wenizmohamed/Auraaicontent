@@ -67,6 +67,7 @@
     "@tanstack/react-query": "^5.100.6",
     "@tanstack/react-virtual": "^3.13.24",
     "@vitejs/plugin-react": "^5.0.4",
+    "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "diff": "^9.0.0",
