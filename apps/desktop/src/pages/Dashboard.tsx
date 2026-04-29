@@ -10,6 +10,7 @@ import { t } from '../i18n';
 import { EmptyState, EmptyStateAction } from '../components/ui/EmptyState';
 import { Sparkline } from '../components/ui/Sparkline';
 import { motionUI, motionBase, easings, durations } from '../lib/motion';
+import { Skeleton as TokenSkeleton } from '../components/ui/Skeleton';
 
 // Synth a smoothly-rising 12-point sparkline that ends at `target`.
 // Used until per-stat time-series is wired into the backend dashboard API.
@@ -401,9 +402,10 @@ export default function Dashboard() {
   const textMuted = isDark ? 'text-zinc-600' : 'text-slate-500';
   const textDim = isDark ? 'text-zinc-700' : 'text-slate-400';
 
-  // Skeleton loader
+  // Skeleton loader — delegates to the token-driven primitive so theme
+  // cycling (dark / light / studio) works without per-class overrides.
   const Skeleton = ({ className = '' }: { className?: string }) => (
-    <div className={`animate-pulse rounded-lg ${isDark ? 'bg-white/[0.04]' : 'bg-slate-200/60'} ${className}`} />
+    <TokenSkeleton className={className} radius="md" />
   );
 
   return (

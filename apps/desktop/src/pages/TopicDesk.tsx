@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { expandTopicBrief, suggestTopics, generateTopicOutline, type AIProvider, type VisualReference as AIVisualRef } from '../lib/ai';
 import VisualRefSearch from '../components/VisualRefSearch';
+import { motionUI } from '../lib/motion';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -1007,7 +1008,7 @@ export default function TopicDesk() {
             key={s.id}
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.05 }}
+            transition={{ ...motionUI, delay: i * 0.05 }}
             className="bg-white/[0.03] rounded-xl p-4 border border-white/[0.06] flex items-center gap-3"
           >
             <div className={`w-3 h-3 rounded-full ${s.dot}`} />
