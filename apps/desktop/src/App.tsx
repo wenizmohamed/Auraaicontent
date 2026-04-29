@@ -43,7 +43,7 @@ import LocaleToggle from './components/LocaleToggle';
 import { ThemeProvider, useTheme } from './lib/theme-context';
 import { ToastProvider } from './lib/toast-context';
 import { t } from './i18n';
-import { Sun, Moon, Sparkles, Command as CmdIcon } from 'lucide-react';
+import { Sun, Moon, Sparkles } from 'lucide-react';
 import { CommandPalette, useCommandPaletteShortcut } from './components/CommandPalette';
 import { Toaster } from 'sonner';
 
