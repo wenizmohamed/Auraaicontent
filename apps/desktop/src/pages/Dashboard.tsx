@@ -8,7 +8,10 @@ import { useTheme } from '../lib/theme-context';
 import { greeting } from '../lib/greeting';
 import { t } from '../i18n';
 import { EmptyState, EmptyStateAction } from '../components/ui/EmptyState';
-import { Sparkline } from '../components/ui/Sparkline';
+// Note: Sparkline is defined locally below — the SVG-based version
+// already in use at line 1107 has different ergonomics than the
+// recharts-based components/ui/Sparkline. Passing through the local one
+// keeps the bundle smaller and avoids a name collision.
 import { motionUI, motionBase, easings, durations } from '../lib/motion';
 import { Skeleton as TokenSkeleton } from '../components/ui/Skeleton';
 
@@ -674,9 +677,8 @@ export default function Dashboard() {
                         <div className="mt-2 -mx-1">
                           <Sparkline
                             data={trendSeries(stat.value)}
-                            trend={stat.alert ? 'down' : 'up'}
+                            color={stat.alert ? '#ef4444' : '#10b981'}
                             height={28}
-                            hideTooltip
                           />
                         </div>
                       )}
