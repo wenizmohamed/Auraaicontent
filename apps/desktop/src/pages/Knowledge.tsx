@@ -6,6 +6,7 @@ import { useClients } from '../lib/client-context';
 import { useToast } from '../lib/toast-context';
 import { EmptyState, EmptyStateAction } from '../components/ui/EmptyState';
 import { SkeletonRow, SkeletonAnnouncer } from '../components/ui/Skeleton';
+import { motionUI } from '../lib/motion';
 
 function formatBytes(bytes: number): string {
   if (!bytes) return '--';
@@ -180,7 +181,7 @@ export default function Knowledge() {
       </motion.div>
 
       {/* Retrieval test */}
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ ...motionUI, delay: 0.05 }}
         className="rounded-2xl bg-white/[0.03] border border-white/[0.06] p-4">
         <div className="flex items-center gap-2 mb-3">
           <Search className="w-4 h-4 text-violet-400" />

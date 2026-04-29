@@ -14,6 +14,10 @@ interface ActionResult {
 
 interface EnrichedMessage extends ChatMessage {
   action?: ActionResult;
+  /** Trust UI — model that generated this message. */
+  provider?: string;
+  /** Trust UI — round-trip latency in ms. */
+  latencyMs?: number;
 }
 
 export default function RadixAssistant() {
@@ -44,7 +48,12 @@ export default function RadixAssistant() {
     try {
       const out = await assistantApi.chat(chatMessages, selectedClientId || undefined);
       const action = (out as any).action as ActionResult | undefined;
-      const assistantMsg: EnrichedMessage = { ...out.message, action };
+      const assistantMsg: EnrichedMessage = {
+        ...out.message,
+        action,
+        provider: out.provider,
+        latencyMs: out.latencyMs,
+      };
       setMessages(prev => [...prev, assistantMsg]);
 
       // Side-effects that change server state — refresh local caches so the
@@ -245,6 +254,13 @@ export default function RadixAssistant() {
                     }`}>
                       {m.content}
                     </div>
+                    {/* Trust UI — model + latency for assistant messages */}
+                    {m.role === 'assistant' && (m.provider || m.latencyMs != null) && (
+                      <div className="mt-1 flex items-center gap-2 px-1 text-[10px] text-zinc-600">
+                        {m.provider && <span className="font-mono">{m.provider}</span>}
+                        {m.latencyMs != null && <span>· {m.latencyMs}ms</span>}
+                      </div>
+                    )}
                     {m.action && renderActionCard(m.action)}
                   </div>
                 </div>
@@ -252,8 +268,9 @@ export default function RadixAssistant() {
 
               {loading && (
                 <div className="flex justify-start">
-                  <div className="rounded-2xl rounded-bl-sm bg-white/[0.04] border border-white/[0.06] px-3.5 py-2 text-sm text-zinc-500 flex items-center gap-2">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" /> Working on it...
+                  <div className="rounded-2xl rounded-bl-sm bg-white/[0.04] border border-white/[0.06] px-3.5 py-2 text-sm flex items-center gap-2">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
+                    <span className="ai-streaming font-medium">Generating response…</span>
                   </div>
                 </div>
               )}

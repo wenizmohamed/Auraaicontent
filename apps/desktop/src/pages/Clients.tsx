@@ -6,6 +6,7 @@ import { Plus, Building2, Check, X, Loader2, Trash2, Edit3, Save } from 'lucide-
 import { EmptyState, EmptyStateAction } from '../components/ui/EmptyState';
 import { SkeletonRow, SkeletonAnnouncer } from '../components/ui/Skeleton';
 import { toast } from 'sonner';
+import { motionUI } from '../lib/motion';
 
 interface ClientForm {
   name: string;
@@ -213,7 +214,7 @@ export default function Clients() {
         <div className="space-y-2">
           {clients.map((client, i) => (
             <motion.div key={client.id}
-              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
+              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ ...motionUI, delay: i * 0.03 }}
               className={`w-full flex items-center gap-4 rounded-2xl p-4 transition-all text-left ${
                 selectedClientId === client.id
                   ? 'bg-white/[0.08] border border-white/[0.15]'

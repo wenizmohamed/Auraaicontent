@@ -4,6 +4,7 @@ import { useClients } from '../lib/client-context';
 import { useToast } from '../lib/toast-context';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EmptyState, EmptyStateAction } from '../components/ui/EmptyState';
+import { motionUI } from '../lib/motion';
 import {
   FileText, Image as ImageIcon, Video, Film, Layers, Grid, List, Plus,
   Filter, Eye, Calendar, User, Link, X, Check, CheckCheck, Pencil,
@@ -404,7 +405,7 @@ export default function ContentPieces() {
             key={s.status}
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.04 }}
+            transition={{ ...motionUI, delay: i * 0.04 }}
             className="bg-[#111] border border-white/10 rounded-xl p-4 flex flex-col items-center justify-center"
           >
             <span className={`w-2.5 h-2.5 rounded-full ${STATUS_COLORS[s.status].dot} mb-2`} />
@@ -549,7 +550,7 @@ export default function ContentPieces() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ delay: i * 0.03 }}
+              transition={{ ...motionUI, delay: i * 0.03 }}
               className={`group bg-[#111] border rounded-xl overflow-hidden transition-all hover:border-white/20 hover:shadow-lg hover:shadow-violet-500/5 ${
                 selectedIds.has(piece.id) ? 'border-violet-500/50 ring-1 ring-violet-500/30' : 'border-white/10'
               }`}
@@ -727,7 +728,7 @@ export default function ContentPieces() {
                 key={piece.id}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ delay: i * 0.02 }}
+                transition={{ ...motionUI, delay: i * 0.02 }}
                 className={`border-t border-white/5 hover:bg-white/[0.03] transition-colors ${
                   selectedIds.has(piece.id) ? 'bg-violet-500/5' : ''
                 }`}

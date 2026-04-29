@@ -83,6 +83,27 @@ function Layout({ children }: { children: React.ReactNode }) {
   const showTeam = isTeamAdmin();
   const [cmdkOpen, setCmdkOpen] = useState(false);
 
+  // Onboarding tour — fires once per browser per JWT-orgId on first authed
+  // visit. Lazy-imported so driver.js stays out of the initial bundle.
+  useEffect(() => {
+    function decodeOrg(): string | null {
+      try {
+        const token = localStorage.getItem('radix.access_token');
+        if (!token) return null;
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        return payload.orgId ?? null;
+      } catch { return null; }
+    }
+    const orgId = decodeOrg();
+    if (!orgId) return;
+    const t = setTimeout(() => {
+      import('./lib/onboarding-tour').then(({ runOnboardingTour }) => {
+        runOnboardingTour({ orgId });
+      }).catch(() => { /* ignore */ });
+    }, 1200);
+    return () => clearTimeout(t);
+  }, []);
+
   // Central keyboard shortcuts — discoverable via "?" cheat sheet.
   useShortcut({
     id: 'palette.open',

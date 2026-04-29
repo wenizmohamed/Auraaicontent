@@ -23,7 +23,34 @@ import {
 } from 'lucide-react';
 import { useStore, type ContentBrief } from '../lib/store';
 import { useClients } from '../lib/client-context';
-import { briefsApi, calendarApi, jobsApi } from '../lib/backend-api';
+import { briefsApi, calendarApi, jobsApi, assistantApi } from '../lib/backend-api';
+import { InlineAITextHost, type InlineAIAction } from '../components/ui/InlineAITextToolbar';
+import { toast } from 'sonner';
+
+const ACTION_PROMPTS: Record<InlineAIAction, (text: string) => string> = {
+  rewrite:    (t) => `Rewrite this text to be clearer and more polished. Return only the rewritten version, no preamble:\n\n${t}`,
+  shorten:    (t) => `Shorten this text by ~30% without losing meaning. Return only the result:\n\n${t}`,
+  translate:  (t) => `Translate this text to ${/^[؀-ۿ]/.test(t) ? 'English' : 'Arabic (Khaleeji dialect)'}. Return only the translation:\n\n${t}`,
+  'on-brand': (t) => `Rewrite this so it matches a confident, editorial-tone Gulf-region marketing voice. Return only the result:\n\n${t}`,
+};
+
+async function runInlineAIAction(action: InlineAIAction, selectedText: string, replace: (newText: string) => void) {
+  const prompt = ACTION_PROMPTS[action](selectedText);
+  const id = toast.loading(`${action[0].toUpperCase() + action.slice(1)}…`);
+  try {
+    const res = await assistantApi.chat([{ role: 'user', content: prompt }]);
+    const newText = (res.message?.content ?? '').trim();
+    if (!newText) throw new Error('Empty AI response');
+    toast.success('Ready — apply?', {
+      id,
+      description: newText.length > 100 ? newText.slice(0, 100) + '…' : newText,
+      action: { label: 'Apply', onClick: () => replace(newText) },
+      duration: 12_000,
+    });
+  } catch (err: any) {
+    toast.error(`AI ${action} failed: ${err?.message ?? 'unknown'}`, { id });
+  }
+}
 import {
   DEFAULT_CAMPAIGNS,
   DEFAULT_OCCASIONS,
@@ -833,13 +860,20 @@ export default function BriefInput() {
                   Tone Notes
                 </label>
               </div>
-              <textarea
-                value={toneNotes}
-                onChange={e => setToneNotes(e.target.value)}
-                placeholder={t('page.brief.ph_extra_notes')}
-                rows={4}
-                className="w-full resize-none rounded-lg border border-white/5 bg-white/5 px-3 py-2 text-xs text-zinc-300 outline-none placeholder:text-zinc-700 focus:border-fuchsia-500/30"
-              />
+              <InlineAITextHost
+                onAction={(action, selected) => runInlineAIAction(action, selected, (newText) => {
+                  // Replace the selected substring within toneNotes
+                  setToneNotes(prev => prev.includes(selected) ? prev.replace(selected, newText) : prev + '\n' + newText);
+                })}
+              >
+                <textarea
+                  value={toneNotes}
+                  onChange={e => setToneNotes(e.target.value)}
+                  placeholder={t('page.brief.ph_extra_notes')}
+                  rows={4}
+                  className="w-full resize-none rounded-lg border border-white/5 bg-white/5 px-3 py-2 text-xs text-zinc-300 outline-none placeholder:text-zinc-700 focus:border-fuchsia-500/30"
+                />
+              </InlineAITextHost>
             </div>
 
             {/* AI engine info — configured server-side */}
