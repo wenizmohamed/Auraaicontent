@@ -43,7 +43,9 @@ import LocaleToggle from './components/LocaleToggle';
 import { ThemeProvider, useTheme } from './lib/theme-context';
 import { ToastProvider } from './lib/toast-context';
 import { t } from './i18n';
-import { Sun, Moon, Sparkles } from 'lucide-react';
+import { Sun, Moon, Sparkles, Command as CmdIcon } from 'lucide-react';
+import { CommandPalette, useCommandPaletteShortcut } from './components/CommandPalette';
+import { Toaster } from 'sonner';
 
 // Email allowlist for the Team page (mirrors server-side TEAM_ADMIN_EMAILS).
 // Anyone not listed here doesn't see the nav item AND gets bounced from the
@@ -69,6 +71,8 @@ function Layout({ children }: { children: React.ReactNode }) {
   const { generatedImages, isLoading, error } = useStore();
   const { theme, toggleTheme } = useTheme();
   const showTeam = isTeamAdmin();
+  const [cmdkOpen, setCmdkOpen] = useState(false);
+  useCommandPaletteShortcut(setCmdkOpen);
 
   const navigation = [
     { name: t('nav.dashboard'), href: '/', icon: LayoutDashboard },
@@ -128,8 +132,30 @@ function Layout({ children }: { children: React.ReactNode }) {
           )}
         </div>
 
+        {/* ⌘K trigger — Vercel/Raycast pattern */}
+        <div className={`px-3 pt-3 ${isCollapsed ? 'pb-1' : 'pb-2'}`}>
+          <button
+            type="button"
+            onClick={() => setCmdkOpen(true)}
+            aria-label={t('cmdk.trigger')}
+            className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-[12px] transition-colors cursor-pointer ${
+              isDark
+                ? 'bg-white/[0.04] hover:bg-white/[0.07] text-zinc-500 hover:text-zinc-200 border border-white/[0.06]'
+                : 'bg-white hover:bg-slate-50 text-slate-500 hover:text-slate-800 border border-slate-200'
+            } ${isCollapsed ? 'justify-center' : ''}`}
+          >
+            <Search size={14} className="shrink-0" />
+            {!isCollapsed && (
+              <>
+                <span className="flex-1 truncate text-left">{t('cmdk.trigger')}</span>
+                <kbd className={`hidden md:inline-flex items-center gap-0.5 rounded border px-1.5 py-0.5 font-mono text-[9px] ${isDark ? 'border-white/10 text-zinc-500' : 'border-slate-300 text-slate-500'}`}>⌘K</kbd>
+              </>
+            )}
+          </button>
+        </div>
+
         {/* Navigation */}
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+        <nav className="flex-1 px-3 py-3 space-y-1 overflow-y-auto">
           {navigation.map((item) => {
             const isActive = location.pathname === item.href;
             return (
@@ -219,6 +245,25 @@ function Layout({ children }: { children: React.ReactNode }) {
         {/* Global Floating Chat Widget */}
         <RadixAssistant />
       </div>
+
+      {/* Global ⌘K command palette */}
+      <CommandPalette open={cmdkOpen} onOpenChange={setCmdkOpen} />
+
+      {/* Sonner toasts — token-aware */}
+      <Toaster
+        theme={theme === 'light' ? 'light' : 'dark'}
+        position="top-right"
+        closeButton
+        richColors
+        toastOptions={{
+          style: {
+            background: 'var(--color-bg-elevated)',
+            border: '1px solid var(--color-border)',
+            color: 'var(--color-fg)',
+            borderRadius: '12px',
+          },
+        }}
+      />
     </div>
   );
 }

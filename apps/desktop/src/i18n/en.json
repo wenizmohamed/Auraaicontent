@@ -1,4 +1,7 @@
 {
+  "cmdk.placeholder": "Search or jump to…",
+  "cmdk.trigger": "Search or ask Radix…",
+  "cmdk.empty": "No matches. Try “calendar”, “invite”, or “theme”.",
   "nav.dashboard": "Dashboard",
   "nav.clients": "Clients",
   "nav.calendar": "Calendar",

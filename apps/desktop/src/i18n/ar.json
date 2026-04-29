@@ -1,4 +1,7 @@
 {
+  "cmdk.placeholder": "ابحث أو انتقل إلى…",
+  "cmdk.trigger": "ابحث أو اسأل راديكس…",
+  "cmdk.empty": "لا توجد نتائج. جرّب «الجدول»، «دعوة»، أو «المظهر».",
   "nav.dashboard": "لوحة التحكم",
   "nav.clients": "العملاء",
   "nav.calendar": "الجدول",
