@@ -29,21 +29,30 @@ function orderedProviders(task: string): AiProvider[] {
   return FALLBACK_ENABLED ? [PROVIDERS[primary], PROVIDERS[fallback]] : [PROVIDERS[primary]];
 }
 
-// ─── Telemetry log ───────────────────────────────────────────────
-const telemetryLog: AiTelemetryEntry[] = [];
-const MAX_LOG = 500;
+// ─── Telemetry ring buffer ───────────────────────────────────────
+const telemetryBuf: (AiTelemetryEntry | null)[] = new Array(500).fill(null);
+let telemetryHead = 0;
+let telemetrySize = 0;
+const MAX_LOG = telemetryBuf.length;
 
 function logTelemetry(entry: AiTelemetryEntry) {
-  telemetryLog.push(entry);
-  if (telemetryLog.length > MAX_LOG) telemetryLog.shift();
-  // Also log to console for debugging
+  telemetryBuf[telemetryHead] = entry;
+  telemetryHead = (telemetryHead + 1) % MAX_LOG;
+  if (telemetrySize < MAX_LOG) telemetrySize++;
   const fb = entry.fallbackUsed ? ' [FALLBACK]' : '';
   const err = entry.errorType ? ` err=${entry.errorType}` : '';
-  console.log(`[AI] ${entry.task} ${entry.provider}/${entry.model} ${entry.latencyMs}ms${fb}${err}`);
+  const tok = entry.totalTokens ? ` [${entry.promptTokens ?? '?'}→${entry.completionTokens ?? '?'} tok]` : '';
+  console.log(`[AI] ${entry.task} ${entry.provider}/${entry.model} ${entry.latencyMs}ms${tok}${fb}${err}`);
 }
 
 export function getAiTelemetry(): AiTelemetryEntry[] {
-  return [...telemetryLog];
+  const result: AiTelemetryEntry[] = [];
+  const start = telemetrySize < MAX_LOG ? 0 : telemetryHead;
+  for (let i = 0; i < telemetrySize; i++) {
+    const entry = telemetryBuf[(start + i) % MAX_LOG];
+    if (entry) result.push(entry);
+  }
+  return result;
 }
 
 // ─── Router ──────────────────────────────────────────────────────
@@ -65,6 +74,9 @@ async function routeCall<T>(
       logTelemetry({
         provider: result.provider, model: result.model, task,
         latencyMs: result.latencyMs, fallbackUsed,
+        promptTokens: result.promptTokens,
+        completionTokens: result.completionTokens,
+        totalTokens: result.totalTokens,
         jobId: meta?.jobId, clientId: meta?.clientId,
         timestamp: new Date().toISOString(),
       });
@@ -99,35 +111,9 @@ export const aiRouter = {
   },
 
   async video(req: VideoRequest, meta?: { jobId?: string; clientId?: string }): Promise<ProviderResult<{ url: string }>> {
-    // Image-to-video requires Gemini — xAI's video() ignores `imageBase64`,
-    // which would silently degrade to text-to-video. Force Gemini when an input
-    // image is present, regardless of AI_VIDEO_PRIMARY.
-    if (req.imageBase64 && req.mimeType) {
-      const forced = async (): Promise<ProviderResult<{ url: string }>> => {
-        const start = Date.now();
-        try {
-          const result = await geminiProvider.video(req);
-          logTelemetry({
-            provider: result.provider, model: result.model, task: 'video',
-            latencyMs: result.latencyMs || (Date.now() - start), fallbackUsed: false,
-            jobId: meta?.jobId, clientId: meta?.clientId,
-            timestamp: new Date().toISOString(),
-          });
-          return result;
-        } catch (err) {
-          const errType = err instanceof Error ? err.message.slice(0, 80) : String(err);
-          logTelemetry({
-            provider: 'gemini', model: 'forced-image-to-video', task: 'video',
-            latencyMs: Date.now() - start, fallbackUsed: false,
-            errorType: errType,
-            jobId: meta?.jobId, clientId: meta?.clientId,
-            timestamp: new Date().toISOString(),
-          });
-          throw err;
-        }
-      };
-      return forced();
-    }
+    // Image-to-video prefers Gemini (native imageBase64 support), but falls
+    // back to xAI via the normal routeCall chain when Gemini is unavailable.
+    // xAI receives the base64 as a data-URL in referenceImageUrls.
     return routeCall('video', p => p.video(req), meta);
   },
 

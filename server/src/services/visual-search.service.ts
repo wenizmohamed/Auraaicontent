@@ -10,7 +10,39 @@
 import crypto from 'crypto';
 import { aiRouter } from './providers/ai-router.js';
 import { searchPinterest, type PinterestImage } from './pinterest.service.js';
-import { errMsg } from '../lib/err.js';
+
+// ─── Wikimedia Commons search ────────────────────────────────────
+
+interface WikiPage { title: string; imageinfo?: { url: string; thumburl: string; descriptionurl: string; extmetadata?: { ImageDescription?: { value: string }; Categories?: { value: string } } }[] }
+
+async function searchWikimedia(query: string, limit: number): Promise<VisualSearchResult[]> {
+  const params = new URLSearchParams({
+    action: 'query', generator: 'search', gsrsearch: query,
+    gsrnamespace: '6', gsrlimit: String(Math.min(limit, 20)),
+    prop: 'imageinfo', iiprop: 'url|extmetadata',
+    iiurlwidth: '600', format: 'json', origin: '*',
+  });
+  const res = await fetch(`https://commons.wikimedia.org/w/api.php?${params}`, {
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!res.ok) return [];
+  const data: any = await res.json();
+  const pages: WikiPage[] = Object.values(data?.query?.pages || {});
+  return pages
+    .filter(p => p.imageinfo?.[0]?.thumburl)
+    .map(p => {
+      const ii = p.imageinfo![0];
+      const desc = ii.extmetadata?.ImageDescription?.value?.replace(/<[^>]+>/g, '').slice(0, 200) || p.title.replace('File:', '');
+      return {
+        thumbnailUrl: ii.thumburl,
+        sourceUrl: ii.descriptionurl || ii.url,
+        sourceDomain: 'commons.wikimedia.org',
+        sourceType: 'web' as const,
+        title: p.title.replace('File:', '').replace(/\.[^.]+$/, ''),
+        description: desc,
+      };
+    });
+}
 
 export interface VisualSearchResult {
   thumbnailUrl: string;
@@ -110,19 +142,33 @@ export const visualSearchService = {
     const merged: VisualSearchResult[] = [];
     let providerLabel = '';
 
-    // 1. Pinterest first — real thumbnails, real source URLs
+    // 1. Wikimedia Commons — reliable, free, real thumbnails
     try {
-      const { results: pins } = await searchPinterest(trimmedQuery, safeCount);
-      for (const p of pins) {
+      const wikiResults = await searchWikimedia(trimmedQuery, safeCount);
+      for (const r of wikiResults) {
         if (merged.length >= safeCount) break;
-        merged.push(pinterestToVisualRef(p));
+        merged.push(r);
       }
-      if (merged.length > 0) providerLabel = 'pinterest';
-    } catch (err: unknown) {
-      console.warn('[visualSearch] Pinterest failed:', errMsg(err));
+      if (merged.length > 0) providerLabel = 'wikimedia';
+    } catch (err: any) {
+      console.warn('[visualSearch] Wikimedia failed:', err?.message || err);
     }
 
-    // 2. AI router fallback if Pinterest came up short
+    // 2. Pinterest — supplement if Wikimedia came up short
+    if (merged.length < safeCount) {
+      try {
+        const { results: pins } = await searchPinterest(trimmedQuery, safeCount - merged.length);
+        for (const p of pins) {
+          if (merged.length >= safeCount) break;
+          merged.push(pinterestToVisualRef(p));
+        }
+        if (pins.length > 0) providerLabel = providerLabel ? `${providerLabel}+pinterest` : 'pinterest';
+      } catch (err: any) {
+        // Pinterest scraper may be blocked — this is expected
+      }
+    }
+
+    // 3. AI router fallback if still short
     if (merged.length < safeCount) {
       try {
         const need = safeCount - merged.length;
@@ -146,8 +192,8 @@ export const visualSearchService = {
         if (aiResults.length > 0) {
           providerLabel = providerLabel ? `${providerLabel}+${result.provider}` : result.provider;
         }
-      } catch (err: unknown) {
-        console.warn('[visualSearch] AI fallback failed:', errMsg(err));
+      } catch (err: any) {
+        console.warn('[visualSearch] AI fallback failed:', err?.message || err);
       }
     }
 

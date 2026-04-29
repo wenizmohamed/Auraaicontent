@@ -19,7 +19,7 @@
 import OpenAI from 'openai';
 
 const BASE_URL = process.env.MOONSHOT_BASE_URL || 'https://api.moonshot.ai/v1';
-const MODEL = process.env.MOONSHOT_MODEL || 'kimi-k2-turbo-preview';
+const MODEL = process.env.MOONSHOT_MODEL || 'kimi-k2.6';
 
 let _client: OpenAI | null = null;
 

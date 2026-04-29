@@ -63,7 +63,7 @@ export const xaiProvider: AiProvider = {
   name: 'xai',
 
   async text(req: TextRequest): Promise<ProviderResult<string | object>> {
-    const model = process.env.XAI_TEXT_MODEL || 'grok-4-fast-reasoning';
+    const model = process.env.XAI_TEXT_MODEL || 'grok-4.20';
     const start = Date.now();
     // 8192 covers month-strategy JSON (~6KB typical) without tripping the
     // model's default cap that was truncating responses mid-string and
@@ -87,6 +87,9 @@ export const xaiProvider: AiProvider = {
     return {
       provider: 'xai', model, latencyMs: Date.now() - start, fallbackUsed: false,
       output: req.json ? safeJsonParse(text, 'text') : text,
+      promptTokens: data.usage?.prompt_tokens,
+      completionTokens: data.usage?.completion_tokens,
+      totalTokens: data.usage?.total_tokens,
     };
   },
 
@@ -118,12 +121,19 @@ export const xaiProvider: AiProvider = {
   async video(req: VideoRequest): Promise<ProviderResult<{ url: string }>> {
     const model = process.env.XAI_VIDEO_MODEL || 'grok-imagine-video';
     const start = Date.now();
+    // Build reference images: explicit URLs first, then fall back to imageBase64
+    // so image-to-video requests from Gemini fallback still carry the source frame.
+    const refImages = req.referenceImageUrls?.length
+      ? req.referenceImageUrls.map(url => ({ url }))
+      : req.imageBase64 && req.mimeType
+        ? [{ url: `data:${req.mimeType};base64,${req.imageBase64}` }]
+        : undefined;
     const data = await xaiFetch('/videos/generations', {
       model, prompt: req.prompt,
       duration: req.durationSeconds ?? 8,
       aspect_ratio: req.aspectRatio ?? '16:9',
       resolution: req.resolution ?? '720p',
-      ...(req.referenceImageUrls?.length ? { reference_images: req.referenceImageUrls.map(url => ({ url })) } : {}),
+      ...(refImages ? { reference_images: refImages } : {}),
     });
     const url = await pollVideo(data.request_id);
     return { provider: 'xai', model, latencyMs: Date.now() - start, fallbackUsed: false, output: { url } };

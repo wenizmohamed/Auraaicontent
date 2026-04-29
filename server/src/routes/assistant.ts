@@ -6,7 +6,7 @@ import { briefService } from '../services/brief.service.js';
 import { clientService } from '../services/client.service.js';
 import { createJob, processJob } from '../workers/queue.js';
 import { generateMonthWorker } from '../workers/generateMonth.worker.js';
-import { searchPinterest } from '../services/pinterest.service.js';
+import { visualSearchService } from '../services/visual-search.service.js';
 import { auditService } from '../services/audit.service.js';
 import { chatText, type ProviderName } from '../services/llm/chat.js';
 
@@ -44,8 +44,8 @@ interface ChatBody {
 
 interface AgentAction {
   type: string;
-  params: Record<string, unknown>;
-  result: unknown;
+  params: Record<string, any>;
+  result: any;
 }
 
 // ─── System Prompt ───────────────────────────────────────────────
@@ -111,16 +111,7 @@ CRITICAL: When responding as plain text, do NOT wrap it in JSON. Just write natu
 
 // ─── Action Executor ─────────────────────────────────────────────
 
-function pStr(p: Record<string, unknown>, key: string): string {
-  const v = p[key];
-  return typeof v === 'string' ? v : '';
-}
-function pNum(p: Record<string, unknown>, key: string): number | undefined {
-  const v = p[key];
-  return typeof v === 'number' ? v : undefined;
-}
-
-async function executeAction(action: string, params: Record<string, unknown>, clientId: string | null): Promise<unknown> {
+async function executeAction(action: string, params: any, clientId: string | null): Promise<any> {
   switch (action) {
     case 'list_clients':
       return db.client.findMany({
@@ -129,11 +120,11 @@ async function executeAction(action: string, params: Record<string, unknown>, cl
       });
 
     case 'create_client': {
-      const name = pStr(params, 'name').trim();
+      const name = (params?.name || '').trim();
       if (!name) return { error: 'client name is required' };
-      const industry = pStr(params, 'industry').trim() || undefined;
-      const website = pStr(params, 'website').trim() || undefined;
-      const instagramHandle = pStr(params, 'instagramHandle').trim() || undefined;
+      const industry = params?.industry?.trim();
+      const website = params?.website?.trim();
+      const instagramHandle = params?.instagramHandle?.trim();
       const existing = await db.client.findFirst({ where: { name: { equals: name, mode: 'insensitive' } }, select: { id: true, name: true, slug: true } });
       if (existing) {
         return { alreadyExists: true, id: existing.id, name: existing.name, slug: existing.slug, message: `"${existing.name}" already exists — selecting it instead.` };
@@ -170,8 +161,8 @@ async function executeAction(action: string, params: Record<string, unknown>, cl
 
     case 'generate_content': {
       if (!clientId) return { error: 'No client selected' };
-      const month = pStr(params, 'month') || new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });
-      const count = pNum(params, 'count') ?? 18;
+      const month = params?.month || new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });
+      const count = params?.count || 18;
       // Check for duplicate
       const existing = await db.calendarMonth.findFirst({ where: { clientId, month } });
       if (existing) return { error: `Calendar for "${month}" already exists. Delete it first.`, existingId: existing.id };
@@ -181,24 +172,25 @@ async function executeAction(action: string, params: Record<string, unknown>, cl
     }
 
     case 'search_visual_refs': {
-      const query = pStr(params, 'query');
+      const query = params?.query || '';
       if (!query) return { error: 'search query is required' };
-      const { results } = await searchPinterest(query, pNum(params, 'limit') ?? 6);
+      const { results, provider } = await visualSearchService.search(query, params?.limit || 8);
       return {
         count: results.length,
+        provider,
         images: results.map(r => ({
           title: r.title,
-          thumbUrl: r.thumbUrl,
-          pinUrl: r.pinUrl,
-          width: r.width,
-          height: r.height,
+          description: r.description,
+          thumbUrl: r.thumbnailUrl,
+          sourceUrl: r.sourceUrl,
+          sourceDomain: r.sourceDomain,
         })),
       };
     }
 
     case 'get_calendar': {
       if (!clientId) return { error: 'No client selected' };
-      const month = pStr(params, 'month');
+      const month = params?.month;
       if (!month) {
         // Return list of all months
         const months = await db.calendarMonth.findMany({
@@ -227,7 +219,7 @@ async function executeAction(action: string, params: Record<string, unknown>, cl
     }
 
     case 'improve_prompt': {
-      const prompt = pStr(params, 'prompt');
+      const prompt = params?.prompt || '';
       if (!prompt) return { error: 'prompt text is required' };
       const improved = await callAssistantLLM(
         'You are a creative director. Improve the given image/video generation prompt to be more vivid, specific, and visually compelling. Return ONLY the improved prompt, nothing else.',
@@ -238,7 +230,7 @@ async function executeAction(action: string, params: Record<string, unknown>, cl
 
     case 'delete_calendar': {
       if (!clientId) return { error: 'No client selected' };
-      const month = pStr(params, 'month');
+      const month = params?.month;
       if (!month) return { error: 'month is required' };
       const cal = await db.calendarMonth.findFirst({ where: { clientId, month } });
       if (!cal) return { error: `No calendar found for "${month}"` };
@@ -256,7 +248,7 @@ async function executeAction(action: string, params: Record<string, unknown>, cl
     }
 
     case 'research': {
-      const query = pStr(params, 'query');
+      const query = params?.query || '';
       if (!query) return { error: 'query is required' };
       const researchResult = await callAssistantLLM(
         'You are a senior content strategist at a Dubai agency. Research the topic and provide 5-7 actionable content ideas with platform recommendations. Be specific to the UAE/GCC market when relevant. Return as structured text, not JSON.',
@@ -266,15 +258,12 @@ async function executeAction(action: string, params: Record<string, unknown>, cl
     }
 
     case 'update_post': {
-      const postId = pStr(params, 'postId');
+      const postId = params?.postId;
       if (!postId) return { error: 'postId is required' };
-      const updateData: Record<string, unknown> = {};
-      const caption = pStr(params, 'caption');
-      const status = pStr(params, 'status');
-      const title = pStr(params, 'title');
-      if (caption) updateData.caption = caption;
-      if (status) updateData.status = status;
-      if (title) updateData.title = title;
+      const updateData: any = {};
+      if (params?.caption) updateData.caption = params.caption;
+      if (params?.status) updateData.status = params.status;
+      if (params?.title) updateData.title = params.title;
       if (Object.keys(updateData).length === 0) return { error: 'Nothing to update — provide caption, status, or title' };
       const post = await db.calendarPost.update({ where: { id: postId }, data: updateData });
       return { updated: true, postId: post.id, title: post.title, status: post.status };
@@ -365,7 +354,7 @@ export async function assistantRoutes(app: FastifyInstance) {
           actionTaken = { type: actionName, params: actionParams, result: actionResult };
 
           // Audit log the action
-          const userId = request.user?.userId;
+          const userId = (request as any).user?.id;
           auditService.log({
             userId,
             clientId: clientId || undefined,
@@ -395,7 +384,7 @@ export async function assistantRoutes(app: FastifyInstance) {
         provider: providerUsed,
         latencyMs: totalLatency,
       };
-    } catch (err: unknown) {
+    } catch (err: any) {
       return sendAiError(reply, err, 'Assistant call failed');
     }
   });

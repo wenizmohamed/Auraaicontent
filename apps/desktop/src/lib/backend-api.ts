@@ -646,8 +646,31 @@ export interface DashboardStats {
   };
 }
 
+export interface AiProviderStat {
+  provider: string;
+  calls: number;
+  errors: number;
+  successRate: number;
+  avgLatencyMs: number;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  fallbacks: number;
+  tasks: Record<string, number>;
+}
+
+export interface AiStats {
+  totalCalls: number;
+  totalTokens: number;
+  totalErrors: number;
+  totalFallbacks: number;
+  providers: AiProviderStat[];
+  tasks: { task: string; calls: number; avgLatencyMs: number; totalTokens: number }[];
+}
+
 export const dashboardApi = {
   stats: () => request<DashboardStats>('/api/dashboard/stats'),
+  aiStats: () => request<AiStats>('/api/dashboard/ai-stats'),
 };
 
 // ─── Server health check ─────────────────────────────────────────

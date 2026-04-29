@@ -43,6 +43,9 @@ export interface ProviderResult<T = unknown> {
   output: T;
   latencyMs: number;
   fallbackUsed: boolean;
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
   raw?: unknown;
 }
 
@@ -61,6 +64,9 @@ export interface AiTelemetryEntry {
   task: AiTask;
   latencyMs: number;
   fallbackUsed: boolean;
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
   errorType?: string;
   jobId?: string;
   clientId?: string;

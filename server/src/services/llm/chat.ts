@@ -7,12 +7,8 @@
 // API key is billed to the Radix company card.  Grok secondary, Kimi K2
 // tertiary.  Override per-call by passing a custom chain.
 //
-// 2026-04-23 (pm): Google's OpenAI-compat shim now exposes the full Gemini 3
-// family (gemini-3-flash-preview, gemini-3.1-pro-preview, -flash-lite, etc.)
-// Verified live at /v1beta/openai/models.  GEMINI_CHAT_MODEL defaults to
-// gemini-3-flash-preview (thinking model, 1M context, $1/$6 per 1M).
-// Native @google/genai SDK path in gemini.provider.ts stays on 3.1-pro for
-// analyze/video.
+// 2026-04-28: Models updated to current generation. GEMINI_CHAT_MODEL defaults
+// to gemini-3.1-pro-preview. xAI defaults to grok-4.20. Kimi defaults to kimi-k2.6.
 //
 // Every provider exposes the OpenAI Chat Completions surface:
 //   - Gemini: https://generativelanguage.googleapis.com/v1beta/openai/
@@ -59,11 +55,7 @@ function clientFor(p: ProviderName): ProviderClient {
       cached = new OpenAI({ apiKey: key, baseURL: GEMINI_BASE });
       cache.set(p, cached);
     }
-    // GEMINI_CHAT_MODEL drives the OpenAI-compat path (this file).
-    // Default is gemini-3-flash-preview — thinking model, 1M ctx, fn-calling
-    // + structured outputs.  Native SDK path (gemini.provider.ts → analyze +
-    // image) uses GEMINI_TEXT_MODEL = gemini-3.1-pro-preview separately.
-    const model = process.env.GEMINI_CHAT_MODEL || 'gemini-3-flash-preview';
+    const model = process.env.GEMINI_CHAT_MODEL || 'gemini-3.1-pro-preview';
     return { client: cached, model, provider: p };
   }
   if (p === 'xai') {
@@ -73,7 +65,7 @@ function clientFor(p: ProviderName): ProviderClient {
       cached = new OpenAI({ apiKey: key, baseURL: XAI_BASE });
       cache.set(p, cached);
     }
-    return { client: cached, model: process.env.XAI_TEXT_MODEL || 'grok-4-fast-reasoning', provider: p };
+    return { client: cached, model: process.env.XAI_TEXT_MODEL || 'grok-4.20', provider: p };
   }
   // moonshot
   const key = process.env.MOONSHOT_API_KEY;
@@ -82,7 +74,7 @@ function clientFor(p: ProviderName): ProviderClient {
     cached = new OpenAI({ apiKey: key, baseURL: MOONSHOT_BASE });
     cache.set(p, cached);
   }
-  return { client: cached, model: process.env.MOONSHOT_MODEL || 'kimi-k2-turbo-preview', provider: p };
+  return { client: cached, model: process.env.MOONSHOT_MODEL || 'kimi-k2.6', provider: p };
 }
 
 // Default chain — Gemini PRIMARY (Radix company-card key), Grok fallback,
@@ -174,6 +166,9 @@ export interface ChatTextResult {
   model: string;
   latencyMs: number;
   fallbackUsed: boolean;
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
 }
 
 export async function chatText(
@@ -188,14 +183,17 @@ export async function chatText(
       | undefined;
     let text = choice?.content ?? '';
     if (!text && choice?.reasoning_content) text = choice.reasoning_content;
-    return text;
+    return { text, usage: r.usage };
   }, options);
   return {
-    text: out.result,
+    text: out.result.text,
     provider: out.provider,
     model: out.model,
     latencyMs: Date.now() - start,
     fallbackUsed: out.fallbackUsed,
+    promptTokens: out.result.usage?.prompt_tokens,
+    completionTokens: out.result.usage?.completion_tokens,
+    totalTokens: out.result.usage?.total_tokens,
   };
 }
 
@@ -226,9 +224,9 @@ export async function chatStream(
 export function chainStatus(chain: ProviderName[] = DEFAULT_CHAIN): Array<{ provider: ProviderName; configured: boolean; model: string }> {
   return chain.map((p) => {
     const envKey = p === 'gemini' ? 'GEMINI_API_KEY' : p === 'xai' ? 'XAI_API_KEY' : 'MOONSHOT_API_KEY';
-    const modelEnv = p === 'gemini' ? (process.env.GEMINI_CHAT_MODEL || 'gemini-3-flash-preview')
-      : p === 'xai' ? (process.env.XAI_TEXT_MODEL || 'grok-4-fast-reasoning')
-      : (process.env.MOONSHOT_MODEL || 'kimi-k2-turbo-preview');
+    const modelEnv = p === 'gemini' ? (process.env.GEMINI_CHAT_MODEL || 'gemini-3.1-pro-preview')
+      : p === 'xai' ? (process.env.XAI_TEXT_MODEL || 'grok-4.20')
+      : (process.env.MOONSHOT_MODEL || 'kimi-k2.6');
     return { provider: p, configured: !!process.env[envKey], model: modelEnv };
   });
 }

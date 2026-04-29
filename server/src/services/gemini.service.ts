@@ -16,7 +16,7 @@ function getClient(): GoogleGenAI {
 // ─── Model map (kept for embeddings + any direct Gemini paths) ──
 
 export const MODELS = {
-  planner: env.GEMINI_FLASH_TEXT_MODEL,    // gemini-3-flash-preview
+  planner: env.GEMINI_FLASH_TEXT_MODEL,    // gemini-3.1-flash-lite-preview
   strategist: env.GEMINI_TEXT_MODEL,        // gemini-3.1-pro-preview
   image: env.GEMINI_IMAGE_MODEL,            // gemini-3.1-flash-image-preview
   video: env.GEMINI_VIDEO_MODEL,            // veo-3.1-generate-preview
@@ -76,10 +76,10 @@ export async function embedText(text: string): Promise<number[]> {
     const embedding = response.embeddings?.[0]?.values;
     if (!embedding?.length) throw new Error('Gemini returned empty embedding');
     return embedding;
-  } catch (err: unknown) {
+  } catch (err: any) {
     if (err instanceof GeminiUnavailableError) throw err;
     // Wrap raw Google SDK errors with a clean message
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = err?.message || String(err);
     if (/rate.?limit|429|too many requests|quota/i.test(msg)) {
       throw new GeminiUnavailableError('Gemini rate-limited. Knowledge embedding temporarily unavailable.');
     }

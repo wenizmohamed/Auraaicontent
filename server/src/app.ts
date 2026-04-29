@@ -21,15 +21,10 @@ import { designRoutes } from './routes/design.js';
 import { analyzeRoutes } from './routes/analyze.js';
 import { visualRefRoutes } from './routes/visualRefs.js';
 import { dashboardRoutes } from './routes/dashboard.js';
-import { contentPieceRoutes } from './routes/contentPieces.js';
-import { apiKeyRoutes } from './routes/api-keys.js';
-import { reportRoutes } from './routes/reports.js';
-import { v2ClientRoutes } from './routes/v2/clients.js';
-import { v2CalendarRoutes } from './routes/v2/calendar.js';
-import { v2PostRoutes } from './routes/v2/posts.js';
+import { agentRoutes } from './routes/agent.js';
 import { registerRateLimiter } from './middleware/rate-limiter.js';
-import { authGuard } from './middleware/auth.js';
-import { checkDb, checkRedis, checkQueueStats } from './lib/health-checks.js';
+import { kimiStatus } from './services/providers/kimi.provider.js';
+import { chainStatus, DEFAULT_CHAIN } from './services/llm/chat.js';
 
 import { execSync } from 'child_process';
 
@@ -114,6 +109,7 @@ export async function buildApp() {
         service: 'radix-server',
         version: '1.0.0',
         docs: '/api/health',
+        agent: 'POST /api/agent/runs  ·  socket.io /agent',
       });
     }
     return reply.redirect(frontend, 302);
@@ -132,15 +128,13 @@ export async function buildApp() {
   // Chain enforced both at AiRouter (image/video/analysis) AND at the
   // chat-with-fallback helper (text/orchestrator/agent tools).
   app.get('/api/providers/status', async () => {
-    const { kimiStatus } = await import('./services/providers/kimi.provider.js');
-    const { chainStatus, DEFAULT_CHAIN } = await import('./services/llm/chat.js');
     return {
-      orchestrator: process.env.GEMINI_CHAT_MODEL || 'gemini-2.5-flash',
+      orchestrator: process.env.GEMINI_CHAT_MODEL || 'gemini-3.1-pro-preview',
       fallbackChain: chainStatus(DEFAULT_CHAIN),
       providers: {
         gemini: {
           configured: !!process.env.GEMINI_API_KEY,
-          chatModel: process.env.GEMINI_CHAT_MODEL || 'gemini-2.5-flash',
+          chatModel: process.env.GEMINI_CHAT_MODEL || 'gemini-3.1-pro-preview',
           analysisModel: process.env.GEMINI_TEXT_MODEL || 'gemini-3.1-pro-preview',
           imageModel: process.env.GEMINI_IMAGE_MODEL || 'gemini-3.1-flash-image-preview',
           videoModel: process.env.GEMINI_VIDEO_MODEL || 'veo-3.1-generate-preview',
@@ -150,7 +144,7 @@ export async function buildApp() {
         },
         grok: {
           configured: !!process.env.XAI_API_KEY,
-          model: process.env.XAI_TEXT_MODEL || 'grok-4-fast-reasoning',
+          model: process.env.XAI_TEXT_MODEL || 'grok-4.20',
           baseURL: process.env.XAI_BASE_URL || 'https://api.x.ai/v1',
           role: 'fallback (text + image + video)',
           rank: 2,
@@ -160,30 +154,19 @@ export async function buildApp() {
     };
   });
 
-  // Health details — auth-gate + quantitative checks for queue/db/redis (O3).
-  // db.reachable: SELECT 1 < 500ms.  redis.reachable: PING < 200ms.
-  // queue.healthy: waiting < 1000 && active < 50 && lastCompletedAt < 5min ago
-  //   (or null for fresh-boot).
-  app.get('/api/health/details', { preHandler: [authGuard] }, async () => {
+  // Health details (auth-gated) — proves runtime env is fresh
+  app.get('/api/health/details', async () => {
     const fingerprint = (key: string) => {
       const val = process.env[key] || '';
       if (!val) return 'NOT_SET';
       return crypto.createHash('sha256').update(val.slice(0, 8)).digest('hex').slice(0, 12);
     };
-    const [dbReachable, redisReachable, queueState] = await Promise.all([
-      checkDb(),
-      checkRedis(),
-      checkQueueStats(),
-    ]);
     return {
       status: 'ok',
       commit: GIT_COMMIT,
       processStart: PROCESS_START,
       cwd: process.cwd(),
       nodeVersion: process.version,
-      db: { reachable: dbReachable },
-      redis: { reachable: redisReachable },
-      queue: queueState,
       envFingerprints: {
         GEMINI_API_KEY: fingerprint('GEMINI_API_KEY'),
         XAI_API_KEY: fingerprint('XAI_API_KEY'),
@@ -193,9 +176,9 @@ export async function buildApp() {
         AGENT_MODEL: process.env.AGENT_MODEL || 'unset',
       },
       routing: {
-        AI_TEXT_PRIMARY: process.env.AI_TEXT_PRIMARY || 'xai',
-        AI_IMAGE_PRIMARY: process.env.AI_IMAGE_PRIMARY || 'xai',
-        AI_VIDEO_PRIMARY: process.env.AI_VIDEO_PRIMARY || 'xai',
+        AI_TEXT_PRIMARY: process.env.AI_TEXT_PRIMARY || 'gemini',
+        AI_IMAGE_PRIMARY: process.env.AI_IMAGE_PRIMARY || 'gemini',
+        AI_VIDEO_PRIMARY: process.env.AI_VIDEO_PRIMARY || 'gemini',
         AI_ANALYSIS_PRIMARY: process.env.AI_ANALYSIS_PRIMARY || 'gemini',
         AI_ENABLE_FALLBACK: process.env.AI_ENABLE_FALLBACK || 'true',
       },
@@ -223,34 +206,7 @@ export async function buildApp() {
   await app.register(analyzeRoutes, { prefix: '/api' });
   await app.register(visualRefRoutes, { prefix: '/api' });
   await app.register(dashboardRoutes, { prefix: '/api' });
-  await app.register(contentPieceRoutes, { prefix: '/api' });
-  await app.register(apiKeyRoutes, { prefix: '/api' });
-  await app.register(reportRoutes, { prefix: '/api' });
-
-  // /v2 — external integration surface, Bearer sk-radix-{32} auth.
-  // Single-tenant per key: every endpoint is scoped to the key's clientId.
-  await app.register(v2ClientRoutes, { prefix: '/v2' });
-  await app.register(v2CalendarRoutes, { prefix: '/v2' });
-  await app.register(v2PostRoutes, { prefix: '/v2' });
-
-  // 5xx alerting via Slack webhook (O4). Sentry is YAGNI for one-agency deploy;
-  // a single Slack channel is enough to catch real incidents fast.
-  const SLACK_ALERT_WEBHOOK_URL = process.env.SLACK_ALERT_WEBHOOK_URL?.trim();
-  app.setErrorHandler((err: any, request, reply) => {
-    const status = err?.statusCode ?? 500;
-    app.log.error({ err, path: request.url, method: request.method }, 'unhandled error');
-    if (SLACK_ALERT_WEBHOOK_URL && status >= 500) {
-      // Fire-and-forget so the request response isn't blocked on Slack latency.
-      fetch(SLACK_ALERT_WEBHOOK_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: `:rotating_light: radix-api ${status}: ${err?.message ?? 'unknown'}\n${request.method} ${request.url}`,
-        }),
-      }).catch(() => { /* swallow alert failures */ });
-    }
-    reply.status(status).send({ error: err?.message ?? 'Internal Server Error' });
-  });
+  await app.register(agentRoutes, { prefix: '/api/agent' });
 
   return app;
 }

@@ -22,10 +22,13 @@ const IMAGE_EDIT_TIMEOUT = parseInt(process.env.GEMINI_IMAGE_EDIT_TIMEOUT_MS || 
 // with grok" — caused by retry-on-timeout stacking 4×120s = 8 min per call.)
 const RETRY_BACKOFFS_MS = [500, 1500]; // 2 retries, ~2s total worst case
 
+let _ai: GoogleGenAI | null = null;
 function getAI(): GoogleGenAI {
+  if (_ai) return _ai;
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new AiProviderError('gemini', 'init', 'GEMINI_API_KEY not set', 401);
-  return new GoogleGenAI({ apiKey: key });
+  _ai = new GoogleGenAI({ apiKey: key });
+  return _ai;
 }
 
 function safeJsonParse(text: string, label: string): any {
@@ -82,11 +85,7 @@ export const geminiProvider: AiProvider = {
 
   async text(req: TextRequest): Promise<ProviderResult<string | object>> {
     const ai = getAI();
-    // Default text model is gemini-3-flash-preview — 10x faster than 3.1-pro
-    // for simple rewrites (creative/prompt/improve, generateMonth headlines)
-    // and rarely hits 503. Analysis (vision) stays on 3.1-pro via a separate
-    // env below.  (2026-04-23 fix for "all models start with grok" regression.)
-    const model = process.env.GEMINI_TEXT_MODEL || 'gemini-3-flash-preview';
+    const model = process.env.GEMINI_TEXT_MODEL || 'gemini-3.1-pro-preview';
     const start = Date.now();
     const response = await withRetry('text', () => withTimeout(
       ai.models.generateContent({
@@ -97,24 +96,25 @@ export const geminiProvider: AiProvider = {
       TIMEOUT, 'text',
     ));
     const text = response.text ?? '';
+    const usage = (response as any).usageMetadata;
     return {
       provider: 'gemini', model, latencyMs: Date.now() - start, fallbackUsed: false,
       output: req.json ? safeJsonParse(text, 'text') : text,
+      promptTokens: usage?.promptTokenCount,
+      completionTokens: usage?.candidatesTokenCount,
+      totalTokens: usage?.totalTokenCount,
     };
   },
 
   async image(req: ImageRequest): Promise<ProviderResult<{ url?: string; base64?: string }>> {
     const ai = getAI();
-    // Default is gemini-3-pro-image-preview (Nano Banana Pro) — verified
-    // 2026-04-26 via direct curl: HTTP 200 in 19.8s with 776KB JPEG.
-    // Nano Banana 2 (gemini-3.1-flash-image-preview) is preferred for speed
-    // + cost ($0.0672/img vs $0.134/img) but currently 60s-times-out on
-    // free-billing API keys — gated to billing-enabled projects only.
-    // Imagen-4 (imagen-4.0-fast-generate-001) is the legacy path; it works
-    // but isn't in the Nano Banana lineage and will be deprecated.
+    // Default is imagen-4.0-fast-generate-001 — it's the ONLY Google image
+    // model that currently responds for our API key (verified 2026-04-23 via
+    // direct curl: gemini-3.1-flash-image-preview hangs 70s/no-response,
+    // imagen-4.0-fast returns HTTP 200 in 5s).  Ultra path uses imagen-4 ultra.
     const model = req.quality === 'ultra'
-      ? (process.env.GEMINI_IMAGE_ULTRA_MODEL || 'gemini-3-pro-image-preview')
-      : (process.env.GEMINI_IMAGE_MODEL || 'gemini-3-pro-image-preview');
+      ? (process.env.GEMINI_IMAGE_ULTRA_MODEL || 'imagen-4.0-ultra-generate-001')
+      : (process.env.GEMINI_IMAGE_MODEL || 'imagen-4.0-fast-generate-001');
     const start = Date.now();
 
     // Imagen models (imagen-*) live behind the :predict endpoint and are
@@ -153,27 +153,10 @@ export const geminiProvider: AiProvider = {
       }),
       TIMEOUT, 'image',
     ));
-    // SDK v1.48 returns parts with both `inlineData` (camel) and `inline_data`
-    // (snake) on different schema paths depending on alpha vs stable preview
-    // models — match either. Also fall back to scanning the whole candidate
-    // tree because some response variants nest under `data` directly.
-    const cand: any = (response as any).candidates?.[0];
-    const parts: any[] = cand?.content?.parts ?? [];
-    const imgPart = parts.find((p) => p?.inlineData?.data || p?.inline_data?.data);
-    const base64 = imgPart?.inlineData?.data ?? imgPart?.inline_data?.data;
-    if (!base64) {
-      const finishReason = cand?.finishReason ?? cand?.finish_reason ?? 'unknown';
-      const promptFeedback = (response as any).promptFeedback ?? (response as any).prompt_feedback;
-      console.warn('[gemini.image] empty result', {
-        model,
-        finishReason,
-        partTypes: parts.map((p) => Object.keys(p)),
-        promptFeedback,
-      });
-    }
+    const part = (response as any).candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData);
     return {
       provider: 'gemini', model, latencyMs: Date.now() - start, fallbackUsed: false,
-      output: { base64 },
+      output: { base64: part?.inlineData?.data },
     };
   },
 
@@ -283,9 +266,13 @@ export const geminiProvider: AiProvider = {
       }),
       TIMEOUT, 'analysis',
     ));
+    const usage = (response as any).usageMetadata;
     return {
       provider: 'gemini', model, latencyMs: Date.now() - start, fallbackUsed: false,
       output: safeJsonParse(response.text || '{}', 'analysis'),
+      promptTokens: usage?.promptTokenCount,
+      completionTokens: usage?.candidatesTokenCount,
+      totalTokens: usage?.totalTokenCount,
     };
   },
 };
