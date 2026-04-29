@@ -213,20 +213,5 @@ export function CommandPalette({ open, onOpenChange }: Props) {
   );
 }
 
-/**
- * Hook that wires the global ⌘K / Ctrl+K shortcut to open the palette.
- * Mount once at App root.
- */
-export function useCommandPaletteShortcut(setOpen: (v: boolean) => void) {
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      const isMod = e.metaKey || e.ctrlKey;
-      if (isMod && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        setOpen(true);
-      }
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [setOpen]);
-}
+// ⌘K registration moved to App.tsx via useShortcut(...) so it appears in
+// the "?" cheat sheet. The palette no longer owns its own keybinding.
