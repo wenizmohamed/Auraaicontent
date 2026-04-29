@@ -8,6 +8,7 @@ import { useClients } from '../lib/client-context';
 import { calendarApi, reviewApi, exportsApi, jobsApi, visualRefsApi } from '../lib/backend-api';
 import type { CalendarMonthSummary } from '../lib/backend-api';
 import { hijriDateLabel, holidaysForDate, isInRamadan, type Holiday } from '../lib/gcc-holidays';
+import { SkeletonRow, SkeletonAnnouncer } from '../components/ui/Skeleton';
 import { STATUS_LABEL, normalizeStatus } from '../lib/status-enum';
 import VisualRefGrid from '../components/VisualRefGrid';
 import MonthlyReportButton from '../components/MonthlyReportButton';
@@ -950,8 +951,11 @@ export default function ContentCalendar() {
 
               <div className="flex-1 overflow-y-auto p-5 space-y-3">
                 {loadingArchived && (
-                  <div className="flex items-center justify-center py-10">
-                    <Loader2 className="w-5 h-5 animate-spin text-zinc-500" />
+                  <div className="space-y-2">
+                    <SkeletonAnnouncer label="Loading archived months…" />
+                    {Array.from({ length: 4 }).map((_, i) => (
+                      <SkeletonRow key={i} delay={i * 70} />
+                    ))}
                   </div>
                 )}
 

@@ -432,6 +432,26 @@ html { scroll-behavior: smooth; }
   100% { background-position: 200% 0; }
 }
 
+/* Skeleton — token-driven loading shimmer. The base color is the surface
+   token; the highlight stripe is the surface-hover token, layered as a
+   linear-gradient that scrolls horizontally. Themes correctly across
+   dark / light / studio without per-class overrides. */
+.skeleton {
+  background-color: var(--color-surface);
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--color-surface-hover) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: shimmer 1.4s var(--ease-out-expo) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; background-image: none; background-color: var(--color-surface-hover); }
+}
+
 @keyframes glow {
   0%, 100% { box-shadow: 0 0 5px rgba(99, 102, 241, 0.3); }
   50%      { box-shadow: 0 0 20px rgba(99, 102, 241, 0.6); }

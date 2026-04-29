@@ -5,6 +5,7 @@ import { useTheme } from '../lib/theme-context';
 import { useClients } from '../lib/client-context';
 import { galleryApi, type GalleryAsset } from '../lib/backend-api';
 import { useToast } from '../lib/toast-context';
+import { Skeleton, SkeletonAnnouncer } from '../components/ui/Skeleton';
 
 type FilterType = 'all' | 'image' | 'video';
 
@@ -166,9 +167,17 @@ export default function Gallery() {
 
       {/* Grid */}
       {loading ? (
-        <div className={`flex flex-col items-center justify-center py-20 ${textMuted}`}>
-          <Loader2 className="w-8 h-8 animate-spin mb-3" />
-          <p className="text-sm">Loading gallery...</p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+          <SkeletonAnnouncer label="Loading gallery…" />
+          {Array.from({ length: 10 }).map((_, i) => (
+            <Skeleton
+              key={i}
+              height={0}
+              radius="xl"
+              delay={i * 60}
+              style={{ aspectRatio: '1 / 1', height: 'auto' }}
+            />
+          ))}
         </div>
       ) : filtered.length === 0 ? (
         <div className={`rounded-2xl border ${cardBg} p-16 text-center`}>

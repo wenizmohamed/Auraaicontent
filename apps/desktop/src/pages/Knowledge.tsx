@@ -5,6 +5,7 @@ import { knowledgeApi, type KnowledgeItemRecord } from '../lib/backend-api';
 import { useClients } from '../lib/client-context';
 import { useToast } from '../lib/toast-context';
 import { EmptyState, EmptyStateAction } from '../components/ui/EmptyState';
+import { SkeletonRow, SkeletonAnnouncer } from '../components/ui/Skeleton';
 
 function formatBytes(bytes: number): string {
   if (!bytes) return '--';
@@ -225,8 +226,11 @@ export default function Knowledge() {
 
       {/* List */}
       {loading && (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-6 h-6 animate-spin text-zinc-500" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          <SkeletonAnnouncer label="Loading knowledge items…" />
+          {Array.from({ length: 6 }).map((_, i) => (
+            <SkeletonRow key={i} delay={i * 80} />
+          ))}
         </div>
       )}
 

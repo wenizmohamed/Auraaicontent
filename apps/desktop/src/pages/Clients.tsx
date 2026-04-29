@@ -4,6 +4,7 @@ import { t } from '../i18n';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Building2, Check, X, Loader2, Trash2, Edit3, Save } from 'lucide-react';
 import { EmptyState, EmptyStateAction } from '../components/ui/EmptyState';
+import { SkeletonRow, SkeletonAnnouncer } from '../components/ui/Skeleton';
 
 interface ClientForm {
   name: string;
@@ -165,7 +166,12 @@ export default function Clients() {
       )}
 
       {loading ? (
-        <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 text-zinc-600 animate-spin" /></div>
+        <div className="space-y-2">
+          <SkeletonAnnouncer label="Loading clients…" />
+          {Array.from({ length: 4 }).map((_, i) => (
+            <SkeletonRow key={i} delay={i * 80} />
+          ))}
+        </div>
       ) : !authenticated ? (
         <div className="rounded-2xl bg-[#0c0c0c] border border-white/[0.06] py-16 text-center">
           <Building2 className="w-10 h-10 text-red-800 mx-auto mb-3" />
