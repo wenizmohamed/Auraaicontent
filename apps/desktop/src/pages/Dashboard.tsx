@@ -8,6 +8,22 @@ import { useTheme } from '../lib/theme-context';
 import { greeting } from '../lib/greeting';
 import { t } from '../i18n';
 import { EmptyState, EmptyStateAction } from '../components/ui/EmptyState';
+import { Sparkline } from '../components/ui/Sparkline';
+import { motionUI, motionBase, easings, durations } from '../lib/motion';
+
+// Synth a smoothly-rising 12-point sparkline that ends at `target`.
+// Used until per-stat time-series is wired into the backend dashboard API.
+function trendSeries(target: number, length = 12): number[] {
+  if (target <= 0) return [];
+  const out: number[] = [];
+  for (let i = 0; i < length; i++) {
+    const t = i / (length - 1);
+    const ease = 1 - Math.pow(1 - t, 2.4);
+    const wobble = Math.sin(i * 1.2) * 0.04 * target;
+    out.push(Math.max(0, Math.round(target * (0.55 + 0.45 * ease) + wobble)));
+  }
+  return out;
+}
 
 // Valid month format: "Month YYYY" e.g. "April 2026"
 const VALID_MONTH_RE = /^[A-Z][a-z]+ \d{4}$/;
@@ -17,10 +33,18 @@ function SkeletonTile({ isDark }: { isDark: boolean }) {
   return <div className={`h-8 w-16 rounded ${isDark ? 'bg-white/[0.05]' : 'bg-slate-200/60'} animate-pulse`} />;
 }
 
+// Routes through the Phase 4.1 motion vocabulary so all 40+ Dashboard
+// fadeUp() call sites share one easing + duration pair. Easing kept on
+// the locally-defined out-quart for visual continuity with prior builds;
+// duration borrowed from --dur-slow so the entrance feels editorial.
 const fadeUp = (delay = 0) => ({
   initial: { opacity: 0, y: 20 },
   animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.6, delay, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] },
+  transition: {
+    duration: durations.slow,
+    delay,
+    ease: [0.22, 1, 0.36, 1] as [number, number, number, number],
+  },
 });
 
 function getRelativeTime(dateString: string) {
@@ -279,7 +303,7 @@ function WalkthroughSection({ isDark, glass, glassStatic, textPrimary, textSecon
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+              transition={motionBase}
               className="overflow-hidden"
             >
               <div className={`px-6 pb-6 border-t ${isDark ? 'border-white/[0.04]' : 'border-slate-100'}`}>
@@ -289,7 +313,7 @@ function WalkthroughSection({ isDark, glass, glassStatic, textPrimary, textSecon
                       key={step.title}
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.3, delay: i * 0.04 }}
+                      transition={{ ...motionBase, delay: i * 0.04 }}
                     >
                       <Link
                         to={step.href}
@@ -643,6 +667,17 @@ export default function Dashboard() {
                         {typeof stat.value === 'number' ? <AnimatedNumber value={stat.value} /> : (stat.value ?? '—')}
                       </div>
                       <p className={`text-xs mt-1 ${textMuted}`}>{stat.label}</p>
+                      {/* Sparkline — synth trend until backend ships per-stat series. */}
+                      {typeof stat.value === 'number' && stat.value > 0 && (
+                        <div className="mt-2 -mx-1">
+                          <Sparkline
+                            data={trendSeries(stat.value)}
+                            trend={stat.alert ? 'down' : 'up'}
+                            height={28}
+                            hideTooltip
+                          />
+                        </div>
+                      )}
                     </>
                   )}
                 </>
