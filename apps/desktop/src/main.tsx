@@ -1,7 +1,18 @@
 import { StrictMode, Component, type ReactNode } from 'react';
+import * as React from 'react';
+import * as ReactDOM from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+
+// Phase 7.1 — runtime a11y audit in dev only. axe-core attaches to React's
+// reconciler and logs WCAG violations to the browser console as you click
+// through the app. Tree-shaken from prod builds via the import.meta.env.DEV gate.
+if (import.meta.env.DEV) {
+  import('@axe-core/react').then(({ default: axe }) => {
+    axe(React, ReactDOM, 1000);
+  }).catch(() => { /* dev-only, fail silent */ });
+}
 
 // Global error handlers — catch crashes that happen outside React
 window.onerror = (msg, source, line, col, err) => {
