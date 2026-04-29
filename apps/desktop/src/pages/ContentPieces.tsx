@@ -3,6 +3,7 @@ import { contentPiecesApi, type ContentPieceRecord } from '../lib/backend-api';
 import { useClients } from '../lib/client-context';
 import { useToast } from '../lib/toast-context';
 import { motion, AnimatePresence } from 'framer-motion';
+import { EmptyState, EmptyStateAction } from '../components/ui/EmptyState';
 import {
   FileText, Image as ImageIcon, Video, Film, Layers, Grid, List, Plus,
   Filter, Eye, Calendar, User, Link, X, Check, CheckCheck, Pencil,
@@ -525,10 +526,16 @@ export default function ContentPieces() {
   function renderCardView() {
     if (filtered.length === 0) {
       return (
-        <div className="text-center py-20">
-          <Layers className="w-12 h-12 text-zinc-700 mx-auto mb-4" />
-          <p className="text-zinc-500 text-sm">No content pieces found. Create one to get started.</p>
-        </div>
+        <EmptyState
+          icon={Layers}
+          title="No content pieces yet"
+          description="Pieces are reusable post drafts (image / video / carousel) that flow into the calendar. Create your first to get started."
+          primary={
+            <EmptyStateAction onClick={openCreateModal}>
+              <Plus className="w-4 h-4" /> Create first piece
+            </EmptyStateAction>
+          }
+        />
       );
     }
 
@@ -669,10 +676,16 @@ export default function ContentPieces() {
   function renderTableView() {
     if (filtered.length === 0) {
       return (
-        <div className="text-center py-20">
-          <Layers className="w-12 h-12 text-zinc-700 mx-auto mb-4" />
-          <p className="text-zinc-500 text-sm">No content pieces found. Create one to get started.</p>
-        </div>
+        <EmptyState
+          icon={Layers}
+          title="No content pieces yet"
+          description="Pieces are reusable post drafts (image / video / carousel) that flow into the calendar. Create your first to get started."
+          primary={
+            <EmptyStateAction onClick={openCreateModal}>
+              <Plus className="w-4 h-4" /> Create first piece
+            </EmptyStateAction>
+          }
+        />
       );
     }
 

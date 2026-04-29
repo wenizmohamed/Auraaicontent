@@ -51,6 +51,7 @@ import { Sun, Moon, Sparkles } from 'lucide-react';
 import { CommandPalette } from './components/CommandPalette';
 import { RouteSkeleton, ShellSkeleton } from './components/RouteSkeleton';
 import { ShortcutCheatSheet } from './components/ShortcutCheatSheet';
+import { TooltipProvider, Tooltip } from './components/ui/Tooltip';
 import { useShortcut } from './lib/shortcuts';
 import { Toaster } from 'sonner';
 
@@ -134,14 +135,17 @@ function Layout({ children }: { children: React.ReactNode }) {
         } hidden lg:flex flex-col transition-all duration-300 relative z-sticky`}
       >
         {/* Collapse Toggle */}
-        <button
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className={`absolute -right-3 top-7 z-30 w-6 h-6 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer shadow-lg ${
-            isDark ? 'bg-zinc-800 border border-white/10 text-zinc-400 hover:bg-zinc-700 hover:text-white' : 'bg-white border border-slate-300 text-slate-500 hover:bg-slate-50 hover:text-slate-900'
-          }`}
-        >
-          {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-        </button>
+        <Tooltip content={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} shortcut="⌘B" side="right">
+          <button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            className={`absolute -right-3 top-7 z-30 w-6 h-6 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer shadow-lg ${
+              isDark ? 'bg-zinc-800 border border-white/10 text-zinc-400 hover:bg-zinc-700 hover:text-white' : 'bg-white border border-slate-300 text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+            }`}
+          >
+            {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+          </button>
+        </Tooltip>
 
         {/* Logo */}
         <div className={`h-[72px] flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-5'} border-b ${isDark ? 'border-white/[0.06]' : 'border-slate-200/60'}`}>
@@ -220,8 +224,10 @@ function Layout({ children }: { children: React.ReactNode }) {
           <OrgSwitcher collapsed={isCollapsed} />
           <LocaleToggle collapsed={isCollapsed} />
           {/* Theme Toggle — Pill Switch */}
+          <Tooltip content={`Cycle theme · current: ${themeLabel}`} shortcut="⌘⇧L" side="right" enabled={isCollapsed}>
           <button
             onClick={toggleTheme}
+            aria-label={`Cycle theme. Current: ${themeLabel}`}
             className={`flex items-center w-full ${isCollapsed ? 'justify-center' : 'gap-3'} px-3 py-2 rounded-xl transition-all duration-200 cursor-pointer ${
               isDark ? 'hover:bg-white/[0.04] text-zinc-500 hover:text-zinc-300' : 'hover:bg-slate-100 text-slate-500 hover:text-slate-700'
             }`}
@@ -233,6 +239,7 @@ function Layout({ children }: { children: React.ReactNode }) {
             </div>
             {!isCollapsed && <span className="text-[13px]">{themeLabel}</span>}
           </button>
+          </Tooltip>
 
           {/* Profile */}
           <Link to="/profile" className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} px-3 py-2 rounded-xl transition-all duration-200 cursor-pointer ${
@@ -391,6 +398,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <ThemeProvider>
+    <TooltipProvider>
     <ToastProvider>
     <StoreProvider>
       <ClientProvider>
@@ -438,6 +446,7 @@ export default function App() {
       </ClientProvider>
     </StoreProvider>
     </ToastProvider>
+    </TooltipProvider>
     </ThemeProvider>
   );
 }

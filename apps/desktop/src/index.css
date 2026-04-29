@@ -120,6 +120,7 @@
 @utility z-modal { z-index: 50; }
 @utility z-popover { z-index: 55; }
 @utility z-toast { z-index: 60; }
+@utility z-tooltip { z-index: 65; }
 @utility z-debug { z-index: 70; }
 
 /* ════════════════════════════════════════════════════════════════════════════

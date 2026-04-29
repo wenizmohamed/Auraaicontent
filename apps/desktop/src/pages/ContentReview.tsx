@@ -13,6 +13,7 @@ import { validateCaption, PLATFORM_LIMITS } from '../lib/platform-limits';
 import { useClients } from '../lib/client-context';
 import { calendarApi, reviewApi, visualRefsApi, exportsApi, jobsApi } from '../lib/backend-api';
 import { ContentStatus, STATUS_LABEL, STATUS_COLOR, normalizeStatus } from '../lib/status-enum';
+import { EmptyState } from '../components/ui/EmptyState';
 import VisualRefGrid from '../components/VisualRefGrid';
 
 // ─── Types ──────────────────────────────────────────────────────
@@ -427,30 +428,38 @@ export default function ContentReview() {
 
   if (!brief) {
     return (
-      <div className="max-w-2xl mx-auto mt-20 text-center">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 mb-5 shadow-[0_0_40px_-10px_rgba(245,158,11,0.35)]">
-          <Sparkles className="w-7 h-7 text-amber-400" />
-        </div>
-        <h2 className="text-2xl font-bold text-white mb-2 tracking-tight">{t('page.review.no_content_title')}</h2>
-        <p className="text-zinc-400 mb-8 max-w-md mx-auto leading-relaxed">
-          {currentClient
-            ? `No generated content found for ${currentClient.name}. Create a brief to generate content.`
-            : 'Pick a client and create a content brief to generate content for review.'}
-        </p>
-        <div className="flex items-center justify-center gap-3">
-          <button
-            onClick={() => navigate('/brief')}
-            className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-black font-medium rounded-xl transition-colors duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
-          >
-            Create New Brief
-          </button>
-          <button
-            onClick={() => navigate('/calendar')}
-            className="px-6 py-3 bg-white/[0.06] hover:bg-white/[0.1] text-white font-medium rounded-xl border border-white/10 transition-colors duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
-          >
-            Open Calendar
-          </button>
-        </div>
+      <div className="max-w-2xl mx-auto mt-20">
+        <EmptyState
+          icon={Sparkles}
+          title={t('page.review.no_content_title')}
+          description={
+            currentClient
+              ? `No generated content found for ${currentClient.name}. Create a brief to generate content.`
+              : 'Pick a client and create a content brief to generate content for review.'
+          }
+          primary={
+            <button
+              onClick={() => navigate('/brief')}
+              className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors cursor-pointer"
+              style={{ background: 'var(--color-accent)', color: 'var(--color-fg-on-accent)' }}
+            >
+              Create New Brief
+            </button>
+          }
+          secondary={
+            <button
+              onClick={() => navigate('/calendar')}
+              className="inline-flex items-center gap-2 rounded-xl border px-5 py-2.5 text-sm font-medium transition-colors cursor-pointer"
+              style={{
+                background: 'var(--color-surface-hover)',
+                borderColor: 'var(--color-border)',
+                color: 'var(--color-fg)',
+              }}
+            >
+              Open Calendar
+            </button>
+          }
+        />
       </div>
     );
   }
