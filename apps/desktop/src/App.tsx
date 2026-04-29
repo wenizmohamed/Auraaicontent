@@ -29,28 +29,57 @@ import Knowledge from './pages/Knowledge';
 import MobileMenu from './components/MobileMenu';
 import AIDesignGenerator from './pages/AIDesignGenerator';
 import VisualReferences from './pages/VisualReferences';
+import Gallery from './pages/Gallery';
 import BriefInput from './pages/BriefInput';
 import ContentReview from './pages/ContentReview';
 import Clients from './pages/Clients';
 import CreativeTools from './pages/CreativeTools';
+import Admin from './pages/Admin';
+import Billing from './pages/Billing';
+import Members from './pages/Members';
+import AcceptInvite from './pages/AcceptInvite';
+import OrgSwitcher from './components/OrgSwitcher';
+import LocaleToggle from './components/LocaleToggle';
 import { ThemeProvider, useTheme } from './lib/theme-context';
 import { ToastProvider } from './lib/toast-context';
+import { t } from './i18n';
 import { Sun, Moon } from 'lucide-react';
+
+// Email allowlist for the Team page (mirrors server-side TEAM_ADMIN_EMAILS).
+// Anyone not listed here doesn't see the nav item AND gets bounced from the
+// route — the backend enforces this independently, so client-side hiding is
+// strictly UX (not a security boundary).
+const TEAM_ADMIN_EMAILS = ['weni.mohamed@gmail.com'];
+
+function getCallerEmail(): string | null {
+  try {
+    const tok = localStorage.getItem('radix_auth_token');
+    if (!tok) return null;
+    return JSON.parse(atob(tok.split('.')[1])).email ?? null;
+  } catch { return null; }
+}
+function isTeamAdmin(): boolean {
+  const e = getCallerEmail();
+  return !!e && TEAM_ADMIN_EMAILS.includes(e.toLowerCase());
+}
 
 function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { generatedImages, isLoading, error } = useStore();
   const { theme, toggleTheme } = useTheme();
-  
+  const showTeam = isTeamAdmin();
 
   const navigation = [
-    { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-    { name: 'Clients', href: '/clients', icon: Building2 },
-    { name: 'New Brief', href: '/brief', icon: FileText },
-    { name: 'Review', href: '/content-review', icon: Layers },
-    { name: 'Calendar', href: '/calendar', icon: Calendar },
-    { name: 'Creative Tools', href: '/creative', icon: Wand2 },
+    { name: t('nav.dashboard'), href: '/', icon: LayoutDashboard },
+    { name: t('nav.clients'), href: '/clients', icon: Building2 },
+    { name: t('nav.brief'), href: '/brief', icon: FileText },
+    { name: t('nav.review'), href: '/content-review', icon: Layers },
+    { name: t('nav.calendar'), href: '/calendar', icon: Calendar },
+    { name: t('nav.creative'), href: '/creative', icon: Wand2 },
+    { name: t('nav.gallery'), href: '/gallery', icon: ImageIcon },
+    ...(showTeam ? [{ name: t('nav.members'), href: '/settings/members', icon: UserCircle }] : []),
+    { name: t('nav.billing'), href: '/settings/billing', icon: UserCircle },
   ];
 
   const isDark = theme === 'dark';
@@ -128,8 +157,10 @@ function Layout({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        {/* Bottom: Theme + Profile */}
+        {/* Bottom: Org switcher + Locale + Theme + Profile */}
         <div className={`p-3 border-t space-y-1 ${isDark ? 'border-white/[0.06]' : 'border-slate-200/60'}`}>
+          <OrgSwitcher collapsed={isCollapsed} />
+          <LocaleToggle collapsed={isCollapsed} />
           {/* Theme Toggle — Pill Switch */}
           <button
             onClick={toggleTheme}
@@ -220,6 +251,12 @@ function DevBanner() {
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { authenticated, loading, serverOnline, authError } = useClients();
+  const location = useLocation();
+  // Invite-acceptance landing renders outside the gated layout — recipients
+  // need to see the org/role preview before they're forced through Login.
+  if (location.pathname.startsWith('/invite/')) {
+    return <Routes><Route path="/invite/:token" element={<AcceptInvite />} /></Routes>;
+  }
 
   if (loading) {
     return (
@@ -288,11 +325,16 @@ export default function App() {
               <Route path="/knowledge" element={<Knowledge />} />
               <Route path="/ai-design" element={<AIDesignGenerator />} />
               <Route path="/references" element={<VisualReferences />} />
+              <Route path="/gallery" element={<Gallery />} />
               <Route path="/video" element={<VideoAnalysis />} />
               <Route path="/research" element={<Research />} />
               <Route path="/studio" element={<Studio />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/onboarding" element={<Onboarding />} />
+              <Route path="/admin" element={<Admin />} />
+              <Route path="/settings/billing" element={<Billing />} />
+              <Route path="/settings/members" element={isTeamAdmin() ? <Members /> : <Navigate to="/" replace />} />
+              <Route path="/invite/:token" element={<AcceptInvite />} />
               {/* Catch-all → bounce to Dashboard. Beats rendering blank for any
                   typo'd or stale URL (e.g. /dashboard, /home, /admin). */}
               <Route path="*" element={<Navigate to="/" replace />} />

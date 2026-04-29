@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useClients } from '../lib/client-context';
+import { t } from '../i18n';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Building2, Check, X, Loader2, Trash2, Edit3, Save } from 'lucide-react';
 
@@ -106,7 +107,7 @@ export default function Clients() {
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-black text-white tracking-tight">Clients</h1>
+            <h1 className="text-3xl font-black text-white tracking-tight">{t('page.clients.title')}</h1>
             <p className="text-sm text-zinc-500 mt-1">
               {clients.length} client{clients.length !== 1 ? 's' : ''} {serverOnline ? '(synced with server)' : '(local mode)'}
             </p>

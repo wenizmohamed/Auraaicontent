@@ -668,9 +668,166 @@ export interface AiStats {
   tasks: { task: string; calls: number; avgLatencyMs: number; totalTokens: number }[];
 }
 
+export interface DashboardInsights {
+  actionCenter: { pendingReview: number; draftsStuck: number; totalActions: number };
+  trends: {
+    sparkline: { date: string; posts: number; approved: number }[];
+    postsTrend: number;
+    last7Days: number;
+  };
+  visualShowcase: {
+    id: string;
+    fileUrl: string;
+    thumbUrl: string | null;
+    mimeType: string;
+    name: string;
+    createdAt: string;
+    clientName: string | null;
+  }[];
+  insights: { type: 'positive' | 'warning' | 'info'; text: string }[];
+}
+
+export interface ActivityEntry {
+  id: string;
+  action: string;
+  entityType: string;
+  entityId: string | null;
+  clientId: string | null;
+  clientName: string | null;
+  payload: any;
+  createdAt: string;
+}
+
 export const dashboardApi = {
   stats: () => request<DashboardStats>('/api/dashboard/stats'),
   aiStats: () => request<AiStats>('/api/dashboard/ai-stats'),
+  insights: () => request<DashboardInsights>('/api/dashboard/insights'),
+  activity: () => request<ActivityEntry[]>('/api/dashboard/activity'),
+};
+
+export interface GalleryAsset {
+  id: string;
+  name: string;
+  fileUrl: string;
+  thumbUrl: string | null;
+  mimeType: string;
+  width: number | null;
+  height: number | null;
+  tags: any;
+  createdAt: string;
+  client: { id: string; name: string } | null;
+}
+
+// ─── Multi-tenancy: orgs + memberships ──────────────────────────
+export interface OrgMembership {
+  orgId: string;
+  role: 'OWNER' | 'ADMIN' | 'EDITOR' | 'VIEWER';
+  org: { id: string; name: string; slug: string; plan: string; status?: string };
+}
+
+export const orgsApi = {
+  list: () => request<OrgMembership[]>('/api/auth/orgs'),
+  switch: (orgId: string) =>
+    request<{ token: string; activeOrgId: string; orgRole: string }>(
+      '/api/auth/switch-org',
+      { method: 'POST', body: JSON.stringify({ orgId }) },
+    ),
+  members: (orgId: string) =>
+    request<{ id: string; role: string; createdAt: string; user: { id: string; email: string; name: string } }[]>(
+      `/api/orgs/${orgId}/members`,
+    ),
+  removeMember: (orgId: string, userId: string) =>
+    request<{ success: boolean }>(`/api/orgs/${orgId}/members/${userId}`, { method: 'DELETE' }),
+  setMemberRole: (orgId: string, userId: string, role: 'OWNER' | 'ADMIN' | 'EDITOR' | 'VIEWER') =>
+    request<{ success: boolean; role: string }>(
+      `/api/orgs/${orgId}/members/${userId}`,
+      { method: 'PATCH', body: JSON.stringify({ role }) },
+    ),
+};
+
+// ─── Invitations (org membership) ──────────────────────────────
+export interface PendingInvite {
+  id: string;
+  email: string;
+  role: 'ADMIN' | 'EDITOR' | 'VIEWER';
+  token: string;
+  expiresAt: string;
+  createdAt?: string;
+}
+export interface InvitePreview {
+  email: string;
+  role: 'OWNER' | 'ADMIN' | 'EDITOR' | 'VIEWER';
+  org: { name: string; slug: string; plan: string };
+  expiresAt: string;
+}
+export const invitationsApi = {
+  list: (orgId: string) => request<PendingInvite[]>(`/api/orgs/${orgId}/invitations`),
+  create: (orgId: string, email: string, role: 'ADMIN' | 'EDITOR' | 'VIEWER' = 'EDITOR') =>
+    request<PendingInvite>(`/api/orgs/${orgId}/invitations`, {
+      method: 'POST',
+      body: JSON.stringify({ email, role }),
+    }),
+  revoke: (orgId: string, id: string) =>
+    request<{ success: boolean }>(`/api/orgs/${orgId}/invitations/${id}`, { method: 'DELETE' }),
+  // Public — no auth header required.  Backend ignores Authorization on this route.
+  preview: (token: string) => request<InvitePreview>(`/api/invitations/${token}`),
+  accept: (token: string) =>
+    request<{ success: boolean; orgId: string; role: string }>(
+      `/api/invitations/${token}/accept`,
+      { method: 'POST' },
+    ),
+};
+
+// ─── Billing ────────────────────────────────────────────────────
+export const billingApi = {
+  checkout: (plan: 'starter' | 'studio' | 'agency') =>
+    request<{ url: string }>(
+      '/api/billing/checkout',
+      { method: 'POST', body: JSON.stringify({ plan }) },
+    ),
+  portal: () =>
+    request<{ url: string }>('/api/billing/portal', { method: 'POST' }),
+};
+
+// ─── Admin ──────────────────────────────────────────────────────
+export interface AdminMetrics {
+  mrr: number;
+  arr: number;
+  byPlan: Record<string, number>;
+  paidOrgs: number;
+  trialOrgs: number;
+  totalSeats: number;
+  monthAiCostUsd: number;
+  monthAiTokens: number;
+  monthAiCalls: number;
+  monthGrossMarginUsd: number;
+}
+export interface AdminOrg {
+  id: string; name: string; slug: string; plan: string; status: string;
+  stripeCustomerId: string | null; createdAt: string;
+  seats: number; clients: number; calendars: number; mrr: number;
+}
+export const adminApi = {
+  metrics: () => request<AdminMetrics>('/api/admin/metrics'),
+  orgs: () => request<AdminOrg[]>('/api/admin/orgs'),
+  orgUsage: (orgId: string) =>
+    request<{ kind: string; calls: number; units: number; costUsd: number }[]>(
+      `/api/admin/orgs/${orgId}/usage`,
+    ),
+};
+
+export const galleryApi = {
+  list: (filters: { type?: 'image' | 'video'; clientId?: string; q?: string; take?: number } = {}) => {
+    const params = new URLSearchParams();
+    if (filters.type) params.set('type', filters.type);
+    if (filters.clientId) params.set('clientId', filters.clientId);
+    if (filters.q) params.set('q', filters.q);
+    if (filters.take) params.set('take', String(filters.take));
+    const qs = params.toString();
+    return request<GalleryAsset[]>(`/api/assets${qs ? `?${qs}` : ''}`);
+  },
+  delete: (id: string) =>
+    request<{ success: boolean }>(`/api/assets/${id}`, { method: 'DELETE' }),
 };
 
 // ─── Server health check ─────────────────────────────────────────

@@ -108,16 +108,14 @@ export default function BriefInput() {
   const setSelectedClientId = (id: string) => {
     if (id) setContextClientId(id);
   };
+  // Empty campaign template — start fresh for new clients, populate from
+  // saved brief in the per-client useEffect below. Previously initialized
+  // with DEFAULT_CAMPAIGNS (Al Fardan) which leaked across clients.
+  const blankCampaign = (): CampaignEntry => ({
+    name: '', targetAudience: '', productFocus: '', objective: '', keyMessage: '',
+  });
   const [selectedMonth, setSelectedMonth] = useState(monthOptions[0]?.value || '');
-  const [campaigns, setCampaigns] = useState<CampaignEntry[]>(
-    DEFAULT_CAMPAIGNS.map(c => ({
-      name: c.name,
-      targetAudience: c.targetAudience,
-      productFocus: c.productFocus,
-      objective: c.objective,
-      keyMessage: c.keyMessage,
-    }))
-  );
+  const [campaigns, setCampaigns] = useState<CampaignEntry[]>([blankCampaign()]);
   const [occasions, setOccasions] = useState<OccasionEntry[]>(
     DEFAULT_OCCASIONS.map(o => ({ ...o, enabled: true }))
   );
@@ -136,19 +134,54 @@ export default function BriefInput() {
 
   const handleClientChange = useCallback((id: string) => {
     setSelectedClientId(id);
-    if (id === 'al-fardan-exchange') {
-      setCampaigns(
-        DEFAULT_CAMPAIGNS.map(c => ({
-          name: c.name,
-          targetAudience: c.targetAudience,
-          productFocus: c.productFocus,
-          objective: c.objective,
-          keyMessage: c.keyMessage,
-        }))
-      );
-      setOccasions(DEFAULT_OCCASIONS.map(o => ({ ...o, enabled: true })));
-    }
+    // Form repopulation happens in the useEffect that watches selectedClientId
   }, []);
+
+  // Load saved brief for the selected client. Resets the form on every client
+  // switch so leftover state from another client (e.g. Al Fardan campaigns)
+  // doesn't bleed into a fresh client like GE Healthcare.
+  useEffect(() => {
+    if (!selectedClientId) return;
+    let cancelled = false;
+    (async () => {
+      // Reset to empty defaults first so even if the fetch fails, the user
+      // sees a blank form (not the previous client's data).
+      setCampaigns([blankCampaign()]);
+      setOccasions(DEFAULT_OCCASIONS.map(o => ({ ...o, enabled: true })));
+      setSelectedPlatforms(['Instagram', 'TikTok', 'LinkedIn']);
+      setToneNotes('');
+      try {
+        const brief = await briefsApi.get(selectedClientId);
+        if (cancelled || !brief) return;
+        // Reconstruct campaigns from saved pillars+products (best-effort —
+        // the save path stores them as separate arrays, not as objects).
+        const pillars: string[] = Array.isArray(brief.pillars) ? brief.pillars : [];
+        const products: string[] = Array.isArray(brief.products) ? brief.products : [];
+        if (pillars.length > 0) {
+          setCampaigns(pillars.map((name, i) => ({
+            name,
+            productFocus: products[i] || '',
+            targetAudience: brief.audience || '',
+            objective: brief.objective || '',
+            keyMessage: brief.objective || '',
+          })));
+        }
+        if (Array.isArray(brief.campaignMoments) && brief.campaignMoments.length > 0) {
+          const savedNames = new Set(brief.campaignMoments.map((m: any) => m.name));
+          setOccasions(prev => prev.map(o => ({ ...o, enabled: savedNames.has(o.name) })));
+        }
+        if (Array.isArray(brief.channels) && brief.channels.length > 0) {
+          setSelectedPlatforms(brief.channels);
+        }
+        if (typeof brief.tone === 'string' && brief.tone !== 'Professional') {
+          setToneNotes(brief.tone);
+        }
+      } catch {
+        // 404 / no brief yet — leave form empty for the user to fill in
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selectedClientId]);
 
   const updateCampaign = useCallback((index: number, field: keyof CampaignEntry, value: string) => {
     setCampaigns(prev => prev.map((c, i) => (i === index ? { ...c, [field]: value } : c)));
@@ -294,7 +327,9 @@ export default function BriefInput() {
     try {
       setConflictAction('deleting');
       try {
-        await calendarApi.deleteMonth(clientId, month);
+        // Hard-delete (not archive) — the unique constraint @@unique([clientId, month])
+        // would block regeneration if we left a soft-archived row in place.
+        await calendarApi.hardDeleteMonth(clientId, month);
       } catch (delErr: any) {
         console.error('Delete step failed:', delErr);
         throw new Error(`Delete failed: ${delErr.message}`);

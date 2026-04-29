@@ -44,7 +44,7 @@ html.light {
 }
 html.light body { background: #f1f5f9; color: #0f172a; }
 
-/* Backgrounds */
+/* Page backgrounds → soft slate */
 html.light .bg-zinc-950,
 html.light .bg-\[\#0a0a0a\],
 html.light .bg-\[\#0c0c0c\],
@@ -52,34 +52,64 @@ html.light .bg-\[\#050505\],
 html.light .bg-\[\#050508\],
 html.light .bg-\[\#08080c\],
 html.light .bg-\[\#0a0a0f\] { background: #f1f5f9 !important; }
+
+/* Card surfaces → solid white with subtle border */
 html.light .bg-zinc-900,
+html.light .bg-zinc-800,
 html.light .bg-\[\#121212\],
 html.light .bg-\[\#1a1a1a\],
-html.light .bg-\[\#18181b\] { background: #ffffff !important; }
+html.light .bg-\[\#18181b\],
+html.light .bg-\[\#111\] { background: #ffffff !important; }
 
-/* Glass surfaces → white cards */
+/* Modal backdrops — semi-transparent slate instead of black */
+html.light .bg-black\/50,
+html.light .bg-black\/60,
+html.light .bg-black\/70,
+html.light .bg-black\/80,
+html.light .bg-black\/90 { background: rgba(15, 23, 42, 0.5) !important; backdrop-filter: blur(8px); }
+html.light .bg-black { background: #0f172a !important; }
+
+/* Glass surfaces → white cards (covers all opacity variants) */
+html.light .bg-white\/\[0\.01\],
+html.light .bg-white\/\[0\.02\],
 html.light .bg-white\/\[0\.03\],
 html.light .bg-white\/\[0\.04\],
 html.light .bg-white\/\[0\.05\],
 html.light .bg-white\/\[0\.06\],
-html.light .bg-white\/\[0\.08\] { background: rgba(255,255,255,0.85) !important; }
+html.light .bg-white\/\[0\.08\],
+html.light .bg-white\/\[0\.1\] { background: #ffffff !important; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04); }
+html.light .bg-white\/5 { background: #f8fafc !important; }
+html.light .bg-white\/10 { background: #f1f5f9 !important; }
 
-/* Borders */
+/* Zinc backgrounds (badge/chip surfaces) */
+html.light .bg-zinc-500 { background: #94a3b8 !important; }
+html.light .bg-zinc-400 { background: #cbd5e1 !important; }
+
+/* Borders — cover all white-alpha + zinc variants */
+html.light .border-white\/\[0\.04\],
+html.light .border-white\/\[0\.05\],
 html.light .border-white\/\[0\.06\],
 html.light .border-white\/\[0\.08\],
 html.light .border-white\/\[0\.1\],
 html.light .border-white\/\[0\.12\],
 html.light .border-white\/5,
-html.light .border-white\/10 { border-color: #e2e8f0 !important; }
+html.light .border-white\/10,
+html.light .border-zinc-500,
+html.light .border-zinc-600,
+html.light .border-zinc-700,
+html.light .border-zinc-800 { border-color: #e2e8f0 !important; }
 
-/* Text */
+/* Text — proper light-mode contrast curve */
 html.light .text-white { color: #0f172a !important; }
-html.light .text-zinc-100 { color: #1e293b !important; }
+html.light .text-zinc-100 { color: #0f172a !important; }
 html.light .text-zinc-200 { color: #1e293b !important; }
 html.light .text-zinc-300 { color: #334155 !important; }
-html.light .text-zinc-400 { color: #64748b !important; }
-html.light .text-zinc-500 { color: #94a3b8 !important; }
-html.light .text-zinc-600 { color: #cbd5e1 !important; }
+html.light .text-zinc-400 { color: #475569 !important; }
+html.light .text-zinc-500 { color: #64748b !important; }
+html.light .text-zinc-600 { color: #94a3b8 !important; }
+html.light .text-zinc-700 { color: #cbd5e1 !important; }
+html.light .text-zinc-800 { color: #e2e8f0 !important; }
+html.light .text-zinc-900 { color: #0f172a !important; }
 
 /* Platform / accent text colors — keep on-brand in light mode (Tailwind -400 at 0.5L reads on light bg) */
 html.light .text-pink-400 { color: #ec4899 !important; }

@@ -11,6 +11,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { t } from '../i18n';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Wand2, ImageIcon, Image as ImageLucide, Edit3, Video, Film, Loader2,
@@ -360,7 +361,7 @@ export default function CreativeTools() {
             <Wand2 className="w-6 h-6 text-black" />
           </div>
           <div>
-            <h1 className="text-4xl font-black text-white tracking-tight">Creative Studio</h1>
+            <h1 className="text-4xl font-black text-white tracking-tight">{t('page.creative.title')}</h1>
             <p className="text-sm text-zinc-500 mt-0.5">
               The four primary creative modes.
               {currentClient && <span className="ml-1 text-amber-400/80">Current client: {currentClient.name}</span>}

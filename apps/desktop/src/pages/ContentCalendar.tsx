@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
+import { t } from '../i18n';
 import { Calendar as CalendarIcon, X, ExternalLink, ChevronLeft, ChevronRight, Instagram, Linkedin, Twitter, Facebook, Video, Sparkles, FileText, ArrowRight, Share2, Loader2, Copy, Download, Edit3, Check, Save, Trash2, Building2, ChevronDown, ImagePlus, Archive, RotateCcw, History, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { validateCaption } from '../lib/platform-limits';
@@ -6,6 +7,7 @@ import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { useClients } from '../lib/client-context';
 import { calendarApi, reviewApi, exportsApi, jobsApi, visualRefsApi } from '../lib/backend-api';
 import type { CalendarMonthSummary } from '../lib/backend-api';
+import { hijriDateLabel, holidaysForDate, isInRamadan, type Holiday } from '../lib/gcc-holidays';
 import { STATUS_LABEL, normalizeStatus } from '../lib/status-enum';
 import VisualRefGrid from '../components/VisualRefGrid';
 import MonthlyReportButton from '../components/MonthlyReportButton';
@@ -71,6 +73,9 @@ export default function ContentCalendar() {
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [platformFilter, setPlatformFilter] = useState('All');
   const [monthOffset, setMonthOffset] = useState(0);
+  const [showHijri, setShowHijri] = useState<boolean>(() => {
+    try { return localStorage.getItem('radix.calendar.hijri') === '1'; } catch { return false; }
+  });
   const [backendMonth, setBackendMonth] = useState<any>(null);
   const [loadingBackend, setLoadingBackend] = useState(false);
   const [reviewLink, setReviewLink] = useState<string | null>(null);
@@ -461,7 +466,7 @@ export default function ContentCalendar() {
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
         className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-3xl font-black text-white tracking-tight">Content Calendar</h1>
+          <h1 className="text-3xl font-black text-white tracking-tight">{t('page.calendar.title')}</h1>
           <div className="flex items-center gap-2 mt-1.5 flex-wrap">
             {/* Client selector — drives the entire page */}
             <div className="relative">
@@ -569,6 +574,18 @@ export default function ContentCalendar() {
                 <button onClick={() => setMonthOffset(0)}
                   className="text-[10px] text-zinc-600 hover:text-white transition-colors cursor-pointer">Today</button>
               )}
+              <button
+                onClick={() => {
+                  const next = !showHijri;
+                  setShowHijri(next);
+                  try { localStorage.setItem('radix.calendar.hijri', next ? '1' : '0'); } catch {}
+                }}
+                title="Toggle Hijri / Gregorian dual display"
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wider transition-all cursor-pointer ${
+                  showHijri ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'text-zinc-600 hover:text-zinc-300 border border-white/[0.06] hover:border-white/[0.12]'
+                }`}>
+                ه Hijri
+              </button>
             </div>
             <div className="flex items-center gap-1.5">
               {['All', ...platforms].map(p => (
@@ -600,18 +617,36 @@ export default function ContentCalendar() {
                 const pieces = filteredDayPieces[day] || [];
                 const isSelected = selectedDay === day;
                 const isToday = monthOffset === 0 && day === now.getDate();
+                const cellDate = new Date(displayDate.getFullYear(), displayDate.getMonth(), day);
+                const dayHolidays: Holiday[] = holidaysForDate(cellDate);
+                const ramadan = isInRamadan(cellDate);
+                const hijri = showHijri ? hijriDateLabel(cellDate) : '';
+                const hijriShort = hijri ? hijri.split(' ').slice(0, 2).join(' ') : '';
                 return (
                   <button key={day}
                     onClick={() => setSelectedDay(isSelected ? null : day)}
+                    title={dayHolidays.map((h) => h.name).join(' · ') || (hijri || undefined)}
                     className={`aspect-square rounded-xl border p-2 flex flex-col transition-all cursor-pointer relative ${
                       isSelected ? 'bg-white/[0.08] border-white/[0.2]'
+                        : dayHolidays.length > 0 ? 'bg-amber-500/[0.06] border-amber-500/30 hover:border-amber-500/50'
+                        : ramadan ? 'bg-emerald-500/[0.04] border-emerald-500/20 hover:border-emerald-500/40'
                         : pieces.length > 0 ? 'bg-white/[0.03] border-white/[0.06] hover:border-white/[0.12]'
                         : 'bg-white/[0.01] border-white/[0.03] hover:bg-white/[0.02]'
                     }`}>
-                    <span className={`text-xs font-bold ${
-                      isToday ? 'text-white bg-white/20 w-6 h-6 rounded-full flex items-center justify-center' :
-                      pieces.length > 0 ? 'text-zinc-300' : 'text-zinc-700'
-                    }`}>{day}</span>
+                    <div className="flex items-start justify-between w-full">
+                      <span className={`text-xs font-bold ${
+                        isToday ? 'text-white bg-white/20 w-6 h-6 rounded-full flex items-center justify-center' :
+                        pieces.length > 0 ? 'text-zinc-300' : 'text-zinc-700'
+                      }`}>{day}</span>
+                      {showHijri && hijriShort && (
+                        <span className="text-[8px] font-medium text-amber-400/70 leading-tight text-right">{hijriShort}</span>
+                      )}
+                    </div>
+                    {dayHolidays.length > 0 && (
+                      <span className="text-[7px] uppercase tracking-wider text-amber-300/80 mt-0.5 truncate w-full" title={dayHolidays[0].name}>
+                        {dayHolidays[0].name.length > 12 ? dayHolidays[0].name.slice(0, 12) + '…' : dayHolidays[0].name}
+                      </span>
+                    )}
                     {pieces.length > 0 && (
                       <div className="flex flex-wrap gap-0.5 mt-auto">
                         {pieces.slice(0, 5).map((p: any, j: number) => (
