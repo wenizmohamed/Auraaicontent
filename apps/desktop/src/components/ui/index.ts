@@ -22,6 +22,7 @@ export { Button, buttonVariants } from './Button';
 export { Checkbox } from './Checkbox';
 export { Dialog } from './Dialog';
 export { DiffView } from './DiffView';
+export { AIRewriteDialog, useAIRewrite, type RewriteState } from './AIRewriteDialog';
 export { Drawer } from './Drawer';
 export { EmptyState, EmptyStateAction } from './EmptyState';
 export { HoverCard } from './HoverCard';
