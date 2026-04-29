@@ -3,6 +3,7 @@
   "cmdk.trigger": "Search or ask Radix…",
   "cmdk.empty": "No matches. Try “calendar”, “invite”, or “theme”.",
   "nav.dashboard": "Dashboard",
+  "nav.workspace": "Workspace",
   "nav.clients": "Clients",
   "nav.calendar": "Calendar",
   "nav.brief": "New Brief",

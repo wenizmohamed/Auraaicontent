@@ -40,6 +40,7 @@ const Admin             = lazy(() => import('./pages/Admin'));
 const Billing           = lazy(() => import('./pages/Billing'));
 const Members           = lazy(() => import('./pages/Members'));
 const AcceptInvite      = lazy(() => import('./pages/AcceptInvite'));
+const Workspace         = lazy(() => import('./pages/Workspace'));
 
 import MobileMenu from './components/MobileMenu';
 import OrgSwitcher from './components/OrgSwitcher';
@@ -130,6 +131,7 @@ function Layout({ children }: { children: React.ReactNode }) {
 
   const navigation: { name: string; href: string; icon: any; prefetch?: () => Promise<unknown> }[] = [
     { name: t('nav.dashboard'), href: '/',                     icon: LayoutDashboard, prefetch: () => import('./pages/Dashboard') },
+    { name: t('nav.workspace'), href: '/workspace/content',    icon: Layers,          prefetch: () => import('./pages/Workspace') },
     { name: t('nav.clients'),   href: '/clients',              icon: Building2,       prefetch: () => import('./pages/Clients') },
     { name: t('nav.brief'),     href: '/brief',                icon: FileText,        prefetch: () => import('./pages/BriefInput') },
     { name: t('nav.review'),    href: '/content-review',       icon: Layers,          prefetch: () => import('./pages/ContentReview') },
@@ -434,6 +436,12 @@ export default function App() {
             <Suspense fallback={<RouteSkeleton />}>
             <Routes>
               <Route path="/" element={<Dashboard />} />
+              {/* Phase 3 — three-pane workspace shell. Opt-in route during
+                  the IA migration; legacy /clients /calendar etc. keep working
+                  until each surface is fully ported into the shell. */}
+              <Route path="/workspace" element={<Workspace />} />
+              <Route path="/workspace/:surface" element={<Workspace />} />
+              <Route path="/workspace/:surface/:itemId" element={<Workspace />} />
               <Route path="/clients" element={<Clients />} />
               <Route path="/brief" element={<BriefInput />} />
               <Route path="/content-review" element={<ContentReview />} />
