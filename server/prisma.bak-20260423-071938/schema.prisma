@@ -1,0 +1,244 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         String   @default("member")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  comments     PostComment[]
+  auditLogs    AuditLog[]
+}
+
+model Client {
+  id              String   @id @default(cuid())
+  name            String
+  slug            String   @unique
+  logoUrl         String?
+  primaryColor    String?
+  timezone        String?
+  industry        String?
+  website         String?
+  instagramHandle String?
+  status          String   @default("active")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  brief           ClientBrief?
+  assets          Asset[]
+  knowledgeItems  KnowledgeItem[]
+  calendarMonths  CalendarMonth[]
+  reviewLinks     ReviewLink[]
+}
+
+model ClientBrief {
+  id                  String   @id @default(cuid())
+  clientId            String   @unique
+  objective           String
+  audience            String
+  tone                String
+  brandDo             String
+  brandDont           String
+  products            Json
+  pillars             Json
+  campaignMoments     Json
+  mandatoryInclusions String?
+  complianceNotes     String?
+  channels            Json
+  cadence             String?
+  references          String?
+  approvers           Json
+  seasonalNotes       String?
+  competitors         String?
+  successDefinition   String?
+  pastLearnings       String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+}
+
+model KnowledgeItem {
+  id          String   @id @default(cuid())
+  clientId    String
+  title       String
+  type        String
+  fileUrl     String?
+  textContent String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  client      Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  chunks      KnowledgeChunk[]
+}
+
+model KnowledgeChunk {
+  id              String   @id @default(cuid())
+  knowledgeItemId String
+  chunkText       String
+  // embedding    Unsupported("vector")?  // Requires pgvector — enabled in Commit 8
+  metadata        Json?
+
+  knowledgeItem   KnowledgeItem @relation(fields: [knowledgeItemId], references: [id], onDelete: Cascade)
+}
+
+model Asset {
+  id             String   @id @default(cuid())
+  clientId       String
+  name           String
+  fileUrl        String
+  thumbUrl       String?
+  mimeType       String
+  width          Int?
+  height         Int?
+  analysis       Json?
+  tags           Json?
+  safeForClient  Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  client         Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  linkedPosts    CalendarPostAsset[]
+}
+
+model CalendarMonth {
+  id          String   @id @default(cuid())
+  clientId    String
+  month       String
+  status      String   @default("draft")
+  strategy    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  client      Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  posts       CalendarPost[]
+}
+
+model CalendarPost {
+  id              String   @id @default(cuid())
+  calendarMonthId String
+  date            String
+  title           String
+  pillar          String
+  platform        String
+  format          String
+  hook            String?
+  keyMessage      String?
+  caption         String
+  cta             String?
+  hashtags        Json?
+  visualDirection String?
+  referenceQuery  String?
+  rationale       String?
+  timing          String?
+  status          String   @default("draft")
+  version         Int      @default(1)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  calendarMonth   CalendarMonth         @relation(fields: [calendarMonthId], references: [id], onDelete: Cascade)
+  comments        PostComment[]
+  versions        PostVersion[]
+  assets          CalendarPostAsset[]
+  visualRefs      PostVisualReference[]
+}
+
+model PostVisualReference {
+  id            String   @id @default(cuid())
+  postId        String
+  thumbnailUrl  String
+  sourceUrl     String
+  sourceDomain  String
+  sourceType    String   @default("web")
+  title         String?
+  description   String?
+  pinId         String?
+  position      Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  post          CalendarPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@index([sourceDomain])
+}
+
+model CalendarPostAsset {
+  postId  String
+  assetId String
+
+  post    CalendarPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  asset   Asset        @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@id([postId, assetId])
+}
+
+model PostVersion {
+  id        String   @id @default(cuid())
+  postId    String
+  snapshot  Json
+  createdAt DateTime @default(now())
+  createdBy String?
+
+  post      CalendarPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+}
+
+model PostComment {
+  id         String   @id @default(cuid())
+  postId     String
+  authorId   String?
+  authorName String
+  source     String
+  comment    String
+  status     String?
+  createdAt  DateTime @default(now())
+
+  post       CalendarPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author     User?        @relation(fields: [authorId], references: [id])
+}
+
+model ReviewLink {
+  id              String    @id @default(cuid())
+  clientId        String
+  calendarMonthId String
+  token           String    @unique
+  expiresAt       DateTime?
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+
+  client          Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+}
+
+model ExportJob {
+  id              String   @id @default(cuid())
+  clientId        String
+  calendarMonthId String
+  type            String
+  status          String   @default("queued")
+  fileUrl         String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  clientId   String?
+  action     String
+  entityType String
+  entityId   String?
+  payload    Json?
+  createdAt  DateTime @default(now())
+
+  user       User?    @relation(fields: [userId], references: [id])
+}

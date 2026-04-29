@@ -44,6 +44,106 @@ async function searchWikimedia(query: string, limit: number): Promise<VisualSear
     });
 }
 
+// ─── Openverse (CC-licensed images, no API key) ──────────────────
+
+async function searchOpenverse(query: string, limit: number): Promise<VisualSearchResult[]> {
+  try {
+    const url = `https://api.openverse.org/v1/images/?q=${encodeURIComponent(query)}&page_size=${Math.min(limit, 20)}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return [];
+    const data: any = await res.json();
+    return (data?.results || [])
+      .filter((r: any) => r.thumbnail || r.url)
+      .map((r: any) => ({
+        thumbnailUrl: r.thumbnail || r.url,
+        sourceUrl: r.foreign_landing_url || r.url,
+        sourceDomain: (() => { try { return new URL(r.foreign_landing_url || r.url).hostname.replace(/^www\./, ''); } catch { return 'openverse.org'; } })(),
+        sourceType: 'web' as const,
+        title: r.title || undefined,
+        description: r.creator ? `By ${r.creator}` : undefined,
+      }));
+  } catch { return []; }
+}
+
+// ─── DuckDuckGo Images (taps Bing index, no API key) ─────────────
+// Used twice: once as generic image search, once filtered to pinterest.com
+// since Pinterest's own scraper endpoint is CSRF-blocked.
+
+async function searchDuckDuckGo(query: string, limit: number, sourceLabel?: string): Promise<VisualSearchResult[]> {
+  try {
+    const tokenRes = await fetch(`https://duckduckgo.com/?q=${encodeURIComponent(query)}&iax=images&ia=images`, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36' },
+      signal: AbortSignal.timeout(6000),
+    });
+    if (!tokenRes.ok) return [];
+    const html = await tokenRes.text();
+    const vqdMatch = html.match(/vqd=['"]?([\w-]+)/);
+    if (!vqdMatch) return [];
+    const vqd = vqdMatch[1];
+
+    const imgRes = await fetch(`https://duckduckgo.com/i.js?q=${encodeURIComponent(query)}&vqd=${vqd}&p=-1`, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36', 'Referer': 'https://duckduckgo.com/' },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!imgRes.ok) return [];
+    const data: any = await imgRes.json();
+    return (data?.results || [])
+      .slice(0, limit)
+      .filter((r: any) => r.thumbnail && r.image)
+      .map((r: any) => {
+        const isPin = r.image?.includes('pinimg.com') || r.url?.includes('pinterest.com');
+        const domain = isPin ? 'pinterest.com' : (r.source || (() => { try { return new URL(r.url).hostname.replace(/^www\./, ''); } catch { return 'unknown'; } })());
+        return {
+          thumbnailUrl: r.thumbnail,
+          sourceUrl: r.url,
+          sourceDomain: domain,
+          sourceType: (isPin ? 'pinterest' : 'web') as 'pinterest' | 'web',
+          title: r.title || undefined,
+          description: sourceLabel ? `From ${sourceLabel}` : (r.source ? `Found on ${r.source}` : undefined),
+        };
+      });
+  } catch { return []; }
+}
+
+// Pinterest results — real pinimg.com images via DDG site:pinterest.com filter.
+// Pinterest's native scraper is CSRF-blocked, this is the only working channel.
+async function searchPinterestViaDDG(query: string, limit: number): Promise<VisualSearchResult[]> {
+  return searchDuckDuckGo(`${query} site:pinterest.com`, limit, 'Pinterest');
+}
+
+// Pinterest via Firecrawl image search — real pin URLs + titles + dimensions.
+// Costs 2 credits per call. Falls through silently when key not set or fails,
+// letting DDG handle the slot for free.
+async function searchPinterestViaFirecrawl(query: string, limit: number): Promise<VisualSearchResult[]> {
+  const key = process.env.FIRECRAWL_API_KEY;
+  if (!key) return [];
+  try {
+    const res = await fetch('https://api.firecrawl.dev/v2/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+      body: JSON.stringify({
+        query: `${query} site:pinterest.com`,
+        sources: ['images'],
+        limit: Math.min(limit, 10),
+      }),
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!res.ok) return [];
+    const data: any = await res.json();
+    const images = data?.data?.images || [];
+    return images
+      .filter((r: any) => r.imageUrl && r.imageUrl.includes('pinimg.com'))
+      .map((r: any) => ({
+        thumbnailUrl: r.imageUrl,
+        sourceUrl: r.url,
+        sourceDomain: 'pinterest.com',
+        sourceType: 'pinterest' as const,
+        title: r.title || undefined,
+        description: r.imageWidth && r.imageHeight ? `${r.imageWidth}×${r.imageHeight}` : undefined,
+      }));
+  } catch { return []; }
+}
+
 export interface VisualSearchResult {
   thumbnailUrl: string;
   sourceUrl: string;
@@ -139,37 +239,76 @@ export const visualSearchService = {
       return { results: [], provider: 'noop' };
     }
 
+    // Strategy: half from Pinterest (designer-aesthetic), half from
+    // "various" (Bing/DDG, Openverse/Flickr, Wikimedia) for diversity.
+    // Pinterest's native scraper is CSRF-blocked → use DDG site:pinterest.com
+    // filter which returns real pinimg.com images via Bing's index.
+    const half = Math.ceil(safeCount / 2);
+
+    // All sources fire in parallel. Pinterest path: Firecrawl (best quality,
+    // costs 2 credits) → DDG site:pinterest.com (free, 4 results) as fallback.
+    const [pinFcResult, pinDdgResult, ddgResult, openverseResult, wikiResult] = await Promise.allSettled([
+      searchPinterestViaFirecrawl(trimmedQuery, half),
+      searchPinterestViaDDG(trimmedQuery, half),
+      searchDuckDuckGo(trimmedQuery, safeCount),
+      searchOpenverse(trimmedQuery, safeCount),
+      searchWikimedia(trimmedQuery, safeCount),
+    ]);
+    const pinFc = pinFcResult.status === 'fulfilled' ? pinFcResult.value : [];
+    const pinDdg = pinDdgResult.status === 'fulfilled' ? pinDdgResult.value : [];
+    // Prefer Firecrawl results, fill remaining Pinterest slots from DDG
+    const pin = [...pinFc, ...pinDdg.filter(d => !pinFc.some(f => f.thumbnailUrl === d.thumbnailUrl))];
+    const ddg = ddgResult.status === 'fulfilled' ? ddgResult.value : [];
+    const openverse = openverseResult.status === 'fulfilled' ? openverseResult.value : [];
+    const wiki = wikiResult.status === 'fulfilled' ? wikiResult.value : [];
+
     const merged: VisualSearchResult[] = [];
-    let providerLabel = '';
+    const seen = new Set<string>();
+    const tryAdd = (r: VisualSearchResult): boolean => {
+      if (merged.length >= safeCount) return false;
+      const key = r.thumbnailUrl;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      merged.push(r);
+      return true;
+    };
 
-    // 1. Wikimedia Commons — reliable, free, real thumbnails
-    try {
-      const wikiResults = await searchWikimedia(trimmedQuery, safeCount);
-      for (const r of wikiResults) {
+    // First: take up to `half` from Pinterest (highest aesthetic priority)
+    let pinTaken = 0;
+    for (const r of pin) {
+      if (pinTaken >= half) break;
+      if (tryAdd(r)) pinTaken++;
+    }
+
+    // Then: round-robin across "various" sources for diversity (DDG → Openverse → Wiki)
+    const variousQueues = [ddg, openverse, wiki];
+    let exhausted = 0;
+    while (merged.length < safeCount && exhausted < variousQueues.length) {
+      exhausted = 0;
+      for (const q of variousQueues) {
+        const next = q.shift();
+        if (!next) { exhausted++; continue; }
+        tryAdd(next);
         if (merged.length >= safeCount) break;
-        merged.push(r);
-      }
-      if (merged.length > 0) providerLabel = 'wikimedia';
-    } catch (err: any) {
-      console.warn('[visualSearch] Wikimedia failed:', err?.message || err);
-    }
-
-    // 2. Pinterest — supplement if Wikimedia came up short
-    if (merged.length < safeCount) {
-      try {
-        const { results: pins } = await searchPinterest(trimmedQuery, safeCount - merged.length);
-        for (const p of pins) {
-          if (merged.length >= safeCount) break;
-          merged.push(pinterestToVisualRef(p));
-        }
-        if (pins.length > 0) providerLabel = providerLabel ? `${providerLabel}+pinterest` : 'pinterest';
-      } catch (err: any) {
-        // Pinterest scraper may be blocked — this is expected
       }
     }
 
-    // 3. AI router fallback if still short
-    if (merged.length < safeCount) {
+    // If Pinterest gave fewer than `half`, backfill from any leftover various
+    while (merged.length < safeCount) {
+      const next = ddg.shift() || openverse.shift() || wiki.shift();
+      if (!next) break;
+      tryAdd(next);
+    }
+
+    const usedSources = new Set(merged.map(r => r.sourceType === 'pinterest' ? 'pinterest' : r.sourceDomain));
+    const providerLabel = Array.from(usedSources).join('+') || 'none';
+
+    // 3. AI router fallback — DISABLED by default. The AI hallucinates URLs
+    // (broken thumbnails, made-up sourceUrls) and adds 30-90s of latency per
+    // search × parallel searches in the worker. Set VISUAL_SEARCH_AI_FALLBACK=1
+    // to re-enable. Without this, generation is much faster and visuals are
+    // real (Wikimedia) or honest placeholders.
+    if (merged.length < safeCount && process.env.VISUAL_SEARCH_AI_FALLBACK === '1') {
       try {
         const need = safeCount - merged.length;
         const prompt = [
@@ -189,24 +328,16 @@ export const visualSearchService = {
           if (merged.some(m => m.sourceUrl === r.sourceUrl)) continue;
           merged.push(r);
         }
-        if (aiResults.length > 0) {
-          providerLabel = providerLabel ? `${providerLabel}+${result.provider}` : result.provider;
-        }
       } catch (err: any) {
         console.warn('[visualSearch] AI fallback failed:', err?.message || err);
       }
     }
 
-    // 3. Placeholder top-up — always reach safeCount
-    let placeholderIndex = 0;
-    const before = merged.length;
-    while (merged.length < safeCount) {
-      merged.push(placeholderResult(trimmedQuery, placeholderIndex++));
-    }
-    if (merged.length > before) {
-      providerLabel = providerLabel ? `${providerLabel}+placeholder` : 'placeholder';
-    }
+    // NO MORE placeholders. Picsum.photos random images were being saved as
+    // "visual references" — completely unrelated to the query. The user
+    // would rather have FEWER real refs than more fake ones. If all real
+    // sources came up empty, return the empty array honestly.
 
-    return { results: merged, provider: providerLabel || 'placeholder' };
+    return { results: merged, provider: providerLabel || 'none' };
   },
 };

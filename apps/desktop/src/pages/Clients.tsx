@@ -1,7 +1,12 @@
 import { useState } from 'react';
 import { useClients } from '../lib/client-context';
+import { t } from '../i18n';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Building2, Check, X, Loader2, Trash2, Edit3, Save } from 'lucide-react';
+import { EmptyState, EmptyStateAction } from '../components/ui/EmptyState';
+import { SkeletonRow, SkeletonAnnouncer } from '../components/ui/Skeleton';
+import { toast } from 'sonner';
+import { motionUI } from '../lib/motion';
 
 interface ClientForm {
   name: string;
@@ -22,17 +27,36 @@ export default function Clients() {
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const handleDelete = async (e: React.MouseEvent, id: string, name: string) => {
+  const handleDelete = (e: React.MouseEvent, id: string, name: string) => {
     e.stopPropagation();
-    if (!window.confirm(`Delete client "${name}"? This removes all briefs, calendars, assets and review links for this client. This cannot be undone.`)) return;
-    setDeletingId(id);
-    try {
-      await deleteClient(id);
-    } catch (err: any) {
-      alert(`Delete failed: ${err.message}`);
-    } finally {
-      setDeletingId(null);
-    }
+    // Phase 5 — undo-toast pattern. Delete is deferred 6s; clicking Undo
+    // on the sonner toast cancels the timer before the API call fires.
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      if (cancelled) return;
+      setDeletingId(id);
+      try {
+        await deleteClient(id);
+        toast.success(`Deleted "${name}"`);
+      } catch (err: any) {
+        toast.error(`Delete failed: ${err.message}`);
+      } finally {
+        setDeletingId(null);
+      }
+    }, 6000);
+
+    toast(`Deleting "${name}" in 6s…`, {
+      description: 'All briefs, calendars, assets, and review links will be removed.',
+      duration: 6000,
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          cancelled = true;
+          window.clearTimeout(timer);
+          toast.success('Cancelled');
+        },
+      },
+    });
   };
 
   const openCreate = () => {
@@ -106,7 +130,7 @@ export default function Clients() {
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-black text-white tracking-tight">Clients</h1>
+            <h1 className="text-3xl font-black text-white tracking-tight">{t('page.clients.title')}</h1>
             <p className="text-sm text-zinc-500 mt-1">
               {clients.length} client{clients.length !== 1 ? 's' : ''} {serverOnline ? '(synced with server)' : '(local mode)'}
             </p>
@@ -126,19 +150,19 @@ export default function Clients() {
               <h2 className="text-lg font-bold text-white">{editingId ? 'Edit Client' : 'Create Client'}</h2>
               <button onClick={closeForm} className="text-zinc-600 hover:text-white cursor-pointer"><X className="w-5 h-5" /></button>
             </div>
-            <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Client name *"
+            <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder={t('page.clients.ph_name')}
               className="w-full px-4 py-3 rounded-xl bg-white/[0.03] border border-white/[0.08] text-white placeholder-zinc-700 text-sm" />
             <div className="grid grid-cols-2 gap-3">
-              <input value={form.industry} onChange={e => setForm({ ...form, industry: e.target.value })} placeholder="Industry"
+              <input value={form.industry} onChange={e => setForm({ ...form, industry: e.target.value })} placeholder={t('page.clients.ph_industry')}
                 className="px-4 py-3 rounded-xl bg-white/[0.03] border border-white/[0.08] text-white placeholder-zinc-700 text-sm" />
-              <input value={form.website} onChange={e => setForm({ ...form, website: e.target.value })} placeholder="Website"
+              <input value={form.website} onChange={e => setForm({ ...form, website: e.target.value })} placeholder={t('page.clients.ph_website')}
                 className="px-4 py-3 rounded-xl bg-white/[0.03] border border-white/[0.08] text-white placeholder-zinc-700 text-sm" />
             </div>
             {editingId && (
               <div className="grid grid-cols-2 gap-3">
-                <input value={form.instagramHandle} onChange={e => setForm({ ...form, instagramHandle: e.target.value })} placeholder="Instagram handle"
+                <input value={form.instagramHandle} onChange={e => setForm({ ...form, instagramHandle: e.target.value })} placeholder={t('page.clients.ph_instagram')}
                   className="px-4 py-3 rounded-xl bg-white/[0.03] border border-white/[0.08] text-white placeholder-zinc-700 text-sm" />
-                <input value={form.primaryColor} onChange={e => setForm({ ...form, primaryColor: e.target.value })} placeholder="Primary color (#RRGGBB)"
+                <input value={form.primaryColor} onChange={e => setForm({ ...form, primaryColor: e.target.value })} placeholder={t('page.clients.ph_color')}
                   className="px-4 py-3 rounded-xl bg-white/[0.03] border border-white/[0.08] text-white placeholder-zinc-700 text-sm" />
               </div>
             )}
@@ -150,7 +174,7 @@ export default function Clients() {
                 ? <Loader2 className="w-4 h-4 animate-spin" />
                 : editingId
                   ? <><Save className="w-4 h-4" /> Save Changes</>
-                  : <>Create Client</>}
+                  : <>{t('page.clients.create_btn')}</>}
             </button>
           </motion.div>
         )}
@@ -163,24 +187,34 @@ export default function Clients() {
       )}
 
       {loading ? (
-        <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 text-zinc-600 animate-spin" /></div>
+        <div className="space-y-2">
+          <SkeletonAnnouncer label="Loading clients…" />
+          {Array.from({ length: 4 }).map((_, i) => (
+            <SkeletonRow key={i} delay={i * 80} />
+          ))}
+        </div>
       ) : !authenticated ? (
         <div className="rounded-2xl bg-[#0c0c0c] border border-white/[0.06] py-16 text-center">
           <Building2 className="w-10 h-10 text-red-800 mx-auto mb-3" />
-          <p className="text-zinc-400">Backend auth failed</p>
+          <p className="text-zinc-400">{t('page.clients.auth_failed')}</p>
           <p className="text-zinc-600 text-sm mt-1">Start the server: npm run dev:server</p>
         </div>
       ) : clients.length === 0 ? (
-        <div className="rounded-2xl bg-[#0c0c0c] border border-white/[0.06] py-16 text-center">
-          <Building2 className="w-10 h-10 text-zinc-800 mx-auto mb-3" />
-          <p className="text-zinc-500">No clients yet</p>
-          <button onClick={openCreate} className="text-sm text-white mt-3 underline cursor-pointer">Create your first client</button>
-        </div>
+        <EmptyState
+          icon={Building2}
+          title={t('page.clients.no_clients_title')}
+          description="Add a brand to start generating calendars, briefs, and visual assets. Each client keeps its own brief, knowledge, and asset library."
+          primary={
+            <EmptyStateAction onClick={openCreate}>
+              <Plus className="w-4 h-4" /> {t('page.clients.create_first')}
+            </EmptyStateAction>
+          }
+        />
       ) : (
         <div className="space-y-2">
           {clients.map((client, i) => (
             <motion.div key={client.id}
-              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
+              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ ...motionUI, delay: i * 0.03 }}
               className={`w-full flex items-center gap-4 rounded-2xl p-4 transition-all text-left ${
                 selectedClientId === client.id
                   ? 'bg-white/[0.08] border border-white/[0.15]'

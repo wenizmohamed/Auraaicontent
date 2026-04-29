@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { t } from '../i18n';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles,
@@ -22,7 +23,35 @@ import {
 } from 'lucide-react';
 import { useStore, type ContentBrief } from '../lib/store';
 import { useClients } from '../lib/client-context';
-import { briefsApi, calendarApi, jobsApi } from '../lib/backend-api';
+import { briefsApi, calendarApi, jobsApi, assistantApi } from '../lib/backend-api';
+import { motionUI } from '../lib/motion';
+import { InlineAITextHost, type InlineAIAction } from '../components/ui/InlineAITextToolbar';
+import { toast } from 'sonner';
+
+const ACTION_PROMPTS: Record<InlineAIAction, (text: string) => string> = {
+  rewrite:    (t) => `Rewrite this text to be clearer and more polished. Return only the rewritten version, no preamble:\n\n${t}`,
+  shorten:    (t) => `Shorten this text by ~30% without losing meaning. Return only the result:\n\n${t}`,
+  translate:  (t) => `Translate this text to ${/^[؀-ۿ]/.test(t) ? 'English' : 'Arabic (Khaleeji dialect)'}. Return only the translation:\n\n${t}`,
+  'on-brand': (t) => `Rewrite this so it matches a confident, editorial-tone Gulf-region marketing voice. Return only the result:\n\n${t}`,
+};
+
+async function runInlineAIAction(action: InlineAIAction, selectedText: string, replace: (newText: string) => void) {
+  const prompt = ACTION_PROMPTS[action](selectedText);
+  const id = toast.loading(`${action[0].toUpperCase() + action.slice(1)}…`);
+  try {
+    const res = await assistantApi.chat([{ role: 'user', content: prompt }]);
+    const newText = (res.message?.content ?? '').trim();
+    if (!newText) throw new Error('Empty AI response');
+    toast.success('Ready — apply?', {
+      id,
+      description: newText.length > 100 ? newText.slice(0, 100) + '…' : newText,
+      action: { label: 'Apply', onClick: () => replace(newText) },
+      duration: 12_000,
+    });
+  } catch (err: any) {
+    toast.error(`AI ${action} failed: ${err?.message ?? 'unknown'}`, { id });
+  }
+}
 import {
   DEFAULT_CAMPAIGNS,
   DEFAULT_OCCASIONS,
@@ -108,16 +137,14 @@ export default function BriefInput() {
   const setSelectedClientId = (id: string) => {
     if (id) setContextClientId(id);
   };
+  // Empty campaign template — start fresh for new clients, populate from
+  // saved brief in the per-client useEffect below. Previously initialized
+  // with DEFAULT_CAMPAIGNS (Al Fardan) which leaked across clients.
+  const blankCampaign = (): CampaignEntry => ({
+    name: '', targetAudience: '', productFocus: '', objective: '', keyMessage: '',
+  });
   const [selectedMonth, setSelectedMonth] = useState(monthOptions[0]?.value || '');
-  const [campaigns, setCampaigns] = useState<CampaignEntry[]>(
-    DEFAULT_CAMPAIGNS.map(c => ({
-      name: c.name,
-      targetAudience: c.targetAudience,
-      productFocus: c.productFocus,
-      objective: c.objective,
-      keyMessage: c.keyMessage,
-    }))
-  );
+  const [campaigns, setCampaigns] = useState<CampaignEntry[]>([blankCampaign()]);
   const [occasions, setOccasions] = useState<OccasionEntry[]>(
     DEFAULT_OCCASIONS.map(o => ({ ...o, enabled: true }))
   );
@@ -136,19 +163,54 @@ export default function BriefInput() {
 
   const handleClientChange = useCallback((id: string) => {
     setSelectedClientId(id);
-    if (id === 'al-fardan-exchange') {
-      setCampaigns(
-        DEFAULT_CAMPAIGNS.map(c => ({
-          name: c.name,
-          targetAudience: c.targetAudience,
-          productFocus: c.productFocus,
-          objective: c.objective,
-          keyMessage: c.keyMessage,
-        }))
-      );
-      setOccasions(DEFAULT_OCCASIONS.map(o => ({ ...o, enabled: true })));
-    }
+    // Form repopulation happens in the useEffect that watches selectedClientId
   }, []);
+
+  // Load saved brief for the selected client. Resets the form on every client
+  // switch so leftover state from another client (e.g. Al Fardan campaigns)
+  // doesn't bleed into a fresh client like GE Healthcare.
+  useEffect(() => {
+    if (!selectedClientId) return;
+    let cancelled = false;
+    (async () => {
+      // Reset to empty defaults first so even if the fetch fails, the user
+      // sees a blank form (not the previous client's data).
+      setCampaigns([blankCampaign()]);
+      setOccasions(DEFAULT_OCCASIONS.map(o => ({ ...o, enabled: true })));
+      setSelectedPlatforms(['Instagram', 'TikTok', 'LinkedIn']);
+      setToneNotes('');
+      try {
+        const brief = await briefsApi.get(selectedClientId);
+        if (cancelled || !brief) return;
+        // Reconstruct campaigns from saved pillars+products (best-effort —
+        // the save path stores them as separate arrays, not as objects).
+        const pillars: string[] = Array.isArray(brief.pillars) ? brief.pillars : [];
+        const products: string[] = Array.isArray(brief.products) ? brief.products : [];
+        if (pillars.length > 0) {
+          setCampaigns(pillars.map((name, i) => ({
+            name,
+            productFocus: products[i] || '',
+            targetAudience: brief.audience || '',
+            objective: brief.objective || '',
+            keyMessage: brief.objective || '',
+          })));
+        }
+        if (Array.isArray(brief.campaignMoments) && brief.campaignMoments.length > 0) {
+          const savedNames = new Set(brief.campaignMoments.map((m: any) => m.name));
+          setOccasions(prev => prev.map(o => ({ ...o, enabled: savedNames.has(o.name) })));
+        }
+        if (Array.isArray(brief.channels) && brief.channels.length > 0) {
+          setSelectedPlatforms(brief.channels);
+        }
+        if (typeof brief.tone === 'string' && brief.tone !== 'Professional') {
+          setToneNotes(brief.tone);
+        }
+      } catch {
+        // 404 / no brief yet — leave form empty for the user to fill in
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selectedClientId]);
 
   const updateCampaign = useCallback((index: number, field: keyof CampaignEntry, value: string) => {
     setCampaigns(prev => prev.map((c, i) => (i === index ? { ...c, [field]: value } : c)));
@@ -294,7 +356,9 @@ export default function BriefInput() {
     try {
       setConflictAction('deleting');
       try {
-        await calendarApi.deleteMonth(clientId, month);
+        // Hard-delete (not archive) — the unique constraint @@unique([clientId, month])
+        // would block regeneration if we left a soft-archived row in place.
+        await calendarApi.hardDeleteMonth(clientId, month);
       } catch (delErr: any) {
         console.error('Delete step failed:', delErr);
         throw new Error(`Delete failed: ${delErr.message}`);
@@ -467,7 +531,7 @@ export default function BriefInput() {
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.05 }}
+            transition={{ ...motionUI, delay: 0.05 }}
             className="grid gap-6 sm:grid-cols-2"
           >
             {/* Client selector */}
@@ -517,7 +581,7 @@ export default function BriefInput() {
           <motion.section
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
+            transition={{ ...motionUI, delay: 0.1 }}
           >
             <div className="mb-4 flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -561,7 +625,7 @@ export default function BriefInput() {
                       <input
                         value={campaign.name}
                         onChange={e => updateCampaign(idx, 'name', e.target.value)}
-                        placeholder="Campaign name"
+                        placeholder={t('page.brief.ph_campaign_name')}
                         className="w-full border-b border-white/10 bg-transparent pb-2 text-sm font-semibold text-white outline-none placeholder:text-zinc-600 focus:border-violet-500/40"
                       />
                       <div className="grid grid-cols-2 gap-3">
@@ -572,7 +636,7 @@ export default function BriefInput() {
                           <input
                             value={campaign.targetAudience}
                             onChange={e => updateCampaign(idx, 'targetAudience', e.target.value)}
-                            placeholder="Target audience"
+                            placeholder={t('page.brief.ph_audience')}
                             className="w-full rounded-lg border border-white/5 bg-white/5 px-2.5 py-1.5 text-xs text-zinc-300 outline-none placeholder:text-zinc-700 focus:border-violet-500/30"
                           />
                         </div>
@@ -583,7 +647,7 @@ export default function BriefInput() {
                           <input
                             value={campaign.productFocus}
                             onChange={e => updateCampaign(idx, 'productFocus', e.target.value)}
-                            placeholder="Product / Service"
+                            placeholder={t('page.brief.ph_product')}
                             className="w-full rounded-lg border border-white/5 bg-white/5 px-2.5 py-1.5 text-xs text-zinc-300 outline-none placeholder:text-zinc-700 focus:border-violet-500/30"
                           />
                         </div>
@@ -595,7 +659,7 @@ export default function BriefInput() {
                         <input
                           value={campaign.objective}
                           onChange={e => updateCampaign(idx, 'objective', e.target.value)}
-                          placeholder="Campaign objective"
+                          placeholder={t('page.brief.ph_objective')}
                           className="w-full rounded-lg border border-white/5 bg-white/5 px-2.5 py-1.5 text-xs text-zinc-300 outline-none placeholder:text-zinc-700 focus:border-violet-500/30"
                         />
                       </div>
@@ -606,7 +670,7 @@ export default function BriefInput() {
                         <textarea
                           value={campaign.keyMessage}
                           onChange={e => updateCampaign(idx, 'keyMessage', e.target.value)}
-                          placeholder="Core message for this campaign"
+                          placeholder={t('page.brief.ph_core_message')}
                           rows={2}
                           className="w-full resize-none rounded-lg border border-white/5 bg-white/5 px-2.5 py-1.5 text-xs text-zinc-300 outline-none placeholder:text-zinc-700 focus:border-violet-500/30"
                         />
@@ -622,7 +686,7 @@ export default function BriefInput() {
           <motion.section
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 }}
+            transition={{ ...motionUI, delay: 0.15 }}
           >
             <div className="mb-4 flex items-center gap-2">
               <CalendarHeart className="h-4 w-4 text-fuchsia-400" />
@@ -663,7 +727,7 @@ export default function BriefInput() {
                   <input
                     value={customOccasionName}
                     onChange={e => setCustomOccasionName(e.target.value)}
-                    placeholder="Occasion name"
+                    placeholder={t('page.brief.ph_occasion')}
                     className="w-full rounded-lg border border-white/5 bg-white/5 px-2.5 py-1.5 text-xs text-zinc-300 outline-none placeholder:text-zinc-700 focus:border-fuchsia-500/30"
                     onKeyDown={e => e.key === 'Enter' && addCustomOccasion()}
                   />
@@ -695,7 +759,7 @@ export default function BriefInput() {
           <motion.section
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
+            transition={{ ...motionUI, delay: 0.2 }}
           >
             <div className="mb-4 flex items-center gap-2">
               <MonitorPlay className="h-4 w-4 text-violet-400" />
@@ -756,7 +820,7 @@ export default function BriefInput() {
           <motion.section
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.25 }}
+            transition={{ ...motionUI, delay: 0.25 }}
             className="grid gap-6 lg:grid-cols-3"
           >
             {/* Piece count slider */}
@@ -797,13 +861,20 @@ export default function BriefInput() {
                   Tone Notes
                 </label>
               </div>
-              <textarea
-                value={toneNotes}
-                onChange={e => setToneNotes(e.target.value)}
-                placeholder="Optional: Additional tone or direction notes for AI generation (e.g. 'more casual this month', 'focus on Ramadan messaging')..."
-                rows={4}
-                className="w-full resize-none rounded-lg border border-white/5 bg-white/5 px-3 py-2 text-xs text-zinc-300 outline-none placeholder:text-zinc-700 focus:border-fuchsia-500/30"
-              />
+              <InlineAITextHost
+                onAction={(action, selected) => runInlineAIAction(action, selected, (newText) => {
+                  // Replace the selected substring within toneNotes
+                  setToneNotes(prev => prev.includes(selected) ? prev.replace(selected, newText) : prev + '\n' + newText);
+                })}
+              >
+                <textarea
+                  value={toneNotes}
+                  onChange={e => setToneNotes(e.target.value)}
+                  placeholder={t('page.brief.ph_extra_notes')}
+                  rows={4}
+                  className="w-full resize-none rounded-lg border border-white/5 bg-white/5 px-3 py-2 text-xs text-zinc-300 outline-none placeholder:text-zinc-700 focus:border-fuchsia-500/30"
+                />
+              </InlineAITextHost>
             </div>
 
             {/* AI engine info — configured server-side */}
@@ -830,7 +901,7 @@ export default function BriefInput() {
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
+            transition={{ ...motionUI, delay: 0.3 }}
             className="pt-2"
           >
             <button

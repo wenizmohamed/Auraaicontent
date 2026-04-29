@@ -5,18 +5,18 @@ import { buildPlanningPrompt, parseBriefChannels } from '../services/prompt.serv
 import { visualSearchService } from '../services/visual-search.service.js';
 import { retrieveContext } from '../services/retrieval.service.js';
 import { type Job, updateJob } from './queue.js';
-import { errMsg } from '../lib/err.js';
 
 export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: string; provider: string; model: string; latencyMs: number; fallbackUsed: boolean }> {
-  const { clientId, month, pieceCount } = job.data;
+  const { orgId, clientId, month, pieceCount } = job.data;
+  if (!orgId) throw new Error('generateMonth job missing orgId — re-issue from a multi-tenancy-aware caller');
 
-  // 1. Fetch client + brief
+  // 1. Fetch client + brief — verify org match before proceeding.
   updateJob(job.id, { progress: 10 });
   const client = await db.client.findUnique({
-    where: { id: clientId },
+    where: { id: clientId, orgId },
     include: { brief: true, assets: { take: 10 } },
   });
-  if (!client) throw new Error('Client not found');
+  if (!client) throw new Error('Client not found or does not belong to this organization');
   if (!client.brief) throw new Error('Client brief is missing — cannot generate');
 
   // 2. Check brief completeness
@@ -27,13 +27,13 @@ export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: 
   let knowledgeContext: { text: string; score: number }[] = [];
   if (client.brief.objective) {
     try {
-      const chunks = await retrieveContext(clientId, client.brief.objective, 5);
+      const chunks = await retrieveContext(orgId, clientId, client.brief.objective, 5);
       knowledgeContext = chunks.map(c => ({ text: c.text, score: c.score }));
       if (knowledgeContext.length > 0) {
         console.log(`[generateMonth] Retrieved ${knowledgeContext.length} knowledge chunks for ${client.name} (top score: ${knowledgeContext[0].score.toFixed(3)})`);
       }
-    } catch (err: unknown) {
-      console.warn(`[generateMonth] Knowledge retrieval failed, continuing without it:`, errMsg(err));
+    } catch (err: any) {
+      console.warn(`[generateMonth] Knowledge retrieval failed, continuing without it:`, err?.message || err);
     }
   }
 
@@ -48,7 +48,10 @@ export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: 
     knowledgeContext,
   });
 
-  // 4. Call AI via router (Grok primary, Gemini fallback)
+  // 4. Call AI via router. Provider order is env-driven:
+  //   AI_TEXT_PRIMARY (default 'gemini') picks the first model; falls back
+  //   to xAI (Grok) when AI_ENABLE_FALLBACK=true.  Today's live config:
+  //   text=gemini, image=gemini, video=xai, analysis=gemini.
   updateJob(job.id, { progress: 40 });
   console.log(`[generateMonth] Prompt: ${prompt.length} chars, first 200: ${prompt.slice(0, 200).replace(/\n/g, ' ')}`);
   const result = await aiRouter.text(
@@ -94,6 +97,7 @@ export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: 
   updateJob(job.id, { progress: 70 });
   const calendarMonth = await db.calendarMonth.create({
     data: {
+      orgId,
       clientId,
       month,
       status: 'draft',
@@ -107,6 +111,7 @@ export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: 
   for (const post of parsed.posts) {
     const created = await db.calendarPost.create({
       data: {
+        orgId,
         calendarMonthId: calendarMonth.id,
         date: post.date || '',
         title: post.title || '',
@@ -128,18 +133,20 @@ export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: 
     createdPostIds.push(created);
   }
 
-  // 6b. Auto-populate visual references for every post that has a referenceQuery.
-  // Best-effort — failures don't fail the whole job; the user can still backfill later.
+  // 6b. Auto-populate visual references in PARALLEL — each post's search is
+  // independent. Sequential was causing 50-150s stalls at 88% (5 posts × 10-30s
+  // per search). Best-effort: per-post failures don't fail the whole job.
   updateJob(job.id, { progress: 88 });
-  let refsAdded = 0;
-  for (const p of createdPostIds) {
-    if (!p.referenceQuery || !p.referenceQuery.trim()) continue;
-    try {
-      const { results } = await visualSearchService.search(p.referenceQuery, 6);
-      let position = 0;
-      for (const r of results) {
-        await db.postVisualReference.create({
-          data: {
+  const refResults = await Promise.allSettled(
+    createdPostIds
+      .filter(p => p.referenceQuery && p.referenceQuery.trim())
+      .map(async (p) => {
+        const { results } = await visualSearchService.search(p.referenceQuery!, 6);
+        // Bulk-insert all references for this post in a single createMany call
+        if (results.length === 0) return 0;
+        await db.postVisualReference.createMany({
+          data: results.map((r, position) => ({
+            orgId,
             postId: p.id,
             thumbnailUrl: r.thumbnailUrl,
             sourceUrl: r.sourceUrl,
@@ -148,14 +155,16 @@ export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: 
             title: r.title || null,
             description: r.description || null,
             pinId: r.pinId || null,
-            position: position++,
-          },
+            position,
+          })),
         });
-        refsAdded++;
-      }
-    } catch (err: unknown) {
-      console.warn(`[generateMonth] visual ref population failed for post ${p.id}:`, errMsg(err));
-    }
+        return results.length;
+      }),
+  );
+  const refsAdded = refResults.reduce((sum, r) => sum + (r.status === 'fulfilled' ? r.value : 0), 0);
+  const refFailures = refResults.filter(r => r.status === 'rejected').length;
+  if (refFailures > 0) {
+    console.warn(`[generateMonth] ${refFailures} visual ref searches failed (continuing anyway)`);
   }
   console.log(`[generateMonth] auto-populated ${refsAdded} visual refs across ${createdPostIds.length} posts`);
 

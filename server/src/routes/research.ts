@@ -47,21 +47,20 @@ export async function researchRoutes(app: FastifyInstance) {
 
     try {
       const result = await aiRouter.text({ prompt, json: true });
-      const out = result.output as Record<string, unknown> | string | null;
-      const outObj = (out && typeof out === 'object') ? out : null;
+      const out = result.output as any;
 
       // Tolerate non-conforming outputs
-      const summary = typeof outObj?.summary === 'string' ? outObj.summary : (typeof out === 'string' ? out : '');
-      const keyPoints = Array.isArray(outObj?.keyPoints) ? (outObj.keyPoints as unknown[]).filter((s: unknown) => typeof s === 'string') : [];
-      const sources = Array.isArray(outObj?.sources)
-        ? (outObj.sources as unknown[])
-            .filter((s: unknown): s is Record<string, unknown> => !!s && typeof s === 'object')
-            .map((s) => ({
+      const summary = typeof out?.summary === 'string' ? out.summary : (typeof out === 'string' ? out : '');
+      const keyPoints = Array.isArray(out?.keyPoints) ? out.keyPoints.filter((s: any) => typeof s === 'string') : [];
+      const sources = Array.isArray(out?.sources)
+        ? out.sources
+            .filter((s: any) => s && typeof s === 'object')
+            .map((s: any) => ({
               title: typeof s.title === 'string' ? s.title : 'Untitled',
               url: typeof s.url === 'string' ? s.url : '',
               snippet: typeof s.snippet === 'string' ? s.snippet : undefined,
             }))
-            .filter((s) => !!s.url)
+            .filter((s: any) => s.url)
         : [];
 
       return {
@@ -71,7 +70,7 @@ export async function researchRoutes(app: FastifyInstance) {
         provider: result.provider,
         latencyMs: result.latencyMs,
       };
-    } catch (err: unknown) {
+    } catch (err: any) {
       return sendAiError(reply, err, 'Research failed');
     }
   });
@@ -88,7 +87,7 @@ export async function researchRoutes(app: FastifyInstance) {
     if (!clientId) return reply.status(400).send({ error: 'clientId is required' });
 
     const client = await db.client.findUnique({
-      where: { id: clientId },
+      where: { id: clientId, orgId: request.orgId },
       include: {
         brief: true,
         knowledgeItems: { select: { title: true, type: true, textContent: true }, take: 40 },
@@ -147,12 +146,12 @@ export async function researchRoutes(app: FastifyInstance) {
         8192,
       );
       const stripped = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
-      let parsed: Record<string, unknown> | null = null;
+      let parsed: any = null;
       try { parsed = JSON.parse(stripped); } catch {
         return { raw: text, provider: 'moonshot', model, latencyMs, inputChars, parseError: 'could not parse JSON' };
       }
       return { ...parsed, provider: 'moonshot', model, latencyMs, inputChars };
-    } catch (err: unknown) {
+    } catch (err: any) {
       return sendAiError(reply, err, 'Brand synthesis failed');
     }
   });

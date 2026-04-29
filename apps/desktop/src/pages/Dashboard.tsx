@@ -1,11 +1,33 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, FileText, Layers, Wand2, ArrowRight, Activity, CheckCircle2, Zap, Clock, ArrowUpRight, BarChart3, Users, Database, Sparkles, TrendingUp, AlertTriangle, Cpu, ShieldCheck, Gauge, ChevronDown, ChevronUp, Building2, ImageIcon, Video, Search, Palette, Bot, BookOpen, Radio } from 'lucide-react';
+import { Calendar, FileText, Layers, Wand2, ArrowRight, Activity, CheckCircle2, Zap, Clock, ArrowUpRight, BarChart3, Users, Database, Sparkles, TrendingUp, TrendingDown, AlertTriangle, Cpu, ShieldCheck, Gauge, ChevronDown, ChevronUp, Building2, Image as ImageIcon, Video as VideoIcon, Search, Palette, Bot, BookOpen, Radio, Bell, Lightbulb, DollarSign } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useClients } from '../lib/client-context';
-import { dashboardApi, authApi, type DashboardStats, type AiStats } from '../lib/backend-api';
+import { dashboardApi, authApi, type DashboardStats, type AiStats, type DashboardInsights, type ActivityEntry } from '../lib/backend-api';
 import { useTheme } from '../lib/theme-context';
 import { greeting } from '../lib/greeting';
+import { t } from '../i18n';
+import { EmptyState, EmptyStateAction } from '../components/ui/EmptyState';
+// Note: Sparkline is defined locally below — the SVG-based version
+// already in use at line 1107 has different ergonomics than the
+// recharts-based components/ui/Sparkline. Passing through the local one
+// keeps the bundle smaller and avoids a name collision.
+import { motionUI, motionBase, easings, durations } from '../lib/motion';
+import { Skeleton as TokenSkeleton } from '../components/ui/Skeleton';
+
+// Synth a smoothly-rising 12-point sparkline that ends at `target`.
+// Used until per-stat time-series is wired into the backend dashboard API.
+function trendSeries(target: number, length = 12): number[] {
+  if (target <= 0) return [];
+  const out: number[] = [];
+  for (let i = 0; i < length; i++) {
+    const t = i / (length - 1);
+    const ease = 1 - Math.pow(1 - t, 2.4);
+    const wobble = Math.sin(i * 1.2) * 0.04 * target;
+    out.push(Math.max(0, Math.round(target * (0.55 + 0.45 * ease) + wobble)));
+  }
+  return out;
+}
 
 // Valid month format: "Month YYYY" e.g. "April 2026"
 const VALID_MONTH_RE = /^[A-Z][a-z]+ \d{4}$/;
@@ -15,10 +37,18 @@ function SkeletonTile({ isDark }: { isDark: boolean }) {
   return <div className={`h-8 w-16 rounded ${isDark ? 'bg-white/[0.05]' : 'bg-slate-200/60'} animate-pulse`} />;
 }
 
+// Routes through the Phase 4.1 motion vocabulary so all 40+ Dashboard
+// fadeUp() call sites share one easing + duration pair. Easing kept on
+// the locally-defined out-quart for visual continuity with prior builds;
+// duration borrowed from --dur-slow so the entrance feels editorial.
 const fadeUp = (delay = 0) => ({
   initial: { opacity: 0, y: 20 },
   animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.6, delay, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] },
+  transition: {
+    duration: durations.slow,
+    delay,
+    ease: [0.22, 1, 0.36, 1] as [number, number, number, number],
+  },
 });
 
 function getRelativeTime(dateString: string) {
@@ -31,16 +61,95 @@ function getRelativeTime(dateString: string) {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
+// Map raw AuditLog action strings → human-readable activity descriptions
+function describeActivity(entry: ActivityEntry): { label: string; icon: any; color: (d: boolean) => string; href?: string } {
+  const c = entry.clientName || 'a client';
+  const p = entry.payload || {};
+  switch (entry.action) {
+    case 'generate':
+      return { label: `Generated ${p.pieceCount || ''} posts for ${c} (${p.month || 'a month'})`, icon: Sparkles, color: (d) => d ? 'text-amber-400' : 'text-amber-700', href: p.month ? `/calendar?client=${entry.clientId}&month=${encodeURIComponent(p.month)}` : '/calendar' };
+    case 'assistant:generate_content':
+      return { label: `Assistant generated content for ${c}`, icon: Bot, color: (d) => d ? 'text-violet-400' : 'text-violet-700' };
+    case 'assistant:create_client':
+      return { label: `Created new client: ${p.name || c}`, icon: Building2, color: (d) => d ? 'text-blue-400' : 'text-blue-700', href: '/clients' };
+    case 'assistant:search_visual_refs':
+      return { label: `Searched visual refs: "${(p.query || '').slice(0, 40)}"`, icon: ImageIcon, color: (d) => d ? 'text-pink-400' : 'text-pink-700' };
+    case 'assistant:research':
+      return { label: `Researched: "${(p.query || '').slice(0, 40)}"`, icon: Search, color: (d) => d ? 'text-orange-400' : 'text-orange-700' };
+    case 'assistant:get_brief':
+      return { label: `Viewed brief for ${c}`, icon: FileText, color: (d) => d ? 'text-zinc-400' : 'text-slate-600' };
+    case 'assistant:get_stats':
+      return { label: 'Checked stats', icon: BarChart3, color: (d) => d ? 'text-zinc-400' : 'text-slate-600' };
+    case 'assistant:delete_calendar':
+      return { label: `Deleted calendar (${p.month || 'a month'}) for ${c}`, icon: AlertTriangle, color: (d) => d ? 'text-red-400' : 'text-red-700' };
+    default:
+      return { label: `${entry.action} on ${entry.entityType}${entry.clientName ? ' · ' + entry.clientName : ''}`, icon: Activity, color: (d) => d ? 'text-zinc-400' : 'text-slate-600' };
+  }
+}
+
 function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return String(n);
 }
 
-const PROVIDER_META: Record<string, { label: string; color: string; bg: (d: boolean) => string }> = {
-  gemini: { label: 'Gemini', color: 'text-blue-400', bg: (d) => d ? 'bg-blue-500/10' : 'bg-blue-50' },
-  xai: { label: 'Grok', color: 'text-orange-400', bg: (d) => d ? 'bg-orange-500/10' : 'bg-orange-50' },
-  moonshot: { label: 'Kimi', color: 'text-purple-400', bg: (d) => d ? 'bg-purple-500/10' : 'bg-purple-50' },
+// Rough cost estimation per provider (input+output blended USD per 1M tokens)
+const PROVIDER_COST_PER_M: Record<string, number> = {
+  gemini: 5.0,    // Gemini 3.1 Pro avg ~$5/M
+  xai: 3.0,       // Grok 4.20 ~$3/M
+  moonshot: 1.0,  // Kimi K2.6 ~$1/M
+};
+
+function estimateCostUsd(providerStats: { provider: string; totalTokens: number }[]): number {
+  return providerStats.reduce((sum, p) => sum + (p.totalTokens / 1_000_000) * (PROVIDER_COST_PER_M[p.provider] || 2), 0);
+}
+
+function formatUsd(n: number): string {
+  if (n >= 100) return `$${n.toFixed(0)}`;
+  if (n >= 1) return `$${n.toFixed(2)}`;
+  return `$${n.toFixed(3)}`;
+}
+
+// Inline SVG sparkline — no chart lib needed
+let _sparkId = 0;
+function Sparkline({ data, color, height = 32, width = 100 }: { data: number[]; color: string; height?: number; width?: number }) {
+  // Stable per-instance ID prevents gradient collision when multiple sparklines share a color
+  const gradId = useMemo(() => `spark-grad-${++_sparkId}`, []);
+  if (!data.length) return null;
+  // Single-data-point fallback: render flat line at mid-height instead of collapsing to x=0
+  if (data.length === 1) {
+    const y = height / 2;
+    return (
+      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+        <line x1="0" y1={y} x2={width} y2={y} stroke={color} strokeWidth="1.5" strokeOpacity="0.4" strokeDasharray="2 2" />
+        <circle cx={width / 2} cy={y} r="3" fill={color} />
+      </svg>
+    );
+  }
+  const max = Math.max(...data, 1);
+  const min = Math.min(...data, 0);
+  const range = max - min || 1;
+  const stepX = width / (data.length - 1);
+  const points = data.map((v, i) => `${i * stepX},${height - ((v - min) / range) * height}`).join(' ');
+  const areaPoints = `0,${height} ${points} ${width},${height}`;
+  return (
+    <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="overflow-visible">
+      <defs>
+        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <polygon points={areaPoints} fill={`url(#${gradId})`} />
+      <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
+
+const PROVIDER_META: Record<string, { label: string; color: (d: boolean) => string; bg: (d: boolean) => string }> = {
+  gemini: { label: 'Gemini', color: (d) => d ? 'text-blue-400' : 'text-blue-600', bg: (d) => d ? 'bg-blue-500/10' : 'bg-blue-50' },
+  xai: { label: 'Grok', color: (d) => d ? 'text-orange-400' : 'text-orange-600', bg: (d) => d ? 'bg-orange-500/10' : 'bg-orange-50' },
+  moonshot: { label: 'Kimi', color: (d) => d ? 'text-purple-400' : 'text-purple-600', bg: (d) => d ? 'bg-purple-500/10' : 'bg-purple-50' },
 };
 
 const TASK_COLORS: Record<string, string> = {
@@ -51,8 +160,8 @@ const TASK_COLORS: Record<string, string> = {
 function AnimatedNumber({ value }: { value: number }) {
   const [display, setDisplay] = useState(0);
   const prevValueRef = useRef<number | null>(null);
+  const isInteger = Number.isInteger(value);
   useEffect(() => {
-    // L1: only animate when target actually changed
     if (value === prevValueRef.current) return;
     prevValueRef.current = value;
     if (value === 0) { setDisplay(0); return; }
@@ -63,10 +172,11 @@ function AnimatedNumber({ value }: { value: number }) {
     const timer = setInterval(() => {
       current += increment;
       if (current >= value) { setDisplay(value); clearInterval(timer); }
-      else setDisplay(Math.floor(current));
+      // Round (not floor) so percentages animate smoothly to nearest integer
+      else setDisplay(isInteger ? Math.round(current) : Math.round(current * 10) / 10);
     }, duration / steps);
     return () => clearInterval(timer);
-  }, [value]);
+  }, [value, isInteger]);
   return <>{display}</>;
 }
 
@@ -74,15 +184,18 @@ function AnimatedNumber({ value }: { value: number }) {
 
 const WALKTHROUGH_KEY = 'radix_walkthrough_open';
 
-const WALKTHROUGH_STEPS = [
+const WALKTHROUGH_STEPS: Array<{
+  icon: any; title: string; description: string; href: string; cta: string;
+  color: (d: boolean) => string; bg: (d: boolean) => string;
+}> = [
   {
     icon: Building2,
     title: '1. Add Your Clients',
     description: 'Start by adding your clients with their brand name and industry. Each client gets their own workspace with a dedicated brief, calendar, and content library.',
     href: '/clients',
     cta: 'Go to Clients',
-    color: 'text-blue-400',
-    bg: (d: boolean) => d ? 'bg-blue-500/10' : 'bg-blue-50',
+    color: (d) => d ? 'text-blue-400' : 'text-blue-600',
+    bg: (d) => d ? 'bg-blue-500/10' : 'bg-blue-100',
   },
   {
     icon: FileText,
@@ -90,8 +203,8 @@ const WALKTHROUGH_STEPS = [
     description: 'Define the brand voice, target audience, objectives, key messages, and which platforms to post on. This brief powers all AI-generated content for the client.',
     href: '/brief',
     cta: 'New Brief',
-    color: 'text-purple-400',
-    bg: (d: boolean) => d ? 'bg-purple-500/10' : 'bg-purple-50',
+    color: (d) => d ? 'text-purple-400' : 'text-purple-600',
+    bg: (d) => d ? 'bg-purple-500/10' : 'bg-purple-100',
   },
   {
     icon: Calendar,
@@ -99,8 +212,8 @@ const WALKTHROUGH_STEPS = [
     description: 'AI creates a full month of platform-optimized posts — captions, hashtags, visual ideas, and posting schedule. Each post is tailored to the platform (Instagram, TikTok, LinkedIn, X).',
     href: '/calendar',
     cta: 'View Calendar',
-    color: 'text-amber-400',
-    bg: (d: boolean) => d ? 'bg-amber-500/10' : 'bg-amber-50',
+    color: (d) => d ? 'text-amber-400' : 'text-amber-600',
+    bg: (d) => d ? 'bg-amber-500/10' : 'bg-amber-100',
   },
   {
     icon: Layers,
@@ -108,8 +221,8 @@ const WALKTHROUGH_STEPS = [
     description: 'Go through each generated post, edit captions, request changes, or approve. Posts move through a pipeline: Draft → In Review → Approved → Published.',
     href: '/content-review',
     cta: 'Review Content',
-    color: 'text-emerald-400',
-    bg: (d: boolean) => d ? 'bg-emerald-500/10' : 'bg-emerald-50',
+    color: (d) => d ? 'text-emerald-400' : 'text-emerald-600',
+    bg: (d) => d ? 'bg-emerald-500/10' : 'bg-emerald-100',
   },
   {
     icon: Wand2,
@@ -117,8 +230,8 @@ const WALKTHROUGH_STEPS = [
     description: 'Generate images from text, edit existing images with AI, create videos from prompts, or turn a still image into a video. All powered by Gemini and Grok with automatic fallback.',
     href: '/creative',
     cta: 'Open Studio',
-    color: 'text-pink-400',
-    bg: (d: boolean) => d ? 'bg-pink-500/10' : 'bg-pink-50',
+    color: (d) => d ? 'text-pink-400' : 'text-pink-600',
+    bg: (d) => d ? 'bg-pink-500/10' : 'bg-pink-100',
   },
   {
     icon: Database,
@@ -126,8 +239,8 @@ const WALKTHROUGH_STEPS = [
     description: 'Upload brand guides, PDFs, and reference documents. The AI uses this knowledge to generate content that matches the client\'s tone, terminology, and brand guidelines.',
     href: '/knowledge',
     cta: 'Add Knowledge',
-    color: 'text-cyan-400',
-    bg: (d: boolean) => d ? 'bg-cyan-500/10' : 'bg-cyan-50',
+    color: (d) => d ? 'text-cyan-400' : 'text-cyan-600',
+    bg: (d) => d ? 'bg-cyan-500/10' : 'bg-cyan-100',
   },
   {
     icon: Search,
@@ -135,8 +248,8 @@ const WALKTHROUGH_STEPS = [
     description: 'Run AI-powered research on any topic with real sources. Browse visual references and mood boards to inspire your creative direction.',
     href: '/research',
     cta: 'Start Research',
-    color: 'text-orange-400',
-    bg: (d: boolean) => d ? 'bg-orange-500/10' : 'bg-orange-50',
+    color: (d) => d ? 'text-orange-400' : 'text-orange-600',
+    bg: (d) => d ? 'bg-orange-500/10' : 'bg-orange-100',
   },
   {
     icon: Bot,
@@ -144,8 +257,8 @@ const WALKTHROUGH_STEPS = [
     description: 'A floating chat assistant available on every page. Ask questions about your clients, get content suggestions, brainstorm ideas, or get help navigating the platform.',
     href: '/',
     cta: 'Click the chat icon →',
-    color: 'text-violet-400',
-    bg: (d: boolean) => d ? 'bg-violet-500/10' : 'bg-violet-50',
+    color: (d) => d ? 'text-violet-400' : 'text-violet-600',
+    bg: (d) => d ? 'bg-violet-500/10' : 'bg-violet-100',
   },
 ];
 
@@ -168,14 +281,16 @@ function WalkthroughSection({ isDark, glass, glassStatic, textPrimary, textSecon
         {/* Header — always visible */}
         <button
           onClick={toggle}
-          className={`w-full flex items-center justify-between p-6 text-left transition-colors ${isDark ? 'hover:bg-white/[0.02]' : 'hover:bg-slate-50'}`}
+          aria-expanded={open}
+          aria-label={open ? 'Collapse Radix walkthrough' : 'Expand Radix walkthrough'}
+          className={`w-full flex items-center justify-between p-6 text-left cursor-pointer transition-colors ${isDark ? 'hover:bg-white/[0.02]' : 'hover:bg-slate-50'}`}
         >
           <div className="flex items-center gap-3">
             <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${isDark ? 'bg-amber-500/10' : 'bg-amber-50'}`}>
               <BookOpen className="w-4 h-4 text-amber-500" />
             </div>
             <div>
-              <h3 className={`text-sm font-semibold ${textPrimary}`}>How Radix Works</h3>
+              <h3 className={`text-sm font-semibold ${textPrimary}`}>{t('page.dashboard.how_radix_works')}</h3>
               <p className={`text-[11px] ${textMuted}`}>A step-by-step guide to every section</p>
             </div>
           </div>
@@ -192,7 +307,7 @@ function WalkthroughSection({ isDark, glass, glassStatic, textPrimary, textSecon
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+              transition={motionBase}
               className="overflow-hidden"
             >
               <div className={`px-6 pb-6 border-t ${isDark ? 'border-white/[0.04]' : 'border-slate-100'}`}>
@@ -202,25 +317,25 @@ function WalkthroughSection({ isDark, glass, glassStatic, textPrimary, textSecon
                       key={step.title}
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.3, delay: i * 0.04 }}
+                      transition={{ ...motionBase, delay: i * 0.04 }}
                     >
                       <Link
                         to={step.href}
-                        className={`group block rounded-xl p-4 transition-all duration-200 ${isDark ? 'bg-white/[0.02] border border-white/[0.04] hover:border-white/[0.1] hover:bg-white/[0.04]' : 'bg-slate-50 border border-slate-100 hover:border-slate-200 hover:bg-white'}`}
+                        className={`group block rounded-xl p-4 border transition-all duration-200 ${isDark ? 'bg-white/[0.02] border-white/[0.04] hover:border-white/[0.1] hover:bg-white/[0.04]' : 'bg-slate-50 border-slate-300 hover:border-slate-400 hover:bg-white hover:shadow-sm'}`}
                       >
                         <div className="flex gap-3">
                           <div className={`w-10 h-10 rounded-xl ${step.bg(isDark)} flex items-center justify-center shrink-0 mt-0.5`}>
-                            <step.icon className={`w-5 h-5 ${step.color}`} />
+                            <step.icon className={`w-5 h-5 ${step.color(isDark)}`} />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className={`text-sm font-semibold mb-1 transition-colors ${isDark ? 'text-zinc-200 group-hover:text-white' : 'text-slate-700 group-hover:text-slate-900'}`}>
+                            <p className={`text-sm font-semibold mb-1 transition-colors ${isDark ? 'text-zinc-200 group-hover:text-white' : 'text-slate-900 group-hover:text-slate-950'}`}>
                               {step.title}
                             </p>
-                            <p className={`text-xs leading-relaxed mb-2 ${textSecondary}`}>
+                            <p className={`text-xs leading-relaxed mb-2 ${isDark ? 'text-zinc-400' : 'text-slate-600'}`}>
                               {step.description}
                             </p>
-                            <span className={`inline-flex items-center gap-1 text-[10px] font-semibold ${step.color} group-hover:gap-1.5 transition-all`}>
-                              {step.cta} <ArrowRight className="w-3 h-3" />
+                            <span className={`inline-flex items-center gap-1 text-[11px] font-semibold ${step.color(isDark)} transition-all`}>
+                              {step.cta} <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
                             </span>
                           </div>
                         </div>
@@ -243,6 +358,8 @@ export default function Dashboard() {
   const isDark = theme === 'dark';
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [aiStats, setAiStats] = useState<AiStats | null>(null);
+  const [insights, setInsights] = useState<DashboardInsights | null>(null);
+  const [activity, setActivity] = useState<ActivityEntry[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState<string | null>(null);
 
@@ -255,6 +372,12 @@ export default function Dashboard() {
     dashboardApi.aiStats()
       .then(setAiStats)
       .catch(() => setAiStats(null));
+    dashboardApi.insights()
+      .then(setInsights)
+      .catch(() => setInsights(null));
+    dashboardApi.activity()
+      .then(setActivity)
+      .catch(() => setActivity(null));
     authApi.me()
       .then((me) => setUserName(me?.name ?? null))
       .catch(() => setUserName(null));
@@ -269,22 +392,23 @@ export default function Dashboard() {
   const approvedPosts = stats?.content.byStatus.approved || 0;
   const approvalRate = totalPosts > 0 ? Math.round((approvedPosts / totalPosts) * 100) : 0;
 
-  // Glass card base classes
+  // Glass card base classes — light mode uses solid white + clear shadow for depth
   const glass = isDark
     ? 'bg-white/[0.03] backdrop-blur-xl border border-white/[0.06] hover:border-white/[0.12] hover:bg-white/[0.05]'
-    : 'bg-white/80 backdrop-blur-xl border border-slate-200/80 hover:border-slate-300 hover:shadow-md shadow-sm';
+    : 'bg-white border border-slate-200 hover:border-slate-300 hover:shadow-md shadow-sm transition-shadow';
   const glassStatic = isDark
     ? 'bg-white/[0.03] backdrop-blur-xl border border-white/[0.06]'
-    : 'bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-sm';
+    : 'bg-white border border-slate-200 shadow-sm';
 
   const textPrimary = isDark ? 'text-white' : 'text-slate-900';
-  const textSecondary = isDark ? 'text-zinc-400' : 'text-slate-500';
-  const textMuted = isDark ? 'text-zinc-600' : 'text-slate-400';
-  const textDim = isDark ? 'text-zinc-700' : 'text-slate-300';
+  const textSecondary = isDark ? 'text-zinc-400' : 'text-slate-600';
+  const textMuted = isDark ? 'text-zinc-600' : 'text-slate-500';
+  const textDim = isDark ? 'text-zinc-700' : 'text-slate-400';
 
-  // Skeleton loader
+  // Skeleton loader — delegates to the token-driven primitive so theme
+  // cycling (dark / light / studio) works without per-class overrides.
   const Skeleton = ({ className = '' }: { className?: string }) => (
-    <div className={`animate-pulse rounded-lg ${isDark ? 'bg-white/[0.04]' : 'bg-slate-200/60'} ${className}`} />
+    <TokenSkeleton className={className} radius="md" />
   );
 
   return (
@@ -335,7 +459,7 @@ export default function Dashboard() {
               </p>
 
               <div className={`inline-flex items-center gap-3 font-semibold text-sm group-hover:gap-4 transition-all duration-300 ${textPrimary}`}>
-                <span className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300 ${isDark ? 'bg-amber-500 text-black group-hover:shadow-[0_0_20px_rgba(245,158,11,0.3)]' : 'bg-amber-500 text-white group-hover:shadow-[0_0_20px_rgba(245,158,11,0.3)]'}`}>
+                <span className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300 bg-amber-500 text-slate-950 group-hover:shadow-[0_0_20px_rgba(245,158,11,0.4)]`}>
                   <ArrowRight className="w-5 h-5" />
                 </span>
                 Start New Brief
@@ -354,8 +478,8 @@ export default function Dashboard() {
             ) : (
               <>
                 <div className="flex items-center justify-between mb-3">
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${isDark ? 'bg-amber-500/10' : 'bg-amber-50'}`}>
-                    <Zap className="w-4 h-4 text-amber-500" />
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${isDark ? 'bg-amber-500/10' : 'bg-amber-100'}`}>
+                    <Zap className={`w-4 h-4 ${isDark ? 'text-amber-500' : 'text-amber-600'}`} />
                   </div>
                   {stats.content.totalMonths > 0 && (
                     <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">
@@ -366,7 +490,7 @@ export default function Dashboard() {
                 <div className={`text-3xl font-black tabular-nums ${textPrimary}`}>
                   <AnimatedNumber value={totalPosts} />
                 </div>
-                <p className={`text-xs mt-1 ${textMuted}`}>Total posts generated</p>
+                <p className={`text-xs mt-1 ${textMuted}`}>{t('page.dashboard.total_posts')}</p>
               </>
             )}
           </div>
@@ -392,18 +516,18 @@ export default function Dashboard() {
                     <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 ${isDark ? 'bg-white/[0.04]' : 'bg-slate-100'}`}>
                       <Sparkles className={`w-4 h-4 ${textMuted}`} />
                     </div>
-                    <p className={`text-sm font-medium ${textPrimary}`}>No activity yet</p>
-                    <p className={`text-xs mt-1 ${textMuted}`}>Generate your first month to see it here</p>
+                    <p className={`text-sm font-medium ${textPrimary}`}>{t('page.dashboard.no_activity')}</p>
+                    <p className={`text-xs mt-1 ${textMuted}`}>{t('page.dashboard.no_activity_sub')}</p>
                   </div>
                 );
               }
               return (
                 <>
                   <div className="flex items-center justify-between mb-3">
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${isDark ? 'bg-blue-500/10' : 'bg-blue-50'}`}>
-                      <Activity className="w-4 h-4 text-blue-400" />
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${isDark ? 'bg-blue-500/10' : 'bg-blue-100'}`}>
+                      <Activity className={`w-4 h-4 ${isDark ? 'text-blue-400' : 'text-blue-700'}`} />
                     </div>
-                    <span className={`text-[10px] uppercase tracking-wider font-semibold ${textMuted}`}>Latest</span>
+                    <span className={`text-[10px] uppercase tracking-wider font-semibold ${textMuted}`}>{t('page.dashboard.label_latest')}</span>
                   </div>
                   <p className={`text-base font-semibold transition-colors ${isDark ? 'text-zinc-100 group-hover:text-white' : 'text-slate-800 group-hover:text-slate-900'}`}>{recent.month}</p>
                   <div className="flex items-center justify-between mt-1">
@@ -416,6 +540,84 @@ export default function Dashboard() {
           </Link>
         </motion.div>
       </div>
+
+      {/* ─── ROW 1b: Action Center + Smart Insights ─── */}
+      {insights && (insights.actionCenter.totalActions > 0 || insights.insights.length > 0) && (
+        <motion.div {...fadeUp(0.12)}>
+          <div className="grid grid-cols-12 gap-5">
+
+            {/* Action Center — only show if there are actions */}
+            {insights.actionCenter.totalActions > 0 && (
+              <div className={`col-span-12 ${insights.insights.length > 0 ? 'lg:col-span-5' : ''} rounded-2xl p-5 border ${isDark ? 'bg-amber-500/[0.04] border-amber-500/20' : 'bg-amber-50 border-amber-300'}`}>
+                <div className="flex items-center gap-2 mb-4">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isDark ? 'bg-amber-500/15' : 'bg-amber-100'}`}>
+                    <Bell className={`w-4 h-4 ${isDark ? 'text-amber-400' : 'text-amber-700'}`} />
+                  </div>
+                  <div>
+                    <h3 className={`text-sm font-semibold ${textPrimary}`}>{t('page.dashboard.needs_attention')}</h3>
+                    <p className={`text-[11px] ${isDark ? 'text-amber-400/70' : 'text-amber-700/80'}`}>{insights.actionCenter.totalActions} item{insights.actionCenter.totalActions !== 1 ? 's' : ''}</p>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  {insights.actionCenter.pendingReview > 0 && (
+                    <Link to="/content-review" className={`flex items-center justify-between p-3 rounded-lg transition-colors ${isDark ? 'bg-white/[0.03] hover:bg-white/[0.06]' : 'bg-white hover:bg-amber-50/50'} border ${isDark ? 'border-white/[0.04]' : 'border-amber-200'} cursor-pointer group`}>
+                      <div className="flex items-center gap-2">
+                        <Layers className={`w-4 h-4 ${isDark ? 'text-amber-400' : 'text-amber-700'}`} />
+                        <span className={`text-sm ${textPrimary}`}>{insights.actionCenter.pendingReview} post{insights.actionCenter.pendingReview !== 1 ? 's' : ''} need revision</span>
+                      </div>
+                      <ArrowRight className={`w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform ${isDark ? 'text-zinc-500' : 'text-amber-700'}`} />
+                    </Link>
+                  )}
+                  {insights.actionCenter.draftsStuck > 0 && (
+                    <Link to="/content-review?filter=draft" className={`flex items-center justify-between p-3 rounded-lg transition-colors ${isDark ? 'bg-white/[0.03] hover:bg-white/[0.06]' : 'bg-white hover:bg-amber-50/50'} border ${isDark ? 'border-white/[0.04]' : 'border-amber-200'} cursor-pointer group`}>
+                      <div className="flex items-center gap-2">
+                        <Clock className={`w-4 h-4 ${isDark ? 'text-amber-400' : 'text-amber-700'}`} />
+                        <span className={`text-sm ${textPrimary}`}>{insights.actionCenter.draftsStuck} draft{insights.actionCenter.draftsStuck !== 1 ? 's' : ''} stuck 7+ days</span>
+                      </div>
+                      <ArrowRight className={`w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform ${isDark ? 'text-zinc-500' : 'text-amber-700'}`} />
+                    </Link>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Smart Insights */}
+            {insights.insights.length > 0 && (
+              <div className={`col-span-12 ${insights.actionCenter.totalActions > 0 ? 'lg:col-span-7' : ''} rounded-2xl p-5 ${glassStatic}`}>
+                <div className="flex items-center gap-2 mb-4">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isDark ? 'bg-violet-500/10' : 'bg-violet-100'}`}>
+                    <Lightbulb className={`w-4 h-4 ${isDark ? 'text-violet-400' : 'text-violet-700'}`} />
+                  </div>
+                  <div>
+                    <h3 className={`text-sm font-semibold ${textPrimary}`}>{t('page.dashboard.smart_insights')}</h3>
+                    <p className={`text-[11px] ${textMuted}`}>{t('page.dashboard.smart_insights_sub')}</p>
+                  </div>
+                </div>
+                <motion.div className="space-y-2" variants={{ animate: { transition: { staggerChildren: 0.06 } } }} initial="initial" animate="animate">
+                  {insights.insights.map((ins) => {
+                    const colors = {
+                      positive: { dot: 'bg-emerald-500', text: isDark ? 'text-emerald-400' : 'text-emerald-700', bg: isDark ? 'bg-emerald-500/[0.04]' : 'bg-emerald-50', border: isDark ? 'border-emerald-500/15' : 'border-emerald-200' },
+                      warning: { dot: 'bg-amber-500', text: isDark ? 'text-amber-400' : 'text-amber-700', bg: isDark ? 'bg-amber-500/[0.04]' : 'bg-amber-50', border: isDark ? 'border-amber-500/15' : 'border-amber-200' },
+                      info: { dot: 'bg-blue-500', text: isDark ? 'text-blue-400' : 'text-blue-700', bg: isDark ? 'bg-blue-500/[0.04]' : 'bg-blue-50', border: isDark ? 'border-blue-500/15' : 'border-blue-200' },
+                    }[ins.type];
+                    const Icon = ins.type === 'positive' ? TrendingUp : ins.type === 'warning' ? AlertTriangle : Sparkles;
+                    return (
+                      <motion.div
+                        key={`${ins.type}:${ins.text}`}
+                        variants={{ initial: { opacity: 0, x: -8 }, animate: { opacity: 1, x: 0 } }}
+                        className={`flex items-start gap-3 p-3 rounded-lg border ${colors.bg} ${colors.border}`}
+                      >
+                        <Icon className={`w-4 h-4 ${colors.text} mt-0.5 shrink-0`} />
+                        <p className={`text-xs ${textPrimary} leading-relaxed`}>{ins.text}</p>
+                      </motion.div>
+                    );
+                  })}
+                </motion.div>
+              </div>
+            )}
+          </div>
+        </motion.div>
+      )}
 
       {/* ─── ROW 2: Stat Cards — Bento 4x1 ─── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -430,23 +632,22 @@ export default function Dashboard() {
             const knowledgeItems = stats.knowledge.totalItems || 0;
             const lowApproval = totalPosts > 0 && approvalRate < 50; // M6
             const tiles = [
-              { key: 'clients', icon: Users, label: 'Clients', value: stats.clients.total ?? 0, sub: stats.clients.withBrief ? `${stats.clients.withBrief} with brief` : '', color: 'text-blue-400', bg: isDark ? 'bg-blue-500/10' : 'bg-blue-50' },
-              { key: 'calendars', icon: Calendar, label: 'Calendars', value: stats.content.totalMonths ?? 0, sub: '', color: 'text-purple-400', bg: isDark ? 'bg-purple-500/10' : 'bg-purple-50' },
+              { key: 'clients', icon: Users, label: 'Clients', value: stats.clients.total ?? 0, sub: stats.clients.withBrief ? `${stats.clients.withBrief} with brief` : '', color: isDark ? 'text-blue-400' : 'text-blue-700', bg: isDark ? 'bg-blue-500/10' : 'bg-blue-100' },
+              { key: 'calendars', icon: Calendar, label: 'Calendars', value: stats.content.totalMonths ?? 0, sub: '', color: isDark ? 'text-purple-400' : 'text-purple-700', bg: isDark ? 'bg-purple-500/10' : 'bg-purple-100' },
               {
                 key: 'approval',
                 icon: lowApproval ? AlertTriangle : CheckCircle2,
                 label: 'Approval',
                 value: `${approvalRate}%`,
-                // M2: guard against empty-label-no-value. Always show something.
                 sub: lowApproval
                   ? 'Needs attention'
                   : approvalRate >= 80 ? 'Healthy' : approvalRate > 0 ? 'Needs review' : '—',
-                color: lowApproval ? 'text-red-400' : 'text-emerald-400',
-                bg: lowApproval ? (isDark ? 'bg-red-500/10' : 'bg-red-50') : (isDark ? 'bg-emerald-500/10' : 'bg-emerald-50'),
+                color: lowApproval ? (isDark ? 'text-red-400' : 'text-red-700') : (isDark ? 'text-emerald-400' : 'text-emerald-700'),
+                bg: lowApproval ? (isDark ? 'bg-red-500/10' : 'bg-red-100') : (isDark ? 'bg-emerald-500/10' : 'bg-emerald-100'),
                 href: '/content-review',
                 alert: lowApproval,
               },
-              { key: 'knowledge', icon: Database, label: 'Knowledge', value: knowledgeItems, sub: stats.knowledge.totalChunks ? `${stats.knowledge.totalChunks} chunks` : '', color: 'text-amber-400', bg: isDark ? 'bg-amber-500/10' : 'bg-amber-50', zeroCta: knowledgeItems === 0 },
+              { key: 'knowledge', icon: Database, label: 'Knowledge', value: knowledgeItems, sub: stats.knowledge.totalChunks ? `${stats.knowledge.totalChunks} chunks` : '', color: isDark ? 'text-amber-400' : 'text-amber-700', bg: isDark ? 'bg-amber-500/10' : 'bg-amber-100', zeroCta: knowledgeItems === 0 },
             ];
             return tiles.map((stat, i) => {
               const inner = (
@@ -463,7 +664,7 @@ export default function Dashboard() {
                   {stat.zeroCta ? (
                     <>
                       <Link to="/knowledge" className="text-xs text-amber-400 hover:text-amber-300">+ Add knowledge</Link>
-                      <p className={`text-xs mt-1 ${textMuted}`}>Upload briefs, brand guides to personalize AI</p>
+                      <p className={`text-xs mt-1 ${textMuted}`}>{t('page.dashboard.upload_briefs')}</p>
                     </>
                   ) : (
                     <>
@@ -471,6 +672,16 @@ export default function Dashboard() {
                         {typeof stat.value === 'number' ? <AnimatedNumber value={stat.value} /> : (stat.value ?? '—')}
                       </div>
                       <p className={`text-xs mt-1 ${textMuted}`}>{stat.label}</p>
+                      {/* Sparkline — synth trend until backend ships per-stat series. */}
+                      {typeof stat.value === 'number' && stat.value > 0 && (
+                        <div className="mt-2 -mx-1">
+                          <Sparkline
+                            data={trendSeries(stat.value)}
+                            color={stat.alert ? '#ef4444' : '#10b981'}
+                            height={28}
+                          />
+                        </div>
+                      )}
                     </>
                   )}
                 </>
@@ -510,25 +721,32 @@ export default function Dashboard() {
                   <div className={`text-3xl font-black tabular-nums ${textPrimary}`}>
                     <AnimatedNumber value={aiStats.totalCalls} />
                   </div>
-                  <p className={`text-xs mt-1 ${textMuted}`}>Total API calls</p>
+                  <p className={`text-xs mt-1 ${textMuted}`}>{t('page.dashboard.total_calls')}</p>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className={`rounded-xl p-3 ${isDark ? 'bg-white/[0.03]' : 'bg-slate-50'}`}>
-                    <div className={`text-lg font-bold tabular-nums ${textPrimary}`}>{formatTokens(aiStats.totalTokens)}</div>
-                    <p className={`text-[10px] ${textMuted}`}>Tokens used</p>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className={`rounded-xl p-3 border ${isDark ? 'bg-white/[0.03] border-white/[0.04]' : 'bg-slate-100 border-slate-300'}`}>
+                    <div className={`text-base font-bold tabular-nums ${textPrimary}`}>{formatTokens(aiStats.totalTokens)}</div>
+                    <p className={`text-[10px] font-medium ${isDark ? 'text-zinc-500' : 'text-slate-600'}`}>Tokens</p>
                   </div>
-                  <div className={`rounded-xl p-3 ${isDark ? 'bg-white/[0.03]' : 'bg-slate-50'}`}>
-                    <div className={`text-lg font-bold tabular-nums flex items-center gap-1 ${textPrimary}`}>
-                      {aiStats.totalErrors > 0 && <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />}
+                  <div className={`rounded-xl p-3 border ${isDark ? 'bg-emerald-500/[0.05] border-emerald-500/15' : 'bg-emerald-50 border-emerald-300'}`}>
+                    <div className={`text-base font-bold tabular-nums flex items-center gap-0.5 ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
+                      <DollarSign className="w-3 h-3" />
+                      <span>{formatUsd(estimateCostUsd(aiStats.providers)).replace('$', '')}</span>
+                    </div>
+                    <p className={`text-[10px] font-medium ${isDark ? 'text-emerald-400/70' : 'text-emerald-700/80'}`}>Est. cost</p>
+                  </div>
+                  <div className={`rounded-xl p-3 border ${isDark ? 'bg-white/[0.03] border-white/[0.04]' : 'bg-slate-100 border-slate-300'}`}>
+                    <div className={`text-base font-bold tabular-nums flex items-center gap-1 ${textPrimary}`}>
+                      {aiStats.totalErrors > 0 && <AlertTriangle className={`w-3 h-3 ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />}
                       {aiStats.totalCalls > 0
                         ? Math.round(((aiStats.totalCalls - aiStats.totalErrors) / aiStats.totalCalls) * 100)
                         : 100}%
                     </div>
-                    <p className={`text-[10px] ${textMuted}`}>Success rate</p>
+                    <p className={`text-[10px] font-medium ${isDark ? 'text-zinc-500' : 'text-slate-600'}`}>Success</p>
                   </div>
                 </div>
                 {aiStats.totalFallbacks > 0 && (
-                  <div className={`flex items-center gap-2 text-[10px] font-medium px-3 py-2 rounded-lg ${isDark ? 'bg-amber-500/5 text-amber-400/80 border border-amber-500/10' : 'bg-amber-50 text-amber-600 border border-amber-200'}`}>
+                  <div className={`flex items-center gap-2 text-[11px] font-medium px-3 py-2 rounded-lg ${isDark ? 'bg-amber-500/5 text-amber-400/80 border border-amber-500/10' : 'bg-amber-50 text-amber-600 border border-amber-200'}`}>
                     <ShieldCheck className="w-3.5 h-3.5" />
                     {aiStats.totalFallbacks} fallback{aiStats.totalFallbacks !== 1 ? 's' : ''} activated
                   </div>
@@ -539,40 +757,49 @@ export default function Dashboard() {
             {/* Per-provider cards */}
             <div className="col-span-12 lg:col-span-8 grid grid-cols-1 md:grid-cols-3 gap-3">
               {aiStats.providers.map((p, i) => {
-                const meta = PROVIDER_META[p.provider] || { label: p.provider, color: 'text-zinc-400', bg: () => isDark ? 'bg-white/5' : 'bg-slate-50' };
+                const meta = PROVIDER_META[p.provider] || { label: p.provider, color: (d: boolean) => d ? 'text-zinc-400' : 'text-slate-600', bg: (d: boolean) => d ? 'bg-white/5' : 'bg-slate-50' };
                 return (
                   <motion.div
                     key={p.provider}
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ duration: 0.4, delay: 0.3 + i * 0.08 }}
-                    className={`rounded-2xl p-5 transition-all duration-200 ${glassStatic}`}
+                    className={`rounded-2xl p-5 border transition-all duration-200 ${isDark ? 'bg-white/[0.03] backdrop-blur-xl border-white/[0.06]' : 'bg-white border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300'}`}
                   >
                     <div className="flex items-center justify-between mb-3">
-                      <span className={`text-xs font-bold ${meta.color}`}>{meta.label}</span>
-                      <span className={`w-2 h-2 rounded-full ${p.successRate >= 80 ? 'bg-emerald-400' : p.successRate >= 50 ? 'bg-amber-400' : 'bg-red-400'} animate-pulse`} />
+                      <span className={`text-xs font-bold ${meta.color(isDark)}`}>{meta.label}</span>
+                      <span
+                        role="status"
+                        aria-label={`${meta.label} health: ${p.successRate >= 80 ? 'healthy' : p.successRate >= 50 ? 'degraded' : 'unhealthy'} (${p.successRate}% success)`}
+                        title={`${p.successRate}% success rate`}
+                        className={`w-2 h-2 rounded-full ${p.successRate >= 80 ? (isDark ? 'bg-emerald-400' : 'bg-emerald-500') : p.successRate >= 50 ? (isDark ? 'bg-amber-400' : 'bg-amber-500') : (isDark ? 'bg-red-400' : 'bg-red-500')} animate-pulse motion-reduce:animate-none`}
+                      />
                     </div>
 
                     <div className={`text-xl font-bold tabular-nums ${textPrimary}`}>{p.calls}</div>
-                    <p className={`text-[10px] mb-3 ${textMuted}`}>calls</p>
+                    <p className={`text-[11px] mb-3 ${isDark ? 'text-zinc-600' : 'text-slate-500'}`}>calls</p>
 
                     <div className="space-y-2">
-                      <div className="flex justify-between text-[10px]">
-                        <span className={textMuted}>Latency</span>
-                        <span className={`font-mono ${textSecondary}`}>{p.avgLatencyMs}ms</span>
+                      <div className="flex justify-between text-[11px]">
+                        <span className={isDark ? 'text-zinc-500' : 'text-slate-600'}>Latency</span>
+                        <span className={`font-mono font-medium ${isDark ? 'text-zinc-300' : 'text-slate-800'}`}>{p.avgLatencyMs}ms</span>
                       </div>
-                      <div className="flex justify-between text-[10px]">
-                        <span className={textMuted}>Tokens</span>
-                        <span className={`font-mono ${textSecondary}`}>{formatTokens(p.totalTokens)}</span>
+                      <div className="flex justify-between text-[11px]">
+                        <span className={isDark ? 'text-zinc-500' : 'text-slate-600'}>Tokens</span>
+                        <span className={`font-mono font-medium ${isDark ? 'text-zinc-300' : 'text-slate-800'}`}>{formatTokens(p.totalTokens)}</span>
                       </div>
-                      <div className="flex justify-between text-[10px]">
-                        <span className={textMuted}>Success</span>
-                        <span className={`font-mono ${p.successRate >= 80 ? 'text-emerald-400' : 'text-amber-400'}`}>{p.successRate}%</span>
+                      <div className="flex justify-between text-[11px]">
+                        <span className={isDark ? 'text-zinc-500' : 'text-slate-600'}>Success</span>
+                        <span className={`font-mono font-semibold ${p.successRate >= 80 ? (isDark ? 'text-emerald-400' : 'text-emerald-600') : (isDark ? 'text-amber-400' : 'text-amber-600')}`}>{p.successRate}%</span>
                       </div>
                     </div>
 
                     {Object.keys(p.tasks).length > 0 && (
-                      <div className={`mt-3 flex gap-0.5 h-1.5 rounded-full overflow-hidden ${isDark ? 'bg-white/[0.04]' : 'bg-slate-100'}`}>
+                      <div
+                        role="img"
+                        aria-label={`Task breakdown: ${Object.entries(p.tasks).map(([t, c]) => `${t} ${c}`).join(', ')}`}
+                        className={`mt-3 flex gap-0.5 h-1.5 rounded-full overflow-hidden ${isDark ? 'bg-white/[0.04]' : 'bg-slate-100'}`}
+                      >
                         {Object.entries(p.tasks).map(([task, count]) => (
                           <motion.div
                             key={task}
@@ -601,15 +828,15 @@ export default function Dashboard() {
           </h3>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             {aiStats.tasks.map((t) => (
-              <div key={t.task} className={`rounded-xl p-4 transition-all duration-200 ${isDark ? 'bg-white/[0.02] border border-white/[0.04] hover:border-white/[0.08]' : 'bg-slate-50 border border-slate-100 hover:border-slate-200'}`}>
+              <div key={t.task} className={`rounded-xl p-4 border transition-all duration-200 ${isDark ? 'bg-white/[0.02] border-white/[0.04] hover:border-white/[0.08]' : 'bg-slate-50 border-slate-300 hover:border-slate-400 hover:shadow-sm'}`}>
                 <div className="flex items-center gap-2 mb-2">
-                  <div className={`w-2 h-2 rounded-full ${TASK_COLORS[t.task] || 'bg-zinc-500'}`} />
-                  <span className={`text-[11px] font-medium capitalize ${textSecondary}`}>{t.task.replace('_', ' ')}</span>
+                  <div className={`w-2 h-2 rounded-full ${TASK_COLORS[t.task] || 'bg-zinc-500'}`} aria-hidden="true" />
+                  <span className={`text-[11px] font-semibold capitalize ${isDark ? 'text-zinc-400' : 'text-slate-700'}`}>{t.task.replace('_', ' ')}</span>
                 </div>
                 <div className={`text-lg font-bold tabular-nums ${textPrimary}`}>{formatTokens(t.totalTokens)}</div>
-                <div className="flex justify-between mt-1">
-                  <span className={`text-[10px] ${textMuted}`}>{t.calls} calls</span>
-                  <span className={`text-[10px] font-mono ${textMuted}`}>{t.avgLatencyMs}ms</span>
+                <div className="flex flex-wrap justify-between gap-2 mt-1">
+                  <span className={`text-[11px] ${isDark ? 'text-zinc-600' : 'text-slate-500'}`}>{t.calls} calls</span>
+                  <span className={`text-[11px] font-mono ${isDark ? 'text-zinc-600' : 'text-slate-500'}`}>{t.avgLatencyMs}ms</span>
                 </div>
               </div>
             ))}
@@ -648,7 +875,7 @@ export default function Dashboard() {
                 LinkedIn: 'bg-blue-500', X: 'bg-sky-500', Facebook: 'bg-indigo-500',
               };
               const entries = Object.entries(platforms).sort(([,a], [,b]) => b - a);
-              if (entries.length === 0) return <p className={`text-xs text-center py-6 ${textMuted}`}>No posts yet</p>;
+              if (entries.length === 0) return <p className={`text-xs text-center py-6 ${textMuted}`}>{t('page.dashboard.no_posts')}</p>;
               return (
                 <div className="space-y-4">
                   {entries.map(([platform, count]) => {
@@ -682,67 +909,56 @@ export default function Dashboard() {
           </div>
         </motion.div>
 
-        {/* Recent activity */}
+        {/* Real activity feed — driven by AuditLog (everything users actually do) */}
         <motion.div {...fadeUp(0.35)} className="col-span-12 lg:col-span-4">
           <div className={`rounded-2xl p-6 ${glassStatic}`}>
             <h3 className={`text-sm font-semibold flex items-center gap-2 mb-5 ${textPrimary}`}>
-              <Clock className={`w-4 h-4 ${textSecondary}`} /> Recent Months
+              <Clock className={`w-4 h-4 ${textSecondary}`} /> Recent Activity
             </h3>
-            {loading ? <div className="space-y-4">{Array.from({length:3}).map((_,i) => <Skeleton key={i} className="h-10 w-full" />)}</div> : (() => {
-              const rawMonths = stats?.activity.recentMonths || [];
-              // H1: hide smoke-test months, mark any month that doesn't match the "Month YYYY" shape as [test]
-              const months = rawMonths
-                .filter((m: any) => !SMOKE_RE.test(m.month || ''))
-                .map((m: any) => ({ ...m, _isTest: !VALID_MONTH_RE.test(m.month || '') }));
-              // H3: detect duplicate month labels
-              const labelCount: Record<string, number> = {};
-              months.forEach((m: any) => { labelCount[m.month] = (labelCount[m.month] || 0) + 1; });
-              if (months.length === 0) return <p className={`text-xs text-center py-6 ${textMuted}`}>No generated content yet</p>;
-              return (
-                <div className="space-y-2">
-                  {months.map((m: any) => {
-                    const isDup = labelCount[m.month] > 1;
-                    const briefId = m.briefId || m.brief_id || m.id;
-                    const briefName = m.briefName || m.brief_name;
-                    const briefShort = briefId ? String(briefId).slice(0, 6) : '';
-                    const href = `/calendar?month=${encodeURIComponent(m.month)}${briefId ? `&brief=${encodeURIComponent(briefId)}` : ''}`;
-                    return (
-                      <Link key={m.id} to={href}
-                        className={`flex items-center gap-3 p-3 rounded-xl transition-all duration-200 cursor-pointer group ${isDark ? 'hover:bg-white/[0.04]' : 'hover:bg-slate-50'}`}>
-                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors ${isDark ? 'bg-white/[0.04] group-hover:bg-white/[0.08]' : 'bg-slate-100 group-hover:bg-slate-200'}`}>
-                          <Activity className={`w-4 h-4 ${textMuted}`} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-sm truncate transition-colors ${isDark ? 'text-zinc-300 group-hover:text-white' : 'text-slate-700 group-hover:text-slate-900'}`}>
-                            {m.month}{isDup && briefShort ? ` (#${briefShort})` : ''}
-                            {m._isTest && <span className={`ml-2 text-[10px] font-medium px-1.5 py-0.5 rounded ${textMuted} ${isDark ? 'bg-white/[0.04]' : 'bg-slate-100'}`}>test</span>}
-                          </p>
-                          {isDup && briefName ? (
-                            <p className={`text-[10px] ${textMuted}`}>{m.postCount} posts · {getRelativeTime(m.createdAt)} · {briefName}</p>
-                          ) : (
-                            <p className={`text-[10px] ${textMuted}`}>{m.postCount} posts · {getRelativeTime(m.createdAt)}</p>
-                          )}
-                        </div>
-                        <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
-                          m.status === 'draft' ? isDark ? 'bg-zinc-800 text-zinc-400' : 'bg-slate-100 text-slate-500' :
-                          m.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'
-                        }`}>{m.status}</span>
-                      </Link>
-                    );
-                  })}
-                </div>
-              );
-            })()}
+            {loading || activity === null ? (
+              <div className="space-y-4">{Array.from({length:4}).map((_,i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
+            ) : activity.length === 0 ? (
+              <p className={`text-xs text-center py-6 ${textMuted}`}>{t('page.dashboard.no_activity_short')}</p>
+            ) : (
+              <motion.div className="space-y-1" variants={{ animate: { transition: { staggerChildren: 0.04 } } }} initial="initial" animate="animate">
+                {activity.slice(0, 6).map((entry) => {
+                  const desc = describeActivity(entry);
+                  const Icon = desc.icon;
+                  const inner = (
+                    <div className="flex items-center gap-3">
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors ${isDark ? 'bg-white/[0.04] group-hover:bg-white/[0.08]' : 'bg-slate-100 group-hover:bg-slate-200'}`}>
+                        <Icon className={`w-4 h-4 ${desc.color(isDark)}`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm truncate transition-colors ${isDark ? 'text-zinc-300 group-hover:text-white' : 'text-slate-800 group-hover:text-slate-900'}`}>{desc.label}</p>
+                        <p className={`text-[10px] ${textMuted}`}>{getRelativeTime(entry.createdAt)}</p>
+                      </div>
+                    </div>
+                  );
+                  return (
+                    <motion.div key={entry.id} variants={{ initial: { opacity: 0, x: -6 }, animate: { opacity: 1, x: 0 } }}>
+                      {desc.href ? (
+                        <Link to={desc.href} className={`block p-3 rounded-xl transition-all duration-200 cursor-pointer group ${isDark ? 'hover:bg-white/[0.04]' : 'hover:bg-slate-50'}`}>
+                          {inner}
+                        </Link>
+                      ) : (
+                        <div className={`p-3 rounded-xl ${isDark ? '' : ''}`}>{inner}</div>
+                      )}
+                    </motion.div>
+                  );
+                })}
+              </motion.div>
+            )}
           </div>
         </motion.div>
 
         {/* Quick Actions */}
         <motion.div {...fadeUp(0.4)} className="col-span-12 lg:col-span-3 flex flex-col gap-3">
           {[
-            { label: 'Get Started', href: '/onboarding', icon: Sparkles, desc: 'Onboarding steps', color: 'text-emerald-400', bg: isDark ? 'bg-emerald-500/10' : 'bg-emerald-50', ring: 'group-hover:ring-emerald-500/30' },
-            { label: 'Review Content', href: '/content-review', icon: Layers, desc: 'Approve pieces', color: 'text-purple-400', bg: isDark ? 'bg-purple-500/10' : 'bg-purple-50', ring: 'group-hover:ring-purple-500/30' },
-            { label: 'Calendar', href: '/calendar', icon: Calendar, desc: 'View schedule', color: 'text-blue-400', bg: isDark ? 'bg-blue-500/10' : 'bg-blue-50', ring: 'group-hover:ring-blue-500/30' },
-            { label: 'Creative Tools', href: '/creative', icon: Wand2, desc: 'Generate visuals', color: 'text-amber-400', bg: isDark ? 'bg-amber-500/10' : 'bg-amber-50', ring: 'group-hover:ring-amber-500/30' },
+            { label: 'Get Started', href: '/onboarding', icon: Sparkles, desc: 'Onboarding steps', color: isDark ? 'text-emerald-400' : 'text-emerald-700', bg: isDark ? 'bg-emerald-500/10' : 'bg-emerald-100', ring: 'group-hover:ring-emerald-500/30' },
+            { label: 'Review Content', href: '/content-review', icon: Layers, desc: 'Approve pieces', color: isDark ? 'text-purple-400' : 'text-purple-700', bg: isDark ? 'bg-purple-500/10' : 'bg-purple-100', ring: 'group-hover:ring-purple-500/30' },
+            { label: 'Calendar', href: '/calendar', icon: Calendar, desc: 'View schedule', color: isDark ? 'text-blue-400' : 'text-blue-700', bg: isDark ? 'bg-blue-500/10' : 'bg-blue-100', ring: 'group-hover:ring-blue-500/30' },
+            { label: 'Creative Tools', href: '/creative', icon: Wand2, desc: 'Generate visuals', color: isDark ? 'text-amber-400' : 'text-amber-700', bg: isDark ? 'bg-amber-500/10' : 'bg-amber-100', ring: 'group-hover:ring-amber-500/30' },
           ].map((action) => (
             <Link
               key={action.label}
@@ -799,16 +1015,106 @@ export default function Dashboard() {
 
       {/* Empty state */}
       {!loading && clients.length === 0 && (
-        <motion.div {...fadeUp(0.3)}>
-          <div className={`rounded-2xl p-12 text-center ${glassStatic}`}>
-            <div className={`w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center ${isDark ? 'bg-amber-500/10' : 'bg-amber-50'}`}>
-              <Sparkles className="w-7 h-7 text-amber-500" />
-            </div>
-            <h3 className={`text-lg font-bold mb-2 ${textPrimary}`}>No clients yet</h3>
-            <p className={`text-sm mb-6 ${textSecondary}`}>Create your first client to start generating AI-powered content.</p>
-            <Link to="/clients" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 text-black font-semibold text-sm hover:bg-amber-400 transition-colors cursor-pointer">
+        <EmptyState
+          icon={Sparkles}
+          title={t('page.dashboard.no_clients_title')}
+          description={t('page.dashboard.no_clients_body')}
+          primary={
+            <Link
+              to="/clients"
+              className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors cursor-pointer"
+              style={{ background: 'var(--color-accent)', color: 'var(--color-fg-on-accent)' }}
+            >
               <Users className="w-4 h-4" /> Add Client
             </Link>
+          }
+        />
+      )}
+
+      {/* ─── Visual Showcase + Trend ─── */}
+      {insights && (insights.visualShowcase.length > 0 || insights.trends.last7Days > 0) && (
+        <motion.div {...fadeUp(0.48)}>
+          <div className="grid grid-cols-12 gap-5">
+
+            {/* Visual Showcase — 8 most recent assets */}
+            {insights.visualShowcase.length > 0 && (
+              <div className={`col-span-12 ${insights.trends.last7Days > 0 ? 'lg:col-span-8' : ''} rounded-2xl p-6 ${glassStatic}`}>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className={`text-sm font-semibold flex items-center gap-2 ${textPrimary}`}>
+                    <ImageIcon className={`w-4 h-4 ${textSecondary}`} /> Recent Creations
+                  </h3>
+                  <Link to="/gallery" className={`text-[10px] hover:text-amber-500 transition-colors flex items-center gap-1 cursor-pointer ${textMuted}`}>
+                    Open Gallery <ArrowUpRight className="w-3 h-3" />
+                  </Link>
+                </div>
+                <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
+                  {insights.visualShowcase.map((asset, i) => {
+                    const isVideo = asset.mimeType.startsWith('video/');
+                    return (
+                      <Link
+                        key={asset.id}
+                        to="/gallery"
+                        className={`relative aspect-square rounded-lg overflow-hidden border group cursor-pointer transition-all ${isDark ? 'border-white/[0.06] hover:border-white/[0.15]' : 'border-slate-200 hover:border-slate-400 hover:shadow-md'}`}
+                        style={{ animationDelay: `${i * 50}ms` }}
+                      >
+                        {isVideo ? (
+                          <>
+                            <video src={asset.fileUrl} className="w-full h-full object-cover bg-black" preload="metadata" muted />
+                            <div className="absolute top-1 right-1 px-1 py-0.5 rounded bg-black/70 backdrop-blur-sm">
+                              <VideoIcon className="w-2.5 h-2.5 text-white" />
+                            </div>
+                          </>
+                        ) : (
+                          <img src={asset.thumbUrl || asset.fileUrl} alt={asset.name} loading="lazy" className="w-full h-full object-cover" />
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                        {asset.clientName && (
+                          <div className="absolute bottom-1 left-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <p className="text-[9px] text-white font-semibold truncate">{asset.clientName}</p>
+                          </div>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Trend card — 30-day sparkline */}
+            {insights.trends.last7Days > 0 && (
+              <div className={`col-span-12 ${insights.visualShowcase.length > 0 ? 'lg:col-span-4' : ''} rounded-2xl p-6 ${glassStatic}`}>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className={`text-sm font-semibold flex items-center gap-2 ${textPrimary}`}>
+                    <TrendingUp className={`w-4 h-4 ${textSecondary}`} /> Activity Trend
+                  </h3>
+                  <span className={`text-[10px] font-semibold uppercase tracking-wider ${textMuted}`}>30d</span>
+                </div>
+                <div className="flex items-baseline gap-3 mb-4">
+                  <div className={`text-3xl font-black tabular-nums ${textPrimary}`}>
+                    <AnimatedNumber value={insights.trends.last7Days} />
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {insights.trends.postsTrend >= 0 ? (
+                      <TrendingUp className={`w-3.5 h-3.5 ${insights.trends.postsTrend > 0 ? (isDark ? 'text-emerald-400' : 'text-emerald-600') : textMuted}`} />
+                    ) : (
+                      <TrendingDown className={`w-3.5 h-3.5 ${isDark ? 'text-red-400' : 'text-red-600'}`} />
+                    )}
+                    <span className={`text-xs font-semibold ${insights.trends.postsTrend > 0 ? (isDark ? 'text-emerald-400' : 'text-emerald-600') : insights.trends.postsTrend < 0 ? (isDark ? 'text-red-400' : 'text-red-600') : textMuted}`}>
+                      {insights.trends.postsTrend > 0 ? '+' : ''}{insights.trends.postsTrend}%
+                    </span>
+                  </div>
+                </div>
+                <p className={`text-[11px] ${textMuted} mb-3`}>Posts in last 7 days vs prior 7</p>
+                <div className="w-full">
+                  <Sparkline
+                    data={insights.trends.sparkline.map(d => d.posts)}
+                    color={isDark ? '#a78bfa' : '#7c3aed'}
+                    height={40}
+                    width={300}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </motion.div>
       )}

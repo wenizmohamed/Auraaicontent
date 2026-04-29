@@ -1,36 +1,37 @@
 import { db } from '../db/prisma.js';
 
 export const knowledgeService = {
-  async listByClient(clientId: string) {
+  async listByClient(orgId: string, clientId: string) {
     return db.knowledgeItem.findMany({
-      where: { clientId },
+      where: { orgId, clientId },
       orderBy: { createdAt: 'desc' },
       include: { _count: { select: { chunks: true } } },
     });
   },
 
-  async getById(id: string) {
-    return db.knowledgeItem.findUnique({ where: { id }, include: { chunks: true } });
+  async getById(orgId: string, id: string) {
+    return db.knowledgeItem.findUnique({ where: { id, orgId }, include: { chunks: true } });
   },
 
-  async create(data: { clientId: string; title: string; type: string; fileUrl?: string; textContent?: string }) {
-    return db.knowledgeItem.create({ data });
+  async create(orgId: string, data: { clientId: string; title: string; type: string; fileUrl?: string; textContent?: string }) {
+    return db.knowledgeItem.create({ data: { ...data, orgId } });
   },
 
-  async remove(id: string) {
-    // Cascade deletes chunks automatically
-    return db.knowledgeItem.delete({ where: { id } });
+  async remove(orgId: string, id: string) {
+    const item = await db.knowledgeItem.findUnique({ where: { id, orgId }, select: { orgId: true } });
+    if (!item) throw { statusCode: 404, message: 'Knowledge item not found' };
+    return db.knowledgeItem.delete({ where: { id, orgId } });
   },
 
-  async saveChunks(knowledgeItemId: string, chunks: { chunkText: string; metadata?: any }[]) {
+  async saveChunks(orgId: string, knowledgeItemId: string, chunks: { chunkText: string; metadata?: any }[]) {
     for (const chunk of chunks) {
       await db.knowledgeChunk.create({
-        data: { knowledgeItemId, chunkText: chunk.chunkText, metadata: chunk.metadata || null },
+        data: { orgId, knowledgeItemId, chunkText: chunk.chunkText, metadata: chunk.metadata || null },
       });
     }
   },
 
-  async getChunksByItemId(knowledgeItemId: string) {
-    return db.knowledgeChunk.findMany({ where: { knowledgeItemId } });
+  async getChunksByItemId(orgId: string, knowledgeItemId: string) {
+    return db.knowledgeChunk.findMany({ where: { orgId, knowledgeItemId } });
   },
 };

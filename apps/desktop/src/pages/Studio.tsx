@@ -10,6 +10,7 @@ import {
   PieChart, Pie
 } from 'recharts';
 import { useStore, PipelineItem, PipelineStatus } from '../lib/store';
+import { motionUI } from '../lib/motion';
 
 type Tab = 'pipeline' | 'approvals' | 'analytics';
 
@@ -397,7 +398,7 @@ export default function Studio() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
+            transition={{ ...motionUI, delay: 0.1 }}
             className="bg-white/5 rounded-2xl p-6 border border-white/10 relative overflow-hidden group"
           >
             <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-white/5 to-transparent rounded-bl-full -z-10 opacity-50 group-hover:opacity-100 transition-opacity" />
@@ -411,7 +412,7 @@ export default function Studio() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
+            transition={{ ...motionUI, delay: 0.2 }}
             className="bg-white/5 rounded-2xl p-6 border border-white/10 relative overflow-hidden group"
           >
             <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-white/5 to-transparent rounded-bl-full -z-10 opacity-50 group-hover:opacity-100 transition-opacity" />
@@ -425,7 +426,7 @@ export default function Studio() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
+            transition={{ ...motionUI, delay: 0.3 }}
             className="bg-white/5 rounded-2xl p-6 border border-white/10 relative overflow-hidden group"
           >
             <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-white/5 to-transparent rounded-bl-full -z-10 opacity-50 group-hover:opacity-100 transition-opacity" />
@@ -441,7 +442,7 @@ export default function Studio() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
+            transition={{ ...motionUI, delay: 0.4 }}
             className="bg-white/5 rounded-3xl p-8 border border-white/10"
           >
             <h3 className="text-lg font-display font-bold text-white mb-6">Platform Distribution</h3>
@@ -468,7 +469,7 @@ export default function Studio() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
+            transition={{ ...motionUI, delay: 0.5 }}
             className="bg-white/5 rounded-3xl p-8 border border-white/10"
           >
             <h3 className="text-lg font-display font-bold text-white mb-6">Pipeline Status</h3>

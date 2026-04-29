@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { t } from '../i18n';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Search, LayoutGrid, List, CheckCircle2, XCircle, Edit3,
@@ -12,6 +13,8 @@ import { validateCaption, PLATFORM_LIMITS } from '../lib/platform-limits';
 import { useClients } from '../lib/client-context';
 import { calendarApi, reviewApi, visualRefsApi, exportsApi, jobsApi } from '../lib/backend-api';
 import { ContentStatus, STATUS_LABEL, STATUS_COLOR, normalizeStatus } from '../lib/status-enum';
+import { EmptyState } from '../components/ui/EmptyState';
+import { motionUI, motionInstant, motionBase } from '../lib/motion';
 import VisualRefGrid from '../components/VisualRefGrid';
 
 // ─── Types ──────────────────────────────────────────────────────
@@ -426,30 +429,38 @@ export default function ContentReview() {
 
   if (!brief) {
     return (
-      <div className="max-w-2xl mx-auto mt-20 text-center">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 mb-5 shadow-[0_0_40px_-10px_rgba(245,158,11,0.35)]">
-          <Sparkles className="w-7 h-7 text-amber-400" />
-        </div>
-        <h2 className="text-2xl font-bold text-white mb-2 tracking-tight">No Content to Review</h2>
-        <p className="text-zinc-400 mb-8 max-w-md mx-auto leading-relaxed">
-          {currentClient
-            ? `No generated content found for ${currentClient.name}. Create a brief to generate content.`
-            : 'Pick a client and create a content brief to generate content for review.'}
-        </p>
-        <div className="flex items-center justify-center gap-3">
-          <button
-            onClick={() => navigate('/brief')}
-            className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-black font-medium rounded-xl transition-colors duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
-          >
-            Create New Brief
-          </button>
-          <button
-            onClick={() => navigate('/calendar')}
-            className="px-6 py-3 bg-white/[0.06] hover:bg-white/[0.1] text-white font-medium rounded-xl border border-white/10 transition-colors duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
-          >
-            Open Calendar
-          </button>
-        </div>
+      <div className="max-w-2xl mx-auto mt-20">
+        <EmptyState
+          icon={Sparkles}
+          title={t('page.review.no_content_title')}
+          description={
+            currentClient
+              ? `No generated content found for ${currentClient.name}. Create a brief to generate content.`
+              : 'Pick a client and create a content brief to generate content for review.'
+          }
+          primary={
+            <button
+              onClick={() => navigate('/brief')}
+              className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors cursor-pointer"
+              style={{ background: 'var(--color-accent)', color: 'var(--color-fg-on-accent)' }}
+            >
+              Create New Brief
+            </button>
+          }
+          secondary={
+            <button
+              onClick={() => navigate('/calendar')}
+              className="inline-flex items-center gap-2 rounded-xl border px-5 py-2.5 text-sm font-medium transition-colors cursor-pointer"
+              style={{
+                background: 'var(--color-surface-hover)',
+                borderColor: 'var(--color-border)',
+                color: 'var(--color-fg)',
+              }}
+            >
+              Open Calendar
+            </button>
+          }
+        />
       </div>
     );
   }
@@ -460,8 +471,8 @@ export default function ContentReview() {
         <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 mb-5 shadow-[0_0_40px_-10px_rgba(245,158,11,0.35)]">
           <Sparkles className="w-7 h-7 text-amber-400" />
         </div>
-        <h2 className="text-2xl font-bold text-white mb-2 tracking-tight">No Content Generated Yet</h2>
-        <p className="text-zinc-400 mb-8 max-w-md mx-auto leading-relaxed">This brief has no generated pieces to review.</p>
+        <h2 className="text-2xl font-bold text-white mb-2 tracking-tight">{t('page.review.no_generated_title')}</h2>
+        <p className="text-zinc-400 mb-8 max-w-md mx-auto leading-relaxed">{t('page.review.no_generated_body')}</p>
         <button
           onClick={() => navigate('/brief')}
           className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-black font-medium rounded-xl transition-colors duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
@@ -535,7 +546,7 @@ export default function ContentReview() {
       <motion.div
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.05 }}
+        transition={{ ...motionUI, delay: 0.05 }}
         className="bg-[#111] border border-white/10 rounded-2xl p-4 mb-6 print:hidden"
       >
         <div className="flex flex-col md:flex-row md:items-center gap-3">
@@ -544,7 +555,7 @@ export default function ContentReview() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
             <input
               type="text"
-              placeholder="Search captions, copy, hashtags..."
+              placeholder={t('page.review.ph_search')}
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 bg-zinc-900 border border-white/10 rounded-xl text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-amber-500/50 transition-colors"
@@ -610,7 +621,7 @@ export default function ContentReview() {
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.2 }}
+              transition={motionInstant}
               className="overflow-hidden"
             >
               <div className="flex flex-wrap gap-3 pt-4 mt-4 border-t border-white/5">
@@ -620,7 +631,7 @@ export default function ContentReview() {
                   onChange={e => setPlatformFilter(e.target.value)}
                   className="bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500/50"
                 >
-                  <option value="all">All Platforms</option>
+                  <option value="all">{t('page.review.all_platforms')}</option>
                   {platforms.map(p => (
                     <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
                   ))}
@@ -632,7 +643,7 @@ export default function ContentReview() {
                   onChange={e => setStatusFilter(e.target.value)}
                   className="bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500/50"
                 >
-                  <option value="all">All Statuses</option>
+                  <option value="all">{t('page.review.all_statuses')}</option>
                   {(Object.keys(STATUS_LABEL) as ContentStatus[]).map(s => (
                     <option key={s} value={s}>{STATUS_LABEL[s]}</option>
                   ))}
@@ -645,7 +656,7 @@ export default function ContentReview() {
                     onChange={e => setCampaignFilter(e.target.value)}
                     className="bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500/50"
                   >
-                    <option value="all">All Campaigns</option>
+                    <option value="all">{t('page.review.all_campaigns')}</option>
                     {campaigns.map(c => (
                       <option key={c} value={c}>{c}</option>
                     ))}
@@ -679,7 +690,7 @@ export default function ContentReview() {
           <div className="flex items-center justify-between mb-1.5">
             <p className="text-sm font-medium text-zinc-300">
               {stats.approved === stats.total ? (
-                <span className="text-emerald-400">All approved — ready to export &#10003;</span>
+                <span className="text-emerald-400">{t('page.review.all_approved')}</span>
               ) : (
                 <>
                   <span className="text-emerald-400 tabular-nums">{stats.approved}</span>
@@ -722,7 +733,7 @@ export default function ContentReview() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ delay: idx * 0.03, duration: 0.25 }}
+                transition={{ ...motionBase, delay: idx * 0.03 }}
                 className={`bg-[#111] border rounded-2xl overflow-hidden transition-colors ${
                   selectedIds.has(piece.id) ? 'border-amber-500/50 ring-1 ring-amber-500/20'
                   : focusedIndex === idx ? 'border-amber-500/30 ring-1 ring-amber-500/10'
@@ -796,7 +807,7 @@ export default function ContentReview() {
                   <div>
                     <div className="flex items-center gap-2 mb-1.5">
                       <Eye className="w-3.5 h-3.5 text-zinc-500" />
-                      <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-medium">Art Direction</span>
+                      <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-medium">{t('page.review.section.art_direction')}</span>
                     </div>
                     <p className="text-sm text-zinc-300 leading-relaxed bg-white/[0.02] rounded-lg px-3 py-2 border border-white/5">
                       {piece.creativeCopy || 'No art direction'}
@@ -824,7 +835,7 @@ export default function ContentReview() {
                     {/* Key Message (goes ON the visual) */}
                     {(piece.keyMessage || editingId === piece.id) && (
                       <div>
-                        <span className="text-[9px] uppercase tracking-wider text-amber-400/60 font-semibold">Key Message (on visual)</span>
+                        <span className="text-[9px] uppercase tracking-wider text-amber-400/60 font-semibold">{t('page.review.section.key_message')}</span>
                         <p className="text-sm text-amber-200/90 font-medium mt-0.5 bg-amber-500/[0.06] rounded-lg px-3 py-2 border border-amber-500/10">
                           {piece.keyMessage || '—'}
                         </p>
@@ -851,7 +862,7 @@ export default function ContentReview() {
                     {/* CTA */}
                     {(piece.cta || editingId === piece.id) && (
                       <div>
-                        <span className="text-[9px] uppercase tracking-wider text-emerald-400/60 font-semibold">Call to Action</span>
+                        <span className="text-[9px] uppercase tracking-wider text-emerald-400/60 font-semibold">{t('page.review.section.cta')}</span>
                         <p className="text-sm text-emerald-300/90 font-medium mt-0.5 bg-emerald-500/[0.06] rounded-lg px-3 py-2 border border-emerald-500/10">
                           {piece.cta || '—'}
                         </p>
@@ -967,13 +978,13 @@ export default function ContentReview() {
                       }
                     </button>
                   </th>
-                  <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium">Platform</th>
-                  <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium">Campaign</th>
-                  <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium min-w-[250px]">Caption</th>
-                  <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium">Chars</th>
-                  <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium">Date</th>
-                  <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium">Status</th>
-                  <th className="text-right px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium print:hidden">Actions</th>
+                  <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium">{t('page.review.col.platform')}</th>
+                  <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium">{t('page.review.col.campaign')}</th>
+                  <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium min-w-[250px]">{t('page.review.col.caption')}</th>
+                  <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium">{t('page.review.col.chars')}</th>
+                  <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium">{t('page.review.col.date')}</th>
+                  <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium">{t('page.review.col.status')}</th>
+                  <th className="text-right px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium print:hidden">{t('page.review.col.actions')}</th>
                 </tr>
               </thead>
               <tbody>

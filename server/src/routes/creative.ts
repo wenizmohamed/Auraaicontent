@@ -1,5 +1,4 @@
 import { FastifyInstance } from 'fastify';
-import { z } from 'zod';
 import { authGuard } from '../middleware/auth.js';
 import { aiRouter, getAiTelemetry } from '../services/providers/ai-router.js';
 import { sendAiError } from '../services/providers/errors.js';
@@ -8,51 +7,14 @@ import { storageService } from '../services/storage.service.js';
 import { db } from '../db/prisma.js';
 import { searchPinterest, searchPinterestMulti, fetchPinterestImageBase64 } from '../services/pinterest.service.js';
 import type { Job } from '../workers/queue.js';
-import { parseOr400 } from '../lib/parseOr400.js';
-import { errMsg } from '../lib/err.js';
-
-const ASPECT_IMAGE = z.enum(['1:1', '4:5', '9:16', '16:9', '3:4']);
-const ASPECT_VIDEO = z.enum(['16:9', '9:16', '1:1']);
-const MIME_IMAGE = z.string().regex(/^image\/(png|jpeg|webp)$/);
-
-const GenerateImageBody = z.object({
-  prompt: z.string().min(1).max(4000),
-  aspectRatio: ASPECT_IMAGE.optional(),
-  clientId: z.string().min(1).max(64).optional(),
-  quality: z.enum(['standard', 'ultra']).optional(),
-});
-
-const EditImageBody = z.object({
-  prompt: z.string().min(1).max(4000),
-  imageBase64: z.string().min(64),
-  mimeType: MIME_IMAGE.optional(),
-  aspectRatio: ASPECT_IMAGE.optional(),
-  clientId: z.string().min(1).max(64).optional(),
-});
-
-const GenerateVideoBody = z.object({
-  prompt: z.string().min(1).max(4000),
-  aspectRatio: ASPECT_VIDEO.optional(),
-  durationSeconds: z.number().int().min(2).max(30).optional(),
-  resolution: z.enum(['720p', '1080p']).optional(),
-  clientId: z.string().min(1).max(64).optional(),
-  imageBase64: z.string().min(64).optional(),
-  mimeType: MIME_IMAGE.optional(),
-});
-
-const ImprovePromptBody = z.object({
-  prompt: z.string().min(1).max(4000),
-  mode: z.string().max(60).optional(),
-});
 
 export async function creativeRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authGuard);
 
   // POST /api/creative/images/generate
   app.post('/creative/images/generate', async (request, reply) => {
-    const body = parseOr400(GenerateImageBody, request.body, reply);
-    if (!body) return;
-    const { prompt, aspectRatio, clientId, quality } = body;
+    const { prompt, aspectRatio, clientId, quality } = request.body as { prompt: string; aspectRatio?: string; clientId?: string; quality?: 'standard' | 'ultra' };
+    if (!prompt) return reply.status(400).send({ error: 'prompt is required' });
 
     try {
       const result = await aiRouter.image({ prompt, aspectRatio, quality }, { clientId });
@@ -62,7 +24,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         const buf = Buffer.from(result.output.base64, 'base64');
         const { fileUrl, thumbUrl } = await storageService.saveFile(buf, `ai-gen-${Date.now()}.png`, 'image/png');
         savedAsset = await db.asset.create({
-          data: { clientId, name: `ai-gen-${Date.now()}.png`, mimeType: 'image/png', fileUrl, thumbUrl, tags: ['ai-generated'], safeForClient: true },
+          data: { orgId: request.orgId!, clientId, name: `ai-gen-${Date.now()}.png`, mimeType: 'image/png', fileUrl, thumbUrl, tags: ['ai-generated'], safeForClient: true },
         });
       }
       return {
@@ -75,16 +37,15 @@ export async function creativeRoutes(app: FastifyInstance) {
         assetId: savedAsset?.id || null,
         assetUrl: savedAsset?.fileUrl || result.output.url || null,
       };
-    } catch (err: unknown) {
+    } catch (err: any) {
       return sendAiError(reply, err, 'Image generation failed');
     }
   });
 
   // POST /api/creative/images/edit
   app.post('/creative/images/edit', async (request, reply) => {
-    const body = parseOr400(EditImageBody, request.body, reply);
-    if (!body) return;
-    const { prompt, imageBase64, mimeType, aspectRatio, clientId } = body;
+    const { prompt, imageBase64, mimeType, aspectRatio, clientId } = request.body as any;
+    if (!prompt || !imageBase64) return reply.status(400).send({ error: 'prompt and imageBase64 are required' });
 
     try {
       const result = await aiRouter.image({ prompt, imageBase64, mimeType: mimeType || 'image/png', aspectRatio }, { clientId });
@@ -93,7 +54,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         const buf = Buffer.from(result.output.base64, 'base64');
         const { fileUrl, thumbUrl } = await storageService.saveFile(buf, `ai-edit-${Date.now()}.png`, 'image/png');
         savedAsset = await db.asset.create({
-          data: { clientId, name: `ai-edit-${Date.now()}.png`, mimeType: 'image/png', fileUrl, thumbUrl, tags: ['ai-edited'], safeForClient: true },
+          data: { orgId: request.orgId!, clientId, name: `ai-edit-${Date.now()}.png`, mimeType: 'image/png', fileUrl, thumbUrl, tags: ['ai-edited'], safeForClient: true },
         });
       }
       return {
@@ -103,7 +64,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         assetId: savedAsset?.id || null,
         assetUrl: savedAsset?.fileUrl || result.output.url || null,
       };
-    } catch (err: unknown) {
+    } catch (err: any) {
       return sendAiError(reply, err, 'AI operation failed');
     }
   });
@@ -111,9 +72,9 @@ export async function creativeRoutes(app: FastifyInstance) {
   // POST /api/creative/videos/generate — async via job queue
   // Supports both text-to-video AND image-to-video (when imageBase64 is provided).
   app.post('/creative/videos/generate', async (request, reply) => {
-    const body = parseOr400(GenerateVideoBody, request.body, reply);
-    if (!body) return;
-    const { prompt, aspectRatio, durationSeconds, resolution, clientId, imageBase64, mimeType } = body;
+    const { prompt, aspectRatio, durationSeconds, resolution, clientId, imageBase64, mimeType } =
+      request.body as any;
+    if (!prompt) return reply.status(400).send({ error: 'prompt is required' });
 
     // Both Gemini Veo and xAI grok-imagine-video only accept 16:9 and 9:16.
     // Reject unsupported ratios upfront with a clear message instead of letting
@@ -221,7 +182,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         provider: result.provider,
         latencyMs: result.latencyMs,
       };
-    } catch (err: unknown) {
+    } catch (err: any) {
       return sendAiError(reply, err, 'Prompt improver failed');
     }
   });
@@ -237,7 +198,7 @@ export async function creativeRoutes(app: FastifyInstance) {
       const lim = limit ? Math.min(parseInt(limit), 25) : 12;
       const { results, nextBookmark } = await searchPinterest(q, lim, bookmark);
       return { query: q, count: results.length, results, nextBookmark };
-    } catch (err: unknown) {
+    } catch (err: any) {
       return sendAiError(reply, err, 'AI operation failed');
     }
   });
@@ -269,6 +230,7 @@ export async function creativeRoutes(app: FastifyInstance) {
           );
           savedAsset = await db.asset.create({
             data: {
+              orgId: request.orgId!,
               clientId,
               name: `pinterest-${pick.id}.jpg`,
               mimeType: 'image/jpeg',
@@ -278,13 +240,13 @@ export async function creativeRoutes(app: FastifyInstance) {
               safeForClient: true,
             },
           });
-        } catch (saveErr: unknown) {
-          console.error('[pinterest] Failed to save asset:', errMsg(saveErr));
+        } catch (saveErr: any) {
+          console.error('[pinterest] Failed to save asset:', saveErr.message);
         }
       }
 
       return { count: results.length, results, savedAsset };
-    } catch (err: unknown) {
+    } catch (err: any) {
       return sendAiError(reply, err, 'AI operation failed');
     }
   });

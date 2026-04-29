@@ -7,6 +7,7 @@ import {
 import { authApi, type MeRecord } from '../lib/backend-api';
 import { useTheme } from '../lib/theme-context';
 import { useClients } from '../lib/client-context';
+import { motionBase, motionInstant } from '../lib/motion';
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -162,7 +163,7 @@ export default function Profile() {
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
+        transition={motionBase}
       >
         <h1 className="text-2xl sm:text-3xl font-display font-semibold text-white tracking-tight">Profile</h1>
         <p className="text-sm text-zinc-400 mt-1">Manage your account, security, and appearance.</p>
@@ -172,7 +173,7 @@ export default function Profile() {
       <motion.section
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, delay: 0.05 }}
+        transition={{ ...motionBase, delay: 0.05 }}
         className="glass-card p-6 sm:p-7"
         aria-labelledby="identity-heading"
       >
@@ -258,7 +259,7 @@ export default function Profile() {
       <motion.section
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, delay: 0.1 }}
+        transition={{ ...motionBase, delay: 0.1 }}
         className="glass-card p-6 sm:p-7"
         aria-labelledby="appearance-heading"
       >
@@ -299,7 +300,7 @@ export default function Profile() {
       <motion.section
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, delay: 0.15 }}
+        transition={{ ...motionBase, delay: 0.15 }}
         className="glass-card p-6 sm:p-7"
         aria-labelledby="security-heading"
       >
@@ -330,7 +331,7 @@ export default function Profile() {
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.2 }}
+              transition={motionInstant}
               onSubmit={changePassword}
               className="mt-5 space-y-4 overflow-hidden"
             >
@@ -387,7 +388,7 @@ export default function Profile() {
       <motion.section
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, delay: 0.2 }}
+        transition={{ ...motionBase, delay: 0.2 }}
         className="glass-card p-6 sm:p-7 border-red-500/20"
         aria-labelledby="signout-heading"
       >
@@ -438,7 +439,7 @@ export default function Profile() {
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            transition={{ duration: 0.2 }}
+            transition={motionInstant}
             role="status"
             aria-live="polite"
             className={`z-toast fixed bottom-6 right-6 max-w-sm rounded-xl px-4 py-3 shadow-2xl border flex items-start gap-2.5 ${

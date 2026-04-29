@@ -5,19 +5,109 @@
 @import url('https://fonts.googleapis.com/css2?family=Libre+Bodoni:ital,wght@0,500;0,600;0,700;0,800;0,900;1,400;1,500&family=Public+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,500&family=JetBrains+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
 
+/* ════════════════════════════════════════════════════════════════════════════
+   DESIGN TOKENS — Phase 1 of the state-of-the-art interface plan.
+   Single source of truth for color, space, radius, shadow, motion, type.
+   Themes live in `:root` (dark default), `.light`, and `.theme-studio`.
+   The legacy `--color-{background,surface,primary,secondary,accent,border}`
+   names are kept as ALIASES of the semantic tokens so existing pages
+   compile against bg-background / text-primary etc. without changes.
+   Pages will migrate to semantic class names (bg-bg, text-fg-muted, ...)
+   in subsequent commits; the override layer in the second half of this
+   file stays as a backstop until the migration is complete.
+   ════════════════════════════════════════════════════════════════════════════ */
+
 @theme {
+  /* ── Typography ─────────────────────────────────────────────────────── */
   --font-sans: "Public Sans", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Libre Bodoni", "Public Sans", ui-serif, Georgia, serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
-  --color-background: #0a0a0a;
-  --color-surface: #121212;
-  --color-surface-hover: #1e1e1e;
-  --color-border: #27272a;
-  --color-primary: #ffffff;
-  --color-secondary: #a1a1aa;
-  --color-accent: #3b82f6;
+  --text-xs:   0.75rem;   /* 12px */ --text-xs--line-height:   1rem;        /* 16 */
+  --text-sm:   0.875rem;  /* 14px */ --text-sm--line-height:   1.25rem;     /* 20 */
+  --text-base: 1rem;      /* 16px */ --text-base--line-height: 1.5rem;      /* 24 */
+  --text-lg:   1.125rem;  /* 18px */ --text-lg--line-height:   1.75rem;     /* 28 */
+  --text-xl:   1.375rem;  /* 22px */ --text-xl--line-height:   1.875rem;    /* 30 */
+  --text-2xl:  1.875rem;  /* 30px */ --text-2xl--line-height:  2.25rem;     /* 36 */
+  --text-3xl:  2.5rem;    /* 40px */ --text-3xl--line-height:  2.75rem;     /* 44 */
 
+  /* ── Spacing scale (4px grid) ───────────────────────────────────────── */
+  --space-0: 0px;   --space-1: 4px;   --space-2: 8px;   --space-3: 12px;
+  --space-4: 16px;  --space-5: 20px;  --space-6: 24px;  --space-7: 32px;
+  --space-8: 40px;  --space-9: 48px;  --space-10: 64px; --space-11: 80px;
+  --space-12: 96px;
+
+  /* ── Radii (house = 12px) ──────────────────────────────────────────── */
+  --radius-xs:   4px;
+  --radius-sm:   6px;
+  --radius-md:   8px;
+  --radius-lg:   12px;   /* house default */
+  --radius-xl:   16px;
+  --radius-2xl:  20px;
+  --radius-full: 9999px;
+
+  /* ── Shadows (5 layered elevations) ────────────────────────────────── */
+  --shadow-1: 0 1px 0 rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
+  --shadow-2: 0 1px 0 rgba(0,0,0,0.05), 0 2px 6px rgba(0,0,0,0.08);
+  --shadow-3: 0 1px 0 rgba(0,0,0,0.06), 0 8px 18px rgba(0,0,0,0.10);
+  --shadow-4: 0 1px 0 rgba(0,0,0,0.06), 0 16px 32px rgba(0,0,0,0.14);
+  --shadow-5: 0 1px 0 rgba(0,0,0,0.08), 0 28px 60px rgba(0,0,0,0.22);
+
+  /* ── Motion (durations + easings) ──────────────────────────────────── */
+  --dur-instant: 80ms;
+  --dur-fast:    140ms;
+  --dur-base:    220ms;
+  --dur-slow:    360ms;
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring:   cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ── Semantic color tokens ──────────────────────────────────────────
+     New vocabulary. Pages SHOULD use these going forward:
+       bg-bg, bg-surface, text-fg, text-fg-muted, border-border, ...
+     Defined here as initial DARK palette. Light + Studio override below. */
+  --color-bg:              #0a0a0a;
+  --color-bg-elevated:     #121212;
+  --color-bg-sunken:       #050505;
+
+  --color-surface:         #121212;
+  --color-surface-hover:   #1e1e1e;
+  --color-surface-active:  #2a2a2a;
+
+  --color-border:          #27272a;
+  --color-border-strong:   #3f3f46;
+  --color-border-subtle:   #1c1c1f;
+
+  --color-fg:              #ffffff;
+  --color-fg-muted:        #a1a1aa;
+  --color-fg-subtle:       #71717a;
+  --color-fg-on-accent:    #0a0a0a;
+
+  --color-accent:          #f59e0b;
+  --color-accent-hover:    #fbbf24;
+  --color-accent-pressed:  #d97706;
+  --color-accent-subtle:   rgba(245, 158, 11, 0.12);
+
+  --color-success:         #10b981;
+  --color-success-subtle:  rgba(16, 185, 129, 0.12);
+  --color-success-strong:  #059669;
+  --color-warning:         #f59e0b;
+  --color-warning-subtle:  rgba(245, 158, 11, 0.12);
+  --color-warning-strong:  #d97706;
+  --color-danger:          #ef4444;
+  --color-danger-subtle:   rgba(239, 68, 68, 0.12);
+  --color-danger-strong:   #dc2626;
+  --color-info:            #3b82f6;
+  --color-info-subtle:     rgba(59, 130, 246, 0.12);
+  --color-info-strong:     #2563eb;
+
+  /* ── Legacy aliases (kept for backwards compat with existing pages) ─
+     These are the exact names already used across 24 pages via the
+     bg-background/text-primary/bg-surface utilities Tailwind v4
+     auto-generates from --color-*. Map them onto the new semantic tokens
+     so nothing breaks during the page-by-page migration. */
+  --color-background: var(--color-bg);
+  --color-primary:    var(--color-fg);
+  --color-secondary:  var(--color-fg-muted);
 }
 
 /* Z-index utilities — Tailwind v4 doesn't auto-generate custom z- utilities
@@ -30,21 +120,88 @@
 @utility z-modal { z-index: 50; }
 @utility z-popover { z-index: 55; }
 @utility z-toast { z-index: 60; }
+@utility z-tooltip { z-index: 65; }
 @utility z-debug { z-index: 70; }
 
-/* ═══ Light Mode Global Overrides ═══ */
-html.light {
-  --color-background: #f8fafc;
-  --color-surface: #ffffff;
-  --color-surface-hover: #f1f5f9;
-  --color-border: #e2e8f0;
-  --color-primary: #0f172a;
-  --color-secondary: #64748b;
-  --color-accent: #f59e0b;
-}
-html.light body { background: #f1f5f9; color: #0f172a; }
+/* ════════════════════════════════════════════════════════════════════════════
+   THEME PALETTES
+   Three palettes defined ONCE. No per-class overrides for the semantic tokens
+   themselves — only for legacy raw classes (zinc/white-alpha) used by the
+   24 unmigrated pages, which live in the override layer further down.
+   ════════════════════════════════════════════════════════════════════════════ */
 
-/* Backgrounds */
+/* ── LIGHT ─────────────────────────────────────────────────────────────── */
+html.light {
+  --color-bg:              #f8fafc;
+  --color-bg-elevated:     #ffffff;
+  --color-bg-sunken:       #f1f5f9;
+
+  --color-surface:         #ffffff;
+  --color-surface-hover:   #f1f5f9;
+  --color-surface-active:  #e2e8f0;
+
+  --color-border:          #e2e8f0;
+  --color-border-strong:   #cbd5e1;
+  --color-border-subtle:   #f1f5f9;
+
+  --color-fg:              #0f172a;
+  --color-fg-muted:        #475569;
+  --color-fg-subtle:       #64748b;
+  --color-fg-on-accent:    #ffffff;
+
+  --color-accent:          #b45309;
+  --color-accent-hover:    #d97706;
+  --color-accent-pressed:  #92400e;
+  --color-accent-subtle:   rgba(180, 83, 9, 0.10);
+
+  /* Status palette tuned for white surfaces */
+  --color-success:         #059669;
+  --color-success-strong:  #047857;
+  --color-warning:         #d97706;
+  --color-warning-strong:  #b45309;
+  --color-danger:          #dc2626;
+  --color-danger-strong:   #b91c1c;
+  --color-info:            #2563eb;
+  --color-info-strong:     #1d4ed8;
+}
+html.light body { background: var(--color-bg-sunken); color: var(--color-fg); }
+
+/* ── STUDIO (high-contrast monochrome — designer's view) ──────────────── */
+html.theme-studio {
+  --color-bg:              #000000;
+  --color-bg-elevated:     #0a0a0a;
+  --color-bg-sunken:       #000000;
+
+  --color-surface:         #0a0a0a;
+  --color-surface-hover:   #141414;
+  --color-surface-active:  #1f1f1f;
+
+  --color-border:          #2a2a2a;
+  --color-border-strong:   #4a4a4a;
+  --color-border-subtle:   #1a1a1a;
+
+  --color-fg:              #ffffff;
+  --color-fg-muted:        #d4d4d8;
+  --color-fg-subtle:       #a1a1aa;
+  --color-fg-on-accent:    #000000;
+
+  --color-accent:          #ffffff;
+  --color-accent-hover:    #f4f4f5;
+  --color-accent-pressed:  #d4d4d8;
+  --color-accent-subtle:   rgba(255, 255, 255, 0.10);
+}
+html.theme-studio body { background: var(--color-bg); color: var(--color-fg); }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   LEGACY OVERRIDE LAYER (BACKSTOP — to be removed page-by-page)
+   These rules exist because 24 pages still reference raw color classes
+   (bg-zinc-*, bg-white/[0.06], text-zinc-400, ...). As pages migrate to
+   the semantic vocabulary in Phase 1's follow-up commits, the matching
+   override block here gets deleted. DO NOT add NEW raw color classes —
+   they will silently rot in light mode.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* Page backgrounds → soft slate */
 html.light .bg-zinc-950,
 html.light .bg-\[\#0a0a0a\],
 html.light .bg-\[\#0c0c0c\],
@@ -52,36 +209,66 @@ html.light .bg-\[\#050505\],
 html.light .bg-\[\#050508\],
 html.light .bg-\[\#08080c\],
 html.light .bg-\[\#0a0a0f\] { background: #f1f5f9 !important; }
+
+/* Card surfaces → solid white with subtle border */
 html.light .bg-zinc-900,
+html.light .bg-zinc-800,
 html.light .bg-\[\#121212\],
 html.light .bg-\[\#1a1a1a\],
-html.light .bg-\[\#18181b\] { background: #ffffff !important; }
+html.light .bg-\[\#18181b\],
+html.light .bg-\[\#111\] { background: #ffffff !important; }
 
-/* Glass surfaces → white cards */
+/* Modal backdrops — semi-transparent slate instead of black */
+html.light .bg-black\/50,
+html.light .bg-black\/60,
+html.light .bg-black\/70,
+html.light .bg-black\/80,
+html.light .bg-black\/90 { background: rgba(15, 23, 42, 0.5) !important; backdrop-filter: blur(8px); }
+html.light .bg-black { background: #0f172a !important; }
+
+/* Glass surfaces → white cards (covers all opacity variants) */
+html.light .bg-white\/\[0\.01\],
+html.light .bg-white\/\[0\.02\],
 html.light .bg-white\/\[0\.03\],
 html.light .bg-white\/\[0\.04\],
 html.light .bg-white\/\[0\.05\],
 html.light .bg-white\/\[0\.06\],
-html.light .bg-white\/\[0\.08\] { background: rgba(255,255,255,0.85) !important; }
+html.light .bg-white\/\[0\.08\],
+html.light .bg-white\/\[0\.1\] { background: #ffffff !important; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04); }
+html.light .bg-white\/5 { background: #f8fafc !important; }
+html.light .bg-white\/10 { background: #f1f5f9 !important; }
 
-/* Borders */
+/* Zinc backgrounds (badge/chip surfaces) */
+html.light .bg-zinc-500 { background: #94a3b8 !important; }
+html.light .bg-zinc-400 { background: #cbd5e1 !important; }
+
+/* Borders — cover all white-alpha + zinc variants */
+html.light .border-white\/\[0\.04\],
+html.light .border-white\/\[0\.05\],
 html.light .border-white\/\[0\.06\],
 html.light .border-white\/\[0\.08\],
 html.light .border-white\/\[0\.1\],
 html.light .border-white\/\[0\.12\],
 html.light .border-white\/5,
-html.light .border-white\/10 { border-color: #e2e8f0 !important; }
+html.light .border-white\/10,
+html.light .border-zinc-500,
+html.light .border-zinc-600,
+html.light .border-zinc-700,
+html.light .border-zinc-800 { border-color: #e2e8f0 !important; }
 
-/* Text */
+/* Text — proper light-mode contrast curve */
 html.light .text-white { color: #0f172a !important; }
-html.light .text-zinc-100 { color: #1e293b !important; }
+html.light .text-zinc-100 { color: #0f172a !important; }
 html.light .text-zinc-200 { color: #1e293b !important; }
 html.light .text-zinc-300 { color: #334155 !important; }
-html.light .text-zinc-400 { color: #64748b !important; }
-html.light .text-zinc-500 { color: #94a3b8 !important; }
-html.light .text-zinc-600 { color: #cbd5e1 !important; }
+html.light .text-zinc-400 { color: #475569 !important; }
+html.light .text-zinc-500 { color: #64748b !important; }
+html.light .text-zinc-600 { color: #94a3b8 !important; }
+html.light .text-zinc-700 { color: #cbd5e1 !important; }
+html.light .text-zinc-800 { color: #e2e8f0 !important; }
+html.light .text-zinc-900 { color: #0f172a !important; }
 
-/* Platform / accent text colors — keep on-brand in light mode (Tailwind -400 at 0.5L reads on light bg) */
+/* Platform / accent text colors — keep on-brand in light mode */
 html.light .text-pink-400 { color: #ec4899 !important; }
 html.light .text-blue-400 { color: #2563eb !important; }
 html.light .text-slate-300 { color: #334155 !important; }
@@ -110,20 +297,49 @@ html.light .glass { background: rgba(255,255,255,0.7) !important; backdrop-filte
 html.light input, html.light textarea, html.light select {
   background: #f8fafc !important; border-color: #e2e8f0 !important; color: #0f172a !important;
 }
-html.light input:focus, html.light textarea:focus { border-color: #f59e0b !important; box-shadow: 0 0 0 3px rgba(245,158,11,0.1) !important; }
+html.light input:focus, html.light textarea:focus { border-color: var(--color-accent) !important; box-shadow: 0 0 0 3px rgba(180, 83, 9, 0.1) !important; }
 html.light input::placeholder, html.light textarea::placeholder { color: #94a3b8 !important; }
 
 /* Scrollbar */
 html.light ::-webkit-scrollbar-thumb { background: #cbd5e1; }
 html.light ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
-/* ═══ Glass Card Utility ═══ */
+/* ── Studio override layer — same backstop pattern, monochrome targets ── */
+html.theme-studio .bg-zinc-950,
+html.theme-studio .bg-\[\#0a0a0a\],
+html.theme-studio .bg-\[\#0c0c0c\],
+html.theme-studio .bg-\[\#050505\] { background: #000000 !important; }
+html.theme-studio .bg-zinc-900,
+html.theme-studio .bg-\[\#121212\],
+html.theme-studio .bg-\[\#18181b\],
+html.theme-studio .bg-\[\#1a1a1a\] { background: #0a0a0a !important; }
+html.theme-studio .bg-white\/\[0\.03\],
+html.theme-studio .bg-white\/\[0\.04\],
+html.theme-studio .bg-white\/\[0\.05\],
+html.theme-studio .bg-white\/\[0\.06\],
+html.theme-studio .bg-white\/\[0\.08\] { background: #141414 !important; }
+html.theme-studio .border-white\/\[0\.06\],
+html.theme-studio .border-white\/\[0\.08\],
+html.theme-studio .border-white\/\[0\.1\],
+html.theme-studio .border-white\/\[0\.12\] { border-color: #2a2a2a !important; }
+html.theme-studio .text-zinc-400 { color: #d4d4d8 !important; }
+html.theme-studio .text-zinc-500 { color: #a1a1aa !important; }
+html.theme-studio .text-zinc-600 { color: #71717a !important; }
+html.theme-studio .text-amber-400,
+html.theme-studio .text-pink-400,
+html.theme-studio .text-blue-400,
+html.theme-studio .text-emerald-400 { color: #ffffff !important; }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   COMPONENT UTILITIES (unchanged — pre-token-system)
+   ════════════════════════════════════════════════════════════════════════════ */
+
 .glass-card {
   background: rgba(255,255,255,0.04);
   backdrop-filter: blur(16px);
   border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 16px;
-  transition: all 200ms ease;
+  border-radius: var(--radius-xl);
+  transition: all var(--dur-base) var(--ease-out-expo);
 }
 .glass-card:hover {
   background: rgba(255,255,255,0.07);
@@ -131,13 +347,21 @@ html.light ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 }
 html.light .glass-card {
   background: rgba(255,255,255,0.8);
-  border-color: #e2e8f0;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  border-color: var(--color-border);
+  box-shadow: var(--shadow-1);
 }
 html.light .glass-card:hover {
   background: rgba(255,255,255,0.95);
-  border-color: #cbd5e1;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+  border-color: var(--color-border-strong);
+  box-shadow: var(--shadow-2);
+}
+html.theme-studio .glass-card {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+}
+html.theme-studio .glass-card:hover {
+  background: var(--color-surface-hover);
+  border-color: var(--color-border-strong);
 }
 
 /* Electron desktop titlebar drag region */
@@ -146,7 +370,7 @@ html.light .glass-card:hover {
 
 @layer base {
   body {
-    @apply bg-[var(--color-background)] text-[var(--color-primary)] font-sans antialiased selection:bg-white/20;
+    @apply bg-[var(--color-bg)] text-[var(--color-fg)] font-sans antialiased selection:bg-white/20;
     /* Public Sans rendering: tabular numerics + ligatures off for UI clarity */
     font-feature-settings: "ss01" on, "cv11" on;
   }
@@ -167,52 +391,30 @@ html.light .glass-card:hover {
 }
 
 @layer utilities {
-  .animate-fade-in {
-    animation: fadeIn 0.8s ease-out forwards;
-  }
-  
-  .animate-slide-up {
-    animation: slideUp 0.8s ease-out forwards;
-  }
-  
-  .animate-fade-in-up {
-    animation: fadeInUp 0.8s ease-out forwards;
-  }
-  
+  .animate-fade-in   { animation: fadeIn   var(--dur-slow) var(--ease-out-expo) forwards; }
+  .animate-slide-up  { animation: slideUp  var(--dur-slow) var(--ease-out-expo) forwards; }
+  .animate-fade-in-up{ animation: fadeInUp var(--dur-slow) var(--ease-out-expo) forwards; }
+
   .delay-100 { animation-delay: 100ms; }
   .delay-200 { animation-delay: 200ms; }
   .delay-300 { animation-delay: 300ms; }
   .delay-400 { animation-delay: 400ms; }
   .delay-500 { animation-delay: 500ms; }
-  
+
   .glass { background: rgba(255,255,255,0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
 }
 
 @keyframes fadeIn {
   from { opacity: 0; }
-  to { opacity: 1; }
+  to   { opacity: 1; }
 }
-
 @keyframes slideUp {
-  from { 
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to { 
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
-
 @keyframes fadeInUp {
-  from { 
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to { 
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 /* Custom scrollbar for a premium feel */
@@ -220,32 +422,40 @@ html.light .glass-card:hover {
   width: 6px;
   height: 8px;
 }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-border-strong); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-fg-subtle); }
 
-::-webkit-scrollbar-track {
-  background: transparent;
+html { scroll-behavior: smooth; }
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
 }
 
-::-webkit-scrollbar-thumb {
-  background: #4f46e5;
-  border-radius: 3px;
+/* Skeleton — token-driven loading shimmer. The base color is the surface
+   token; the highlight stripe is the surface-hover token, layered as a
+   linear-gradient that scrolls horizontally. Themes correctly across
+   dark / light / studio without per-class overrides. */
+.skeleton {
+  background-color: var(--color-surface);
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--color-surface-hover) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: shimmer 1.4s var(--ease-out-expo) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; background-image: none; background-color: var(--color-surface-hover); }
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: #4338ca;
-}
-
-html {
-  scroll-behavior: smooth;
-}
-
-@keyframes shimmer { 
-  0% { background-position: -200% 0; } 
-  100% { background-position: 200% 0; } 
-}
-
-@keyframes glow { 
-  0%, 100% { box-shadow: 0 0 5px rgba(99, 102, 241, 0.3); } 
-  50% { box-shadow: 0 0 20px rgba(99, 102, 241, 0.6); } 
+@keyframes glow {
+  0%, 100% { box-shadow: 0 0 5px rgba(99, 102, 241, 0.3); }
+  50%      { box-shadow: 0 0 20px rgba(99, 102, 241, 0.6); }
 }
 
 .glass {
@@ -255,7 +465,6 @@ html {
 }
 
 /* ═══ Global focus-visible polish (a11y P2 — 2026-04-25) ═══ */
-/* Use focus-visible so mouse users don't see rings, but keyboard users do. */
 button:focus-visible,
 a:focus-visible,
 [role="button"]:focus-visible,
@@ -265,28 +474,26 @@ a:focus-visible,
 input[type="checkbox"]:focus-visible,
 input[type="radio"]:focus-visible,
 input[type="file"]:focus-visible {
-  outline: 2px solid rgba(245, 158, 11, 0.6);
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
-  border-radius: 8px;
-  transition: outline-color 120ms ease;
+  border-radius: var(--radius-md);
+  transition: outline-color var(--dur-fast) var(--ease-out-expo);
 }
 
-/* Inputs/selects/textarea: focused border + ring instead of outline (matches Tailwind look) */
 input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):focus-visible,
 select:focus-visible,
 textarea:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.55);
-  transition: box-shadow 120ms ease;
+  box-shadow: 0 0 0 2px var(--color-accent);
+  transition: box-shadow var(--dur-fast) var(--ease-out-expo);
 }
 
-/* Light mode: amber stays, but base outline color for buttons/links picks up theme */
 html.light button:focus-visible,
 html.light a:focus-visible,
 html.light [role="button"]:focus-visible,
 html.light [role="link"]:focus-visible,
 html.light [role="tab"]:focus-visible {
-  outline-color: rgba(180, 83, 9, 0.7);
+  outline-color: var(--color-accent);
 }
 
 /* Skip-link for keyboard users — hidden until focused */
@@ -305,10 +512,10 @@ html.light [role="tab"]:focus-visible {
   width: auto;
   height: auto;
   padding: 0.5rem 1rem;
-  background: #f59e0b;
-  color: #000;
+  background: var(--color-accent);
+  color: var(--color-fg-on-accent);
   font-weight: 700;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   z-index: 9999;
   outline: 2px solid #fff;
 }
@@ -323,3 +530,85 @@ html.light [role="tab"]:focus-visible {
   }
 }
 
+/* driver.js (onboarding tour) — restyle into our token system. */
+.driver-popover.radix-driver-popover {
+  background: var(--color-bg-elevated);
+  color: var(--color-fg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-4);
+  font-family: var(--font-sans);
+}
+.radix-driver-popover .driver-popover-title {
+  font-family: var(--font-display);
+  color: var(--color-fg);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.radix-driver-popover .driver-popover-description {
+  color: var(--color-fg-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.radix-driver-popover .driver-popover-footer button {
+  background: var(--color-surface-hover);
+  color: var(--color-fg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  font-size: 12px;
+  padding: 6px 12px;
+  text-shadow: none;
+}
+.radix-driver-popover .driver-popover-footer button.driver-popover-next-btn {
+  background: var(--color-accent);
+  color: var(--color-fg-on-accent);
+  border-color: var(--color-accent);
+}
+.radix-driver-popover .driver-popover-progress-text {
+  color: var(--color-fg-subtle);
+  font-size: 11px;
+}
+.radix-driver-popover .driver-popover-arrow-side-top { border-top-color: var(--color-bg-elevated); }
+.radix-driver-popover .driver-popover-arrow-side-bottom { border-bottom-color: var(--color-bg-elevated); }
+.radix-driver-popover .driver-popover-arrow-side-left { border-left-color: var(--color-bg-elevated); }
+.radix-driver-popover .driver-popover-arrow-side-right { border-right-color: var(--color-bg-elevated); }
+
+/* AI streaming text — subtle shimmer on the trailing characters of an
+   in-flight stream so the user perceives "tokens are arriving now". Wrap
+   the partial buffer with <span class="ai-streaming">…</span>. */
+.ai-streaming {
+  background: linear-gradient(
+    90deg,
+    var(--color-fg) 0%,
+    var(--color-fg) 60%,
+    var(--color-accent) 75%,
+    var(--color-fg) 90%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer 1.6s var(--ease-out-expo) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ai-streaming { animation: none; -webkit-text-fill-color: var(--color-fg); }
+}
+
+/* AR ↔ EN locale flip — wedge made visible. Triggered by LocaleToggle
+   adding .locale-flipping to <body> just before the reload that swaps
+   dir + lang attributes. The flip plays through and the reload happens
+   mid-animation so the blank repaint frame is invisible. */
+@keyframes localeFlip {
+  0%   { transform: perspective(1200px) rotateY(0deg);   filter: brightness(1); }
+  50%  { transform: perspective(1200px) rotateY(90deg);  filter: brightness(0.7); }
+  100% { transform: perspective(1200px) rotateY(180deg); filter: brightness(1); }
+}
+body.locale-flipping {
+  animation: localeFlip 360ms var(--ease-out-expo) forwards;
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+}
+@media (prefers-reduced-motion: reduce) {
+  body.locale-flipping { animation: none; }
+}

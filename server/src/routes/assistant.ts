@@ -111,10 +111,11 @@ CRITICAL: When responding as plain text, do NOT wrap it in JSON. Just write natu
 
 // ─── Action Executor ─────────────────────────────────────────────
 
-async function executeAction(action: string, params: any, clientId: string | null): Promise<any> {
+async function executeAction(orgId: string, action: string, params: any, clientId: string | null): Promise<any> {
   switch (action) {
     case 'list_clients':
       return db.client.findMany({
+        where: { orgId },
         select: { id: true, name: true, industry: true, status: true },
         orderBy: { name: 'asc' },
       });
@@ -125,11 +126,11 @@ async function executeAction(action: string, params: any, clientId: string | nul
       const industry = params?.industry?.trim();
       const website = params?.website?.trim();
       const instagramHandle = params?.instagramHandle?.trim();
-      const existing = await db.client.findFirst({ where: { name: { equals: name, mode: 'insensitive' } }, select: { id: true, name: true, slug: true } });
+      const existing = await db.client.findFirst({ where: { orgId, name: { equals: name, mode: 'insensitive' } }, select: { id: true, name: true, slug: true } });
       if (existing) {
         return { alreadyExists: true, id: existing.id, name: existing.name, slug: existing.slug, message: `"${existing.name}" already exists — selecting it instead.` };
       }
-      const client = await clientService.create({
+      const client = await clientService.create(orgId, {
         name,
         ...(industry ? { industry } : {}),
         ...(website ? { website } : {}),
@@ -147,7 +148,7 @@ async function executeAction(action: string, params: any, clientId: string | nul
 
     case 'get_brief': {
       if (!clientId) return { error: 'No client selected' };
-      const brief = await briefService.getByClientId(clientId);
+      const brief = await briefService.getByClientId(orgId, clientId);
       if (!brief) return { error: 'No brief found for this client' };
       return {
         objective: brief.objective,
@@ -163,10 +164,9 @@ async function executeAction(action: string, params: any, clientId: string | nul
       if (!clientId) return { error: 'No client selected' };
       const month = params?.month || new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });
       const count = params?.count || 18;
-      // Check for duplicate
-      const existing = await db.calendarMonth.findFirst({ where: { clientId, month } });
+      const existing = await db.calendarMonth.findFirst({ where: { orgId, clientId, month } });
       if (existing) return { error: `Calendar for "${month}" already exists. Delete it first.`, existingId: existing.id };
-      const job = createJob('generate-month', { clientId, month, pieceCount: count });
+      const job = createJob('generate-month', { orgId, clientId, month, pieceCount: count });
       processJob(job.id, generateMonthWorker);
       return { jobId: job.id, month, pieceCount: count, status: 'started' };
     }
@@ -194,7 +194,7 @@ async function executeAction(action: string, params: any, clientId: string | nul
       if (!month) {
         // Return list of all months
         const months = await db.calendarMonth.findMany({
-          where: { clientId },
+          where: { orgId, clientId, isArchived: false },
           orderBy: { createdAt: 'desc' },
           take: 5,
           select: { id: true, month: true, status: true, _count: { select: { posts: true } } },
@@ -202,7 +202,7 @@ async function executeAction(action: string, params: any, clientId: string | nul
         return months.map(m => ({ month: m.month, status: m.status, postCount: m._count.posts }));
       }
       const cal = await db.calendarMonth.findFirst({
-        where: { clientId, month },
+        where: { orgId, clientId, month },
         include: { posts: { select: { id: true, title: true, platform: true, status: true, caption: true } } },
       });
       if (!cal) return { error: `No calendar found for "${month}"` };
@@ -232,18 +232,19 @@ async function executeAction(action: string, params: any, clientId: string | nul
       if (!clientId) return { error: 'No client selected' };
       const month = params?.month;
       if (!month) return { error: 'month is required' };
-      const cal = await db.calendarMonth.findFirst({ where: { clientId, month } });
+      const cal = await db.calendarMonth.findFirst({ where: { orgId, clientId, month } });
       if (!cal) return { error: `No calendar found for "${month}"` };
-      await db.calendarPost.deleteMany({ where: { calendarMonthId: cal.id } });
-      await db.calendarMonth.delete({ where: { id: cal.id } });
+      await db.calendarPost.deleteMany({ where: { orgId, calendarMonthId: cal.id } });
+      await db.calendarMonth.delete({ where: { id: cal.id, orgId } });
       return { deleted: true, month };
     }
 
     case 'get_stats': {
-      const clients = await db.client.count();
-      const posts = await db.calendarPost.count();
-      const approved = await db.calendarPost.count({ where: { status: 'approved' } });
-      const months = await db.calendarMonth.count();
+      const liveFilter = { orgId, calendarMonth: { isArchived: false } };
+      const clients = await db.client.count({ where: { orgId } });
+      const posts = await db.calendarPost.count({ where: liveFilter });
+      const approved = await db.calendarPost.count({ where: { status: 'approved', ...liveFilter } });
+      const months = await db.calendarMonth.count({ where: { orgId, isArchived: false } });
       return { clients, posts, approved, months, approvalRate: posts > 0 ? Math.round((approved / posts) * 100) : 0 };
     }
 
@@ -260,12 +261,14 @@ async function executeAction(action: string, params: any, clientId: string | nul
     case 'update_post': {
       const postId = params?.postId;
       if (!postId) return { error: 'postId is required' };
+      const existing = await db.calendarPost.findUnique({ where: { id: postId, orgId }, select: { orgId: true } });
+      if (!existing) return { error: 'post not found' };
       const updateData: any = {};
       if (params?.caption) updateData.caption = params.caption;
       if (params?.status) updateData.status = params.status;
       if (params?.title) updateData.title = params.title;
       if (Object.keys(updateData).length === 0) return { error: 'Nothing to update — provide caption, status, or title' };
-      const post = await db.calendarPost.update({ where: { id: postId }, data: updateData });
+      const post = await db.calendarPost.update({ where: { id: postId, orgId }, data: updateData });
       return { updated: true, postId: post.id, title: post.title, status: post.status };
     }
 
@@ -281,6 +284,7 @@ export async function assistantRoutes(app: FastifyInstance) {
 
   app.post('/assistant/chat', async (request, reply) => {
     const { messages, clientId } = (request.body as ChatBody) || {};
+    const orgId = request.orgId!;
     if (!Array.isArray(messages) || messages.length === 0) {
       return reply.status(400).send({ error: 'messages array is required' });
     }
@@ -289,7 +293,7 @@ export async function assistantRoutes(app: FastifyInstance) {
     let clientContext = '';
     if (clientId) {
       try {
-        const client = await db.client.findUnique({ where: { id: clientId }, include: { brief: true } });
+        const client = await db.client.findUnique({ where: { id: clientId, orgId }, include: { brief: true } });
         if (client) {
           clientContext = `\n\nCURRENT CLIENT: ${client.name}`;
           if (client.industry) clientContext += ` (${client.industry})`;
@@ -304,7 +308,7 @@ export async function assistantRoutes(app: FastifyInstance) {
           if (client.brief?.products) clientContext += `\nProducts/Services: ${client.brief.products}`;
           // Add calendar stats
           const calStats = await db.calendarMonth.findMany({
-            where: { clientId },
+            where: { orgId, clientId },
             orderBy: { createdAt: 'desc' },
             take: 3,
             select: { month: true, status: true, _count: { select: { posts: true } } },
@@ -349,13 +353,14 @@ export async function assistantRoutes(app: FastifyInstance) {
           const actionParams = parsed.params || {};
 
           // Execute the action
-          const actionResult = await executeAction(actionName, actionParams, clientId || null);
+          const actionResult = await executeAction(orgId, actionName, actionParams, clientId || null);
 
           actionTaken = { type: actionName, params: actionParams, result: actionResult };
 
           // Audit log the action
-          const userId = (request as any).user?.id;
+          const userId = request.user?.userId;
           auditService.log({
+            orgId,
             userId,
             clientId: clientId || undefined,
             action: `assistant:${actionName}`,

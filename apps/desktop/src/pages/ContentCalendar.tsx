@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
+import { t } from '../i18n';
 import { Calendar as CalendarIcon, X, ExternalLink, ChevronLeft, ChevronRight, Instagram, Linkedin, Twitter, Facebook, Video, Sparkles, FileText, ArrowRight, Share2, Loader2, Copy, Download, Edit3, Check, Save, Trash2, Building2, ChevronDown, ImagePlus, Archive, RotateCcw, History, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { validateCaption } from '../lib/platform-limits';
@@ -6,6 +7,10 @@ import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { useClients } from '../lib/client-context';
 import { calendarApi, reviewApi, exportsApi, jobsApi, visualRefsApi } from '../lib/backend-api';
 import type { CalendarMonthSummary } from '../lib/backend-api';
+import { hijriDateLabel, holidaysForDate, isInRamadan, type Holiday } from '../lib/gcc-holidays';
+import { SkeletonRow, SkeletonAnnouncer } from '../components/ui/Skeleton';
+import { motionUI, motionBase, motionInstant, motionHero } from '../lib/motion';
+import { HoverCard } from '../components/ui/HoverCard';
 import { STATUS_LABEL, normalizeStatus } from '../lib/status-enum';
 import VisualRefGrid from '../components/VisualRefGrid';
 import MonthlyReportButton from '../components/MonthlyReportButton';
@@ -71,6 +76,24 @@ export default function ContentCalendar() {
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [platformFilter, setPlatformFilter] = useState('All');
   const [monthOffset, setMonthOffset] = useState(0);
+  const [showHijri, setShowHijri] = useState<boolean>(() => {
+    try { return localStorage.getItem('radix.calendar.hijri') === '1'; } catch { return false; }
+  });
+  type Density = 'compact' | 'comfortable' | 'spacious';
+  const [density, setDensity] = useState<Density>(() => {
+    try {
+      const saved = localStorage.getItem('radix.calendar.density') as Density | null;
+      return saved === 'compact' || saved === 'spacious' ? saved : 'comfortable';
+    } catch { return 'comfortable'; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('radix.calendar.density', density); } catch { /* ssr */ }
+  }, [density]);
+  const densityClasses = {
+    compact:     { gap: 'gap-1', padding: 'p-1.5', dayText: 'text-[11px]', subText: 'text-[8px]' },
+    comfortable: { gap: 'gap-2', padding: 'p-2',   dayText: 'text-xs',     subText: 'text-[9px]' },
+    spacious:    { gap: 'gap-3', padding: 'p-3',   dayText: 'text-sm',     subText: 'text-[10px]' },
+  }[density];
   const [backendMonth, setBackendMonth] = useState<any>(null);
   const [loadingBackend, setLoadingBackend] = useState(false);
   const [reviewLink, setReviewLink] = useState<string | null>(null);
@@ -461,7 +484,7 @@ export default function ContentCalendar() {
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
         className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-3xl font-black text-white tracking-tight">Content Calendar</h1>
+          <h1 className="text-3xl font-black text-white tracking-tight">{t('page.calendar.title')}</h1>
           <div className="flex items-center gap-2 mt-1.5 flex-wrap">
             {/* Client selector — drives the entire page */}
             <div className="relative">
@@ -537,7 +560,7 @@ export default function ContentCalendar() {
 
       {/* Empty state */}
       {totalPieces === 0 && (
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ ...motionBase, delay: 0.1 }}
           className="rounded-3xl bg-[#0c0c0c] border border-white/[0.06] p-12 text-center">
           <CalendarIcon className="w-12 h-12 text-zinc-800 mx-auto mb-4" />
           <h2 className="text-xl font-bold text-zinc-400 mb-2">No content scheduled</h2>
@@ -553,7 +576,7 @@ export default function ContentCalendar() {
       {totalPieces > 0 && (
         <>
           {/* Controls */}
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ ...motionBase, delay: 0.05 }}
             className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <button onClick={() => setMonthOffset(o => o - 1)}
@@ -569,6 +592,36 @@ export default function ContentCalendar() {
                 <button onClick={() => setMonthOffset(0)}
                   className="text-[10px] text-zinc-600 hover:text-white transition-colors cursor-pointer">Today</button>
               )}
+              <button
+                onClick={() => {
+                  const next = !showHijri;
+                  setShowHijri(next);
+                  try { localStorage.setItem('radix.calendar.hijri', next ? '1' : '0'); } catch {}
+                }}
+                title="Toggle Hijri / Gregorian dual display"
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wider transition-all cursor-pointer ${
+                  showHijri ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'text-zinc-600 hover:text-zinc-300 border border-white/[0.06] hover:border-white/[0.12]'
+                }`}>
+                ه Hijri
+              </button>
+              {/* Density toggle — compact / comfortable / spacious */}
+              <div className="inline-flex items-center rounded-lg border" style={{ borderColor: 'var(--color-border)' }}>
+                {(['compact','comfortable','spacious'] as const).map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => setDensity(d)}
+                    title={`${d[0].toUpperCase() + d.slice(1)} density`}
+                    aria-pressed={density === d}
+                    className="px-2 py-1 text-[10px] font-medium uppercase tracking-wider transition-colors cursor-pointer first:rounded-l-lg last:rounded-r-lg"
+                    style={{
+                      background: density === d ? 'var(--color-surface-active)' : 'transparent',
+                      color: density === d ? 'var(--color-fg)' : 'var(--color-fg-subtle)',
+                    }}
+                  >
+                    {d === 'compact' ? '·' : d === 'comfortable' ? '··' : '···'}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="flex items-center gap-1.5">
               {['All', ...platforms].map(p => (
@@ -585,14 +638,14 @@ export default function ContentCalendar() {
           </motion.div>
 
           {/* Calendar Grid */}
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ ...motionBase, delay: 0.1 }}
             className="rounded-3xl bg-[#0c0c0c] border border-white/[0.06] p-5">
-            <div className="grid grid-cols-7 gap-2 mb-2">
+            <div className={`grid grid-cols-7 ${densityClasses.gap} mb-2`}>
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
                 <div key={d} className="text-center text-[10px] font-bold text-zinc-700 uppercase tracking-wider py-2">{d}</div>
               ))}
             </div>
-            <div className="grid grid-cols-7 gap-2">
+            <div className={`grid grid-cols-7 ${densityClasses.gap}`}>
               {Array.from({ length: firstDayOffset }).map((_, i) => (
                 <div key={`empty-${i}`} className="aspect-square rounded-xl bg-white/[0.01]" />
               ))}
@@ -600,18 +653,38 @@ export default function ContentCalendar() {
                 const pieces = filteredDayPieces[day] || [];
                 const isSelected = selectedDay === day;
                 const isToday = monthOffset === 0 && day === now.getDate();
+                const cellDate = new Date(displayDate.getFullYear(), displayDate.getMonth(), day);
+                const dayHolidays: Holiday[] = holidaysForDate(cellDate);
+                const ramadan = isInRamadan(cellDate);
+                const hijri = showHijri ? hijriDateLabel(cellDate) : '';
+                const hijriShort = hijri ? hijri.split(' ').slice(0, 2).join(' ') : '';
                 return (
-                  <button key={day}
+                  <HoverCard.Root key={day} openDelay={pieces.length > 0 ? 250 : 9_999_999}>
+                  <HoverCard.Trigger asChild>
+                  <button
                     onClick={() => setSelectedDay(isSelected ? null : day)}
-                    className={`aspect-square rounded-xl border p-2 flex flex-col transition-all cursor-pointer relative ${
+                    title={dayHolidays.map((h) => h.name).join(' · ') || (hijri || undefined)}
+                    className={`aspect-square rounded-xl border ${densityClasses.padding} flex flex-col transition-all cursor-pointer relative ${
                       isSelected ? 'bg-white/[0.08] border-white/[0.2]'
+                        : dayHolidays.length > 0 ? 'bg-amber-500/[0.06] border-amber-500/30 hover:border-amber-500/50'
+                        : ramadan ? 'bg-emerald-500/[0.04] border-emerald-500/20 hover:border-emerald-500/40'
                         : pieces.length > 0 ? 'bg-white/[0.03] border-white/[0.06] hover:border-white/[0.12]'
                         : 'bg-white/[0.01] border-white/[0.03] hover:bg-white/[0.02]'
                     }`}>
-                    <span className={`text-xs font-bold ${
-                      isToday ? 'text-white bg-white/20 w-6 h-6 rounded-full flex items-center justify-center' :
-                      pieces.length > 0 ? 'text-zinc-300' : 'text-zinc-700'
-                    }`}>{day}</span>
+                    <div className="flex items-start justify-between w-full">
+                      <span className={`text-xs font-bold ${
+                        isToday ? 'text-white bg-white/20 w-6 h-6 rounded-full flex items-center justify-center' :
+                        pieces.length > 0 ? 'text-zinc-300' : 'text-zinc-700'
+                      }`}>{day}</span>
+                      {showHijri && hijriShort && (
+                        <span className="text-[8px] font-medium text-amber-400/70 leading-tight text-right">{hijriShort}</span>
+                      )}
+                    </div>
+                    {dayHolidays.length > 0 && (
+                      <span className="text-[7px] uppercase tracking-wider text-amber-300/80 mt-0.5 truncate w-full" title={dayHolidays[0].name}>
+                        {dayHolidays[0].name.length > 12 ? dayHolidays[0].name.slice(0, 12) + '…' : dayHolidays[0].name}
+                      </span>
+                    )}
                     {pieces.length > 0 && (
                       <div className="flex flex-wrap gap-0.5 mt-auto">
                         {pieces.slice(0, 5).map((p: any, j: number) => (
@@ -621,6 +694,38 @@ export default function ContentCalendar() {
                       </div>
                     )}
                   </button>
+                  </HoverCard.Trigger>
+                  {pieces.length > 0 && (
+                    <HoverCard.Content side="top" align="center">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--color-fg-subtle)' }}>
+                            {new Date(displayDate.getFullYear(), displayDate.getMonth(), day).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}
+                          </span>
+                          <span className="text-[10px] tabular-nums" style={{ color: 'var(--color-fg-muted)' }}>
+                            {pieces.length} post{pieces.length === 1 ? '' : 's'}
+                          </span>
+                        </div>
+                        {pieces.slice(0, 3).map((p: any, j: number) => (
+                          <div key={j} className="flex items-start gap-2 rounded-lg p-2" style={{ background: 'var(--color-surface)' }}>
+                            <div className={`mt-0.5 h-2 w-2 shrink-0 rounded-full ${getPlatformColor(p.platform).dot}`} />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-fg-muted)' }}>{p.platform}</p>
+                              <p className="mt-0.5 line-clamp-2 text-[12px] leading-snug" style={{ color: 'var(--color-fg)' }}>
+                                {p.caption || p.brief || '(no caption)'}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                        {pieces.length > 3 && (
+                          <p className="text-center text-[10px]" style={{ color: 'var(--color-fg-subtle)' }}>
+                            + {pieces.length - 3} more — click to open
+                          </p>
+                        )}
+                      </div>
+                    </HoverCard.Content>
+                  )}
+                  </HoverCard.Root>
                 );
               })}
             </div>
@@ -650,7 +755,7 @@ export default function ContentCalendar() {
 
                     return (
                       <motion.div key={piece.id || i}
-                        initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
+                        initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ ...motionUI, delay: i * 0.05 }}
                         className={`rounded-2xl border p-5 space-y-3 ${isEditing ? 'bg-white/[0.04] border-violet-500/30' : 'bg-white/[0.02] border-white/[0.05]'}`}>
 
                         {/* Header: Platform + Format + Edit/Save buttons */}
@@ -915,8 +1020,11 @@ export default function ContentCalendar() {
 
               <div className="flex-1 overflow-y-auto p-5 space-y-3">
                 {loadingArchived && (
-                  <div className="flex items-center justify-center py-10">
-                    <Loader2 className="w-5 h-5 animate-spin text-zinc-500" />
+                  <div className="space-y-2">
+                    <SkeletonAnnouncer label="Loading archived months…" />
+                    {Array.from({ length: 4 }).map((_, i) => (
+                      <SkeletonRow key={i} delay={i * 70} />
+                    ))}
                   </div>
                 )}
 
@@ -997,7 +1105,7 @@ export default function ContentCalendar() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
+            transition={motionInstant}
             className="fixed inset-0 z-popover bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
             onClick={() => setShowArchiveConfirm(false)}
           >
@@ -1008,7 +1116,7 @@ export default function ContentCalendar() {
               initial={{ opacity: 0, scale: 0.96, y: 8 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 8 }}
-              transition={{ duration: 0.18, ease: [0.2, 0.8, 0.2, 1] }}
+              transition={motionUI}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-md rounded-2xl bg-[#0a0a0a] border border-white/10 shadow-2xl shadow-black/50 overflow-hidden"
             >

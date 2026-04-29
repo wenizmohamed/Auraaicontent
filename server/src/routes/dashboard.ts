@@ -8,24 +8,26 @@ export async function dashboardRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authGuard);
 
   // GET /api/dashboard/stats
-  app.get('/dashboard/stats', async (_request, reply) => {
+  app.get('/dashboard/stats', async (request, reply) => {
+    const orgId = request.orgId!;
     try {
-      // ── Clients ────────────────────────────────────────────────
       const [totalClients, withBrief] = await Promise.all([
-        db.client.count(),
-        db.clientBrief.count(),
+        db.client.count({ where: { orgId } }),
+        db.clientBrief.count({ where: { orgId } }),
       ]);
 
-      // ── Content ────────────────────────────────────────────────
+      const liveMonthFilter = { orgId, calendarMonth: { isArchived: false, isTest: false } };
       const [totalMonths, totalPosts, statusGroups, platformGroups] = await Promise.all([
-        db.calendarMonth.count(),
-        db.calendarPost.count(),
+        db.calendarMonth.count({ where: { orgId, isArchived: false, isTest: false } }),
+        db.calendarPost.count({ where: liveMonthFilter }),
         db.calendarPost.groupBy({
           by: ['status'],
+          where: liveMonthFilter,
           _count: { _all: true },
         }),
         db.calendarPost.groupBy({
           by: ['platform'],
+          where: liveMonthFilter,
           _count: { _all: true },
         }),
       ]);
@@ -44,40 +46,23 @@ export async function dashboardRoutes(app: FastifyInstance) {
         byPlatform[g.platform] = g._count._all;
       }
 
-      // ── Knowledge ──────────────────────────────────────────────
       const [totalItems, totalChunks] = await Promise.all([
-        db.knowledgeItem.count(),
-        db.knowledgeChunk.count(),
+        db.knowledgeItem.count({ where: { orgId } }),
+        db.knowledgeChunk.count({ where: { orgId } }),
       ]);
 
-      // ── Activity — last 5 calendar months with post count ─────
-      // Exclude smoke-test months from the user-visible Recent Months feed.
-      // (Internal totals above still include them — they're real rows.)
       const recentMonths = await db.calendarMonth.findMany({
-        where: { isTest: false },
+        where: { orgId, isTest: false, isArchived: false },
         orderBy: { createdAt: 'desc' },
         take: 5,
         include: { _count: { select: { posts: true } } },
       });
 
       return {
-        clients: {
-          total: totalClients,
-          withBrief,
-        },
-        content: {
-          totalMonths,
-          totalPosts,
-          byStatus,
-          byPlatform,
-        },
-        generation: {
-          recentJobs: [] as { month: string; clientId: string; createdAt: string }[],
-        },
-        knowledge: {
-          totalItems,
-          totalChunks,
-        },
+        clients: { total: totalClients, withBrief },
+        content: { totalMonths, totalPosts, byStatus, byPlatform },
+        generation: { recentJobs: [] as { month: string; clientId: string; createdAt: string }[] },
+        knowledge: { totalItems, totalChunks },
         activity: {
           recentMonths: recentMonths.map((m) => ({
             id: m.id,
@@ -94,9 +79,127 @@ export async function dashboardRoutes(app: FastifyInstance) {
     }
   });
 
+  // GET /api/dashboard/activity — real user activity feed from AuditLog
+  app.get('/dashboard/activity', async (request, reply) => {
+    const orgId = request.orgId!;
+    try {
+      const logs = await db.auditLog.findMany({
+        where: { orgId },
+        orderBy: { createdAt: 'desc' },
+        take: 30,
+      });
+      const clientIds = Array.from(new Set(logs.map(l => l.clientId).filter(Boolean) as string[]));
+      const clients = clientIds.length > 0
+        ? await db.client.findMany({
+            where: { orgId, id: { in: clientIds } },
+            select: { id: true, name: true },
+          })
+        : [];
+      const clientById = new Map(clients.map(c => [c.id, c.name]));
+
+      return logs.map(l => ({
+        id: l.id,
+        action: l.action,
+        entityType: l.entityType,
+        entityId: l.entityId,
+        clientId: l.clientId,
+        clientName: l.clientId ? (clientById.get(l.clientId) || null) : null,
+        payload: l.payload,
+        createdAt: l.createdAt.toISOString(),
+      }));
+    } catch (err) {
+      app.log.error(err, 'activity feed failed');
+      return reply.status(500).send({ error: 'Failed to fetch activity' });
+    }
+  });
+
+  // GET /api/dashboard/insights — action center, trends, recent visual assets
+  app.get('/dashboard/insights', async (request, reply) => {
+    const orgId = request.orgId!;
+    try {
+      const now = new Date();
+      const dayMs = 86400000;
+      const sevenDaysAgo = new Date(now.getTime() - 7 * dayMs);
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * dayMs);
+
+      const liveMonth = { orgId, calendarMonth: { isArchived: false, isTest: false } };
+      const [pendingReview, draftsOlderThan7d, recentAssets, dailyPosts] = await Promise.all([
+        db.calendarPost.count({ where: { status: 'changes_requested', ...liveMonth } }),
+        db.calendarPost.count({
+          where: { status: 'draft', createdAt: { lt: sevenDaysAgo }, ...liveMonth },
+        }),
+        db.asset.findMany({
+          where: { orgId, mimeType: { in: ['image/png', 'image/jpeg', 'image/webp', 'video/mp4'] } },
+          orderBy: { createdAt: 'desc' },
+          take: 8,
+          select: { id: true, fileUrl: true, thumbUrl: true, mimeType: true, name: true, createdAt: true, client: { select: { name: true } } },
+        }),
+        db.calendarPost.findMany({
+          where: { createdAt: { gte: thirtyDaysAgo }, ...liveMonth },
+          select: { createdAt: true, status: true, platform: true },
+        }),
+      ]);
+
+      const sparkline: { date: string; posts: number; approved: number }[] = [];
+      for (let i = 29; i >= 0; i--) {
+        const day = new Date(now.getTime() - i * dayMs);
+        const dayStr = day.toISOString().slice(0, 10);
+        const dayPosts = dailyPosts.filter(p => p.createdAt.toISOString().slice(0, 10) === dayStr);
+        sparkline.push({
+          date: dayStr,
+          posts: dayPosts.length,
+          approved: dayPosts.filter(p => p.status === 'approved').length,
+        });
+      }
+
+      const last7 = dailyPosts.filter(p => p.createdAt >= sevenDaysAgo).length;
+      const prev7 = dailyPosts.filter(p => p.createdAt < sevenDaysAgo && p.createdAt >= new Date(now.getTime() - 14 * dayMs)).length;
+      const postsTrend = prev7 > 0 ? Math.round(((last7 - prev7) / prev7) * 100) : (last7 > 0 ? 100 : 0);
+
+      const insights: { type: 'positive' | 'warning' | 'info'; text: string }[] = [];
+      if (postsTrend >= 25) insights.push({ type: 'positive', text: `Posts up ${postsTrend}% vs last week — momentum is strong` });
+      else if (postsTrend <= -25) insights.push({ type: 'warning', text: `Posts down ${Math.abs(postsTrend)}% vs last week — slowing down` });
+      if (draftsOlderThan7d >= 5) insights.push({ type: 'warning', text: `${draftsOlderThan7d} drafts have been sitting for 7+ days` });
+      if (pendingReview >= 1) insights.push({ type: 'info', text: `${pendingReview} post${pendingReview === 1 ? '' : 's'} need${pendingReview === 1 ? 's' : ''} revision before approval` });
+
+      const platformApproved: Record<string, number> = {};
+      for (const p of dailyPosts) {
+        if (p.status === 'approved') platformApproved[p.platform] = (platformApproved[p.platform] || 0) + 1;
+      }
+      const topPlatform = Object.entries(platformApproved).sort(([, a], [, b]) => b - a)[0];
+      if (topPlatform && topPlatform[1] >= 3) {
+        insights.push({ type: 'positive', text: `${topPlatform[0]} is your top platform with ${topPlatform[1]} approved posts this month` });
+      }
+
+      return {
+        actionCenter: {
+          pendingReview,
+          draftsStuck: draftsOlderThan7d,
+          totalActions: pendingReview + draftsOlderThan7d,
+        },
+        trends: { sparkline, postsTrend, last7Days: last7 },
+        visualShowcase: recentAssets.map(a => ({
+          id: a.id,
+          fileUrl: a.fileUrl,
+          thumbUrl: a.thumbUrl,
+          mimeType: a.mimeType,
+          name: a.name,
+          createdAt: a.createdAt.toISOString(),
+          clientName: a.client?.name || null,
+        })),
+        insights,
+      };
+    } catch (err) {
+      app.log.error(err, 'dashboard insights failed');
+      return reply.status(500).send({ error: 'Failed to fetch insights' });
+    }
+  });
+
   // GET /api/dashboard/ai-stats — provider health, token efficiency, fallback rates
-  app.get('/dashboard/ai-stats', async () => {
-    const entries = getAiTelemetry();
+  // (telemetry is in-memory and global; per-org breakdown lands in Phase 2 via UsageEvent)
+  app.get('/dashboard/ai-stats', async (_request, reply) => {
+    try {
+      const entries = getAiTelemetry();
 
     const providers: Record<string, {
       calls: number; errors: number; totalLatency: number;
@@ -155,5 +258,9 @@ export async function dashboardRoutes(app: FastifyInstance) {
       })),
       recent: entries.slice(-20).reverse(),
     };
+    } catch (err) {
+      app.log.error(err, 'ai-stats failed');
+      return reply.status(500).send({ error: 'Failed to fetch AI stats' });
+    }
   });
 }

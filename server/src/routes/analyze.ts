@@ -70,7 +70,7 @@ export async function analyzeRoutes(app: FastifyInstance) {
 
     try {
       const result = await aiRouter.text({ prompt: llmPrompt, json: true });
-      const out = result.output as Record<string, unknown> | null;
+      const out = result.output as any;
 
       // If the LLM flagged it as blocked content
       if (out?.error && typeof out.error === 'string') {
@@ -79,18 +79,18 @@ export async function analyzeRoutes(app: FastifyInstance) {
 
       const safe = {
         summary: typeof out?.summary === 'string' ? out.summary : '',
-        themes: Array.isArray(out?.themes) ? out.themes.filter((t: unknown) => typeof t === 'string') : [],
+        themes: Array.isArray(out?.themes) ? out.themes.filter((t: any) => typeof t === 'string') : [],
         targetAudience: typeof out?.targetAudience === 'string' ? out.targetAudience : '',
-        socialHooks: Array.isArray(out?.socialHooks) ? out.socialHooks.filter((h: unknown) => typeof h === 'string') : [],
+        socialHooks: Array.isArray(out?.socialHooks) ? out.socialHooks.filter((h: any) => typeof h === 'string') : [],
         timestamps: Array.isArray(out?.timestamps)
           ? out.timestamps
-              .filter((t: unknown): t is Record<string, unknown> => !!t && typeof t === 'object')
-              .map((t) => ({
+              .filter((t: any) => t && typeof t === 'object')
+              .map((t: any) => ({
                 time: typeof t.time === 'string' ? t.time : '',
                 description: typeof t.description === 'string' ? t.description : '',
               }))
           : [],
-        suggestions: Array.isArray(out?.suggestions) ? out.suggestions.filter((s: unknown) => typeof s === 'string') : [],
+        suggestions: Array.isArray(out?.suggestions) ? out.suggestions.filter((s: any) => typeof s === 'string') : [],
       };
 
       return {
@@ -98,7 +98,7 @@ export async function analyzeRoutes(app: FastifyInstance) {
         provider: result.provider,
         latencyMs: result.latencyMs,
       };
-    } catch (err: unknown) {
+    } catch (err: any) {
       return sendAiError(reply, err, 'Video analysis failed');
     }
   });

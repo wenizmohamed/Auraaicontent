@@ -22,6 +22,10 @@ import { analyzeRoutes } from './routes/analyze.js';
 import { visualRefRoutes } from './routes/visualRefs.js';
 import { dashboardRoutes } from './routes/dashboard.js';
 import { agentRoutes } from './routes/agent.js';
+import { billingRoutes } from './routes/billing.js';
+import { adminRoutes } from './routes/admin.js';
+import { orgsRoutes, invitationsRoutes } from './routes/orgs.js';
+import { initSentry } from './lib/sentry.js';
 import { registerRateLimiter } from './middleware/rate-limiter.js';
 import { kimiStatus } from './services/providers/kimi.provider.js';
 import { chainStatus, DEFAULT_CHAIN } from './services/llm/chat.js';
@@ -32,6 +36,9 @@ const GIT_COMMIT = (() => { try { return execSync('git rev-parse --short HEAD', 
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
+
+  // Sentry — no-op unless SENTRY_DSN + @sentry/node are configured.
+  await initSentry(app);
 
   // Tolerate empty JSON body on DELETE — Fastify 5 throws FST_ERR_CTP_EMPTY_JSON_BODY
   // when Content-Type: application/json is sent with no body.
@@ -207,6 +214,10 @@ export async function buildApp() {
   await app.register(visualRefRoutes, { prefix: '/api' });
   await app.register(dashboardRoutes, { prefix: '/api' });
   await app.register(agentRoutes, { prefix: '/api/agent' });
+  await app.register(billingRoutes, { prefix: '/api/billing' });
+  await app.register(adminRoutes, { prefix: '/api/admin' });
+  await app.register(orgsRoutes, { prefix: '/api/orgs' });
+  await app.register(invitationsRoutes, { prefix: '/api/invitations' });
 
   return app;
 }

@@ -1,48 +1,54 @@
-import { FastifyInstance, FastifyRequest } from 'fastify';
+import { FastifyInstance } from 'fastify';
 import bcrypt from 'bcryptjs';
-import { z } from 'zod';
 import { db } from '../db/prisma.js';
 import { signToken, authGuard, mintRefreshToken, hashRefreshToken, type JwtPayload } from '../middleware/auth.js';
-import { parseOr400 } from '../lib/parseOr400.js';
 
-function reqMeta(request: FastifyRequest): { userAgent: string | null; ip: string | null } {
-  const ua = request.headers['user-agent']?.slice(0, 300) ?? null;
-  const ip = request.ip ?? null;
+function reqMeta(request: any): { userAgent: string | null; ip: string | null } {
+  const ua = (request.headers['user-agent'] as string | undefined)?.slice(0, 300) ?? null;
+  const ip = (request.ip as string | undefined) ?? null;
   return { userAgent: ua, ip };
 }
 
-// Zod schemas — single source of truth for request shape + validation.
-const LoginBody = z.object({
-  email: z.string().email().max(254),
-  password: z.string().min(1).max(200),
-  rememberMe: z.boolean().optional(),
-});
-const RefreshBody = z.object({
-  refreshToken: z.string().min(1).max(512),
-});
-const RegisterBody = z.object({
-  email: z.string().email().max(254),
-  password: z.string().min(8).max(200),
-  name: z.string().min(2).max(80),
-  rememberMe: z.boolean().optional(),
-});
-const UpdateMeBody = z.object({
-  name: z.string().trim().min(2).max(80),
-});
-const PasswordBody = z.object({
-  currentPassword: z.string().min(1).max(200),
-  newPassword: z.string().min(8).max(200),
-});
+// Pick the user's active org. Prefers User.currentOrgId; falls back to
+// their first OrgMembership; returns null if they have none. Multi-org
+// users hit /api/auth/switch-org to change.
+async function resolveActiveOrg(userId: string): Promise<{ orgId: string; orgRole: string } | null> {
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: { currentOrgId: true },
+  });
 
-// parseOr400 moved to ../lib/parseOr400.js — DRY across the route layer (S2).
+  if (user?.currentOrgId) {
+    const mem = await db.orgMembership.findUnique({
+      where: { userId_orgId: { userId, orgId: user.currentOrgId } },
+    });
+    if (mem) return { orgId: mem.orgId, orgRole: mem.role };
+  }
+
+  const first = await db.orgMembership.findFirst({
+    where: { userId },
+    orderBy: { createdAt: 'asc' },
+  });
+  if (first) {
+    await db.user.update({ where: { id: userId }, data: { currentOrgId: first.orgId } });
+    return { orgId: first.orgId, orgRole: first.role };
+  }
+  return null;
+}
 
 export async function authRoutes(app: FastifyInstance) {
 
   // POST /api/auth/login
   app.post('/login', async (request, reply) => {
-    const body = parseOr400(LoginBody, request.body, reply);
-    if (!body) return;
-    const { email, password, rememberMe } = body;
+    const { email, password, rememberMe } = request.body as {
+      email: string;
+      password: string;
+      rememberMe?: boolean;
+    };
+
+    if (!email || !password) {
+      return reply.status(400).send({ error: 'Email and password required' });
+    }
 
     const user = await db.user.findUnique({ where: { email } });
     if (!user) {
@@ -54,8 +60,13 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.status(401).send({ error: 'Invalid credentials' });
     }
 
+    const active = await resolveActiveOrg(user.id);
+    if (!active) {
+      return reply.status(403).send({ error: 'Account has no organization. Contact support.' });
+    }
+
     const token = signToken(
-      { userId: user.id, email: user.email, role: user.role },
+      { userId: user.id, email: user.email, role: user.role, orgId: active.orgId, orgRole: active.orgRole },
       Boolean(rememberMe),
     );
     const refresh = mintRefreshToken();
@@ -69,12 +80,20 @@ export async function authRoutes(app: FastifyInstance) {
         ip: meta.ip,
       },
     });
+
+    const memberships = await db.orgMembership.findMany({
+      where: { userId: user.id },
+      include: { org: { select: { id: true, name: true, slug: true, plan: true } } },
+    });
+
     return {
       token,
       refreshToken: refresh.raw,
       refreshExpiresAt: refresh.expiresAt.toISOString(),
       rememberMe: Boolean(rememberMe),
       user: { id: user.id, email: user.email, name: user.name, role: user.role },
+      activeOrgId: active.orgId,
+      memberships: memberships.map((m) => ({ orgId: m.orgId, role: m.role, org: m.org })),
     };
   });
 
@@ -82,9 +101,10 @@ export async function authRoutes(app: FastifyInstance) {
   // presented refresh token and issues a new pair.  Reuse of a revoked
   // token triggers a full user-wide revocation (compromise signal).
   app.post('/refresh', async (request, reply) => {
-    const body = parseOr400(RefreshBody, request.body, reply);
-    if (!body) return;
-    const { refreshToken } = body;
+    const { refreshToken } = (request.body ?? {}) as { refreshToken?: string };
+    if (!refreshToken || typeof refreshToken !== 'string') {
+      return reply.status(400).send({ error: 'refreshToken required' });
+    }
     const hash = hashRefreshToken(refreshToken);
     const row = await db.refreshToken.findUnique({ where: { tokenHash: hash }, include: { user: true } });
     if (!row) {
@@ -103,7 +123,11 @@ export async function authRoutes(app: FastifyInstance) {
     }
 
     const user = row.user;
-    const newAccess = signToken({ userId: user.id, email: user.email, role: user.role });
+    const active = await resolveActiveOrg(user.id);
+    if (!active) {
+      return reply.status(403).send({ error: 'Account has no organization', requireLogin: true });
+    }
+    const newAccess = signToken({ userId: user.id, email: user.email, role: user.role, orgId: active.orgId, orgRole: active.orgRole });
     const fresh = mintRefreshToken();
     const meta = reqMeta(request);
     const newRow = await db.refreshToken.create({
@@ -124,6 +148,7 @@ export async function authRoutes(app: FastifyInstance) {
       refreshToken: fresh.raw,
       refreshExpiresAt: fresh.expiresAt.toISOString(),
       user: { id: user.id, email: user.email, name: user.name, role: user.role },
+      activeOrgId: active.orgId,
     };
   });
 
@@ -144,55 +169,69 @@ export async function authRoutes(app: FastifyInstance) {
 
   // GET /api/auth/me — requires valid token
   app.get('/me', { preHandler: [authGuard] }, async (request) => {
-    const { userId } = request.user as JwtPayload;
+    const { userId } = (request as any).user as JwtPayload;
     const user = await db.user.findUnique({
       where: { id: userId },
-      select: { id: true, email: true, name: true, role: true, createdAt: true },
+      select: { id: true, email: true, name: true, role: true, currentOrgId: true, createdAt: true },
     });
     if (!user) {
       throw { statusCode: 404, message: 'User not found' };
     }
-    return user;
-  });
-
-  // PATCH /api/auth/me — update profile (name only; email/role immutable here)
-  app.patch('/me', { preHandler: [authGuard] }, async (request, reply) => {
-    const { userId } = request.user as JwtPayload;
-    const body = parseOr400(UpdateMeBody, request.body, reply);
-    if (!body) return;
-    const user = await db.user.update({
-      where: { id: userId },
-      data: { name: body.name },
-      select: { id: true, email: true, name: true, role: true, createdAt: true },
+    const memberships = await db.orgMembership.findMany({
+      where: { userId },
+      include: { org: { select: { id: true, name: true, slug: true, plan: true } } },
     });
-    return user;
+    return {
+      ...user,
+      activeOrgId: request.orgId,
+      memberships: memberships.map((m) => ({ orgId: m.orgId, role: m.role, org: m.org })),
+    };
   });
 
-  // POST /api/auth/password — change password (verifies current, then bcrypts new)
-  app.post('/password', { preHandler: [authGuard] }, async (request, reply) => {
-    const { userId } = request.user as JwtPayload;
-    const body = parseOr400(PasswordBody, request.body, reply);
-    if (!body) return;
-    const { currentPassword, newPassword } = body;
+  // GET /api/auth/orgs — list current user's memberships
+  app.get('/orgs', { preHandler: [authGuard] }, async (request) => {
+    const { userId } = request.user!;
+    const memberships = await db.orgMembership.findMany({
+      where: { userId },
+      include: { org: true },
+    });
+    return memberships.map((m) => ({ orgId: m.orgId, role: m.role, org: m.org }));
+  });
+
+  // POST /api/auth/switch-org — set currentOrgId and re-issue access token
+  app.post('/switch-org', { preHandler: [authGuard] }, async (request, reply) => {
+    const { orgId } = (request.body ?? {}) as { orgId?: string };
+    const { userId } = request.user!;
+    if (!orgId) return reply.status(400).send({ error: 'orgId required' });
+
+    const mem = await db.orgMembership.findUnique({
+      where: { userId_orgId: { userId, orgId } },
+    });
+    if (!mem) return reply.status(403).send({ error: 'Not a member of that organization' });
+
+    await db.user.update({ where: { id: userId }, data: { currentOrgId: orgId } });
+
     const user = await db.user.findUnique({ where: { id: userId } });
-    if (!user) return reply.status(404).send({ error: 'User not found' });
-    const valid = await bcrypt.compare(currentPassword, user.passwordHash);
-    if (!valid) return reply.status(401).send({ error: 'Current password is incorrect' });
-    const newHash = await bcrypt.hash(newPassword, 12);
-    await db.user.update({ where: { id: userId }, data: { passwordHash: newHash } });
-    // Revoke all refresh tokens — force re-auth on other sessions for safety.
-    await db.refreshToken.updateMany({
-      where: { userId, revokedAt: null },
-      data: { revokedAt: new Date() },
-    });
-    return { success: true };
+    if (!user) return reply.status(404).send({ error: 'user not found' });
+
+    const newToken = signToken({ userId: user.id, email: user.email, role: user.role, orgId, orgRole: mem.role });
+    return { token: newToken, activeOrgId: orgId, orgRole: mem.role };
   });
 
-  // POST /api/auth/register — dev convenience, disable in production
+  // POST /api/auth/register — dev convenience, disable in production.
+  // Creates a personal Organization for new signups so they immediately
+  // have a tenant scope.
   app.post('/register', async (request, reply) => {
-    const body = parseOr400(RegisterBody, request.body, reply);
-    if (!body) return;
-    const { email, password, name, rememberMe } = body;
+    const { email, password, name, rememberMe } = request.body as {
+      email: string;
+      password: string;
+      name: string;
+      rememberMe?: boolean;
+    };
+
+    if (!email || !password || !name) {
+      return reply.status(400).send({ error: 'Email, password, and name required' });
+    }
 
     const existing = await db.user.findUnique({ where: { email } });
     if (existing) {
@@ -200,15 +239,38 @@ export async function authRoutes(app: FastifyInstance) {
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
-    const user = await db.user.create({
-      data: { email, passwordHash, name, role: 'member' },
-      select: { id: true, email: true, name: true, role: true },
+
+    // Atomic: create User + Organization + OrgMembership(OWNER) + currentOrgId.
+    // 14-day trial — Phase 2 billing flips to free/paid via Stripe webhook.
+    const slug = (email.split('@')[0] + '-' + Math.random().toString(36).slice(2, 6)).toLowerCase();
+    const result = await db.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: { email, passwordHash, name, role: 'member' },
+      });
+      const org = await tx.organization.create({
+        data: {
+          name: `${name}'s workspace`,
+          slug,
+          plan: 'trial',
+          trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+        },
+      });
+      await tx.orgMembership.create({
+        data: { userId: user.id, orgId: org.id, role: 'OWNER' },
+      });
+      await tx.user.update({ where: { id: user.id }, data: { currentOrgId: org.id } });
+      return { user, org };
     });
 
     const token = signToken(
-      { userId: user.id, email: user.email, role: user.role },
+      { userId: result.user.id, email: result.user.email, role: result.user.role, orgId: result.org.id, orgRole: 'OWNER' },
       Boolean(rememberMe),
     );
-    return { token, rememberMe: Boolean(rememberMe), user };
+    return {
+      token,
+      rememberMe: Boolean(rememberMe),
+      user: { id: result.user.id, email: result.user.email, name: result.user.name, role: result.user.role },
+      activeOrgId: result.org.id,
+    };
   });
 }

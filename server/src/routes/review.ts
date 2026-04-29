@@ -1,20 +1,9 @@
 import { FastifyInstance } from 'fastify';
-import { z } from 'zod';
 import { db } from '../db/prisma.js';
 import { authGuard } from '../middleware/auth.js';
 import { reviewService } from '../services/review.service.js';
 import { env } from '../config/env.js';
-import { parseOr400 } from '../lib/parseOr400.js';
-
-const CreateReviewLinkBody = z.object({
-  expiresInDays: z.number().int().min(1).max(90).default(30),
-});
-
-const AddCommentBody = z.object({
-  authorName: z.string().min(1).max(120),
-  comment: z.string().min(1).max(5000),
-  status: z.string().max(60).optional(),
-});
+import { assertClientInOrg } from '../lib/tenant.js';
 
 export async function reviewRoutes(app: FastifyInstance) {
 
@@ -22,15 +11,19 @@ export async function reviewRoutes(app: FastifyInstance) {
   // POST /api/clients/:clientId/calendar/:month/review-links
   app.post('/clients/:clientId/calendar/:month/review-links', { preHandler: [authGuard] }, async (request, reply) => {
     const { clientId, month } = request.params as { clientId: string; month: string };
-    const body = parseOr400(CreateReviewLinkBody, request.body ?? {}, reply);
-    if (!body) return;
-    const { expiresInDays } = body;
+    const orgId = request.orgId!;
+    try {
+      await assertClientInOrg(clientId, orgId);
+    } catch (err: any) {
+      return reply.status(err.statusCode || 500).send({ error: err.message });
+    }
+    const { expiresInDays } = (request.body as any) || {};
     const decodedMonth = decodeURIComponent(month);
 
-    const calendarMonth = await db.calendarMonth.findFirst({ where: { clientId, month: decodedMonth } });
+    const calendarMonth = await db.calendarMonth.findFirst({ where: { orgId, clientId, month: decodedMonth } });
     if (!calendarMonth) return reply.status(404).send({ error: 'Calendar month not found' });
 
-    const link = await reviewService.createLink(clientId, calendarMonth.id, expiresInDays);
+    const link = await reviewService.createLink(orgId, clientId, calendarMonth.id, expiresInDays);
     const reviewUrl = `${env.PREVIEW_URL}/review/${link.token}`;
     return reply.status(201).send({
       token: link.token,
@@ -40,7 +33,8 @@ export async function reviewRoutes(app: FastifyInstance) {
   });
 
   // ─── Public: Token-based review endpoints ──────────────────────
-  // No authGuard — clients access these with token only
+  // No authGuard — clients access these with token only. The token IS
+  // the auth; reviewService scopes the org via the link's orgId.
 
   // GET /api/review/:token
   app.get('/review/:token', async (request, reply) => {
@@ -56,11 +50,17 @@ export async function reviewRoutes(app: FastifyInstance) {
     const link = await reviewService.getByToken(token);
     if (!link) return reply.status(404).send({ error: 'Review link not found or expired' });
 
-    const body = parseOr400(AddCommentBody, request.body, reply);
-    if (!body) return;
-    const { authorName, comment, status } = body;
+    const { authorName, comment, status } = request.body as { authorName: string; comment: string; status?: string };
+    if (!authorName || !comment) return reply.status(400).send({ error: 'authorName and comment are required' });
 
-    const result = await reviewService.addComment(postId, authorName, comment, status);
+    // Verify postId belongs to the link's calendar (defense in depth — token
+    // grants approval rights only for its own month).
+    const post = await db.calendarPost.findUnique({ where: { id: postId }, select: { orgId: true, calendarMonthId: true } });
+    if (!post || post.orgId !== link.orgId || post.calendarMonthId !== link.calendarMonthId) {
+      return reply.status(404).send({ error: 'Post not in this review link' });
+    }
+
+    const result = await reviewService.addComment(link.orgId, postId, authorName, comment, status);
     return reply.status(201).send(result);
   });
 
@@ -70,8 +70,13 @@ export async function reviewRoutes(app: FastifyInstance) {
     const link = await reviewService.getByToken(token);
     if (!link) return reply.status(404).send({ error: 'Review link not found or expired' });
 
-    const post = await reviewService.approvePost(postId);
-    return { success: true, postId: post.id, status: post.status };
+    const post = await db.calendarPost.findUnique({ where: { id: postId }, select: { orgId: true, calendarMonthId: true } });
+    if (!post || post.orgId !== link.orgId || post.calendarMonthId !== link.calendarMonthId) {
+      return reply.status(404).send({ error: 'Post not in this review link' });
+    }
+
+    const updated = await reviewService.approvePost(link.orgId, postId);
+    return { success: true, postId: updated.id, status: updated.status };
   });
 
   // POST /api/review/:token/month/approve
@@ -80,7 +85,7 @@ export async function reviewRoutes(app: FastifyInstance) {
     const link = await reviewService.getByToken(token);
     if (!link) return reply.status(404).send({ error: 'Review link not found or expired' });
 
-    const result = await reviewService.approveMonth(link.calendarMonthId);
+    const result = await reviewService.approveMonth(link.orgId, link.calendarMonthId);
     return result;
   });
 }

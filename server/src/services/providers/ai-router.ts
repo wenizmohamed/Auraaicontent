@@ -2,6 +2,41 @@ import { xaiProvider } from './xai.provider.js';
 import { geminiProvider } from './gemini.provider.js';
 import { isRetryableAiError, AllProvidersFailedError, type ProviderFailure } from './errors.js';
 import type { AiProvider, AiProviderName, AiTask, AiTelemetryEntry, AnalysisRequest, ImageRequest, ProviderResult, TextRequest, VideoRequest } from './types.js';
+import { db } from '../../db/prisma.js';
+import { computeCostUsd } from '../../lib/ai-pricing.js';
+
+// Map task → UsageEvent.kind. Image edits bill the same as image gens.
+function usageKind(task: AiTask): string {
+  if (task === 'image' || task === 'image_edit') return 'ai.image';
+  if (task === 'video') return 'ai.video';
+  if (task === 'analysis') return 'ai.analysis';
+  return 'ai.text';
+}
+
+// Persist a usage row for billing + admin dashboard. Fire-and-forget so
+// AI latency isn't blocked on DB writes; orgId is required, so calls
+// without it (legacy paths still being scoped) are skipped — they show
+// in the in-memory telemetry buffer but don't bill.
+function persistUsage(meta: { orgId?: string; userId?: string; clientId?: string; jobId?: string },
+                       task: AiTask, model: string, tokens: { p?: number; c?: number; t?: number }) {
+  if (!meta.orgId) return;
+  const cost = computeCostUsd(model, tokens.p, tokens.c, 1);
+  const kind = usageKind(task);
+  void db.usageEvent.create({
+    data: {
+      orgId: meta.orgId,
+      userId: meta.userId ?? null,
+      kind,
+      units: tokens.t ?? 0,
+      costUsd: cost,
+      ref: meta.jobId ?? meta.clientId ?? null,
+      metadata: { model, task, promptTokens: tokens.p, completionTokens: tokens.c },
+    },
+  }).catch((err: any) => {
+    // Don't crash on usage-write failures; cost reporting is best-effort.
+    console.warn('[ai-router] usage persist failed:', err?.message || err);
+  });
+}
 
 // ─── Routing config from env ─────────────────────────────────────
 // Weni 2026-04-23: Gemini 3.1 Pro is PRIMARY across the board because the
@@ -59,7 +94,7 @@ export function getAiTelemetry(): AiTelemetryEntry[] {
 async function routeCall<T>(
   task: AiTask,
   fn: (provider: AiProvider) => Promise<ProviderResult<T>>,
-  meta?: { jobId?: string; clientId?: string },
+  meta?: { jobId?: string; clientId?: string; orgId?: string; userId?: string },
 ): Promise<ProviderResult<T>> {
   const providers = orderedProviders(task);
   const failures: ProviderFailure[] = [];
@@ -79,6 +114,9 @@ async function routeCall<T>(
         totalTokens: result.totalTokens,
         jobId: meta?.jobId, clientId: meta?.clientId,
         timestamp: new Date().toISOString(),
+      });
+      persistUsage(meta ?? {}, task, result.model, {
+        p: result.promptTokens, c: result.completionTokens, t: result.totalTokens,
       });
       return result;
     } catch (err) {
