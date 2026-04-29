@@ -21,7 +21,7 @@
  * Mount <ShortcutCheatSheet /> once at App root; it renders an overlay
  * triggered by `?` (when not focused inside an input).
  */
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 export type ShortcutGroup =
   | 'General'
@@ -134,15 +134,26 @@ function eventInsideInput(e: KeyboardEvent): boolean {
 /**
  * Register a keyboard shortcut for the lifetime of the component.
  * Auto-unregisters on unmount and respects input scope.
+ *
+ * Callers can pass an inline object literal — the hook stores `onTrigger`
+ * in a ref so changing identity doesn't re-bind the listener every render.
+ * Only structural changes (id / keys / allowInInputs / label / group)
+ * cause a re-register.
  */
 export function useShortcut(shortcut: Shortcut): void {
+  const triggerRef = useRef(shortcut.onTrigger);
+  triggerRef.current = shortcut.onTrigger;
+
   useEffect(() => {
-    const unregister = register(shortcut);
+    // Register a thin wrapper that defers to the latest trigger ref so the
+    // cheat sheet sees stable identity but invocation always hits fresh state.
+    const stable: Shortcut = { ...shortcut, onTrigger: (e) => triggerRef.current(e) };
+    const unregister = register(stable);
     function onKey(e: KeyboardEvent) {
       if (!shortcut.allowInInputs && eventInsideInput(e)) return;
       if (matches(e, shortcut.keys)) {
         e.preventDefault();
-        shortcut.onTrigger(e);
+        triggerRef.current(e);
       }
     }
     window.addEventListener('keydown', onKey);
@@ -150,7 +161,7 @@ export function useShortcut(shortcut: Shortcut): void {
       window.removeEventListener('keydown', onKey);
       unregister();
     };
-    // We intentionally re-bind whenever any field on the shortcut changes —
-    // callers should memoise onTrigger if they need stable identity.
-  }, [shortcut.id, shortcut.keys, shortcut.allowInInputs, shortcut.onTrigger, shortcut.label, shortcut.group]);
+  // Intentionally exclude shortcut.onTrigger — handled via the ref above.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shortcut.id, shortcut.keys, shortcut.allowInInputs, shortcut.label, shortcut.group]);
 }
