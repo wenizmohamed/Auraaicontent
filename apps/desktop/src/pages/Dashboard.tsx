@@ -7,6 +7,7 @@ import { dashboardApi, authApi, type DashboardStats, type AiStats, type Dashboar
 import { useTheme } from '../lib/theme-context';
 import { greeting } from '../lib/greeting';
 import { t } from '../i18n';
+import { EmptyState, EmptyStateAction } from '../components/ui/EmptyState';
 
 // Valid month format: "Month YYYY" e.g. "April 2026"
 const VALID_MONTH_RE = /^[A-Z][a-z]+ \d{4}$/;
@@ -975,18 +976,20 @@ export default function Dashboard() {
 
       {/* Empty state */}
       {!loading && clients.length === 0 && (
-        <motion.div {...fadeUp(0.3)}>
-          <div className={`rounded-2xl p-12 text-center ${glassStatic}`}>
-            <div className={`w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center ${isDark ? 'bg-amber-500/10' : 'bg-amber-50'}`}>
-              <Sparkles className="w-7 h-7 text-amber-500" />
-            </div>
-            <h3 className={`text-lg font-bold mb-2 ${textPrimary}`}>{t('page.dashboard.no_clients_title')}</h3>
-            <p className={`text-sm mb-6 ${textSecondary}`}>{t('page.dashboard.no_clients_body')}</p>
-            <Link to="/clients" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 text-black font-semibold text-sm hover:bg-amber-400 transition-colors cursor-pointer">
+        <EmptyState
+          icon={Sparkles}
+          title={t('page.dashboard.no_clients_title')}
+          description={t('page.dashboard.no_clients_body')}
+          primary={
+            <Link
+              to="/clients"
+              className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors cursor-pointer"
+              style={{ background: 'var(--color-accent)', color: 'var(--color-fg-on-accent)' }}
+            >
               <Users className="w-4 h-4" /> Add Client
             </Link>
-          </div>
-        </motion.div>
+          }
+        />
       )}
 
       {/* ─── Visual Showcase + Trend ─── */}

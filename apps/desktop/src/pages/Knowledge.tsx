@@ -4,6 +4,7 @@ import { FileText, Upload, Trash2, Search, Loader2, Database, Zap, X, AlertCircl
 import { knowledgeApi, type KnowledgeItemRecord } from '../lib/backend-api';
 import { useClients } from '../lib/client-context';
 import { useToast } from '../lib/toast-context';
+import { EmptyState, EmptyStateAction } from '../components/ui/EmptyState';
 
 function formatBytes(bytes: number): string {
   if (!bytes) return '--';
@@ -230,12 +231,16 @@ export default function Knowledge() {
       )}
 
       {!loading && items.length === 0 && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-          className="rounded-2xl bg-white/[0.02] border border-white/[0.05] p-12 text-center">
-          <FileText className="w-10 h-10 text-zinc-800 mx-auto mb-3" />
-          <h2 className="text-base font-semibold text-zinc-400 mb-1">No knowledge items yet</h2>
-          <p className="text-xs text-zinc-600">Upload a brief, brand guide, or any doc the AI should know about.</p>
-        </motion.div>
+        <EmptyState
+          icon={Database}
+          title="No knowledge items yet"
+          description="Upload briefs, brand guides, references — anything the AI should know about. Documents are auto-embedded for retrieval-augmented generation."
+          primary={
+            <EmptyStateAction onClick={() => fileInputRef.current?.click()}>
+              <Upload className="w-4 h-4" /> Upload first document
+            </EmptyStateAction>
+          }
+        />
       )}
 
       {!loading && items.length > 0 && (

@@ -3,6 +3,7 @@ import { useClients } from '../lib/client-context';
 import { t } from '../i18n';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Building2, Check, X, Loader2, Trash2, Edit3, Save } from 'lucide-react';
+import { EmptyState, EmptyStateAction } from '../components/ui/EmptyState';
 
 interface ClientForm {
   name: string;
@@ -172,11 +173,16 @@ export default function Clients() {
           <p className="text-zinc-600 text-sm mt-1">Start the server: npm run dev:server</p>
         </div>
       ) : clients.length === 0 ? (
-        <div className="rounded-2xl bg-[#0c0c0c] border border-white/[0.06] py-16 text-center">
-          <Building2 className="w-10 h-10 text-zinc-800 mx-auto mb-3" />
-          <p className="text-zinc-500">{t('page.clients.no_clients_title')}</p>
-          <button onClick={openCreate} className="text-sm text-white mt-3 underline cursor-pointer">{t('page.clients.create_first')}</button>
-        </div>
+        <EmptyState
+          icon={Building2}
+          title={t('page.clients.no_clients_title')}
+          description="Add a brand to start generating calendars, briefs, and visual assets. Each client keeps its own brief, knowledge, and asset library."
+          primary={
+            <EmptyStateAction onClick={openCreate}>
+              <Plus className="w-4 h-4" /> {t('page.clients.create_first')}
+            </EmptyStateAction>
+          }
+        />
       ) : (
         <div className="space-y-2">
           {clients.map((client, i) => (
