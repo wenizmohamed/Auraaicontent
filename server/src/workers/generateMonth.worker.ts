@@ -48,7 +48,10 @@ export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: 
     knowledgeContext,
   });
 
-  // 4. Call AI via router (Grok primary, Gemini fallback)
+  // 4. Call AI via router. Provider order is env-driven:
+  //   AI_TEXT_PRIMARY (default 'gemini') picks the first model; falls back
+  //   to xAI (Grok) when AI_ENABLE_FALLBACK=true.  Today's live config:
+  //   text=gemini, image=gemini, video=xai, analysis=gemini.
   updateJob(job.id, { progress: 40 });
   console.log(`[generateMonth] Prompt: ${prompt.length} chars, first 200: ${prompt.slice(0, 200).replace(/\n/g, ' ')}`);
   const result = await aiRouter.text(
