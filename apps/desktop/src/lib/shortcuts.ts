@@ -49,7 +49,22 @@ export interface Shortcut {
 const registry = new Map<string, Shortcut>();
 const listeners = new Set<() => void>();
 
-function notify() { listeners.forEach(l => l()); }
+// Cached snapshot — MUST keep stable identity between calls when nothing
+// changes, otherwise React's useSyncExternalStore will see a fresh array
+// every render and infinite-loop (React error #185). Invalidated on
+// register/unregister so the next listShortcuts() rebuilds it.
+let cachedSnapshot: Shortcut[] = [];
+
+function rebuildSnapshot() {
+  cachedSnapshot = Array.from(registry.values()).sort((a, b) =>
+    a.group === b.group ? a.label.localeCompare(b.label) : a.group.localeCompare(b.group)
+  );
+}
+
+function notify() {
+  rebuildSnapshot();
+  listeners.forEach(l => l());
+}
 
 export function register(s: Shortcut): () => void {
   registry.set(s.id, s);
@@ -57,10 +72,9 @@ export function register(s: Shortcut): () => void {
   return () => { registry.delete(s.id); notify(); };
 }
 
+/** Returns the cached snapshot. Identity is stable until register/unregister. */
 export function listShortcuts(): Shortcut[] {
-  return Array.from(registry.values()).sort((a, b) =>
-    a.group === b.group ? a.label.localeCompare(b.label) : a.group.localeCompare(b.group)
-  );
+  return cachedSnapshot;
 }
 
 export function subscribe(fn: () => void): () => void {
