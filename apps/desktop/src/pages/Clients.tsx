@@ -127,19 +127,19 @@ export default function Clients() {
               <h2 className="text-lg font-bold text-white">{editingId ? 'Edit Client' : 'Create Client'}</h2>
               <button onClick={closeForm} className="text-zinc-600 hover:text-white cursor-pointer"><X className="w-5 h-5" /></button>
             </div>
-            <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Client name *"
+            <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder={t('page.clients.ph_name')}
               className="w-full px-4 py-3 rounded-xl bg-white/[0.03] border border-white/[0.08] text-white placeholder-zinc-700 text-sm" />
             <div className="grid grid-cols-2 gap-3">
-              <input value={form.industry} onChange={e => setForm({ ...form, industry: e.target.value })} placeholder="Industry"
+              <input value={form.industry} onChange={e => setForm({ ...form, industry: e.target.value })} placeholder={t('page.clients.ph_industry')}
                 className="px-4 py-3 rounded-xl bg-white/[0.03] border border-white/[0.08] text-white placeholder-zinc-700 text-sm" />
-              <input value={form.website} onChange={e => setForm({ ...form, website: e.target.value })} placeholder="Website"
+              <input value={form.website} onChange={e => setForm({ ...form, website: e.target.value })} placeholder={t('page.clients.ph_website')}
                 className="px-4 py-3 rounded-xl bg-white/[0.03] border border-white/[0.08] text-white placeholder-zinc-700 text-sm" />
             </div>
             {editingId && (
               <div className="grid grid-cols-2 gap-3">
-                <input value={form.instagramHandle} onChange={e => setForm({ ...form, instagramHandle: e.target.value })} placeholder="Instagram handle"
+                <input value={form.instagramHandle} onChange={e => setForm({ ...form, instagramHandle: e.target.value })} placeholder={t('page.clients.ph_instagram')}
                   className="px-4 py-3 rounded-xl bg-white/[0.03] border border-white/[0.08] text-white placeholder-zinc-700 text-sm" />
-                <input value={form.primaryColor} onChange={e => setForm({ ...form, primaryColor: e.target.value })} placeholder="Primary color (#RRGGBB)"
+                <input value={form.primaryColor} onChange={e => setForm({ ...form, primaryColor: e.target.value })} placeholder={t('page.clients.ph_color')}
                   className="px-4 py-3 rounded-xl bg-white/[0.03] border border-white/[0.08] text-white placeholder-zinc-700 text-sm" />
               </div>
             )}
@@ -151,7 +151,7 @@ export default function Clients() {
                 ? <Loader2 className="w-4 h-4 animate-spin" />
                 : editingId
                   ? <><Save className="w-4 h-4" /> Save Changes</>
-                  : <>Create Client</>}
+                  : <>{t('page.clients.create_btn')}</>}
             </button>
           </motion.div>
         )}
@@ -168,14 +168,14 @@ export default function Clients() {
       ) : !authenticated ? (
         <div className="rounded-2xl bg-[#0c0c0c] border border-white/[0.06] py-16 text-center">
           <Building2 className="w-10 h-10 text-red-800 mx-auto mb-3" />
-          <p className="text-zinc-400">Backend auth failed</p>
+          <p className="text-zinc-400">{t('page.clients.auth_failed')}</p>
           <p className="text-zinc-600 text-sm mt-1">Start the server: npm run dev:server</p>
         </div>
       ) : clients.length === 0 ? (
         <div className="rounded-2xl bg-[#0c0c0c] border border-white/[0.06] py-16 text-center">
           <Building2 className="w-10 h-10 text-zinc-800 mx-auto mb-3" />
-          <p className="text-zinc-500">No clients yet</p>
-          <button onClick={openCreate} className="text-sm text-white mt-3 underline cursor-pointer">Create your first client</button>
+          <p className="text-zinc-500">{t('page.clients.no_clients_title')}</p>
+          <button onClick={openCreate} className="text-sm text-white mt-3 underline cursor-pointer">{t('page.clients.create_first')}</button>
         </div>
       ) : (
         <div className="space-y-2">

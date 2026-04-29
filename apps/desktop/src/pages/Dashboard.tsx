@@ -6,6 +6,7 @@ import { useClients } from '../lib/client-context';
 import { dashboardApi, authApi, type DashboardStats, type AiStats, type DashboardInsights, type ActivityEntry } from '../lib/backend-api';
 import { useTheme } from '../lib/theme-context';
 import { greeting } from '../lib/greeting';
+import { t } from '../i18n';
 
 // Valid month format: "Month YYYY" e.g. "April 2026"
 const VALID_MONTH_RE = /^[A-Z][a-z]+ \d{4}$/;
@@ -260,7 +261,7 @@ function WalkthroughSection({ isDark, glass, glassStatic, textPrimary, textSecon
               <BookOpen className="w-4 h-4 text-amber-500" />
             </div>
             <div>
-              <h3 className={`text-sm font-semibold ${textPrimary}`}>How Radix Works</h3>
+              <h3 className={`text-sm font-semibold ${textPrimary}`}>{t('page.dashboard.how_radix_works')}</h3>
               <p className={`text-[11px] ${textMuted}`}>A step-by-step guide to every section</p>
             </div>
           </div>
@@ -459,7 +460,7 @@ export default function Dashboard() {
                 <div className={`text-3xl font-black tabular-nums ${textPrimary}`}>
                   <AnimatedNumber value={totalPosts} />
                 </div>
-                <p className={`text-xs mt-1 ${textMuted}`}>Total posts generated</p>
+                <p className={`text-xs mt-1 ${textMuted}`}>{t('page.dashboard.total_posts')}</p>
               </>
             )}
           </div>
@@ -485,8 +486,8 @@ export default function Dashboard() {
                     <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 ${isDark ? 'bg-white/[0.04]' : 'bg-slate-100'}`}>
                       <Sparkles className={`w-4 h-4 ${textMuted}`} />
                     </div>
-                    <p className={`text-sm font-medium ${textPrimary}`}>No activity yet</p>
-                    <p className={`text-xs mt-1 ${textMuted}`}>Generate your first month to see it here</p>
+                    <p className={`text-sm font-medium ${textPrimary}`}>{t('page.dashboard.no_activity')}</p>
+                    <p className={`text-xs mt-1 ${textMuted}`}>{t('page.dashboard.no_activity_sub')}</p>
                   </div>
                 );
               }
@@ -496,7 +497,7 @@ export default function Dashboard() {
                     <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${isDark ? 'bg-blue-500/10' : 'bg-blue-100'}`}>
                       <Activity className={`w-4 h-4 ${isDark ? 'text-blue-400' : 'text-blue-700'}`} />
                     </div>
-                    <span className={`text-[10px] uppercase tracking-wider font-semibold ${textMuted}`}>Latest</span>
+                    <span className={`text-[10px] uppercase tracking-wider font-semibold ${textMuted}`}>{t('page.dashboard.label_latest')}</span>
                   </div>
                   <p className={`text-base font-semibold transition-colors ${isDark ? 'text-zinc-100 group-hover:text-white' : 'text-slate-800 group-hover:text-slate-900'}`}>{recent.month}</p>
                   <div className="flex items-center justify-between mt-1">
@@ -523,7 +524,7 @@ export default function Dashboard() {
                     <Bell className={`w-4 h-4 ${isDark ? 'text-amber-400' : 'text-amber-700'}`} />
                   </div>
                   <div>
-                    <h3 className={`text-sm font-semibold ${textPrimary}`}>Needs Your Attention</h3>
+                    <h3 className={`text-sm font-semibold ${textPrimary}`}>{t('page.dashboard.needs_attention')}</h3>
                     <p className={`text-[11px] ${isDark ? 'text-amber-400/70' : 'text-amber-700/80'}`}>{insights.actionCenter.totalActions} item{insights.actionCenter.totalActions !== 1 ? 's' : ''}</p>
                   </div>
                 </div>
@@ -558,8 +559,8 @@ export default function Dashboard() {
                     <Lightbulb className={`w-4 h-4 ${isDark ? 'text-violet-400' : 'text-violet-700'}`} />
                   </div>
                   <div>
-                    <h3 className={`text-sm font-semibold ${textPrimary}`}>Smart Insights</h3>
-                    <p className={`text-[11px] ${textMuted}`}>Auto-detected from your data</p>
+                    <h3 className={`text-sm font-semibold ${textPrimary}`}>{t('page.dashboard.smart_insights')}</h3>
+                    <p className={`text-[11px] ${textMuted}`}>{t('page.dashboard.smart_insights_sub')}</p>
                   </div>
                 </div>
                 <motion.div className="space-y-2" variants={{ animate: { transition: { staggerChildren: 0.06 } } }} initial="initial" animate="animate">
@@ -633,7 +634,7 @@ export default function Dashboard() {
                   {stat.zeroCta ? (
                     <>
                       <Link to="/knowledge" className="text-xs text-amber-400 hover:text-amber-300">+ Add knowledge</Link>
-                      <p className={`text-xs mt-1 ${textMuted}`}>Upload briefs, brand guides to personalize AI</p>
+                      <p className={`text-xs mt-1 ${textMuted}`}>{t('page.dashboard.upload_briefs')}</p>
                     </>
                   ) : (
                     <>
@@ -680,7 +681,7 @@ export default function Dashboard() {
                   <div className={`text-3xl font-black tabular-nums ${textPrimary}`}>
                     <AnimatedNumber value={aiStats.totalCalls} />
                   </div>
-                  <p className={`text-xs mt-1 ${textMuted}`}>Total API calls</p>
+                  <p className={`text-xs mt-1 ${textMuted}`}>{t('page.dashboard.total_calls')}</p>
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   <div className={`rounded-xl p-3 border ${isDark ? 'bg-white/[0.03] border-white/[0.04]' : 'bg-slate-100 border-slate-300'}`}>
@@ -834,7 +835,7 @@ export default function Dashboard() {
                 LinkedIn: 'bg-blue-500', X: 'bg-sky-500', Facebook: 'bg-indigo-500',
               };
               const entries = Object.entries(platforms).sort(([,a], [,b]) => b - a);
-              if (entries.length === 0) return <p className={`text-xs text-center py-6 ${textMuted}`}>No posts yet</p>;
+              if (entries.length === 0) return <p className={`text-xs text-center py-6 ${textMuted}`}>{t('page.dashboard.no_posts')}</p>;
               return (
                 <div className="space-y-4">
                   {entries.map(([platform, count]) => {
@@ -877,7 +878,7 @@ export default function Dashboard() {
             {loading || activity === null ? (
               <div className="space-y-4">{Array.from({length:4}).map((_,i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
             ) : activity.length === 0 ? (
-              <p className={`text-xs text-center py-6 ${textMuted}`}>No activity yet — start generating content</p>
+              <p className={`text-xs text-center py-6 ${textMuted}`}>{t('page.dashboard.no_activity_short')}</p>
             ) : (
               <motion.div className="space-y-1" variants={{ animate: { transition: { staggerChildren: 0.04 } } }} initial="initial" animate="animate">
                 {activity.slice(0, 6).map((entry) => {
@@ -979,8 +980,8 @@ export default function Dashboard() {
             <div className={`w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center ${isDark ? 'bg-amber-500/10' : 'bg-amber-50'}`}>
               <Sparkles className="w-7 h-7 text-amber-500" />
             </div>
-            <h3 className={`text-lg font-bold mb-2 ${textPrimary}`}>No clients yet</h3>
-            <p className={`text-sm mb-6 ${textSecondary}`}>Create your first client to start generating AI-powered content.</p>
+            <h3 className={`text-lg font-bold mb-2 ${textPrimary}`}>{t('page.dashboard.no_clients_title')}</h3>
+            <p className={`text-sm mb-6 ${textSecondary}`}>{t('page.dashboard.no_clients_body')}</p>
             <Link to="/clients" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 text-black font-semibold text-sm hover:bg-amber-400 transition-colors cursor-pointer">
               <Users className="w-4 h-4" /> Add Client
             </Link>

@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { t } from '../i18n';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles,
@@ -596,7 +597,7 @@ export default function BriefInput() {
                       <input
                         value={campaign.name}
                         onChange={e => updateCampaign(idx, 'name', e.target.value)}
-                        placeholder="Campaign name"
+                        placeholder={t('page.brief.ph_campaign_name')}
                         className="w-full border-b border-white/10 bg-transparent pb-2 text-sm font-semibold text-white outline-none placeholder:text-zinc-600 focus:border-violet-500/40"
                       />
                       <div className="grid grid-cols-2 gap-3">
@@ -607,7 +608,7 @@ export default function BriefInput() {
                           <input
                             value={campaign.targetAudience}
                             onChange={e => updateCampaign(idx, 'targetAudience', e.target.value)}
-                            placeholder="Target audience"
+                            placeholder={t('page.brief.ph_audience')}
                             className="w-full rounded-lg border border-white/5 bg-white/5 px-2.5 py-1.5 text-xs text-zinc-300 outline-none placeholder:text-zinc-700 focus:border-violet-500/30"
                           />
                         </div>
@@ -618,7 +619,7 @@ export default function BriefInput() {
                           <input
                             value={campaign.productFocus}
                             onChange={e => updateCampaign(idx, 'productFocus', e.target.value)}
-                            placeholder="Product / Service"
+                            placeholder={t('page.brief.ph_product')}
                             className="w-full rounded-lg border border-white/5 bg-white/5 px-2.5 py-1.5 text-xs text-zinc-300 outline-none placeholder:text-zinc-700 focus:border-violet-500/30"
                           />
                         </div>
@@ -630,7 +631,7 @@ export default function BriefInput() {
                         <input
                           value={campaign.objective}
                           onChange={e => updateCampaign(idx, 'objective', e.target.value)}
-                          placeholder="Campaign objective"
+                          placeholder={t('page.brief.ph_objective')}
                           className="w-full rounded-lg border border-white/5 bg-white/5 px-2.5 py-1.5 text-xs text-zinc-300 outline-none placeholder:text-zinc-700 focus:border-violet-500/30"
                         />
                       </div>
@@ -641,7 +642,7 @@ export default function BriefInput() {
                         <textarea
                           value={campaign.keyMessage}
                           onChange={e => updateCampaign(idx, 'keyMessage', e.target.value)}
-                          placeholder="Core message for this campaign"
+                          placeholder={t('page.brief.ph_core_message')}
                           rows={2}
                           className="w-full resize-none rounded-lg border border-white/5 bg-white/5 px-2.5 py-1.5 text-xs text-zinc-300 outline-none placeholder:text-zinc-700 focus:border-violet-500/30"
                         />
@@ -698,7 +699,7 @@ export default function BriefInput() {
                   <input
                     value={customOccasionName}
                     onChange={e => setCustomOccasionName(e.target.value)}
-                    placeholder="Occasion name"
+                    placeholder={t('page.brief.ph_occasion')}
                     className="w-full rounded-lg border border-white/5 bg-white/5 px-2.5 py-1.5 text-xs text-zinc-300 outline-none placeholder:text-zinc-700 focus:border-fuchsia-500/30"
                     onKeyDown={e => e.key === 'Enter' && addCustomOccasion()}
                   />
@@ -835,7 +836,7 @@ export default function BriefInput() {
               <textarea
                 value={toneNotes}
                 onChange={e => setToneNotes(e.target.value)}
-                placeholder="Optional: Additional tone or direction notes for AI generation (e.g. 'more casual this month', 'focus on Ramadan messaging')..."
+                placeholder={t('page.brief.ph_extra_notes')}
                 rows={4}
                 className="w-full resize-none rounded-lg border border-white/5 bg-white/5 px-3 py-2 text-xs text-zinc-300 outline-none placeholder:text-zinc-700 focus:border-fuchsia-500/30"
               />

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { t } from '../i18n';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Search, LayoutGrid, List, CheckCircle2, XCircle, Edit3,
@@ -430,7 +431,7 @@ export default function ContentReview() {
         <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 mb-5 shadow-[0_0_40px_-10px_rgba(245,158,11,0.35)]">
           <Sparkles className="w-7 h-7 text-amber-400" />
         </div>
-        <h2 className="text-2xl font-bold text-white mb-2 tracking-tight">No Content to Review</h2>
+        <h2 className="text-2xl font-bold text-white mb-2 tracking-tight">{t('page.review.no_content_title')}</h2>
         <p className="text-zinc-400 mb-8 max-w-md mx-auto leading-relaxed">
           {currentClient
             ? `No generated content found for ${currentClient.name}. Create a brief to generate content.`
@@ -460,8 +461,8 @@ export default function ContentReview() {
         <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 mb-5 shadow-[0_0_40px_-10px_rgba(245,158,11,0.35)]">
           <Sparkles className="w-7 h-7 text-amber-400" />
         </div>
-        <h2 className="text-2xl font-bold text-white mb-2 tracking-tight">No Content Generated Yet</h2>
-        <p className="text-zinc-400 mb-8 max-w-md mx-auto leading-relaxed">This brief has no generated pieces to review.</p>
+        <h2 className="text-2xl font-bold text-white mb-2 tracking-tight">{t('page.review.no_generated_title')}</h2>
+        <p className="text-zinc-400 mb-8 max-w-md mx-auto leading-relaxed">{t('page.review.no_generated_body')}</p>
         <button
           onClick={() => navigate('/brief')}
           className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-black font-medium rounded-xl transition-colors duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
@@ -544,7 +545,7 @@ export default function ContentReview() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
             <input
               type="text"
-              placeholder="Search captions, copy, hashtags..."
+              placeholder={t('page.review.ph_search')}
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 bg-zinc-900 border border-white/10 rounded-xl text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-amber-500/50 transition-colors"
@@ -620,7 +621,7 @@ export default function ContentReview() {
                   onChange={e => setPlatformFilter(e.target.value)}
                   className="bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500/50"
                 >
-                  <option value="all">All Platforms</option>
+                  <option value="all">{t('page.review.all_platforms')}</option>
                   {platforms.map(p => (
                     <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
                   ))}
@@ -632,7 +633,7 @@ export default function ContentReview() {
                   onChange={e => setStatusFilter(e.target.value)}
                   className="bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500/50"
                 >
-                  <option value="all">All Statuses</option>
+                  <option value="all">{t('page.review.all_statuses')}</option>
                   {(Object.keys(STATUS_LABEL) as ContentStatus[]).map(s => (
                     <option key={s} value={s}>{STATUS_LABEL[s]}</option>
                   ))}
@@ -645,7 +646,7 @@ export default function ContentReview() {
                     onChange={e => setCampaignFilter(e.target.value)}
                     className="bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500/50"
                   >
-                    <option value="all">All Campaigns</option>
+                    <option value="all">{t('page.review.all_campaigns')}</option>
                     {campaigns.map(c => (
                       <option key={c} value={c}>{c}</option>
                     ))}
@@ -679,7 +680,7 @@ export default function ContentReview() {
           <div className="flex items-center justify-between mb-1.5">
             <p className="text-sm font-medium text-zinc-300">
               {stats.approved === stats.total ? (
-                <span className="text-emerald-400">All approved — ready to export &#10003;</span>
+                <span className="text-emerald-400">{t('page.review.all_approved')}</span>
               ) : (
                 <>
                   <span className="text-emerald-400 tabular-nums">{stats.approved}</span>
@@ -796,7 +797,7 @@ export default function ContentReview() {
                   <div>
                     <div className="flex items-center gap-2 mb-1.5">
                       <Eye className="w-3.5 h-3.5 text-zinc-500" />
-                      <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-medium">Art Direction</span>
+                      <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-medium">{t('page.review.section.art_direction')}</span>
                     </div>
                     <p className="text-sm text-zinc-300 leading-relaxed bg-white/[0.02] rounded-lg px-3 py-2 border border-white/5">
                       {piece.creativeCopy || 'No art direction'}
@@ -824,7 +825,7 @@ export default function ContentReview() {
                     {/* Key Message (goes ON the visual) */}
                     {(piece.keyMessage || editingId === piece.id) && (
                       <div>
-                        <span className="text-[9px] uppercase tracking-wider text-amber-400/60 font-semibold">Key Message (on visual)</span>
+                        <span className="text-[9px] uppercase tracking-wider text-amber-400/60 font-semibold">{t('page.review.section.key_message')}</span>
                         <p className="text-sm text-amber-200/90 font-medium mt-0.5 bg-amber-500/[0.06] rounded-lg px-3 py-2 border border-amber-500/10">
                           {piece.keyMessage || '—'}
                         </p>
@@ -851,7 +852,7 @@ export default function ContentReview() {
                     {/* CTA */}
                     {(piece.cta || editingId === piece.id) && (
                       <div>
-                        <span className="text-[9px] uppercase tracking-wider text-emerald-400/60 font-semibold">Call to Action</span>
+                        <span className="text-[9px] uppercase tracking-wider text-emerald-400/60 font-semibold">{t('page.review.section.cta')}</span>
                         <p className="text-sm text-emerald-300/90 font-medium mt-0.5 bg-emerald-500/[0.06] rounded-lg px-3 py-2 border border-emerald-500/10">
                           {piece.cta || '—'}
                         </p>
@@ -967,13 +968,13 @@ export default function ContentReview() {
                       }
                     </button>
                   </th>
-                  <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium">Platform</th>
-                  <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium">Campaign</th>
-                  <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium min-w-[250px]">Caption</th>
-                  <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium">Chars</th>
-                  <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium">Date</th>
-                  <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium">Status</th>
-                  <th className="text-right px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium print:hidden">Actions</th>
+                  <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium">{t('page.review.col.platform')}</th>
+                  <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium">{t('page.review.col.campaign')}</th>
+                  <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium min-w-[250px]">{t('page.review.col.caption')}</th>
+                  <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium">{t('page.review.col.chars')}</th>
+                  <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium">{t('page.review.col.date')}</th>
+                  <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium">{t('page.review.col.status')}</th>
+                  <th className="text-right px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium print:hidden">{t('page.review.col.actions')}</th>
                 </tr>
               </thead>
               <tbody>
