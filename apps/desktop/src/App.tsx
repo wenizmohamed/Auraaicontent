@@ -41,6 +41,7 @@ const Billing           = lazy(() => import('./pages/Billing'));
 const Members           = lazy(() => import('./pages/Members'));
 const AcceptInvite      = lazy(() => import('./pages/AcceptInvite'));
 const Workspace         = lazy(() => import('./pages/Workspace'));
+const Agent             = lazy(() => import('./pages/Agent'));
 
 import MobileMenu from './components/MobileMenu';
 import OrgSwitcher from './components/OrgSwitcher';
@@ -465,6 +466,7 @@ export default function App() {
               <Route path="/profile" element={<Profile />} />
               <Route path="/onboarding" element={<Onboarding />} />
               <Route path="/admin" element={<Admin />} />
+              <Route path="/agent" element={<Agent />} />
               <Route path="/settings/billing" element={<Billing />} />
               <Route path="/settings/members" element={isTeamAdmin() ? <Members /> : <Navigate to="/" replace />} />
               <Route path="/invite/:token" element={<AcceptInvite />} />
