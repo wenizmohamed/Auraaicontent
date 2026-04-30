@@ -4,6 +4,7 @@ import { isRetryableAiError, AllProvidersFailedError, type ProviderFailure } fro
 import type { AiProvider, AiProviderName, AiTask, AiTelemetryEntry, AnalysisRequest, ImageRequest, ProviderResult, TextRequest, VideoRequest } from './types.js';
 import { db } from '../../db/prisma.js';
 import { computeCostUsd } from '../../lib/ai-pricing.js';
+import { assertOrgBudget } from '../../lib/budget.js';
 
 // Map task → UsageEvent.kind. Image edits bill the same as image gens.
 function usageKind(task: AiTask): string {
@@ -96,6 +97,12 @@ async function routeCall<T>(
   fn: (provider: AiProvider) => Promise<ProviderResult<T>>,
   meta?: { jobId?: string; clientId?: string; orgId?: string; userId?: string },
 ): Promise<ProviderResult<T>> {
+  // Spend gate: refuse the call if the org has hit its monthly AI budget.
+  // No-op when meta.orgId is missing (legacy callers) or the org's budget
+  // is 0 (the default — means "no enforcement"). Throws OrgBudgetExceededError
+  // (statusCode 402) which the route handlers serialize as JSON.
+  await assertOrgBudget(meta?.orgId);
+
   const providers = orderedProviders(task);
   const failures: ProviderFailure[] = [];
   let fallbackUsed = false;
@@ -140,22 +147,22 @@ async function routeCall<T>(
 
 // ─── Public API ──────────────────────────────────────────────────
 export const aiRouter = {
-  async text(req: TextRequest, meta?: { jobId?: string; clientId?: string }): Promise<ProviderResult<string | object>> {
+  async text(req: TextRequest, meta?: { jobId?: string; clientId?: string; orgId?: string; userId?: string }): Promise<ProviderResult<string | object>> {
     return routeCall('text', p => p.text(req), meta);
   },
 
-  async image(req: ImageRequest, meta?: { jobId?: string; clientId?: string }): Promise<ProviderResult<{ url?: string; base64?: string }>> {
+  async image(req: ImageRequest, meta?: { jobId?: string; clientId?: string; orgId?: string; userId?: string }): Promise<ProviderResult<{ url?: string; base64?: string }>> {
     return routeCall(req.imageBase64 ? 'image_edit' : 'image', p => req.imageBase64 ? p.imageEdit(req) : p.image(req), meta);
   },
 
-  async video(req: VideoRequest, meta?: { jobId?: string; clientId?: string }): Promise<ProviderResult<{ url: string }>> {
+  async video(req: VideoRequest, meta?: { jobId?: string; clientId?: string; orgId?: string; userId?: string }): Promise<ProviderResult<{ url: string }>> {
     // Image-to-video prefers Gemini (native imageBase64 support), but falls
     // back to xAI via the normal routeCall chain when Gemini is unavailable.
     // xAI receives the base64 as a data-URL in referenceImageUrls.
     return routeCall('video', p => p.video(req), meta);
   },
 
-  async analysis(req: AnalysisRequest, meta?: { jobId?: string; clientId?: string }): Promise<ProviderResult<object>> {
+  async analysis(req: AnalysisRequest, meta?: { jobId?: string; clientId?: string; orgId?: string; userId?: string }): Promise<ProviderResult<object>> {
     return routeCall('analysis', p => p.analysis(req), meta);
   },
 };

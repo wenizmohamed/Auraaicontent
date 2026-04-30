@@ -20,6 +20,10 @@ model Organization {
   status           String    @default("active") // active | past_due | canceled
   stripeCustomerId String?
   trialEndsAt      DateTime?
+  // Monthly AI spend cap in USD. 0 = no enforcement (unlimited). When > 0,
+  // the ai-router refuses calls once month-to-date UsageEvent.costUsd >= this
+  // value. UI surfaces a soft warning at 80% via /api/dashboard/ai-stats.
+  monthlyAiBudgetUsd Decimal  @db.Decimal(10, 2) @default(0)
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
