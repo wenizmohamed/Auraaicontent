@@ -41,10 +41,20 @@ jobs:
       - name: Frontend typecheck
         run: cd apps/desktop && npm run typecheck
 
-      - name: Frontend a11y lint (jsx-a11y)
-        # Errors fail the build; pre-existing warnings on legacy click
-        # handlers / unlabeled inputs / videos without captions are allowed.
-        run: cd apps/desktop && npm run lint:a11y -- --max-warnings 200
+      - name: Frontend a11y lint (jsx-a11y + raw-color guard)
+        # Errors fail the build; warnings are budgeted with a ratchet target.
+        #
+        # Current count (2026-04-30): 1232 warnings total
+        #   - ~133 pre-existing jsx-a11y on legacy click handlers / unlabeled
+        #     inputs / videos without captions
+        #   - ~1099 no-restricted-syntax on raw color literals in src/pages/
+        #     (598 text-zinc-*, 332 border-white/x, 104 raw bg-zinc-*, 65 hex bg)
+        #
+        # Ratchet plan: -200 per sprint as legacy pages migrate off raw colors.
+        # When the no-restricted-syntax count hits 0, flip the rule from `warn`
+        # to `error` in apps/desktop/eslint.config.js and drop this budget back
+        # to ~200 (covering only the legitimate jsx-a11y residue).
+        run: cd apps/desktop && npm run lint:a11y -- --max-warnings 1300
 
       - name: Frontend npm audit
         run: cd apps/desktop && npm audit --production --audit-level=high
