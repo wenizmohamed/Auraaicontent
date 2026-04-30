@@ -12,7 +12,7 @@ import { useEffect, useState, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Calendar as CalIcon, Layers, FileText, Wand2, BarChart3, Settings as SettingsIcon,
-  ArrowRight, Loader2,
+  Loader2,
 } from 'lucide-react';
 import { WorkspaceShell, useWorkspaceRoute } from '../components/shell/WorkspaceShell';
 import {
@@ -33,6 +33,7 @@ const CalendarDetail = lazy(() => import('./Workspace.CalendarDetail'));
 const StrategyDetail = lazy(() => import('./Workspace.StrategyDetail'));
 const StudioDetail   = lazy(() => import('./Workspace.StudioDetail'));
 const InsightsDetail = lazy(() => import('./Workspace.InsightsDetail'));
+const SettingsDetail = lazy(() => import('./Workspace.SettingsDetail'));
 
 function ContentList({ activeId, onPick }: { activeId?: string; onPick: (id: string) => void }) {
   const { selectedClientId } = useClients();
@@ -398,38 +399,44 @@ function InsightsList({ activeId, onPick }: { activeId?: string; onPick: (slug: 
   );
 }
 
-function PlaceholderSurface({
-  title,
-  description,
-  cta,
-  href,
-}: {
-  title: string;
-  description: string;
-  cta: string;
-  href: string;
-}) {
-  const navigate = useNavigate();
-  return (
-    <div className="flex h-full items-center justify-center p-8">
-      <EmptyState
-        icon={ArrowRight}
-        title={title}
-        description={description}
-        primary={
-          <Button onClick={() => navigate(href)} size="md">{cta}</Button>
-        }
-      />
-    </div>
-  );
-}
+const SETTINGS_SECTIONS: { slug: string; label: string; sub: string }[] = [
+  { slug: 'profile',  label: 'Profile',  sub: 'Name, email, role' },
+  { slug: 'members',  label: 'Members',  sub: 'Org memberships' },
+  { slug: 'billing',  label: 'Billing',  sub: 'Plan + Stripe portal' },
+  { slug: 'api-keys', label: 'API keys', sub: 'External integrations' },
+];
 
-function PlaceholderList({ surfaceLabel }: { surfaceLabel: string }) {
+function SettingsList({ activeId, onPick }: { activeId?: string; onPick: (slug: string) => void }) {
   return (
-    <div className="px-4 py-6 text-[12px]" style={{ color: 'var(--color-fg-subtle)' }}>
-      <p>{surfaceLabel} list will live here.</p>
-      <p className="mt-2">This surface is migrating into the shell. Use the legacy route in the right pane until then.</p>
-    </div>
+    <ul className="divide-y" style={{ borderColor: 'var(--color-border-subtle)' }}>
+      {SETTINGS_SECTIONS.map((s) => {
+        const isActive = s.slug === activeId;
+        return (
+          <li key={s.slug}>
+            <button
+              type="button"
+              onClick={() => onPick(s.slug)}
+              className={cn(
+                'flex w-full items-start gap-3 px-4 py-3 text-left transition-colors',
+                isActive
+                  ? 'bg-[color:var(--color-surface-hover)]'
+                  : 'hover:bg-[color:var(--color-surface-hover)]/60'
+              )}
+            >
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[13px] font-semibold" style={{ color: 'var(--color-fg)' }}>
+                  {s.label}
+                </p>
+                <p className="mt-0.5 line-clamp-1 text-[11px]" style={{ color: 'var(--color-fg-muted)' }}>
+                  {s.sub}
+                </p>
+              </div>
+              {isActive && <Badge subtle tone="accent">Open</Badge>}
+            </button>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
@@ -572,14 +579,26 @@ export default function Workspace() {
       id: 'settings',
       label: 'Settings',
       icon: SettingsIcon,
-      list: <PlaceholderList surfaceLabel="Settings" />,
-      detail: () => (
-        <PlaceholderSurface
-          title="Settings surface"
-          description="Profile + Members + Billing + Onboarding wizard."
-          cta="Open legacy /profile"
-          href="/profile"
-        />
+      list: <SettingsList activeId={itemId} onPick={(slug) => navigate(`/workspace/settings/${slug}`)} />,
+      detail: (id: string | undefined) => (
+        id ? (
+          <Suspense fallback={
+            <div className="flex h-full items-center justify-center">
+              <Loader2 className="h-5 w-5 animate-spin" style={{ color: 'var(--color-accent)' }} />
+            </div>
+          }>
+            <SettingsDetail pieceId={id} />
+          </Suspense>
+        ) : (
+          <div className="flex h-full items-center justify-center p-8">
+            <EmptyState
+              icon={SettingsIcon}
+              title="Pick a section"
+              description="Profile, Members, Billing, or API keys."
+              compact
+            />
+          </div>
+        )
       ),
     },
   ];
