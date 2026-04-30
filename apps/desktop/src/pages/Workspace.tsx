@@ -18,6 +18,7 @@ import { WorkspaceShell, useWorkspaceRoute } from '../components/shell/Workspace
 import {
   contentPiecesApi, type ContentPieceRecord,
   calendarApi, type CalendarMonthSummary,
+  knowledgeApi, type KnowledgeItemRecord,
 } from '../lib/backend-api';
 import { useClients } from '../lib/client-context';
 import { EmptyState, Button, SkeletonRow, Badge, cn } from '../components/ui';
@@ -27,6 +28,7 @@ import { EmptyState, Button, SkeletonRow, Badge, cn } from '../components/ui';
 // existing /pieces page is still the editing surface until follow-up.
 const PieceDetail = lazy(() => import('./Workspace.PieceDetail'));
 const CalendarDetail = lazy(() => import('./Workspace.CalendarDetail'));
+const StrategyDetail = lazy(() => import('./Workspace.StrategyDetail'));
 
 function ContentList({ activeId, onPick }: { activeId?: string; onPick: (id: string) => void }) {
   const { selectedClientId } = useClients();
@@ -173,6 +175,86 @@ function CalendarList({ activeId, onPick }: { activeId?: string; onPick: (month:
   );
 }
 
+function StrategyList({ activeId, onPick }: { activeId?: string; onPick: (slug: string) => void }) {
+  const { selectedClientId } = useClients();
+  const [items, setItems] = useState<KnowledgeItemRecord[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!selectedClientId) return;
+    setLoading(true);
+    knowledgeApi.list(selectedClientId)
+      .then((rows) => setItems(rows))
+      .catch(() => setItems([]))
+      .finally(() => setLoading(false));
+  }, [selectedClientId]);
+
+  if (loading) {
+    return (
+      <div className="space-y-2 p-3">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <SkeletonRow key={i} delay={i * 60} />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <ul className="divide-y" style={{ borderColor: 'var(--color-border-subtle)' }}>
+      <li>
+        <button
+          type="button"
+          onClick={() => onPick('brief')}
+          className={cn(
+            'flex w-full items-start gap-3 px-4 py-3 text-left transition-colors',
+            activeId === 'brief'
+              ? 'bg-[color:var(--color-surface-hover)]'
+              : 'hover:bg-[color:var(--color-surface-hover)]/60'
+          )}
+        >
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[13px] font-semibold" style={{ color: 'var(--color-fg)' }}>
+              Brief
+            </p>
+            <p className="mt-0.5 line-clamp-1 text-[11px]" style={{ color: 'var(--color-fg-muted)' }}>
+              Tone · audience · platforms
+            </p>
+          </div>
+          {activeId === 'brief' && <Badge subtle tone="accent">Open</Badge>}
+        </button>
+      </li>
+      {items.map((it) => {
+        const slug = `knowledge:${it.id}`;
+        const isActive = slug === activeId;
+        return (
+          <li key={it.id}>
+            <button
+              type="button"
+              onClick={() => onPick(slug)}
+              className={cn(
+                'flex w-full items-start gap-3 px-4 py-3 text-left transition-colors',
+                isActive
+                  ? 'bg-[color:var(--color-surface-hover)]'
+                  : 'hover:bg-[color:var(--color-surface-hover)]/60'
+              )}
+            >
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[13px] font-semibold" style={{ color: 'var(--color-fg)' }}>
+                  {it.title || 'Untitled'}
+                </p>
+                <p className="mt-0.5 line-clamp-1 text-[11px]" style={{ color: 'var(--color-fg-muted)' }}>
+                  {it.type}
+                </p>
+              </div>
+              {isActive && <Badge subtle tone="accent">Open</Badge>}
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 function PlaceholderSurface({
   title,
   description,
@@ -269,14 +351,26 @@ export default function Workspace() {
       id: 'strategy',
       label: 'Strategy',
       icon: FileText,
-      list: <PlaceholderList surfaceLabel="Strategy" />,
-      detail: () => (
-        <PlaceholderSurface
-          title="Strategy surface"
-          description="Brief + Knowledge merge into one Strategy tab."
-          cta="Open legacy /brief"
-          href="/brief"
-        />
+      list: <StrategyList activeId={itemId} onPick={(slug) => navigate(`/workspace/strategy/${encodeURIComponent(slug)}`)} />,
+      detail: (id: string | undefined) => (
+        id ? (
+          <Suspense fallback={
+            <div className="flex h-full items-center justify-center">
+              <Loader2 className="h-5 w-5 animate-spin" style={{ color: 'var(--color-accent)' }} />
+            </div>
+          }>
+            <StrategyDetail pieceId={decodeURIComponent(id)} />
+          </Suspense>
+        ) : (
+          <div className="flex h-full items-center justify-center p-8">
+            <EmptyState
+              icon={FileText}
+              title="Pick a strategy item"
+              description="The brief or any knowledge document on the left."
+              compact
+            />
+          </div>
+        )
       ),
     },
     {
