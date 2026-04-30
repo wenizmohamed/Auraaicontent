@@ -15,7 +15,10 @@ import {
   ArrowRight, Loader2,
 } from 'lucide-react';
 import { WorkspaceShell, useWorkspaceRoute } from '../components/shell/WorkspaceShell';
-import { contentPiecesApi, type ContentPieceRecord } from '../lib/backend-api';
+import {
+  contentPiecesApi, type ContentPieceRecord,
+  calendarApi, type CalendarMonthSummary,
+} from '../lib/backend-api';
 import { useClients } from '../lib/client-context';
 import { EmptyState, Button, SkeletonRow, Badge, cn } from '../components/ui';
 
@@ -23,6 +26,7 @@ import { EmptyState, Button, SkeletonRow, Badge, cn } from '../components/ui';
 // itself stays light. Currently renders a simplified read-only view; the
 // existing /pieces page is still the editing surface until follow-up.
 const PieceDetail = lazy(() => import('./Workspace.PieceDetail'));
+const CalendarDetail = lazy(() => import('./Workspace.CalendarDetail'));
 
 function ContentList({ activeId, onPick }: { activeId?: string; onPick: (id: string) => void }) {
   const { selectedClientId } = useClients();
@@ -83,6 +87,81 @@ function ContentList({ activeId, onPick }: { activeId?: string; onPick: (id: str
                 </p>
                 <p className="mt-0.5 line-clamp-1 text-[11px]" style={{ color: 'var(--color-fg-muted)' }}>
                   {(p as any).status ?? 'draft'} · {(p as any).type ?? 'post'}
+                </p>
+              </div>
+              {isActive && <Badge subtle tone="accent">Open</Badge>}
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function CalendarList({ activeId, onPick }: { activeId?: string; onPick: (month: string) => void }) {
+  const { selectedClientId } = useClients();
+  const [months, setMonths] = useState<CalendarMonthSummary[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!selectedClientId) return;
+    setLoading(true);
+    calendarApi.listMonths(selectedClientId)
+      .then((rows) => setMonths(rows))
+      .catch(() => setMonths([]))
+      .finally(() => setLoading(false));
+  }, [selectedClientId]);
+
+  if (loading) {
+    return (
+      <div className="space-y-2 p-3">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <SkeletonRow key={i} delay={i * 60} />
+        ))}
+      </div>
+    );
+  }
+
+  if (months.length === 0) {
+    return (
+      <div className="p-4">
+        <EmptyState
+          icon={CalIcon}
+          title="No calendar months"
+          description="Generate a month from the legacy /calendar editor."
+          compact
+        />
+      </div>
+    );
+  }
+
+  return (
+    <ul className="divide-y" style={{ borderColor: 'var(--color-border-subtle)' }}>
+      {months.map((m) => {
+        const isActive = m.month === activeId;
+        const label = (() => {
+          const [y, mo] = m.month.split('-').map((n) => parseInt(n, 10));
+          const d = new Date(y || new Date().getFullYear(), (mo || 1) - 1, 1);
+          return d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+        })();
+        return (
+          <li key={m.id}>
+            <button
+              type="button"
+              onClick={() => onPick(m.month)}
+              className={cn(
+                'flex w-full items-start gap-3 px-4 py-3 text-left transition-colors',
+                isActive
+                  ? 'bg-[color:var(--color-surface-hover)]'
+                  : 'hover:bg-[color:var(--color-surface-hover)]/60'
+              )}
+            >
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[13px] font-semibold" style={{ color: 'var(--color-fg)' }}>
+                  {label}
+                </p>
+                <p className="mt-0.5 line-clamp-1 text-[11px]" style={{ color: 'var(--color-fg-muted)' }}>
+                  {m.status} · {m.postCount} posts
                 </p>
               </div>
               {isActive && <Badge subtle tone="accent">Open</Badge>}
@@ -164,14 +243,26 @@ export default function Workspace() {
       id: 'calendar',
       label: 'Calendar',
       icon: CalIcon,
-      list: <PlaceholderList surfaceLabel="Calendar" />,
-      detail: () => (
-        <PlaceholderSurface
-          title="Calendar surface"
-          description="Hijri+Gregorian calendar with drag, density toggle, hover preview, AR mirror flip."
-          cta="Open legacy /calendar"
-          href="/calendar"
-        />
+      list: <CalendarList activeId={itemId} onPick={(month) => navigate(`/workspace/calendar/${encodeURIComponent(month)}`)} />,
+      detail: (id: string | undefined) => (
+        id ? (
+          <Suspense fallback={
+            <div className="flex h-full items-center justify-center">
+              <Loader2 className="h-5 w-5 animate-spin" style={{ color: 'var(--color-accent)' }} />
+            </div>
+          }>
+            <CalendarDetail pieceId={id} />
+          </Suspense>
+        ) : (
+          <div className="flex h-full items-center justify-center p-8">
+            <EmptyState
+              icon={CalIcon}
+              title="Pick a month"
+              description="Select a month on the left to preview the calendar grid."
+              compact
+            />
+          </div>
+        )
       ),
     },
     {
