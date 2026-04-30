@@ -19,6 +19,7 @@ import {
   contentPiecesApi, type ContentPieceRecord,
   calendarApi, type CalendarMonthSummary,
   knowledgeApi, type KnowledgeItemRecord,
+  galleryApi, type GalleryAsset,
 } from '../lib/backend-api';
 import { useClients } from '../lib/client-context';
 import { EmptyState, Button, SkeletonRow, Badge, cn } from '../components/ui';
@@ -29,6 +30,7 @@ import { EmptyState, Button, SkeletonRow, Badge, cn } from '../components/ui';
 const PieceDetail = lazy(() => import('./Workspace.PieceDetail'));
 const CalendarDetail = lazy(() => import('./Workspace.CalendarDetail'));
 const StrategyDetail = lazy(() => import('./Workspace.StrategyDetail'));
+const StudioDetail   = lazy(() => import('./Workspace.StudioDetail'));
 
 function ContentList({ activeId, onPick }: { activeId?: string; onPick: (id: string) => void }) {
   const { selectedClientId } = useClients();
@@ -255,6 +257,82 @@ function StrategyList({ activeId, onPick }: { activeId?: string; onPick: (slug: 
   );
 }
 
+function StudioList({ activeId, onPick }: { activeId?: string; onPick: (id: string) => void }) {
+  const { selectedClientId } = useClients();
+  const [assets, setAssets] = useState<GalleryAsset[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setLoading(true);
+    galleryApi.list(selectedClientId ? { clientId: selectedClientId, take: 60 } : { take: 60 })
+      .then((rows) => setAssets(rows))
+      .catch(() => setAssets([]))
+      .finally(() => setLoading(false));
+  }, [selectedClientId]);
+
+  if (loading) {
+    return (
+      <div className="grid grid-cols-2 gap-2 p-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div
+            key={i}
+            className="aspect-square animate-pulse rounded-md"
+            style={{ background: 'var(--color-surface)', animationDelay: `${i * 60}ms` }}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  if (assets.length === 0) {
+    return (
+      <div className="p-4">
+        <EmptyState
+          icon={Wand2}
+          title="No assets yet"
+          description="Generate one in the Creative tools."
+          compact
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-2 gap-2 p-3">
+      {assets.map((a) => {
+        const isActive = a.id === activeId;
+        const isVideo = a.mimeType?.startsWith('video/');
+        const thumb = a.thumbUrl || a.fileUrl;
+        return (
+          <button
+            key={a.id}
+            type="button"
+            onClick={() => onPick(a.id)}
+            className={cn(
+              'relative aspect-square overflow-hidden rounded-md border transition-colors',
+              isActive ? 'ring-2' : '',
+            )}
+            style={{
+              borderColor: 'var(--color-border-subtle)',
+              background: 'var(--color-surface)',
+              ...(isActive ? { ['--tw-ring-color' as any]: 'var(--color-accent)' } : {}),
+            }}
+            title={a.name || 'Untitled'}
+          >
+            {isVideo ? (
+              <div className="flex h-full items-center justify-center text-[10px] uppercase tracking-wide" style={{ color: 'var(--color-fg-subtle)' }}>
+                video
+              </div>
+            ) : (
+              <img src={thumb} alt={a.name || ''} className="h-full w-full object-cover" loading="lazy" />
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function PlaceholderSurface({
   title,
   description,
@@ -377,14 +455,26 @@ export default function Workspace() {
       id: 'studio',
       label: 'Studio',
       icon: Wand2,
-      list: <PlaceholderList surfaceLabel="Studio" />,
-      detail: () => (
-        <PlaceholderSurface
-          title="Studio surface"
-          description="CreativeTools + AIDesignGenerator + Gallery + VisualReferences + DesignTextures + VideoAnalysis unified into one workspace."
-          cta="Open legacy /creative"
-          href="/creative"
-        />
+      list: <StudioList activeId={itemId} onPick={(id) => navigate(`/workspace/studio/${id}`)} />,
+      detail: (id: string | undefined) => (
+        id ? (
+          <Suspense fallback={
+            <div className="flex h-full items-center justify-center">
+              <Loader2 className="h-5 w-5 animate-spin" style={{ color: 'var(--color-accent)' }} />
+            </div>
+          }>
+            <StudioDetail pieceId={id} />
+          </Suspense>
+        ) : (
+          <div className="flex h-full items-center justify-center p-8">
+            <EmptyState
+              icon={Wand2}
+              title="Pick an asset"
+              description="Tap a thumbnail on the left to preview the full image or video."
+              compact
+            />
+          </div>
+        )
       ),
     },
     {
