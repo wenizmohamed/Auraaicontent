@@ -36,9 +36,34 @@ jobs:
       - name: Frontend typecheck
         run: cd apps/desktop && npm run typecheck
 
+      - name: Frontend a11y lint (jsx-a11y)
+        # Errors fail the build; pre-existing warnings on legacy click
+        # handlers / unlabeled inputs / videos without captions are allowed.
+        run: cd apps/desktop && npm run lint:a11y -- --max-warnings 200
+
       - name: Frontend npm audit
         run: cd apps/desktop && npm audit --production --audit-level=high
         continue-on-error: true
+
+      - name: Frontend bundle build
+        run: cd apps/desktop && npx vite build
+
+      - name: Frontend bundle-size budget (initial JS ≤ 250KB gzipped)
+        run: |
+          cd apps/desktop
+          INDEX_JS=$(ls dist/assets/index-*.js | head -1)
+          if [ -z "$INDEX_JS" ]; then
+            echo "::error::No index-*.js found in dist/assets — build broken"
+            exit 1
+          fi
+          GZ_BYTES=$(gzip -c "$INDEX_JS" | wc -c)
+          GZ_KB=$((GZ_BYTES / 1024))
+          BUDGET_KB=250
+          echo "Initial JS: ${GZ_KB} KB gzipped (budget: ${BUDGET_KB} KB)"
+          if [ "$GZ_KB" -gt "$BUDGET_KB" ]; then
+            echo "::error::Initial JS bundle ${GZ_KB}KB exceeds ${BUDGET_KB}KB budget"
+            exit 1
+          fi
 
   smoke:
     runs-on: ubuntu-latest

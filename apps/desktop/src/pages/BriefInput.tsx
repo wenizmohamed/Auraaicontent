@@ -23,35 +23,9 @@ import {
 } from 'lucide-react';
 import { useStore, type ContentBrief } from '../lib/store';
 import { useClients } from '../lib/client-context';
-import { briefsApi, calendarApi, jobsApi, assistantApi } from '../lib/backend-api';
+import { briefsApi, calendarApi, jobsApi } from '../lib/backend-api';
 import { motionUI } from '../lib/motion';
-import { InlineAITextHost, type InlineAIAction } from '../components/ui/InlineAITextToolbar';
-import { toast } from 'sonner';
-
-const ACTION_PROMPTS: Record<InlineAIAction, (text: string) => string> = {
-  rewrite:    (t) => `Rewrite this text to be clearer and more polished. Return only the rewritten version, no preamble:\n\n${t}`,
-  shorten:    (t) => `Shorten this text by ~30% without losing meaning. Return only the result:\n\n${t}`,
-  translate:  (t) => `Translate this text to ${/^[؀-ۿ]/.test(t) ? 'English' : 'Arabic (Khaleeji dialect)'}. Return only the translation:\n\n${t}`,
-  'on-brand': (t) => `Rewrite this so it matches a confident, editorial-tone Gulf-region marketing voice. Return only the result:\n\n${t}`,
-};
-
-async function runInlineAIAction(action: InlineAIAction, selectedText: string, replace: (newText: string) => void) {
-  const prompt = ACTION_PROMPTS[action](selectedText);
-  const id = toast.loading(`${action[0].toUpperCase() + action.slice(1)}…`);
-  try {
-    const res = await assistantApi.chat([{ role: 'user', content: prompt }]);
-    const newText = (res.message?.content ?? '').trim();
-    if (!newText) throw new Error('Empty AI response');
-    toast.success('Ready — apply?', {
-      id,
-      description: newText.length > 100 ? newText.slice(0, 100) + '…' : newText,
-      action: { label: 'Apply', onClick: () => replace(newText) },
-      duration: 12_000,
-    });
-  } catch (err: any) {
-    toast.error(`AI ${action} failed: ${err?.message ?? 'unknown'}`, { id });
-  }
-}
+import { InlineAITextHost, AIRewriteDialog, useAIRewrite } from '../components/ui';
 import {
   DEFAULT_CAMPAIGNS,
   DEFAULT_OCCASIONS,
@@ -151,6 +125,9 @@ export default function BriefInput() {
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['Instagram', 'TikTok', 'LinkedIn']);
   const [pieceCount, setPieceCount] = useState(18);
   const [toneNotes, setToneNotes] = useState('');
+  // AI rewrite flow: useAIRewrite drives a state machine; AIRewriteDialog
+  // mounts the DiffView for accept/reject. No more toast-as-Apply hack.
+  const aiRewrite = useAIRewrite();
   const [isGenerating, setIsGenerating] = useState(false);
   const cancelledRef = useRef(false);
   const [generationProgress, setGenerationProgress] = useState('');
@@ -862,7 +839,7 @@ export default function BriefInput() {
                 </label>
               </div>
               <InlineAITextHost
-                onAction={(action, selected) => runInlineAIAction(action, selected, (newText) => {
+                onAction={(action, selected) => aiRewrite.start(action, selected, (newText) => {
                   // Replace the selected substring within toneNotes
                   setToneNotes(prev => prev.includes(selected) ? prev.replace(selected, newText) : prev + '\n' + newText);
                 })}
@@ -946,6 +923,9 @@ export default function BriefInput() {
           100% { transform: translateX(100%); }
         }
       `}</style>
+
+      {/* AI rewrite dialog — opens on InlineAI action, shows DiffView. */}
+      <AIRewriteDialog state={aiRewrite.state} onClose={aiRewrite.cancel} />
     </div>
   );
 }

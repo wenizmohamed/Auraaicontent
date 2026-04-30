@@ -77,4 +77,32 @@ export default [
       'no-undef': 'off',
     },
   },
+  // Page authors: no NEW raw color classes. Force semantic tokens
+  // (bg-bg, text-fg-muted, …). The light-mode override layer in
+  // index.css is a backstop that's getting deleted incrementally —
+  // do not add to the surface that needs covering.
+  {
+    files: ['src/pages/**/*.{tsx,ts}'],
+    rules: {
+      'no-restricted-syntax': [
+        'warn',
+        {
+          selector: "Literal[value=/(?:^|\\s)bg-(zinc|gray|slate|stone|neutral)-\\d+/]",
+          message: 'Use semantic tokens (bg-bg, bg-surface, bg-bg-elevated) instead of raw zinc/gray/slate. Light/Studio themes will silently break.',
+        },
+        {
+          selector: "Literal[value=/(?:^|\\s)bg-\\[#[0-9a-fA-F]{3,8}\\]/]",
+          message: 'No hex backgrounds in pages — use a semantic token. Pick from --color-bg / -surface / -accent, etc.',
+        },
+        {
+          selector: "Literal[value=/(?:^|\\s)text-(zinc|gray|slate|stone|neutral)-\\d+/]",
+          message: 'Use text-fg / text-fg-muted / text-fg-subtle instead of raw zinc/gray/slate text colors.',
+        },
+        {
+          selector: "Literal[value=/(?:^|\\s)border-white\\/\\[?[\\d.]+/]",
+          message: 'Use border-border / border-border-subtle instead of raw border-white/x. Light theme will look wrong.',
+        },
+      ],
+    },
+  },
 ];
