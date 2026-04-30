@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bot, Send, X, Loader2, Trash2, MessageSquare, AlertCircle, Zap, Search, FileText, Calendar, Image as ImageIcon, ExternalLink } from 'lucide-react';
+import { Bot, Send, X, Loader2, Trash2, MessageSquare, AlertCircle, Zap, Search, FileText, Calendar, Image as ImageIcon, ExternalLink, Copy, RefreshCw, Check } from 'lucide-react';
+import { toast } from 'sonner';
 import { assistantApi, type ChatMessage } from '../lib/backend-api';
 import { useClients } from '../lib/client-context';
 import { useNavigate } from 'react-router-dom';
@@ -214,6 +215,14 @@ export default function RadixAssistant() {
                   {currentClient ? `${currentClient.name} · Agent mode` : 'Agent mode'}
                 </p>
               </div>
+              <button
+                onClick={() => navigate('/agent')}
+                title="Open session history"
+                className="p-1.5 transition-colors cursor-pointer"
+                style={{ color: 'var(--color-fg-subtle)' }}
+              >
+                <MessageSquare className="w-4 h-4" />
+              </button>
               {messages.length > 0 && (
                 <button onClick={handleClear} className="p-1.5 text-zinc-600 hover:text-red-400 transition-colors cursor-pointer" title="Clear chat">
                   <Trash2 className="w-4 h-4" />
@@ -245,32 +254,42 @@ export default function RadixAssistant() {
               )}
 
               {messages.map((m, i) => (
-                <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[88%] ${m.role === 'user' ? '' : ''}`}>
-                    <div className={`rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap leading-relaxed ${
-                      m.role === 'user'
-                        ? 'bg-amber-500 text-black rounded-br-sm'
-                        : 'bg-white/[0.04] text-zinc-200 border border-white/[0.06] rounded-bl-sm'
-                    }`}>
-                      {m.content}
-                    </div>
-                    {/* Trust UI — model + latency for assistant messages */}
-                    {m.role === 'assistant' && (m.provider || m.latencyMs != null) && (
-                      <div className="mt-1 flex items-center gap-2 px-1 text-[10px] text-zinc-600">
-                        {m.provider && <span className="font-mono">{m.provider}</span>}
-                        {m.latencyMs != null && <span>· {m.latencyMs}ms</span>}
-                      </div>
-                    )}
-                    {m.action && renderActionCard(m.action)}
-                  </div>
-                </div>
+                <MessageRow
+                  key={i}
+                  message={m}
+                  isLast={i === messages.length - 1}
+                  onRetry={
+                    m.role === 'assistant'
+                      ? () => {
+                          // Re-send the user message that produced this assistant reply
+                          const prev = messages[i - 1];
+                          if (prev?.role === 'user') {
+                            // Drop the assistant message so the chain reflects the retry
+                            setMessages(arr => arr.slice(0, i));
+                            handleSend(prev.content);
+                          }
+                        }
+                      : undefined
+                  }
+                  renderAction={renderActionCard}
+                />
               ))}
 
               {loading && (
                 <div className="flex justify-start">
-                  <div className="rounded-2xl rounded-bl-sm bg-white/[0.04] border border-white/[0.06] px-3.5 py-2 text-sm flex items-center gap-2">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
-                    <span className="ai-streaming font-medium">Generating response…</span>
+                  <div
+                    className="flex items-center gap-1.5 rounded-2xl rounded-bl-sm border px-3.5 py-2.5"
+                    style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border-subtle)' }}
+                  >
+                    {[0, 1, 2].map(d => (
+                      <motion.span
+                        key={d}
+                        className="block h-1.5 w-1.5 rounded-full"
+                        style={{ background: 'var(--color-fg-muted)' }}
+                        animate={{ y: [0, -4, 0] }}
+                        transition={{ duration: 0.8, repeat: Infinity, delay: d * 0.15 }}
+                      />
+                    ))}
                   </div>
                 </div>
               )}
@@ -283,29 +302,195 @@ export default function RadixAssistant() {
               )}
             </div>
 
-            {/* Input */}
-            <div className="border-t border-white/[0.06] p-3">
-              <div className="flex gap-2">
-                <input
-                  value={input}
-                  onChange={e => setInput(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
-                  placeholder={loading ? 'Working...' : 'Ask Radix anything...'}
-                  disabled={loading}
-                  className="flex-1 bg-zinc-900 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-amber-500/40 disabled:opacity-50 transition-colors"
-                />
-                <button
-                  onClick={() => handleSend()}
-                  disabled={loading || !input.trim()}
-                  className="w-9 h-9 rounded-xl bg-amber-500 text-black flex items-center justify-center hover:bg-amber-400 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
-                >
-                  <Send className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
+            {/* Input — polished prompt box: auto-resize textarea, send-inside,
+                Enter to send + Shift+Enter for newline, char counter at limit */}
+            <PromptBox
+              value={input}
+              onChange={setInput}
+              onSend={() => handleSend()}
+              loading={loading}
+              maxChars={4000}
+            />
           </motion.div>
         )}
       </AnimatePresence>
     </>
+  );
+}
+
+// ─── PromptBox — AI-style prompt input ───────────────────────────────
+// Multi-line auto-resizing textarea with the send button INSIDE the box,
+// keyboard hint (Enter ↵, Shift+Enter for newline), live char counter,
+// disabled while loading. Adapted from the 21st.dev "AI Prompt Box"
+// pattern and restyled against radixcontent semantic tokens.
+
+interface PromptBoxProps {
+  value: string;
+  onChange: (v: string) => void;
+  onSend: () => void;
+  loading: boolean;
+  maxChars: number;
+}
+
+function PromptBox({ value, onChange, onSend, loading, maxChars }: PromptBoxProps) {
+  const taRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-resize: 1 line at rest, grow up to 6 lines
+  useEffect(() => {
+    const el = taRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    const max = 6 * 22; // ~6 lines at 22px line-height
+    el.style.height = `${Math.min(el.scrollHeight, max)}px`;
+  }, [value]);
+
+  const overLimit = value.length > maxChars;
+  const canSend = !loading && value.trim().length > 0 && !overLimit;
+
+  return (
+    <div
+      className="border-t p-3"
+      style={{ borderColor: 'var(--color-border-subtle)' }}
+    >
+      <div
+        className="flex items-end gap-2 rounded-xl border px-3 py-2 transition-colors focus-within:[--ring:1]"
+        style={{
+          background: 'var(--color-bg-elevated)',
+          borderColor: 'var(--color-border)',
+          boxShadow: '0 1px 0 rgba(255,255,255,0.02) inset',
+        }}
+      >
+        <textarea
+          ref={taRef}
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              if (canSend) onSend();
+            }
+          }}
+          rows={1}
+          placeholder={loading ? 'Working…' : 'Ask Radix anything…  (Enter to send, Shift+Enter for newline)'}
+          disabled={loading}
+          className="flex-1 resize-none bg-transparent text-sm leading-snug outline-none placeholder:opacity-50 disabled:opacity-50"
+          style={{ color: 'var(--color-fg)', minHeight: '22px', maxHeight: '132px' }}
+        />
+        <button
+          type="button"
+          onClick={() => canSend && onSend()}
+          disabled={!canSend}
+          aria-label="Send"
+          className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
+          style={{
+            background: canSend ? 'var(--color-accent)' : 'var(--color-surface)',
+            color: canSend ? 'var(--color-fg-on-accent)' : 'var(--color-fg-muted)',
+          }}
+        >
+          <Send className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      <div className="mt-1 flex items-center justify-between px-1 text-[10px]">
+        <span style={{ color: 'var(--color-fg-subtle)' }}>
+          ⏎ send · ⇧⏎ newline
+        </span>
+        <span style={{ color: overLimit ? 'var(--color-danger)' : 'var(--color-fg-subtle)' }}>
+          {value.length} / {maxChars}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Message bubble + hover actions ──────────────────────────────────
+// Polished message lane (V0 AI Chat aesthetic adapted for radixcontent
+// tokens): hairline-bordered bubbles, monospace model chip, hover-revealed
+// copy/retry on assistant messages. Action cards render unchanged below
+// the bubble via the existing renderActionCard prop.
+
+interface MessageRowProps {
+  message: EnrichedMessage;
+  isLast: boolean;
+  onRetry?: () => void;
+  renderAction: (action: ActionResult) => React.ReactNode;
+}
+
+function MessageRow({ message, isLast, onRetry, renderAction }: MessageRowProps) {
+  const [copied, setCopied] = useState(false);
+  const isUser = message.role === 'user';
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(message.content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1400);
+    } catch {
+      toast.error('Copy failed — clipboard unavailable');
+    }
+  };
+
+  return (
+    <motion.div
+      className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+    >
+      <div className="group max-w-[88%]">
+        <div
+          className={`rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap leading-relaxed ${
+            isUser ? 'rounded-br-sm' : 'rounded-bl-sm border'
+          }`}
+          style={
+            isUser
+              ? { background: 'var(--color-accent)', color: 'var(--color-fg-on-accent)' }
+              : { background: 'var(--color-surface)', borderColor: 'var(--color-border-subtle)', color: 'var(--color-fg)' }
+          }
+        >
+          {message.content}
+        </div>
+
+        {/* Trust strip + hover actions */}
+        {!isUser ? (
+          <div className="mt-1 flex h-5 items-center gap-2 px-1 text-[10px]" style={{ color: 'var(--color-fg-subtle)' }}>
+            {message.provider ? (
+              <span
+                className="rounded px-1 py-0.5 font-mono"
+                style={{ background: 'var(--color-bg-sunken)', color: 'var(--color-fg-muted)' }}
+              >
+                {message.provider}
+              </span>
+            ) : null}
+            {message.latencyMs != null ? <span>{message.latencyMs}ms</span> : null}
+
+            {/* Reveal-on-hover actions; isLast keeps them visible on the latest reply */}
+            <div className={`ml-auto flex items-center gap-1 transition-opacity ${isLast ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+              <button
+                type="button"
+                onClick={copy}
+                title="Copy"
+                className="rounded p-1 transition-colors"
+                style={{ color: 'var(--color-fg-muted)' }}
+              >
+                {copied ? <Check className="h-3 w-3" style={{ color: 'var(--color-success)' }} /> : <Copy className="h-3 w-3" />}
+              </button>
+              {onRetry ? (
+                <button
+                  type="button"
+                  onClick={onRetry}
+                  title="Retry"
+                  className="rounded p-1 transition-colors"
+                  style={{ color: 'var(--color-fg-muted)' }}
+                >
+                  <RefreshCw className="h-3 w-3" />
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        {message.action ? renderAction(message.action) : null}
+      </div>
+    </motion.div>
   );
 }
