@@ -14,6 +14,7 @@
     "lint:a11y": "eslint --ext .tsx,.ts src",
     "storybook": "storybook dev -p 6006",
     "storybook:build": "storybook build",
+    "chromatic": "chromatic --exit-zero-on-changes --build-script-name=storybook:build",
     "test": "echo \"no test framework configured — typecheck is the gate\" && tsc --noEmit",
     "electron:dev": "concurrently -k \"vite --port=3000\" \"wait-on http://localhost:3000 && electron .\"",
     "electron:build": "vite build && electron-builder --win --x64",
@@ -91,6 +92,7 @@
   },
   "devDependencies": {
     "@axe-core/react": "^4.11.2",
+    "@chromatic-com/storybook": "^3.2.4",
     "@eslint/js": "^10.0.1",
     "@storybook/addon-a11y": "^8.6.18",
     "@storybook/addon-essentials": "^8.6.14",

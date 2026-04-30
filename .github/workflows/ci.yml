@@ -8,6 +8,11 @@ on:
 jobs:
   static:
     runs-on: ubuntu-latest
+    # Job-level env so the Chromatic step can gate on the secret being set.
+    # GitHub Actions disallows referencing `secrets.*` directly in `if:` —
+    # the standard workaround is to project the secret into env first.
+    env:
+      CHROMATIC_PROJECT_TOKEN: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -64,6 +69,20 @@ jobs:
             echo "::error::Initial JS bundle ${GZ_KB}KB exceeds ${BUDGET_KB}KB budget"
             exit 1
           fi
+
+      # Chromatic visual-regression baseline.
+      # Requires CHROMATIC_PROJECT_TOKEN repo secret. To set it:
+      #   1. Sign in at https://www.chromatic.com/ with the repo's GitHub account
+      #   2. Create a project, copy the project token
+      #   3. GitHub → repo → Settings → Secrets and variables → Actions → New
+      #      repository secret → Name: CHROMATIC_PROJECT_TOKEN, Value: <token>
+      # When the secret is missing, this step is skipped (no-op) so the build
+      # stays green for forks and contributors who don't have the token.
+      - name: Chromatic visual snapshots
+        if: env.CHROMATIC_PROJECT_TOKEN != ''
+        run: |
+          cd apps/desktop
+          npx chromatic --exit-zero-on-changes --build-script-name=storybook:build
 
   smoke:
     runs-on: ubuntu-latest
