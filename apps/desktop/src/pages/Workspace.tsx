@@ -20,6 +20,7 @@ import {
   calendarApi, type CalendarMonthSummary,
   knowledgeApi, type KnowledgeItemRecord,
   galleryApi, type GalleryAsset,
+  dashboardApi, type DashboardStats,
 } from '../lib/backend-api';
 import { useClients } from '../lib/client-context';
 import { EmptyState, Button, SkeletonRow, Badge, cn } from '../components/ui';
@@ -31,6 +32,7 @@ const PieceDetail = lazy(() => import('./Workspace.PieceDetail'));
 const CalendarDetail = lazy(() => import('./Workspace.CalendarDetail'));
 const StrategyDetail = lazy(() => import('./Workspace.StrategyDetail'));
 const StudioDetail   = lazy(() => import('./Workspace.StudioDetail'));
+const InsightsDetail = lazy(() => import('./Workspace.InsightsDetail'));
 
 function ContentList({ activeId, onPick }: { activeId?: string; onPick: (id: string) => void }) {
   const { selectedClientId } = useClients();
@@ -333,6 +335,69 @@ function StudioList({ activeId, onPick }: { activeId?: string; onPick: (id: stri
   );
 }
 
+function InsightsList({ activeId, onPick }: { activeId?: string; onPick: (slug: string) => void }) {
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    dashboardApi.stats()
+      .then((s) => { if (!cancelled) setStats(s); })
+      .catch(() => { if (!cancelled) setStats(null); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const tiles: { slug: string; label: string; value: string; sub: string }[] = stats ? [
+    { slug: 'clients',   label: 'Clients',   value: String(stats.clients.total),         sub: `${stats.clients.withBrief} with brief` },
+    { slug: 'posts',     label: 'Posts',     value: String(stats.content.totalPosts),    sub: `${stats.content.totalMonths} months` },
+    { slug: 'ai',        label: 'AI usage',  value: 'view',                              sub: 'providers + tasks' },
+    { slug: 'knowledge', label: 'Knowledge', value: String(stats.knowledge.totalItems),  sub: `${stats.knowledge.totalChunks} chunks` },
+  ] : [];
+
+  if (loading) {
+    return (
+      <div className="space-y-2 p-3">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <SkeletonRow key={i} delay={i * 60} />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <ul className="divide-y" style={{ borderColor: 'var(--color-border-subtle)' }}>
+      {tiles.map((t) => {
+        const isActive = t.slug === activeId;
+        return (
+          <li key={t.slug}>
+            <button
+              type="button"
+              onClick={() => onPick(t.slug)}
+              className={cn(
+                'flex w-full items-start gap-3 px-4 py-3 text-left transition-colors',
+                isActive
+                  ? 'bg-[color:var(--color-surface-hover)]'
+                  : 'hover:bg-[color:var(--color-surface-hover)]/60'
+              )}
+            >
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[13px] font-semibold" style={{ color: 'var(--color-fg)' }}>
+                  {t.label}
+                </p>
+                <p className="mt-0.5 line-clamp-1 text-[11px]" style={{ color: 'var(--color-fg-muted)' }}>
+                  {t.sub}
+                </p>
+              </div>
+              <span className="font-mono text-[14px] tabular-nums" style={{ color: 'var(--color-fg)' }}>{t.value}</span>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 function PlaceholderSurface({
   title,
   description,
@@ -481,14 +546,26 @@ export default function Workspace() {
       id: 'insights',
       label: 'Insights',
       icon: BarChart3,
-      list: <PlaceholderList surfaceLabel="Insights" />,
-      detail: () => (
-        <PlaceholderSurface
-          title="Insights surface"
-          description="Dashboard + Admin (gated) — sparklines + AI cost meter + activity stream."
-          cta="Open legacy /"
-          href="/"
-        />
+      list: <InsightsList activeId={itemId} onPick={(slug) => navigate(`/workspace/insights/${slug}`)} />,
+      detail: (id: string | undefined) => (
+        id ? (
+          <Suspense fallback={
+            <div className="flex h-full items-center justify-center">
+              <Loader2 className="h-5 w-5 animate-spin" style={{ color: 'var(--color-accent)' }} />
+            </div>
+          }>
+            <InsightsDetail pieceId={id} />
+          </Suspense>
+        ) : (
+          <div className="flex h-full items-center justify-center p-8">
+            <EmptyState
+              icon={BarChart3}
+              title="Pick a metric"
+              description="Tap a tile on the left for a breakdown."
+              compact
+            />
+          </div>
+        )
       ),
     },
     {
