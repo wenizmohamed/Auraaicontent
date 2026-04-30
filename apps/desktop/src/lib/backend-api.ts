@@ -830,6 +830,49 @@ export const galleryApi = {
     request<{ success: boolean }>(`/api/assets/${id}`, { method: 'DELETE' }),
 };
 
+// ─── Agent sessions / replay ─────────────────────────────────────
+
+export interface AgentSessionSummary {
+  uid: string;
+  title: string;
+  status: string;
+  clientId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AgentMessageRecord {
+  id: string;
+  role: string;
+  content: string;
+  toolCallId: string | null;
+  createdAt: string;
+}
+
+export interface AgentEventRecord {
+  id: string;
+  type: string;
+  payload: unknown;
+  createdAt: string;
+}
+
+export interface AgentSessionDetail extends AgentSessionSummary {
+  messages: AgentMessageRecord[];
+  events: AgentEventRecord[];
+}
+
+export const agentApi = {
+  listSessions: (opts: { limit?: number; clientId?: string } = {}) => {
+    const p = new URLSearchParams();
+    if (opts.limit) p.set('limit', String(opts.limit));
+    if (opts.clientId) p.set('clientId', opts.clientId);
+    const qs = p.toString();
+    return request<{ sessions: AgentSessionSummary[] }>(`/api/agent/sessions${qs ? `?${qs}` : ''}`);
+  },
+  getSession: (uid: string) =>
+    request<{ session: AgentSessionDetail }>(`/api/agent/sessions/${encodeURIComponent(uid)}`),
+};
+
 // ─── Server health check ─────────────────────────────────────────
 
 /** Try the current API_URL, and if it fails, cascade through the candidate
