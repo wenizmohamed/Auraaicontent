@@ -14,6 +14,7 @@ import { EmptyState, EmptyStateAction } from '../components/ui/EmptyState';
 // keeps the bundle smaller and avoids a name collision.
 import { motionUI, motionBase, easings, durations } from '../lib/motion';
 import { Skeleton as TokenSkeleton } from '../components/ui/Skeleton';
+import { BentoGrid, BentoTile } from '../components/ui/BentoGrid';
 
 // Synth a smoothly-rising 12-point sparkline that ends at `target`.
 // Used until per-stat time-series is wired into the backend dashboard API.
@@ -706,13 +707,13 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* ─── ROW 2b: AI Engine ─── */}
+      {/* ─── ROW 2b: AI Engine (Bento layout — Tier 1 #1) ─── */}
       {aiStats && aiStats.totalCalls > 0 && (
         <motion.div {...fadeUp(0.25)}>
-          <div className="grid grid-cols-12 gap-5">
+          <BentoGrid columns={12} gap="base">
 
             {/* AI Overview */}
-            <div className={`col-span-12 lg:col-span-4 rounded-2xl p-6 ${glassStatic}`}>
+            <BentoTile colSpan={4} accent pad="lg">
               <h3 className={`text-sm font-semibold flex items-center gap-2 mb-5 ${textPrimary}`}>
                 <Cpu className={`w-4 h-4 ${textSecondary}`} /> AI Engine
               </h3>
@@ -752,10 +753,11 @@ export default function Dashboard() {
                   </div>
                 )}
               </div>
-            </div>
+            </BentoTile>
 
             {/* Per-provider cards */}
-            <div className="col-span-12 lg:col-span-8 grid grid-cols-1 md:grid-cols-3 gap-3">
+            <BentoTile colSpan={8} pad="sm" static>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {aiStats.providers.map((p, i) => {
                 const meta = PROVIDER_META[p.provider] || { label: p.provider, color: (d: boolean) => d ? 'text-zinc-400' : 'text-slate-600', bg: (d: boolean) => d ? 'bg-white/5' : 'bg-slate-50' };
                 return (
@@ -815,8 +817,9 @@ export default function Dashboard() {
                   </motion.div>
                 );
               })}
-            </div>
-          </div>
+              </div>
+            </BentoTile>
+          </BentoGrid>
         </motion.div>
       )}
 

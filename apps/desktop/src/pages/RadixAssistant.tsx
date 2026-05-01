@@ -6,6 +6,7 @@ import { assistantApi, type ChatMessage } from '../lib/backend-api';
 import { useClients } from '../lib/client-context';
 import { useNavigate } from 'react-router-dom';
 import { Z } from '../lib/z-index';
+import { ThinkingIndicator } from '../components/ui/ThinkingIndicator';
 
 interface ActionResult {
   type: string;
@@ -277,20 +278,7 @@ export default function RadixAssistant() {
 
               {loading && (
                 <div className="flex justify-start">
-                  <div
-                    className="flex items-center gap-1.5 rounded-2xl rounded-bl-sm border px-3.5 py-2.5"
-                    style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border-subtle)' }}
-                  >
-                    {[0, 1, 2].map(d => (
-                      <motion.span
-                        key={d}
-                        className="block h-1.5 w-1.5 rounded-full"
-                        style={{ background: 'var(--color-fg-muted)' }}
-                        animate={{ y: [0, -4, 0] }}
-                        transition={{ duration: 0.8, repeat: Infinity, delay: d * 0.15 }}
-                      />
-                    ))}
-                  </div>
+                  <ThinkingIndicator />
                 </div>
               )}
 

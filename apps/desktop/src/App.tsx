@@ -53,6 +53,7 @@ import { Sun, Moon, Sparkles } from 'lucide-react';
 import { CommandPalette } from './components/CommandPalette';
 import { RouteSkeleton, ShellSkeleton } from './components/RouteSkeleton';
 import { ShortcutCheatSheet } from './components/ShortcutCheatSheet';
+import { UpgradeBanner } from './components/UpgradeBanner';
 import { TooltipProvider, Tooltip } from './components/ui/Tooltip';
 import { useShortcut } from './lib/shortcuts';
 import { Toaster } from 'sonner';
@@ -304,6 +305,7 @@ function Layout({ children }: { children: React.ReactNode }) {
               Error: {error}
             </div>
           )}
+          <UpgradeBanner />
           {children}
         </main>
         
