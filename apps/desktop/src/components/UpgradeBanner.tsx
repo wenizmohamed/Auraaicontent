@@ -13,18 +13,18 @@ import { Link } from 'react-router-dom';
 import { Sparkles, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { motionUI } from '../lib/motion';
+import { orgsApi } from '../lib/backend-api';
 
 const FREE_PLAN_VALUES = new Set(['', 'free', 'trial', 'FREE', 'TRIAL', 'starter', 'STARTER']);
 const SESSION_DISMISS_KEY = 'radix:upgrade-banner:dismissed';
 
-function decodeActiveOrgPlan(): string | null {
+function getActiveOrgId(): string | null {
   if (typeof window === 'undefined') return null;
-  const token = localStorage.getItem('radix-token') || localStorage.getItem('token');
+  const token = localStorage.getItem('radix_auth_token');
   if (!token) return null;
   try {
     const payload = JSON.parse(atob(token.split('.')[1] || ''));
-    const org = payload?.activeOrg || payload?.org || null;
-    return typeof org?.plan === 'string' ? org.plan : null;
+    return typeof payload?.orgId === 'string' ? payload.orgId : null;
   } catch {
     return null;
   }
@@ -35,11 +35,18 @@ export function UpgradeBanner() {
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
-    setPlan(decodeActiveOrgPlan());
     setDismissed(sessionStorage.getItem(SESSION_DISMISS_KEY) === '1');
-    function refresh() { setPlan(decodeActiveOrgPlan()); }
-    window.addEventListener('storage', refresh);
-    return () => window.removeEventListener('storage', refresh);
+    const activeOrgId = getActiveOrgId();
+    if (!activeOrgId) return;
+    let cancelled = false;
+    orgsApi.list()
+      .then((memberships) => {
+        if (cancelled) return;
+        const m = memberships.find((x) => x.orgId === activeOrgId);
+        setPlan(m?.org?.plan ?? null);
+      })
+      .catch(() => { /* banner is optional; silent on failure */ });
+    return () => { cancelled = true; };
   }, []);
 
   const isFree = plan != null && FREE_PLAN_VALUES.has(plan);
