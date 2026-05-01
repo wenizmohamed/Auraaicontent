@@ -861,6 +861,17 @@ export interface AgentSessionDetail extends AgentSessionSummary {
   events: AgentEventRecord[];
 }
 
+// ─── Agent template registry ─────────────────────────────────────
+export interface AgentTemplateSummary {
+  id: string;
+  name: string;
+  shortLabel: string;
+  description: string;
+  starterPrompt: string;
+  tags: string[];
+  preferredModel?: 'gemini' | 'grok' | 'kimi';
+}
+
 export const agentApi = {
   listSessions: (opts: { limit?: number; clientId?: string } = {}) => {
     const p = new URLSearchParams();
@@ -871,6 +882,12 @@ export const agentApi = {
   },
   getSession: (uid: string) =>
     request<{ session: AgentSessionDetail }>(`/api/agent/sessions/${encodeURIComponent(uid)}`),
+  listTemplates: () =>
+    request<{ templates: AgentTemplateSummary[] }>(`/api/agent/templates`),
+  getTemplate: (id: string) =>
+    request<{ template: AgentTemplateSummary & { systemPrompt: string } }>(
+      `/api/agent/templates/${encodeURIComponent(id)}`,
+    ),
 };
 
 // ─── Server health check ─────────────────────────────────────────

@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bot, Send, X, Loader2, Trash2, MessageSquare, AlertCircle, Zap, Search, FileText, Calendar, Image as ImageIcon, ExternalLink, Copy, RefreshCw, Check } from 'lucide-react';
+import { Bot, Send, X, Loader2, Trash2, MessageSquare, AlertCircle, Zap, Search, FileText, Calendar, Image as ImageIcon, ExternalLink, Copy, RefreshCw, Check, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
-import { assistantApi, type ChatMessage } from '../lib/backend-api';
+import { assistantApi, agentApi, type ChatMessage, type AgentTemplateSummary } from '../lib/backend-api';
 import { useClients } from '../lib/client-context';
 import { useNavigate } from 'react-router-dom';
 import { Z } from '../lib/z-index';
@@ -78,6 +78,16 @@ export default function RadixAssistant() {
   };
 
   const handleClear = () => { setMessages([]); setError(''); };
+
+  // Agent templates — fetched once, rendered alongside the static quick actions.
+  const [templates, setTemplates] = useState<AgentTemplateSummary[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    agentApi.listTemplates()
+      .then((r) => { if (!cancelled) setTemplates(r.templates); })
+      .catch(() => { /* templates are optional */ });
+    return () => { cancelled = true; };
+  }, []);
 
   const quickActions = [
     { label: 'Brief', icon: FileText, prompt: 'Show me the current brief' },
@@ -251,6 +261,35 @@ export default function RadixAssistant() {
                       </button>
                     ))}
                   </div>
+
+                  {/* Agent template launcher (catalog from /api/agent/templates) */}
+                  {templates.length > 0 && (
+                    <div className="mt-4 w-full max-w-[280px]">
+                      <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-fg-subtle)' }}>
+                        Templates
+                      </p>
+                      <div className="space-y-1">
+                        {templates.map((tpl) => (
+                          <button
+                            key={tpl.id}
+                            onClick={() => handleSend(tpl.starterPrompt || `Use the ${tpl.name} template`)}
+                            title={tpl.description}
+                            className="w-full flex items-start gap-2 px-2.5 py-1.5 rounded-lg border text-left transition-colors cursor-pointer"
+                            style={{
+                              background: 'var(--color-surface)',
+                              borderColor: 'var(--color-border-subtle)',
+                            }}
+                          >
+                            <Sparkles className="mt-0.5 w-3 h-3 flex-shrink-0" style={{ color: 'var(--color-accent)' }} />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[11px] font-semibold truncate" style={{ color: 'var(--color-fg)' }}>{tpl.shortLabel}</p>
+                              <p className="text-[10px] line-clamp-1" style={{ color: 'var(--color-fg-muted)' }}>{tpl.description}</p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

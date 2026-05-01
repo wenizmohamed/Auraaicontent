@@ -13,10 +13,11 @@
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Languages, Scissors, Wand2 } from 'lucide-react';
+import { Sparkles, Languages, Scissors, Wand2, MoreHorizontal } from 'lucide-react';
 import { motionUI } from '../../lib/motion';
+import { AIActionsMenu, type AIAction } from './AIActionsMenu';
 
-export type InlineAIAction = 'rewrite' | 'translate' | 'shorten' | 'on-brand';
+export type InlineAIAction = 'rewrite' | 'translate' | 'shorten' | 'on-brand' | string;
 
 interface HostProps {
   onAction: (action: InlineAIAction, selectedText: string) => void | Promise<void>;
@@ -34,6 +35,7 @@ export function InlineAITextHost({ onAction, children }: HostProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const [text, setText] = useState('');
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
 
   useEffect(() => {
     function pickSelection() {
@@ -122,9 +124,39 @@ export function InlineAITextHost({ onAction, children }: HostProps) {
                 </button>
               );
             })}
+            {/* "More" → opens the categorized AI Actions palette */}
+            <button
+              type="button"
+              onClick={(e) => {
+                const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                setMenuPos({ top: r.bottom + 6, left: r.left });
+              }}
+              title="More AI actions"
+              aria-label="Open more AI actions"
+              className="inline-flex items-center justify-center rounded-md px-1.5 py-1 transition-colors hover:bg-[color:var(--color-surface-hover)] cursor-pointer"
+              style={{ color: 'var(--color-fg-muted)' }}
+            >
+              <MoreHorizontal size={12} />
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Categorized AI actions palette (Notion-AI /ai pattern) */}
+      <AIActionsMenu
+        open={menuPos != null}
+        anchorPos={menuPos}
+        onClose={() => setMenuPos(null)}
+        onPick={(action: AIAction) => {
+          if (!text) return;
+          // Adapter: send the catalog action id through the same onAction handler.
+          void onAction(action.id as InlineAIAction, text);
+          setPos(null);
+          setText('');
+          setMenuPos(null);
+          window.getSelection()?.removeAllRanges();
+        }}
+      />
     </div>
   );
 }

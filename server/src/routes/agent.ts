@@ -10,6 +10,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { randomBytes } from 'crypto';
 import { db as prisma } from '../db/prisma.js';
 import { runContentAgent, cancelContentAgent } from '../agent/content-agent.js';
+import { AGENT_TEMPLATES, getTemplate } from '../agent/templates.js';
 import { emitAndPersist } from '../realtime/io.js';
 import { authGuard, type JwtPayload } from '../middleware/auth.js';
 import { assertClientInOrg } from '../lib/tenant.js';
@@ -131,6 +132,30 @@ export async function agentRoutes(app: FastifyInstance) {
     });
 
     return reply.send({ sessionUid, started: true });
+  });
+
+  // ─── Agent template registry ──────────────────────────────────────
+  // Visible at GET /api/agent/templates and GET /api/agent/templates/:id.
+  // Templates are static, no per-org customization yet — that lands when
+  // we wire the prompt-tuner UI.
+  app.get('/templates', async () => {
+    return {
+      templates: AGENT_TEMPLATES.map((t) => ({
+        id: t.id,
+        name: t.name,
+        shortLabel: t.shortLabel,
+        description: t.description,
+        starterPrompt: t.starterPrompt,
+        tags: t.tags,
+        preferredModel: t.preferredModel,
+      })),
+    };
+  });
+
+  app.get<{ Params: { id: string } }>('/templates/:id', async (req, reply) => {
+    const template = getTemplate(req.params.id);
+    if (!template) return reply.code(404).send({ error: 'Template not found' });
+    return { template };
   });
 
   app.post<{ Params: { uid: string } }>('/runs/:uid/cancel', async (req, reply) => {
