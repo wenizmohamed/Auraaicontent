@@ -199,7 +199,7 @@ async function executeAction(orgId: string, action: string, params: any, clientI
           take: 5,
           select: { id: true, month: true, status: true, _count: { select: { posts: true } } },
         });
-        return months.map(m => ({ month: m.month, status: m.status, postCount: m._count.posts }));
+        return months.map((m: any) => ({ month: m.month, status: m.status, postCount: m._count.posts }));
       }
       const cal = await db.calendarMonth.findFirst({
         where: { orgId, clientId, month },
@@ -209,7 +209,7 @@ async function executeAction(orgId: string, action: string, params: any, clientI
       return {
         month: cal.month,
         status: cal.status,
-        posts: cal.posts.map(p => ({
+        posts: cal.posts.map((p: any) => ({
           title: p.title,
           platform: p.platform,
           status: p.status,
@@ -314,7 +314,7 @@ export async function assistantRoutes(app: FastifyInstance) {
             select: { month: true, status: true, _count: { select: { posts: true } } },
           });
           if (calStats.length > 0) {
-            clientContext += `\nRecent calendars: ${calStats.map(c => `${c.month} (${c._count.posts} posts, ${c.status})`).join(', ')}`;
+            clientContext += `\nRecent calendars: ${calStats.map((c: any) => `${c.month} (${c._count.posts} posts, ${c.status})`).join(', ')}`;
           }
         }
       } catch { /* best-effort */ }

@@ -87,13 +87,13 @@ export const tool = defineTool<Args, Result>({
     });
 
     const knowledgeSnippets = client.knowledgeItems
-      .flatMap((item) => {
+      .flatMap((item: any) => {
         if (item.textContent && item.textContent.length > 0) {
           return [item.textContent.slice(0, 400)];
         }
-        return item.chunks.slice(0, 2).map((c) => c.chunkText.slice(0, 400));
+        return item.chunks.slice(0, 2).map((c: any) => c.chunkText.slice(0, 400));
       })
-      .filter((s) => s.length > 0)
+      .filter((s: any) => s.length > 0)
       .slice(0, 12);
 
     const objective = args.overrideBrief && args.overrideBrief.trim().length > 0

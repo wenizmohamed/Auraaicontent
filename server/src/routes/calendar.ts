@@ -91,7 +91,7 @@ export async function calendarRoutes(app: FastifyInstance) {
         _count: { select: { posts: true } },
       },
     });
-    return months.map(m => ({
+    return months.map((m: any) => ({
       id: m.id,
       month: m.month,
       status: m.status,
@@ -195,7 +195,7 @@ export async function calendarRoutes(app: FastifyInstance) {
       orderBy: { archivedAt: 'desc' },
       select: { id: true, month: true, status: true, isTest: true, createdAt: true, archivedAt: true, _count: { select: { posts: true } } },
     });
-    return months.map(m => ({
+    return months.map((m: any) => ({
       id: m.id, month: m.month, status: m.status, isTest: m.isTest,
       createdAt: m.createdAt, archivedAt: m.archivedAt,
       postCount: m._count.posts,
@@ -255,7 +255,7 @@ export async function calendarRoutes(app: FastifyInstance) {
     if (!calMonth) return reply.status(404).send({ error: 'Calendar month not found' });
 
     const candidates = calMonth.posts.filter(
-      p => p._count.visualRefs === 0 && p.referenceQuery && p.referenceQuery.trim(),
+      (p: any) => p._count.visualRefs === 0 && p.referenceQuery && p.referenceQuery.trim(),
     );
 
     let totalRefsAdded = 0;

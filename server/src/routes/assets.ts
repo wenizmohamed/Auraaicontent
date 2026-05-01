@@ -27,7 +27,7 @@ export async function assetRoutes(app: FastifyInstance) {
       take,
       include: { client: { select: { id: true, name: true } } },
     });
-    return assets.map(a => ({
+    return assets.map((a: any) => ({
       id: a.id,
       name: a.name,
       fileUrl: a.fileUrl,

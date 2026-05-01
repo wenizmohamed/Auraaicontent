@@ -89,7 +89,7 @@ export async function orgsRoutes(app: FastifyInstance) {
       include: { user: { select: { id: true, email: true, name: true } } },
       orderBy: { createdAt: 'asc' },
     });
-    return memberships.map((m) => ({
+    return memberships.map((m: any) => ({
       id: m.id,
       role: m.role,
       createdAt: m.createdAt.toISOString(),
@@ -107,7 +107,7 @@ export async function orgsRoutes(app: FastifyInstance) {
       where: { orgId, acceptedAt: null, expiresAt: { gt: new Date() } },
       orderBy: { createdAt: 'desc' },
     });
-    return invites.map((i) => ({
+    return invites.map((i: any) => ({
       id: i.id,
       email: i.email,
       role: i.role,
@@ -283,7 +283,7 @@ export async function orgsRoutes(app: FastifyInstance) {
       }
     }
 
-    await db.$transaction(async (tx) => {
+    await db.$transaction(async (tx: any) => {
       await tx.orgMembership.delete({
         where: { userId_orgId: { userId, orgId } },
       });
@@ -342,7 +342,7 @@ export async function invitationsRoutes(app: FastifyInstance) {
 
     // Create or update the membership idempotently.  If the user was somehow
     // already a member, just upgrade their role (no harm).
-    await db.$transaction(async (tx) => {
+    await db.$transaction(async (tx: any) => {
       await tx.orgMembership.upsert({
         where: { userId_orgId: { userId: caller.userId, orgId: invite.orgId } },
         update: { role: invite.role },

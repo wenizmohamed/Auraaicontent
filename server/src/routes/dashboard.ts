@@ -64,7 +64,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
         generation: { recentJobs: [] as { month: string; clientId: string; createdAt: string }[] },
         knowledge: { totalItems, totalChunks },
         activity: {
-          recentMonths: recentMonths.map((m) => ({
+          recentMonths: recentMonths.map((m: any) => ({
             id: m.id,
             month: m.month,
             status: m.status,
@@ -88,16 +88,16 @@ export async function dashboardRoutes(app: FastifyInstance) {
         orderBy: { createdAt: 'desc' },
         take: 30,
       });
-      const clientIds = Array.from(new Set(logs.map(l => l.clientId).filter(Boolean) as string[]));
+      const clientIds = Array.from(new Set(logs.map((l: any) => l.clientId).filter(Boolean) as string[]));
       const clients = clientIds.length > 0
         ? await db.client.findMany({
             where: { orgId, id: { in: clientIds } },
             select: { id: true, name: true },
           })
         : [];
-      const clientById = new Map(clients.map(c => [c.id, c.name]));
+      const clientById = new Map(clients.map((c: any) => [c.id, c.name]));
 
-      return logs.map(l => ({
+      return logs.map((l: any) => ({
         id: l.id,
         action: l.action,
         entityType: l.entityType,
@@ -144,16 +144,16 @@ export async function dashboardRoutes(app: FastifyInstance) {
       for (let i = 29; i >= 0; i--) {
         const day = new Date(now.getTime() - i * dayMs);
         const dayStr = day.toISOString().slice(0, 10);
-        const dayPosts = dailyPosts.filter(p => p.createdAt.toISOString().slice(0, 10) === dayStr);
+        const dayPosts = dailyPosts.filter((p: any) => p.createdAt.toISOString().slice(0, 10) === dayStr);
         sparkline.push({
           date: dayStr,
           posts: dayPosts.length,
-          approved: dayPosts.filter(p => p.status === 'approved').length,
+          approved: dayPosts.filter((p: any) => p.status === 'approved').length,
         });
       }
 
-      const last7 = dailyPosts.filter(p => p.createdAt >= sevenDaysAgo).length;
-      const prev7 = dailyPosts.filter(p => p.createdAt < sevenDaysAgo && p.createdAt >= new Date(now.getTime() - 14 * dayMs)).length;
+      const last7 = dailyPosts.filter((p: any) => p.createdAt >= sevenDaysAgo).length;
+      const prev7 = dailyPosts.filter((p: any) => p.createdAt < sevenDaysAgo && p.createdAt >= new Date(now.getTime() - 14 * dayMs)).length;
       const postsTrend = prev7 > 0 ? Math.round(((last7 - prev7) / prev7) * 100) : (last7 > 0 ? 100 : 0);
 
       const insights: { type: 'positive' | 'warning' | 'info'; text: string }[] = [];
@@ -178,7 +178,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
           totalActions: pendingReview + draftsOlderThan7d,
         },
         trends: { sparkline, postsTrend, last7Days: last7 },
-        visualShowcase: recentAssets.map(a => ({
+        visualShowcase: recentAssets.map((a: any) => ({
           id: a.id,
           fileUrl: a.fileUrl,
           thumbUrl: a.thumbUrl,

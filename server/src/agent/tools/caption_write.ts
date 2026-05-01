@@ -178,7 +178,7 @@ export const tool = defineTool<Args, Result>({
     let nextVersion: number | undefined;
     if (piece && (!ctx.clientId || piece.calendarMonth?.clientId === ctx.clientId)) {
       try {
-        const updated = await ctx.prisma.$transaction(async (tx) => {
+        const updated = await ctx.prisma.$transaction(async (tx: any) => {
           await tx.postVersion.create({
             data: {
               orgId: ctx.orgId,

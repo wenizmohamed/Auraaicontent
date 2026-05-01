@@ -43,7 +43,7 @@ export async function runContentAgent(args: RunContentAgentArgs): Promise<RunAge
   // status is flipped to 'running' on BOTH create and update so the sidebar
   // dot + hydration see a live phase instead of the 'active' default that
   // statusToPhase() maps back to 'idle' (aura-debug 2026-04-20).
-  const session = await prisma.$transaction(async (tx) => {
+  const session = await prisma.$transaction(async (tx: any) => {
     const s = await tx.agentSession.upsert({
       // uid is globally unique; orgId in the unique-where keeps the tenant
       // guard happy AND ensures a uid collision across orgs (shouldn't ever

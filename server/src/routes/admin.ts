@@ -43,7 +43,7 @@ export async function adminRoutes(app: FastifyInstance) {
         _count: { select: { memberships: true, clients: true, calendarMonths: true } },
       },
     });
-    return orgs.map((o) => ({
+    return orgs.map((o: any) => ({
       id: o.id,
       name: o.name,
       slug: o.slug,
@@ -110,7 +110,7 @@ export async function adminRoutes(app: FastifyInstance) {
       _sum: { costUsd: true, units: true },
       _count: { _all: true },
     });
-    return groups.map((g) => ({
+    return groups.map((g: any) => ({
       kind: g.kind,
       calls: g._count._all,
       units: Number(g._sum.units ?? 0),

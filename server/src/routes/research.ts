@@ -105,12 +105,12 @@ export async function researchRoutes(app: FastifyInstance) {
       : '(no brief)';
 
     const knowledgeBlock = client.knowledgeItems.length
-      ? client.knowledgeItems.map((k, i) => `[kb-${i + 1}] ${k.title} (${k.type})\n${(k.textContent || '').slice(0, 4000)}`).join('\n\n')
+      ? client.knowledgeItems.map((k: any, i: any) => `[kb-${i + 1}] ${k.title} (${k.type})\n${(k.textContent || '').slice(0, 4000)}`).join('\n\n')
       : '(no knowledge items)';
 
     const calendarBlock = client.calendarMonths.length
-      ? client.calendarMonths.map((m) => {
-          const posts = m.posts.map((p) => `  - [${p.platform}/${p.status}] ${p.title}: ${(p.caption || '').slice(0, 200)}`).join('\n');
+      ? client.calendarMonths.map((m: any) => {
+          const posts = m.posts.map((p: any) => `  - [${p.platform}/${p.status}] ${p.title}: ${(p.caption || '').slice(0, 200)}`).join('\n');
           return `MONTH ${m.month} (${m.status}, ${m.posts.length} posts)\n${posts}`;
         }).join('\n\n')
       : '(no calendars yet)';

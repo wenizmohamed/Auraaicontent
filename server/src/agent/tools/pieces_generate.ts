@@ -226,7 +226,7 @@ export const tool = defineTool<Args, Result>({
     }
 
     assertNotAborted(ctx.signal);
-    const { calendarMonthId, postIds } = await ctx.prisma.$transaction(async (tx) => {
+    const { calendarMonthId, postIds } = await ctx.prisma.$transaction(async (tx: any) => {
       const existing = await tx.calendarMonth.findFirst({
         where: { orgId: ctx.orgId, clientId: args.clientId, month: args.month, isTest: false },
         select: { id: true },

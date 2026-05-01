@@ -145,7 +145,7 @@ export const tool = defineTool<Args, SwitchResult>({
       name: client.name,
       slug: client.slug,
       brief,
-      recentMonths: client.calendarMonths.map((m) => ({
+      recentMonths: client.calendarMonths.map((m: any) => ({
         id: m.id,
         month: m.month,
         status: m.status,

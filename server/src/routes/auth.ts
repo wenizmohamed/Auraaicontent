@@ -93,7 +93,7 @@ export async function authRoutes(app: FastifyInstance) {
       rememberMe: Boolean(rememberMe),
       user: { id: user.id, email: user.email, name: user.name, role: user.role },
       activeOrgId: active.orgId,
-      memberships: memberships.map((m) => ({ orgId: m.orgId, role: m.role, org: m.org })),
+      memberships: memberships.map((m: any) => ({ orgId: m.orgId, role: m.role, org: m.org })),
     };
   });
 
@@ -184,7 +184,7 @@ export async function authRoutes(app: FastifyInstance) {
     return {
       ...user,
       activeOrgId: request.orgId,
-      memberships: memberships.map((m) => ({ orgId: m.orgId, role: m.role, org: m.org })),
+      memberships: memberships.map((m: any) => ({ orgId: m.orgId, role: m.role, org: m.org })),
     };
   });
 
@@ -195,7 +195,7 @@ export async function authRoutes(app: FastifyInstance) {
       where: { userId },
       include: { org: true },
     });
-    return memberships.map((m) => ({ orgId: m.orgId, role: m.role, org: m.org }));
+    return memberships.map((m: any) => ({ orgId: m.orgId, role: m.role, org: m.org }));
   });
 
   // POST /api/auth/switch-org — set currentOrgId and re-issue access token
@@ -243,7 +243,7 @@ export async function authRoutes(app: FastifyInstance) {
     // Atomic: create User + Organization + OrgMembership(OWNER) + currentOrgId.
     // 14-day trial — Phase 2 billing flips to free/paid via Stripe webhook.
     const slug = (email.split('@')[0] + '-' + Math.random().toString(36).slice(2, 6)).toLowerCase();
-    const result = await db.$transaction(async (tx) => {
+    const result = await db.$transaction(async (tx: any) => {
       const user = await tx.user.create({
         data: { email, passwordHash, name, role: 'member' },
       });
