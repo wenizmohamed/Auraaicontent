@@ -32,14 +32,22 @@ export function AIProviderRouter({ providers, size = 280 }: Props) {
     window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
   // Pick top 3 by call volume; default to gemini/grok/kimi if telemetry empty.
-  const ordered = useMemo(() => {
+  const ordered = useMemo<AiStats['providers']>(() => {
     const sorted = [...providers].sort((a, b) => b.calls - a.calls).slice(0, 3);
     if (sorted.length === 0) {
-      return [
-        { provider: 'gemini', calls: 0, totalTokens: 0, avgLatencyMs: 0, successRate: 100, totalErrors: 0, tasks: {} },
-        { provider: 'grok', calls: 0, totalTokens: 0, avgLatencyMs: 0, successRate: 100, totalErrors: 0, tasks: {} },
-        { provider: 'kimi', calls: 0, totalTokens: 0, avgLatencyMs: 0, successRate: 100, totalErrors: 0, tasks: {} },
-      ] as AiStats['providers'];
+      const placeholder = (provider: string): AiStats['providers'][number] => ({
+        provider,
+        calls: 0,
+        errors: 0,
+        successRate: 100,
+        avgLatencyMs: 0,
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
+        fallbacks: 0,
+        tasks: {},
+      });
+      return [placeholder('gemini'), placeholder('grok'), placeholder('kimi')];
     }
     return sorted;
   }, [providers]);

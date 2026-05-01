@@ -34,7 +34,15 @@ export function InboxRail({ clientId, onDrop }: InboxRailProps) {
     contentPiecesApi.list(clientId)
       .then(rows => {
         if (cancelled) return;
-        setDrafts(rows.filter(r => !r.scheduledFor));
+        // "Unscheduled" = no deadline set OR status still in Draft/Idea pipeline.
+        // Both signals are checked because the codebase mixes conventions
+        // (deadline is the canonical scheduled-date field; status reflects
+        // pipeline stage).
+        setDrafts(rows.filter(r => {
+          const status = String((r as any).status || '').toLowerCase();
+          const deadline = (r as any).deadline;
+          return !deadline || status === 'draft' || status === 'idea';
+        }));
       })
       .catch(() => { if (!cancelled) setDrafts([]); })
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -117,14 +125,14 @@ function DraftCard({ piece }: { piece: ContentPieceRecord }) {
             className="rounded px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide"
             style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}
           >
-            {(piece as any).platform || 'post'}
+            {(piece as any).station || (piece as any).type || 'draft'}
           </span>
         </div>
         <p
           className="mt-0.5 line-clamp-2 text-[11px] leading-snug"
           style={{ color: 'var(--color-fg)' }}
         >
-          {(piece as any).caption || (piece as any).brief || '(no caption)'}
+          {piece.title || (piece as any).notes || '(untitled)'}
         </p>
       </div>
     </li>
@@ -154,7 +162,10 @@ export function CalendarDndProvider({ onDrop, children }: { onDrop?: (pieceId: s
     const dayDate = (e.over?.data?.current as any)?.dayDate as Date | undefined;
     if (!dayDate) return;
     const iso = dayDate.toISOString();
-    contentPiecesApi.update(pieceId, { scheduledFor: iso } as any)
+    // Patch BOTH deadline (canonical scheduled-date) and status (pipeline
+    // moves out of Draft once a date is committed). Keeps the inbox filter
+    // correct on next refetch.
+    contentPiecesApi.update(pieceId, { deadline: iso, status: 'Scheduled' } as any)
       .then(() => {
         toast.success(`Scheduled for ${dayDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`);
         onDropRef.current?.(pieceId, iso);
