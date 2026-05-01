@@ -14,6 +14,28 @@ import { HoverCard } from '../components/ui/HoverCard';
 import { STATUS_LABEL, normalizeStatus } from '../lib/status-enum';
 import VisualRefGrid from '../components/VisualRefGrid';
 import MonthlyReportButton from '../components/MonthlyReportButton';
+import InboxRail, { CalendarDndProvider, useDayDroppable } from '../components/calendar/InboxRail';
+
+/**
+ * DayCell — a calendar day button wrapped in a useDayDroppable target so
+ * dragged drafts from InboxRail can be dropped onto it. Adds a faint accent
+ * outline + background tint when hovered with a draggable.
+ */
+function DayCell(props: { day: number; cellDate: Date; onClick: () => void; title?: string; className?: string; children?: React.ReactNode }) {
+  const { setNodeRef, isOver } = useDayDroppable(props.cellDate);
+  return (
+    <button
+      ref={setNodeRef}
+      onClick={props.onClick}
+      title={props.title}
+      className={props.className}
+      style={isOver ? { outline: '1.5px dashed var(--color-accent)', outlineOffset: -2, background: 'var(--color-accent-subtle)' } : undefined}
+    >
+      {props.children}
+    </button>
+  );
+}
+
 
 const getPlatformIcon = (platform: string) => {
   const p = platform.toLowerCase();
@@ -637,17 +659,28 @@ export default function ContentCalendar() {
             </div>
           </motion.div>
 
-          {/* Calendar Grid */}
+          {/* Calendar Grid + Inbox Rail (Tier 2 #5 + Tier 3 #9) */}
+          <CalendarDndProvider onDrop={() => { try { (window as any).dispatchEvent(new CustomEvent('radix:calendar-refetch')); } catch {} }}>
+          <div className="flex gap-3">
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ ...motionBase, delay: 0.1 }}
-            className="rounded-3xl bg-[#0c0c0c] border border-white/[0.06] p-5">
+            className="flex-1 min-w-0 rounded-3xl border p-5"
+            style={{ background: 'var(--color-bg-elevated)', borderColor: 'var(--color-border-subtle)' }}>
             <div className={`grid grid-cols-7 ${densityClasses.gap} mb-2`}>
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
-                <div key={d} className="text-center text-[10px] font-bold text-zinc-700 uppercase tracking-wider py-2">{d}</div>
+                <div key={d} className="text-center text-[10px] font-bold uppercase tracking-wider py-2" style={{ color: 'var(--color-fg-subtle)' }}>{d}</div>
               ))}
             </div>
-            <div className={`grid grid-cols-7 ${densityClasses.gap}`}>
+            <AnimatePresence mode="wait">
+            <motion.div
+              key={monthOffset}
+              initial={{ opacity: 0, x: 12 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -12 }}
+              transition={motionUI}
+              className={`grid grid-cols-7 ${densityClasses.gap}`}
+            >
               {Array.from({ length: firstDayOffset }).map((_, i) => (
-                <div key={`empty-${i}`} className="aspect-square rounded-xl bg-white/[0.01]" />
+                <div key={`empty-${i}`} className="aspect-square rounded-xl" style={{ background: 'var(--color-surface)' }} />
               ))}
               {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
                 const pieces = filteredDayPieces[day] || [];
@@ -661,7 +694,8 @@ export default function ContentCalendar() {
                 return (
                   <HoverCard.Root key={day} openDelay={pieces.length > 0 ? 250 : 9_999_999}>
                   <HoverCard.Trigger asChild>
-                  <button
+                  <DayCell
+                    day={day} cellDate={cellDate}
                     onClick={() => setSelectedDay(isSelected ? null : day)}
                     title={dayHolidays.map((h) => h.name).join(' · ') || (hijri || undefined)}
                     className={`aspect-square rounded-xl border ${densityClasses.padding} flex flex-col transition-all cursor-pointer relative ${
@@ -686,14 +720,26 @@ export default function ContentCalendar() {
                       </span>
                     )}
                     {pieces.length > 0 && (
-                      <div className="flex flex-wrap gap-0.5 mt-auto">
-                        {pieces.slice(0, 5).map((p: any, j: number) => (
-                          <div key={j} className={`w-2 h-2 rounded-full ${getPlatformColor(p.platform).dot}`} title={p.platform} />
+                      <div className="mt-auto space-y-0.5">
+                        {pieces.slice(0, 2).map((p: any, j: number) => (
+                          <div
+                            key={j}
+                            className="flex items-center gap-1 truncate rounded px-1 py-[1px] text-[8px] font-medium leading-tight"
+                            style={{
+                              background: 'var(--color-surface)',
+                              color: 'var(--color-fg-muted)',
+                            }}
+                          >
+                            <span className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${getPlatformColor(p.platform).dot}`} />
+                            <span className="truncate uppercase tracking-wide" style={{ color: 'var(--color-fg-subtle)' }}>{p.platform}</span>
+                          </div>
                         ))}
-                        {pieces.length > 5 && <span className="text-[8px] text-zinc-600">+{pieces.length - 5}</span>}
+                        {pieces.length > 2 && (
+                          <span className="block text-[8px]" style={{ color: 'var(--color-fg-subtle)' }}>+{pieces.length - 2} more</span>
+                        )}
                       </div>
                     )}
-                  </button>
+                  </DayCell>
                   </HoverCard.Trigger>
                   {pieces.length > 0 && (
                     <HoverCard.Content side="top" align="center">
@@ -728,8 +774,12 @@ export default function ContentCalendar() {
                   </HoverCard.Root>
                 );
               })}
-            </div>
+            </motion.div>
+            </AnimatePresence>
           </motion.div>
+          <InboxRail clientId={activeClientId || null} />
+          </div>
+          </CalendarDndProvider>
 
           {/* Selected Day Detail Panel */}
           <AnimatePresence>

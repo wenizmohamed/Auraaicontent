@@ -1,12 +1,20 @@
+/**
+ * Login — editorial split-pane auth page.
+ *
+ * Left rail (max ~520px): branded form card with mode toggle, multi-step
+ * transitions between sign-in / sign-up. Right rail (hidden < lg): full-bleed
+ * brand panel with Bodoni "Radix" wordmark and a quiet paper-shader texture.
+ *
+ * All form logic preserved from the previous flat layout; only chrome changed.
+ */
 import { useState, type FormEvent } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, AlertCircle, ArrowRight, Sparkles } from 'lucide-react';
 import { useClients } from '../lib/client-context';
-import { useTheme } from '../lib/theme-context';
+import { motionUI, motionBase } from '../lib/motion';
 
 export default function Login() {
   const { login, register, authError } = useClients();
-  const { theme } = useTheme();
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState(() => localStorage.getItem('radix_last_email') ?? '');
   const [password, setPassword] = useState('');
@@ -20,9 +28,6 @@ export default function Login() {
     setLocalError(null);
     setSubmitting(true);
     try {
-      // Persist the email we'll prefill next time — only if the user opted in.
-      // Passwords never touch localStorage; only the JWT (which the backend
-      // scopes by lifetime via rememberMe).
       if (rememberMe) {
         try { localStorage.setItem('radix_last_email', email.trim()); } catch {}
       } else {
@@ -43,137 +48,242 @@ export default function Login() {
   const err = localError || authError;
 
   return (
-    <div className={`min-h-screen flex items-center justify-center p-6 ${theme === 'light' ? 'bg-slate-100' : 'bg-zinc-950'}`}>
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md"
-      >
-        {/* Brand */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 mb-4 shadow-[0_0_40px_-10px_rgba(245,158,11,0.35)]">
-            <Sparkles className="w-7 h-7 text-amber-400" />
-          </div>
-          <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Radix</h1>
-          <p className="text-sm text-zinc-500">AI Content Planner</p>
-        </div>
-
-        {/* Card */}
-        <div className={`rounded-2xl p-6 border ${theme === 'light' ? 'bg-white border-slate-200' : 'bg-[#111] border-white/10'}`}>
-          {/* Mode toggle */}
-          <div className="flex gap-1 p-1 bg-white/[0.03] border border-white/[0.06] rounded-xl mb-6">
-            <button
-              type="button"
-              onClick={() => { setMode('signin'); setLocalError(null); }}
-              className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/30 ${
-                mode === 'signin' ? 'bg-white/[0.08] text-white' : 'text-zinc-400 hover:text-white'
-              }`}
+    <div
+      className="min-h-screen grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"
+      style={{ background: 'var(--color-bg)' }}
+    >
+      {/* ─── Left: form ─── */}
+      <div className="flex items-center justify-center p-6 lg:p-12">
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={motionBase}
+          className="w-full max-w-[420px]"
+        >
+          {/* Brand mark — small at top of form */}
+          <div className="mb-10 flex items-center gap-2.5">
+            <span
+              className="flex h-9 w-9 items-center justify-center rounded-xl"
+              style={{
+                background: 'var(--color-accent-subtle)',
+                color: 'var(--color-accent)',
+              }}
             >
-              Sign in
-            </button>
-            <button
-              type="button"
-              onClick={() => { setMode('signup'); setLocalError(null); }}
-              className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/30 ${
-                mode === 'signup' ? 'bg-white/[0.08] text-white' : 'text-zinc-400 hover:text-white'
-              }`}
-            >
-              Create account
-            </button>
+              <Sparkles size={16} />
+            </span>
+            <span className="font-display text-[20px] font-bold tracking-tight" style={{ color: 'var(--color-fg)' }}>
+              Radix
+            </span>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {mode === 'signup' && (
-              <div>
-                <label htmlFor="login-name" className="block text-xs uppercase tracking-wider text-zinc-500 font-medium mb-1.5">Name</label>
-                <input
-                  id="login-name"
-                  type="text"
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  required
-                  autoComplete="name"
-                  className="w-full px-4 py-2.5 bg-zinc-900 border border-white/10 rounded-xl text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-amber-500/50 transition-colors duration-200"
-                  placeholder="Your name"
-                />
-              </div>
-            )}
+          {/* Headline */}
+          <h1 className="font-display text-[34px] font-bold leading-tight tracking-tight" style={{ color: 'var(--color-fg)' }}>
+            {mode === 'signin' ? 'Welcome back.' : 'Create your account.'}
+          </h1>
+          <p className="mt-2 text-[14px]" style={{ color: 'var(--color-fg-muted)' }}>
+            {mode === 'signin'
+              ? 'Sign in to your content workspace.'
+              : 'Free 14-day trial. No card required.'}
+          </p>
 
-            <div>
-              <label htmlFor="login-email" className="block text-xs uppercase tracking-wider text-zinc-500 font-medium mb-1.5">Email</label>
-              <input
-                id="login-email"
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                required
-                autoComplete="email"
-                className="w-full px-4 py-2.5 bg-zinc-900 border border-white/10 rounded-xl text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-amber-500/50 transition-colors duration-200"
-                placeholder="you@example.com"
-              />
-            </div>
+          {/* Mode toggle — segmented */}
+          <div
+            className="mt-8 flex gap-1 rounded-xl border p-1"
+            style={{ borderColor: 'var(--color-border-subtle)', background: 'var(--color-surface)' }}
+          >
+            {(['signin', 'signup'] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => { setMode(m); setLocalError(null); }}
+                className="flex-1 rounded-lg py-1.5 text-[12px] font-medium transition-colors"
+                style={{
+                  background: mode === m ? 'var(--color-bg-elevated)' : 'transparent',
+                  color: mode === m ? 'var(--color-fg)' : 'var(--color-fg-muted)',
+                  boxShadow: mode === m ? '0 1px 0 0 rgba(0,0,0,0.06)' : undefined,
+                }}
+              >
+                {m === 'signin' ? 'Sign in' : 'Create account'}
+              </button>
+            ))}
+          </div>
 
-            <div>
-              <label htmlFor="login-password" className="block text-xs uppercase tracking-wider text-zinc-500 font-medium mb-1.5">Password</label>
-              <input
-                id="login-password"
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                required
-                minLength={6}
-                autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
-                className="w-full px-4 py-2.5 bg-zinc-900 border border-white/10 rounded-xl text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-amber-500/50 transition-colors duration-200"
-                placeholder="••••••••"
-              />
-            </div>
+          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+            <AnimatePresence mode="wait">
+              {mode === 'signup' && (
+                <motion.div
+                  key="name"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={motionUI}
+                  className="overflow-hidden"
+                >
+                  <Field id="login-name" label="Name" type="text" autoComplete="name" required value={name} onChange={setName} placeholder="Your name" />
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-            {/* Remember me — 30-day JWT vs 24-hour. Opt-in because long-lived
-                access tokens are a tradeoff: convenience ↔ credential lifespan. */}
-            <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-zinc-400 hover:text-zinc-200 transition-colors">
+            <Field id="login-email" label="Email" type="email" autoComplete="email" required value={email} onChange={setEmail} placeholder="you@example.com" />
+            <Field id="login-password" label="Password" type="password" autoComplete={mode === 'signin' ? 'current-password' : 'new-password'} required minLength={6} value={password} onChange={setPassword} placeholder="••••••••" />
+
+            <label className="flex items-center gap-2 select-none cursor-pointer text-[12px]" style={{ color: 'var(--color-fg-muted)' }}>
               <input
                 type="checkbox"
                 checked={rememberMe}
                 onChange={(e) => setRememberMe(e.target.checked)}
-                className="w-4 h-4 rounded border-white/20 bg-zinc-900 text-amber-500 focus:ring-2 focus:ring-amber-500/30 focus:ring-offset-0 cursor-pointer"
+                className="h-3.5 w-3.5 rounded cursor-pointer"
+                style={{ accentColor: 'var(--color-accent)' }}
               />
               <span>
-                Remember me on this device
-                <span className="ml-1 text-[10px] text-zinc-600">(30 days)</span>
+                Remember me
+                <span className="ml-1.5" style={{ color: 'var(--color-fg-subtle)' }}>(30 days)</span>
               </span>
             </label>
 
             {err && (
-              <div className="flex items-start gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-xs">
-                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-                <span>{err}</span>
-              </div>
+              <motion.div
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={motionUI}
+                className="flex items-start gap-2 rounded-xl border px-3 py-2"
+                style={{
+                  background: 'var(--color-danger-subtle, rgba(239,68,68,0.08))',
+                  borderColor: 'var(--color-danger, rgba(239,68,68,0.3))',
+                  color: 'var(--color-danger, #f87171)',
+                }}
+              >
+                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                <span className="text-[12px]">{err}</span>
+              </motion.div>
             )}
 
             <button
               type="submit"
               disabled={submitting}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed text-black font-medium rounded-xl transition-colors duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
+              className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-[13px] font-semibold transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{
+                background: 'var(--color-accent)',
+                color: 'var(--color-fg-on-accent)',
+              }}
             >
               {submitting ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  {mode === 'signin' ? 'Signing in...' : 'Creating account...'}
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {mode === 'signin' ? 'Signing in…' : 'Creating account…'}
                 </>
               ) : (
                 <>
                   {mode === 'signin' ? 'Sign in' : 'Create account'}
-                  <ArrowRight className="w-4 h-4" />
+                  <ArrowRight className="h-4 w-4" />
                 </>
               )}
             </button>
           </form>
-        </div>
 
-        <p className="text-center text-xs text-zinc-600 mt-6">
-          Internal tool — contact admin for account issues
-        </p>
-      </motion.div>
+          <p className="mt-8 text-[11px]" style={{ color: 'var(--color-fg-subtle)' }}>
+            Internal tool · contact admin for account issues
+          </p>
+        </motion.div>
+      </div>
+
+      {/* ─── Right: brand panel ─── */}
+      <aside
+        className="relative hidden lg:flex items-center justify-center overflow-hidden border-l"
+        style={{
+          background: 'var(--color-bg-elevated)',
+          borderColor: 'var(--color-border-subtle)',
+        }}
+        aria-hidden
+      >
+        {/* Quiet paper texture (no shader; pure CSS for zero-cost ambient) */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              'radial-gradient(circle at 30% 20%, var(--color-accent-subtle), transparent 50%), radial-gradient(circle at 70% 80%, var(--color-accent-subtle), transparent 55%)',
+            opacity: 0.5,
+          }}
+        />
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundImage:
+              'repeating-linear-gradient(0deg, transparent 0, transparent 24px, var(--color-border-subtle) 24px, var(--color-border-subtle) 25px)',
+            opacity: 0.18,
+          }}
+        />
+
+        <div className="relative max-w-[440px] px-12 text-center">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ ...motionBase, delay: 0.1 }}
+          >
+            <p
+              className="mb-3 text-[10px] font-semibold uppercase tracking-[0.32em]"
+              style={{ color: 'var(--color-fg-subtle)' }}
+            >
+              AI Content Operating System
+            </p>
+            <h2
+              className="font-display text-[64px] font-bold leading-[0.96] tracking-tight"
+              style={{ color: 'var(--color-fg)' }}
+            >
+              Generate.
+              <br />
+              Schedule.
+              <br />
+              Ship.
+            </h2>
+            <p
+              className="mx-auto mt-6 max-w-[340px] text-[14px] leading-relaxed"
+              style={{ color: 'var(--color-fg-muted)' }}
+            >
+              One workspace for briefs, calendar, and AI-generated posts —
+              tuned for agencies running multiple brands.
+            </p>
+          </motion.div>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function Field({ id, label, type, autoComplete, required, minLength, value, onChange, placeholder }: {
+  id: string;
+  label: string;
+  type: string;
+  autoComplete?: string;
+  required?: boolean;
+  minLength?: number;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <div>
+      <label htmlFor={id} className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider" style={{ color: 'var(--color-fg-subtle)' }}>
+        {label}
+      </label>
+      <input
+        id={id}
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        autoComplete={autoComplete}
+        required={required}
+        minLength={minLength}
+        placeholder={placeholder}
+        className="w-full rounded-xl border px-3.5 py-2.5 text-[13px] transition-colors focus:outline-none"
+        style={{
+          background: 'var(--color-surface)',
+          borderColor: 'var(--color-border-subtle)',
+          color: 'var(--color-fg)',
+        }}
+        onFocus={(e) => { (e.currentTarget as HTMLInputElement).style.borderColor = 'var(--color-accent)'; }}
+        onBlur={(e) => { (e.currentTarget as HTMLInputElement).style.borderColor = 'var(--color-border-subtle)'; }}
+      />
     </div>
   );
 }

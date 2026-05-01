@@ -204,6 +204,7 @@ export default function Gallery() {
               return (
                 <motion.div
                   key={asset.id}
+                  layoutId={`asset-${asset.id}`}
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
@@ -270,6 +271,7 @@ export default function Gallery() {
             </button>
 
             <motion.div
+              layoutId={preview ? `asset-${preview.id}` : undefined}
               initial={{ scale: 0.95, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.95, y: 20 }}

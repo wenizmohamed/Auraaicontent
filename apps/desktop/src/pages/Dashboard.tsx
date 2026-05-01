@@ -15,6 +15,7 @@ import { EmptyState, EmptyStateAction } from '../components/ui/EmptyState';
 import { motionUI, motionBase, easings, durations } from '../lib/motion';
 import { Skeleton as TokenSkeleton } from '../components/ui/Skeleton';
 import { BentoGrid, BentoTile } from '../components/ui/BentoGrid';
+import { AIProviderRouter } from '../components/insights/AIProviderRouter';
 
 // Synth a smoothly-rising 12-point sparkline that ends at `target`.
 // Used until per-stat time-series is wired into the backend dashboard API.
@@ -818,6 +819,46 @@ export default function Dashboard() {
                 );
               })}
               </div>
+            </BentoTile>
+          </BentoGrid>
+        </motion.div>
+      )}
+
+      {/* ─── ROW 2b.5: Provider router visualization (Tier 3 #10) ─── */}
+      {aiStats && aiStats.totalCalls > 0 && (
+        <motion.div {...fadeUp(0.27)}>
+          <BentoGrid columns={12} gap="base">
+            <BentoTile colSpan={5} accent pad="lg">
+              <h3 className={`text-sm font-semibold flex items-center gap-2 mb-2 ${textPrimary}`}>
+                <Cpu className={`w-4 h-4 ${textSecondary}`} /> Routing chain
+              </h3>
+              <p className={`text-[11px] mb-3 ${textMuted}`}>Live fallback orbit — primary first, hot-swap on failure.</p>
+              <div className="flex justify-center">
+                <AIProviderRouter providers={aiStats.providers} size={260} />
+              </div>
+            </BentoTile>
+            <BentoTile colSpan={7} pad="lg" static>
+              <h3 className={`text-sm font-semibold flex items-center gap-2 mb-3 ${textPrimary}`}>
+                <ShieldCheck className={`w-4 h-4 ${textSecondary}`} /> Why this matters
+              </h3>
+              <ul className={`space-y-2 text-[12.5px] ${textPrimary}`}>
+                <li className="flex items-start gap-2">
+                  <span className="mt-1.5 h-1 w-1 rounded-full flex-shrink-0" style={{ background: 'var(--color-accent)' }} />
+                  <span><span className="font-semibold">Primary:</span> Gemini handles all text + image + video by default.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="mt-1.5 h-1 w-1 rounded-full flex-shrink-0" style={{ background: 'var(--color-accent)' }} />
+                  <span><span className="font-semibold">Fallback:</span> Grok takes over within milliseconds on Gemini outage or rate-limit.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="mt-1.5 h-1 w-1 rounded-full flex-shrink-0" style={{ background: 'var(--color-accent)' }} />
+                  <span><span className="font-semibold">Tertiary:</span> Kimi for long-context (200k+ tokens) text-only requests.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="mt-1.5 h-1 w-1 rounded-full flex-shrink-0" style={{ background: 'var(--color-accent)' }} />
+                  <span>Per-org budget gate refuses any call that would exceed the monthly cap.</span>
+                </li>
+              </ul>
             </BentoTile>
           </BentoGrid>
         </motion.div>

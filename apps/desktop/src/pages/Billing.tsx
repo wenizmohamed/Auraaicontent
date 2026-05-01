@@ -1,20 +1,26 @@
-// Billing settings page. Three plans + Manage Subscription button (the
-// latter routes to the Stripe Customer Portal once the org has a stripeCustomerId).
-// Returns 503 when STRIPE_SECRET_KEY isn't configured server-side — we
-// surface that as a friendly "billing not enabled yet" message instead
-// of a JSON error.
-
+/**
+ * Billing — three-tier hairline pricing surface.
+ *
+ * HextaUI-pattern cards adapted to radixcontent semantic tokens. Hairline
+ * border, accent on the recommended tier (border + Check icon), single CTA
+ * per tier. Hover lift via framer-motion. Manage-subscription row beneath.
+ *
+ * Behavior unchanged from the original: billingApi.checkout(plan) → Stripe
+ * Checkout, billingApi.portal() → Stripe Customer Portal.
+ */
 import { useState } from 'react';
+import { motion } from 'framer-motion';
 import { billingApi } from '../lib/backend-api';
-import { useTheme } from '../lib/theme-context';
 import { t } from '../i18n';
-import { Check, AlertCircle, ExternalLink, CreditCard } from 'lucide-react';
+import { Check, AlertCircle, ExternalLink, CreditCard, Sparkles } from 'lucide-react';
+import { motionUI, motionBase } from '../lib/motion';
 
 interface Plan {
   id: 'starter' | 'studio' | 'agency';
   name: string;
   price: string;
   cadence: string;
+  description: string;
   features: string[];
   highlight?: boolean;
 }
@@ -25,6 +31,7 @@ const PLANS: Plan[] = [
     name: 'Starter',
     price: '$49',
     cadence: '/mo',
+    description: 'For solo operators trying Radix on one brand.',
     features: ['1 client workspace', '50 AI generations / mo', '25 image generations', 'Single seat'],
   },
   {
@@ -32,6 +39,7 @@ const PLANS: Plan[] = [
     name: 'Studio',
     price: '$149',
     cadence: '/mo',
+    description: 'Most agencies pick this. Five brands, five seats.',
     features: ['5 client workspaces', '300 AI generations / mo', '200 image generations', '5 seats', 'Review links + exports'],
     highlight: true,
   },
@@ -40,13 +48,12 @@ const PLANS: Plan[] = [
     name: 'Agency',
     price: '$399',
     cadence: '/mo',
+    description: 'High-volume teams running 10+ brands.',
     features: ['20 client workspaces', '2000 AI generations / mo', '1500 image generations', 'Unlimited seats', 'Priority models', 'WhatsApp export'],
   },
 ];
 
 export default function Billing() {
-  const { theme } = useTheme();
-  const isDark = theme === 'dark';
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -72,76 +79,141 @@ export default function Billing() {
     }
   }
 
-  const text = isDark ? 'text-white' : 'text-slate-900';
-  const sub = isDark ? 'text-zinc-400' : 'text-slate-500';
-  const card = isDark ? 'bg-white/[0.03] border border-white/[0.06]' : 'bg-white border border-slate-200 shadow-sm';
-  const cardHl = isDark ? 'bg-amber-500/[0.04] border border-amber-500/40 ring-1 ring-amber-500/30' : 'bg-amber-50 border border-amber-300 shadow-md';
-
   return (
-    <div className="p-6 lg:p-8 max-w-6xl mx-auto space-y-8">
+    <div className="mx-auto max-w-6xl space-y-8 p-6 lg:p-8">
       <header>
-        <div className={`text-xs uppercase tracking-[0.2em] ${sub}`}>{t('nav.settings')}</div>
-        <h1 className={`text-2xl font-bold mt-1 ${text}`}>{t('page.billing.title')}</h1>
-        <p className={`mt-2 text-sm ${sub}`}>14-day trial included. Cancel any time from the Stripe customer portal.</p>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.24em]" style={{ color: 'var(--color-fg-subtle)' }}>
+          {t('nav.settings')}
+        </p>
+        <h1 className="mt-1 font-display text-[28px] font-bold tracking-tight" style={{ color: 'var(--color-fg)' }}>
+          {t('page.billing.title')}
+        </h1>
+        <p className="mt-2 max-w-prose text-[13px]" style={{ color: 'var(--color-fg-muted)' }}>
+          14-day trial included. Cancel any time from the Stripe customer portal.
+        </p>
       </header>
 
       {err && (
-        <div className={`${card} rounded-2xl p-4 flex gap-3 items-start`}>
-          <AlertCircle className={isDark ? 'text-amber-400 mt-0.5' : 'text-amber-600 mt-0.5'} size={18} />
-          <div className={`text-sm ${text}`}>{err}</div>
-        </div>
+        <motion.div
+          initial={{ opacity: 0, y: -4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={motionUI}
+          className="flex items-start gap-2 rounded-xl border p-3"
+          style={{
+            background: 'var(--color-surface)',
+            borderColor: 'var(--color-border-subtle)',
+          }}
+        >
+          <AlertCircle size={16} style={{ color: 'var(--color-accent)', marginTop: 2 }} />
+          <p className="text-[13px]" style={{ color: 'var(--color-fg)' }}>{err}</p>
+        </motion.div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {PLANS.map((p) => (
-          <div key={p.id} className={`${p.highlight ? cardHl : card} rounded-2xl p-6 flex flex-col`}>
-            <div className={`text-xs uppercase tracking-[0.2em] ${sub}`}>{p.name}</div>
-            <div className={`text-4xl font-bold mt-2 ${text}`}>
-              {p.price}
-              <span className={`text-sm font-medium ${sub}`}>{p.cadence}</span>
-            </div>
-            <ul className={`mt-5 space-y-2.5 text-sm ${text} flex-1`}>
-              {p.features.map((f) => (
-                <li key={f} className="flex items-start gap-2">
-                  <Check size={14} className={`mt-1 shrink-0 ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />
-                  <span>{f}</span>
-                </li>
-              ))}
-            </ul>
-            <button
-              onClick={() => checkout(p.id)}
-              disabled={busy !== null}
-              className={`mt-6 w-full py-2.5 rounded-xl font-semibold text-sm transition-all duration-200 cursor-pointer disabled:opacity-50 ${
-                p.highlight
-                  ? 'bg-amber-500 hover:bg-amber-600 text-white'
-                  : isDark ? 'bg-white/10 hover:bg-white/15 text-white' : 'bg-slate-900 hover:bg-slate-800 text-white'
-              }`}
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        {PLANS.map((p, i) => {
+          const isHl = !!p.highlight;
+          return (
+            <motion.div
+              key={p.id}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ ...motionBase, delay: 0.05 + i * 0.05 }}
+              whileHover={{ y: -2 }}
+              className="relative flex flex-col rounded-2xl border p-6"
+              style={{
+                background: isHl ? 'var(--color-bg-elevated)' : 'var(--color-surface)',
+                borderColor: isHl ? 'var(--color-accent)' : 'var(--color-border-subtle)',
+                boxShadow: isHl ? '0 12px 40px -24px rgba(0,0,0,0.5)' : undefined,
+              }}
             >
-              {busy === p.id ? 'Opening checkout…' : `Choose ${p.name}`}
-            </button>
-          </div>
-        ))}
+              {isHl && (
+                <span
+                  className="absolute -top-2.5 left-6 inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                  style={{
+                    background: 'var(--color-accent)',
+                    color: 'var(--color-fg-on-accent)',
+                  }}
+                >
+                  <Sparkles size={10} /> Recommended
+                </span>
+              )}
+
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.24em]" style={{ color: 'var(--color-fg-subtle)' }}>
+                  {p.name}
+                </p>
+                <div className="mt-2 flex items-baseline gap-1">
+                  <span className="font-display text-[36px] font-bold tracking-tight" style={{ color: 'var(--color-fg)' }}>
+                    {p.price}
+                  </span>
+                  <span className="text-[13px]" style={{ color: 'var(--color-fg-muted)' }}>
+                    {p.cadence}
+                  </span>
+                </div>
+                <p className="mt-2 text-[12px]" style={{ color: 'var(--color-fg-muted)' }}>
+                  {p.description}
+                </p>
+              </div>
+
+              <ul className="mt-5 flex-1 space-y-2.5">
+                {p.features.map((f) => (
+                  <li key={f} className="flex items-start gap-2 text-[12.5px]" style={{ color: 'var(--color-fg)' }}>
+                    <Check size={14} style={{ color: 'var(--color-accent)', marginTop: 2 }} className="flex-shrink-0" />
+                    <span>{f}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <button
+                onClick={() => checkout(p.id)}
+                disabled={busy !== null}
+                className="mt-6 w-full rounded-xl py-2.5 text-[12.5px] font-semibold transition-all cursor-pointer disabled:opacity-50"
+                style={{
+                  background: isHl ? 'var(--color-accent)' : 'var(--color-bg-elevated)',
+                  color: isHl ? 'var(--color-fg-on-accent)' : 'var(--color-fg)',
+                  border: isHl ? 'none' : '1px solid var(--color-border-subtle)',
+                }}
+              >
+                {busy === p.id ? 'Opening checkout…' : `Choose ${p.name}`}
+              </button>
+            </motion.div>
+          );
+        })}
       </div>
 
-      <div className={`${card} rounded-2xl p-5 flex items-center justify-between`}>
+      <motion.div
+        initial={{ opacity: 0, y: 4 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ ...motionBase, delay: 0.3 }}
+        className="flex items-center justify-between rounded-2xl border p-5"
+        style={{
+          background: 'var(--color-surface)',
+          borderColor: 'var(--color-border-subtle)',
+        }}
+      >
         <div>
-          <div className={`text-sm font-semibold ${text} flex items-center gap-2`}>
-            <CreditCard size={16} className={sub} />
+          <div className="flex items-center gap-2 text-[13px] font-semibold" style={{ color: 'var(--color-fg)' }}>
+            <CreditCard size={14} style={{ color: 'var(--color-fg-muted)' }} />
             Manage existing subscription
           </div>
-          <div className={`text-xs mt-1 ${sub}`}>Update payment method, view invoices, cancel via Stripe.</div>
+          <p className="mt-1 text-[12px]" style={{ color: 'var(--color-fg-muted)' }}>
+            Update payment method, view invoices, cancel via Stripe.
+          </p>
         </div>
         <button
           onClick={portal}
           disabled={busy !== null}
-          className={`px-4 py-2 rounded-xl font-medium text-sm transition-all duration-200 cursor-pointer disabled:opacity-50 flex items-center gap-2 ${
-            isDark ? 'bg-white/10 hover:bg-white/15 text-white' : 'bg-slate-900 hover:bg-slate-800 text-white'
-          }`}
+          className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-[12.5px] font-semibold transition-all cursor-pointer disabled:opacity-50"
+          style={{
+            background: 'var(--color-bg-elevated)',
+            color: 'var(--color-fg)',
+            border: '1px solid var(--color-border-subtle)',
+          }}
         >
           {busy === 'portal' ? 'Opening…' : 'Open portal'}
-          <ExternalLink size={14} />
+          <ExternalLink size={12} />
         </button>
-      </div>
+      </motion.div>
     </div>
   );
 }
