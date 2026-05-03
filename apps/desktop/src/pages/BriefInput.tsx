@@ -668,11 +668,23 @@ export default function BriefInput() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ ...motionUI, delay: 0.15 }}
           >
-            <div className="mb-4 flex items-center gap-2">
-              <CalendarHeart className="h-4 w-4 text-fuchsia-400" />
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-300">
-                Special Occasions
-              </h2>
+            <div className="mb-4 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <CalendarHeart className="h-4 w-4 text-fuchsia-400" />
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-300">
+                  Special Occasions
+                </h2>
+              </div>
+              {occasions.some(o => o.enabled) && (
+                <button
+                  type="button"
+                  onClick={() => setOccasions(prev => prev.map(o => ({ ...o, enabled: false })))}
+                  className="rounded-md px-2 py-1 text-[11px] font-medium text-zinc-500 transition-colors hover:bg-white/[0.04] hover:text-zinc-300"
+                  title="Uncheck every occasion. Lets you opt-in only to the ones that match this brand's audience."
+                >
+                  Deselect all
+                </button>
+              )}
             </div>
 
             <div className="rounded-xl border border-white/10 bg-[#111] p-4">
