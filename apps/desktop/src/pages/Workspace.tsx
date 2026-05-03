@@ -400,10 +400,11 @@ function InsightsList({ activeId, onPick }: { activeId?: string; onPick: (slug: 
 }
 
 const SETTINGS_SECTIONS: { slug: string; label: string; sub: string }[] = [
-  { slug: 'profile',  label: 'Profile',  sub: 'Name, email, role' },
-  { slug: 'members',  label: 'Members',  sub: 'Org memberships' },
-  { slug: 'billing',  label: 'Billing',  sub: 'Plan + Stripe portal' },
-  { slug: 'api-keys', label: 'API keys', sub: 'External integrations' },
+  { slug: 'profile',      label: 'Profile',      sub: 'Name, email, role' },
+  { slug: 'members',      label: 'Members',      sub: 'Org memberships' },
+  { slug: 'billing',      label: 'Billing',      sub: 'Plan + Stripe portal' },
+  { slug: 'api-keys',     label: 'API keys',     sub: 'External integrations' },
+  { slug: 'integrations', label: 'Integrations', sub: 'Connect Instagram / TikTok / LinkedIn' },
 ];
 
 function SettingsList({ activeId, onPick }: { activeId?: string; onPick: (slug: string) => void }) {

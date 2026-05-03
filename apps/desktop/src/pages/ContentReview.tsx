@@ -11,11 +11,21 @@ import {
 import { useStore, ContentBrief } from '../lib/store';
 import { validateCaption, PLATFORM_LIMITS } from '../lib/platform-limits';
 import { useClients } from '../lib/client-context';
-import { calendarApi, reviewApi, visualRefsApi, exportsApi, jobsApi } from '../lib/backend-api';
+import { calendarApi, reviewApi, visualRefsApi, exportsApi, jobsApi, integrationsApi, type IntegrationSummary } from '../lib/backend-api';
 import { ContentStatus, STATUS_LABEL, STATUS_COLOR, normalizeStatus } from '../lib/status-enum';
 import { EmptyState } from '../components/ui/EmptyState';
 import { motionUI, motionInstant, motionBase } from '../lib/motion';
 import VisualRefGrid from '../components/VisualRefGrid';
+import { PublishButton } from '../components/calendar/PublishButton';
+
+/** Map the brief's free-form platform label to our PlatformConnection.platform key. */
+function mapPlatformToConnector(label: string): 'meta_ig' | 'tiktok' | 'linkedin' | null {
+  const k = (label || '').toLowerCase().trim();
+  if (k === 'instagram' || k === 'ig' || k === 'meta') return 'meta_ig';
+  if (k === 'tiktok') return 'tiktok';
+  if (k === 'linkedin') return 'linkedin';
+  return null;
+}
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -160,6 +170,18 @@ export default function ContentReview() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchQuery, setSearchQuery] = useState('');
   const [platformFilter, setPlatformFilter] = useState<string>('all');
+  // Platform connections — used by the Publish button on each card to know
+  // which platforms are connected for this client. Best-effort load; an empty
+  // array means "no connections" so the Publish button renders disabled.
+  const [connections, setConnections] = useState<IntegrationSummary[]>([]);
+  useEffect(() => {
+    if (!client?.id) { setConnections([]); return; }
+    let cancelled = false;
+    integrationsApi.list(client.id)
+      .then(r => { if (!cancelled) setConnections(r.connections || []); })
+      .catch(() => { if (!cancelled) setConnections([]); });
+    return () => { cancelled = true; };
+  }, [client?.id]);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [campaignFilter, setCampaignFilter] = useState<string>('all');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -954,6 +976,24 @@ export default function ContentReview() {
                       >
                         <XCircle className="w-3.5 h-3.5" />
                       </button>
+                      {/* Publish to platform — only renders when the brief
+                          targets one of the supported organic-publish platforms
+                          AND the post is approved. The button itself further
+                          gates on hasConnection + post.status. */}
+                      {(() => {
+                        const platformId = mapPlatformToConnector(piece.platform);
+                        if (!platformId) return null;
+                        const hasConnection = connections.some(c => c.platform === platformId && c.status === 'connected');
+                        return (
+                          <PublishButton
+                            postId={piece.id}
+                            postStatus={piece.status}
+                            platform={platformId}
+                            hasConnection={hasConnection}
+                            compact
+                          />
+                        );
+                      })()}
                     </>
                   )}
                 </div>
