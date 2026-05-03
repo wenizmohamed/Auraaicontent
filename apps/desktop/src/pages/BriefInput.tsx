@@ -119,8 +119,11 @@ export default function BriefInput() {
   });
   const [selectedMonth, setSelectedMonth] = useState(monthOptions[0]?.value || '');
   const [campaigns, setCampaigns] = useState<CampaignEntry[]>([blankCampaign()]);
+  // Default OFF — users must opt-in to any occasion. Pre-selecting all of them
+  // led to bloated calendars where every culture's holidays were force-fed into
+  // every brand. The saved-brief restoration below still respects prior picks.
   const [occasions, setOccasions] = useState<OccasionEntry[]>(
-    DEFAULT_OCCASIONS.map(o => ({ ...o, enabled: true }))
+    DEFAULT_OCCASIONS.map(o => ({ ...o, enabled: false }))
   );
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['Instagram', 'TikTok', 'LinkedIn']);
   const [pieceCount, setPieceCount] = useState(18);
@@ -153,7 +156,7 @@ export default function BriefInput() {
       // Reset to empty defaults first so even if the fetch fails, the user
       // sees a blank form (not the previous client's data).
       setCampaigns([blankCampaign()]);
-      setOccasions(DEFAULT_OCCASIONS.map(o => ({ ...o, enabled: true })));
+      setOccasions(DEFAULT_OCCASIONS.map(o => ({ ...o, enabled: false })));
       setSelectedPlatforms(['Instagram', 'TikTok', 'LinkedIn']);
       setToneNotes('');
       try {
