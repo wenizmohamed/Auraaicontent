@@ -60,7 +60,10 @@ export async function integrationsRoutes(app: FastifyInstance) {
     };
   });
 
-  // Initiate OAuth — auth-gated, 302s to provider consent screen
+  // Initiate OAuth — returns the consent URL as JSON. Frontend fetches with
+  // its bearer token, then does window.location.href = url. We can't 302
+  // here because top-level navigation can't carry an Authorization header,
+  // so the previous redirect approach was unreachable from the SPA.
   app.get('/integrations/oauth/:platform/initiate', { preHandler: authGuard }, async (request, reply) => {
     const { platform } = request.params as { platform: string };
     const { clientId, returnUrl } = (request.query as { clientId?: string; returnUrl?: string }) || {};
@@ -84,7 +87,23 @@ export async function integrationsRoutes(app: FastifyInstance) {
       returnUrl: returnUrl || `${APP_BASE_URL}/workspace/settings/integrations?connected=${platform}`,
     });
     const url = mod.oauth.initiateUrl({ state, redirectUri: redirectUri(platform) });
-    return reply.redirect(url);
+
+    // Helpful client-side error if the platform's OAuth client creds aren't set
+    // yet — so the user gets "Not configured" instead of a Meta/TikTok/LinkedIn
+    // error page after the redirect.
+    const credCheck: Record<string, [string, string]> = {
+      meta_ig:  ['META_OAUTH_CLIENT_ID',     'META_OAUTH_CLIENT_SECRET'],
+      tiktok:   ['TIKTOK_OAUTH_CLIENT_KEY',  'TIKTOK_OAUTH_CLIENT_SECRET'],
+      linkedin: ['LINKEDIN_OAUTH_CLIENT_ID', 'LINKEDIN_OAUTH_CLIENT_SECRET'],
+    };
+    const [idVar, secretVar] = credCheck[platform] || [];
+    if (idVar && (!process.env[idVar] || !process.env[secretVar!])) {
+      return reply.status(503).send({
+        error: `${platform} OAuth not configured. Server admin must set ${idVar} + ${secretVar} in .env.`,
+      });
+    }
+
+    return { url };
   });
 
   // OAuth callback — NOT auth-gated; verifies via state token

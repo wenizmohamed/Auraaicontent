@@ -9,13 +9,14 @@ import { useMemo } from 'react';
 import { Check, Plug, AlertTriangle, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { motionUI } from '../../lib/motion';
+import { BrandIcon } from '../ui/BrandIcon';
 
 export type PlatformId = 'meta_ig' | 'tiktok' | 'linkedin';
 
-const PLATFORM_META: Record<PlatformId, { label: string; subtitle: string; accentText: string }> = {
-  meta_ig:  { label: 'Instagram Business', subtitle: 'Native publish to your IG Business account',         accentText: 'IG' },
-  tiktok:   { label: 'TikTok Business',    subtitle: 'Direct-post photos and videos',                       accentText: 'TT' },
-  linkedin: { label: 'LinkedIn',           subtitle: 'Personal share — Pages support coming v2',            accentText: 'LI' },
+const PLATFORM_META: Record<PlatformId, { label: string; subtitle: string }> = {
+  meta_ig:  { label: 'Instagram Business', subtitle: 'Native publish to your IG Business account' },
+  tiktok:   { label: 'TikTok Business',    subtitle: 'Direct-post photos and videos' },
+  linkedin: { label: 'LinkedIn',           subtitle: 'Personal share — Pages support coming v2' },
 };
 
 export interface PlatformConnection {
@@ -73,13 +74,13 @@ export function ConnectorCard({ platform, connection, onConnect, onDisconnect, b
       <div className="flex items-start gap-3">
         <span
           aria-hidden
-          className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-[12px] font-bold tracking-tight"
+          className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl"
           style={{
-            background: 'var(--color-accent-subtle)',
-            color: 'var(--color-accent)',
+            background: 'var(--color-bg-sunken)',
+            border: '1px solid var(--color-border-subtle)',
           }}
         >
-          {meta.accentText}
+          <BrandIcon brand={platform} size={18} />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">

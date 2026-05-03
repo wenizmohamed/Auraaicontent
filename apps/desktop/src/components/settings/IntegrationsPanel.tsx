@@ -49,12 +49,20 @@ export function IntegrationsPanel() {
     }
   }, [params, setParams]);
 
-  function connect(platform: PlatformId) {
+  async function connect(platform: PlatformId) {
     if (!clientId) {
       toast.error('Pick a client first');
       return;
     }
-    integrationsApi.initiate(platform, clientId);
+    try {
+      await integrationsApi.initiate(platform, clientId);
+    } catch (err: any) {
+      // Surface the server-side "not configured" error clearly so the user
+      // knows to ask the admin for OAuth client creds rather than thinking
+      // the platform itself is broken.
+      const msg = err?.message || `Connect ${platform} failed`;
+      toast.error(msg);
+    }
   }
 
   async function disconnect(connectionId: string) {

@@ -13,6 +13,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Send, Check, AlertCircle, Loader2, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import { publishApi, jobsApi } from '../../lib/backend-api';
+import { PublishConfirmDialog } from './PublishConfirmDialog';
 
 interface Props {
   postId: string;
@@ -23,14 +24,24 @@ interface Props {
   publishedStatus?: { status?: string; url?: string; externalId?: string; publishedAt?: string; error?: string } | null;
   /** True if a connection for this platform exists on the client. */
   hasConnection: boolean;
+  /** Optional context fed into the confirmation dialog preview. */
+  caption?: string;
+  imageUrl?: string | null;
+  accountName?: string | null;
+  /** TikTok-specific — drives the unaudited SELF_ONLY warning. */
+  audited?: boolean;
   /** Called after a successful publish so the parent can re-fetch the post. */
   onPublished?: () => void;
   /** Compact icon-only variant for tight surfaces (calendar tile). */
   compact?: boolean;
 }
 
-export function PublishButton({ postId, postStatus, platform, publishedStatus, hasConnection, onPublished, compact }: Props) {
+export function PublishButton({
+  postId, postStatus, platform, publishedStatus, hasConnection,
+  caption, imageUrl, accountName, audited = true, onPublished, compact,
+}: Props) {
   const [busy, setBusy] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const cancelRef = useRef(false);
 
   useEffect(() => () => { cancelRef.current = true; }, []);
@@ -46,8 +57,13 @@ export function PublishButton({ postId, postStatus, platform, publishedStatus, h
     !hasConnection            ? `Connect ${platform.replace('_', ' ')} in Settings → Integrations first` :
                                 'Publish to ' + platform.replace('_', ' ');
 
-  async function publish() {
+  function openConfirm() {
     if (disabled) return;
+    setDialogOpen(true);
+  }
+
+  async function publish() {
+    setDialogOpen(false);
     setBusy(true);
     cancelRef.current = false;
     try {
@@ -96,21 +112,33 @@ export function PublishButton({ postId, postStatus, platform, publishedStatus, h
   }
 
   return (
-    <button
-      type="button"
-      onClick={publish}
-      disabled={disabled}
-      title={tooltip}
-      aria-label={tooltip}
-      className={`inline-flex items-center gap-1.5 rounded-lg ${compact ? 'h-7 w-7 justify-center' : 'px-2.5 py-1.5'} text-[11px] font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed`}
-      style={{
-        background: lastError ? 'var(--color-danger-subtle, rgba(239,68,68,0.12))' : 'var(--color-accent)',
-        color: lastError ? 'var(--color-danger, #f87171)' : 'var(--color-fg-on-accent)',
-      }}
-    >
-      {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : lastError ? <AlertCircle className="h-3 w-3" /> : <Send className="h-3 w-3" />}
-      {!compact && (busy ? 'Publishing…' : lastError ? 'Retry' : 'Publish now')}
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={openConfirm}
+        disabled={disabled}
+        title={tooltip}
+        aria-label={tooltip}
+        className={`inline-flex items-center gap-1.5 rounded-lg ${compact ? 'h-7 w-7 justify-center' : 'px-2.5 py-1.5'} text-[11px] font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed`}
+        style={{
+          background: lastError ? 'var(--color-danger-subtle, rgba(239,68,68,0.12))' : 'var(--color-accent)',
+          color: lastError ? 'var(--color-danger, #f87171)' : 'var(--color-fg-on-accent)',
+        }}
+      >
+        {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : lastError ? <AlertCircle className="h-3 w-3" /> : <Send className="h-3 w-3" />}
+        {!compact && (busy ? 'Publishing…' : lastError ? 'Retry' : 'Publish now')}
+      </button>
+      <PublishConfirmDialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        onConfirm={publish}
+        platform={platform}
+        accountName={accountName}
+        caption={caption || ''}
+        imageUrl={imageUrl}
+        audited={audited}
+      />
+    </>
   );
 }
 

@@ -983,13 +983,18 @@ export default function ContentReview() {
                       {(() => {
                         const platformId = mapPlatformToConnector(piece.platform);
                         if (!platformId) return null;
-                        const hasConnection = connections.some(c => c.platform === platformId && c.status === 'connected');
+                        const conn = connections.find(c => c.platform === platformId && c.status === 'connected');
+                        const previewImage = piece.visualRefImages?.[0]?.imageUrl || null;
                         return (
                           <PublishButton
                             postId={piece.id}
                             postStatus={piece.status}
                             platform={platformId}
-                            hasConnection={hasConnection}
+                            hasConnection={!!conn}
+                            caption={piece.caption}
+                            imageUrl={previewImage}
+                            accountName={conn?.externalAccountName ?? null}
+                            audited={(conn?.metadata as any)?.audited !== false}
                             compact
                           />
                         );

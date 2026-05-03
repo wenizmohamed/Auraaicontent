@@ -854,15 +854,20 @@ export interface IntegrationSummary {
 export const integrationsApi = {
   list: (clientId: string) =>
     request<{ supported: SupportedPlatform[]; connections: IntegrationSummary[] }>(`/api/integrations?clientId=${encodeURIComponent(clientId)}`),
-  /** Browser navigation — backend issues the OAuth state token, then 302s to the platform consent screen. */
-  initiate: (platform: string, clientId: string) => {
-    const tok = authToken;
-    // We can't pass the bearer via header on a top-level navigation, but the
-    // server's authGuard reads from cookies-or-Authorization. The frontend
-    // sets a same-site cookie at login (see /api/auth/login). If the cookie
-    // is missing, fall back to a JSON fetch that returns the URL.
-    const url = `${API_URL}/api/integrations/oauth/${encodeURIComponent(platform)}/initiate?clientId=${encodeURIComponent(clientId)}` + (tok ? `&_t=${encodeURIComponent(tok.slice(0, 8))}` : '');
-    window.location.href = url;
+  /**
+   * Two-step OAuth kick-off:
+   *   1. Authenticated JSON fetch returns the platform consent URL (with a
+   *      single-use state token bound to org+client+user).
+   *   2. Caller navigates the browser to that URL.
+   *
+   * Doing it as a 302 from the server doesn't work because top-level
+   * browser navigation strips the Authorization header, so the auth-gated
+   * /initiate endpoint would 401 every time.
+   */
+  initiate: async (platform: string, clientId: string): Promise<void> => {
+    const r = await request<{ url: string }>(`/api/integrations/oauth/${encodeURIComponent(platform)}/initiate?clientId=${encodeURIComponent(clientId)}`);
+    if (!r?.url) throw new Error('Initiate response missing url');
+    window.location.href = r.url;
   },
   revoke: (connectionId: string) =>
     request<{ success: boolean }>(`/api/integrations/${connectionId}`, { method: 'DELETE' }),
