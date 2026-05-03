@@ -43,4 +43,24 @@ export const env = {
   AI_ENABLE_FALLBACK: optional('AI_ENABLE_FALLBACK', 'true'),
 
   PREVIEW_URL: optional('PREVIEW_URL', 'http://localhost:5174'),
+
+  // Public base URL — used to build OAuth redirect URIs that match what's
+  // registered in each platform's developer console.
+  RADIX_APP_BASE_URL: optional('RADIX_APP_BASE_URL', 'https://radix.synapseai-labs.com'),
+
+  // AES-256-GCM key for encrypting OAuth tokens at rest. Generate with
+  // `openssl rand -base64 32`. Required for any platform connection to work;
+  // we don't `required()` it so the server still boots in dev without it
+  // — the secrets.ts helpers throw with a clear message when actually used.
+  RADIX_INTEGRATION_KEY: optional('RADIX_INTEGRATION_KEY', ''),
+
+  // Platform OAuth client credentials. Empty defaults so the build doesn't
+  // crash before the user provisions developer apps; the OAuth routes throw
+  // a clear error when Connect is clicked without creds.
+  META_OAUTH_CLIENT_ID:     optional('META_OAUTH_CLIENT_ID', ''),
+  META_OAUTH_CLIENT_SECRET: optional('META_OAUTH_CLIENT_SECRET', ''),
+  TIKTOK_OAUTH_CLIENT_KEY:    optional('TIKTOK_OAUTH_CLIENT_KEY', ''),
+  TIKTOK_OAUTH_CLIENT_SECRET: optional('TIKTOK_OAUTH_CLIENT_SECRET', ''),
+  LINKEDIN_OAUTH_CLIENT_ID:     optional('LINKEDIN_OAUTH_CLIENT_ID', ''),
+  LINKEDIN_OAUTH_CLIENT_SECRET: optional('LINKEDIN_OAUTH_CLIENT_SECRET', ''),
 } as const;

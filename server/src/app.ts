@@ -25,6 +25,9 @@ import { agentRoutes } from './routes/agent.js';
 import { billingRoutes } from './routes/billing.js';
 import { adminRoutes } from './routes/admin.js';
 import { orgsRoutes, invitationsRoutes } from './routes/orgs.js';
+import { integrationsRoutes } from './routes/integrations.js';
+import { publishRoutes } from './routes/publish.js';
+import { startTokenHealthWorker } from './workers/tokenHealth.worker.js';
 import { initSentry } from './lib/sentry.js';
 import { registerRateLimiter } from './middleware/rate-limiter.js';
 import { kimiStatus } from './services/providers/kimi.provider.js';
@@ -218,6 +221,13 @@ export async function buildApp() {
   await app.register(adminRoutes, { prefix: '/api/admin' });
   await app.register(orgsRoutes, { prefix: '/api/orgs' });
   await app.register(invitationsRoutes, { prefix: '/api/invitations' });
+  await app.register(integrationsRoutes, { prefix: '/api' });
+  await app.register(publishRoutes, { prefix: '/api' });
+
+  // Boot the token-health worker — runs hourly after a 60s warmup. Refreshes
+  // platform connection tokens before they expire; flips status to
+  // 'needs_reauth' when refresh fails so the UI can surface a Reconnect button.
+  startTokenHealthWorker();
 
   return app;
 }

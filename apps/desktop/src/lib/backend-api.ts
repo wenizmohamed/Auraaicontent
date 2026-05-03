@@ -830,6 +830,54 @@ export const galleryApi = {
     request<{ success: boolean }>(`/api/assets/${id}`, { method: 'DELETE' }),
 };
 
+// ─── Platform integrations (OAuth-based connectors) ──────────────
+
+export interface SupportedPlatform {
+  id: string; // 'meta_ig' | 'tiktok' | 'linkedin'
+  label: string;
+}
+
+export interface IntegrationSummary {
+  id: string;
+  platform: string;
+  externalAccountId: string;
+  externalAccountName?: string | null;
+  scopes: string[];
+  expiresAt: string | null;
+  status: 'connected' | 'needs_reauth' | 'revoked' | 'error';
+  lastError?: string | null;
+  metadata?: Record<string, any> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const integrationsApi = {
+  list: (clientId: string) =>
+    request<{ supported: SupportedPlatform[]; connections: IntegrationSummary[] }>(`/api/integrations?clientId=${encodeURIComponent(clientId)}`),
+  /** Browser navigation — backend issues the OAuth state token, then 302s to the platform consent screen. */
+  initiate: (platform: string, clientId: string) => {
+    const tok = authToken;
+    // We can't pass the bearer via header on a top-level navigation, but the
+    // server's authGuard reads from cookies-or-Authorization. The frontend
+    // sets a same-site cookie at login (see /api/auth/login). If the cookie
+    // is missing, fall back to a JSON fetch that returns the URL.
+    const url = `${API_URL}/api/integrations/oauth/${encodeURIComponent(platform)}/initiate?clientId=${encodeURIComponent(clientId)}` + (tok ? `&_t=${encodeURIComponent(tok.slice(0, 8))}` : '');
+    window.location.href = url;
+  },
+  revoke: (connectionId: string) =>
+    request<{ success: boolean }>(`/api/integrations/${connectionId}`, { method: 'DELETE' }),
+};
+
+// ─── Publish ─────────────────────────────────────────────────────
+
+export const publishApi = {
+  publish: (postId: string, platform: 'meta_ig' | 'tiktok' | 'linkedin') =>
+    request<{ jobId: string }>(`/api/calendar-posts/${postId}/publish`, {
+      method: 'POST',
+      body: JSON.stringify({ platform }),
+    }),
+};
+
 // ─── Agent sessions / replay ─────────────────────────────────────
 
 export interface AgentSessionSummary {

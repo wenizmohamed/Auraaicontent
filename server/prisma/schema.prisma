@@ -49,6 +49,7 @@ model Organization {
   agentMessages   AgentMessage[]
   agentEvents     AgentEvent[]
   usageEvents     UsageEvent[]
+  platformConnections PlatformConnection[]
 }
 
 enum OrgRole {
@@ -154,6 +155,7 @@ model Client {
   agentSessions   AgentSession[]
   contentPieces   ContentPiece[]
   apiKeys         ApiKey[]
+  platformConnections PlatformConnection[]
 
   @@unique([orgId, slug])
   @@index([orgId])
@@ -349,6 +351,8 @@ model CalendarPost {
   status          String   @default("draft")
   version         Int      @default(1)
   metadata        Json?    // agent annotations: compliance findings, tool provenance, etc.
+  // Per-platform publish state, e.g. { meta_ig: { status: "published", externalId, url, publishedAt }, tiktok: {...} }
+  platformPublishStatus Json?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -565,4 +569,37 @@ model UsageEvent {
 
   @@index([orgId, createdAt])
   @@index([orgId, kind, createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// PlatformConnection — OAuth-based connector to a third-party platform
+// (Meta IG Business, TikTok Business, LinkedIn). Tokens are encrypted
+// at rest via lib/secrets.ts (AES-256-GCM with RADIX_INTEGRATION_KEY).
+// Scoped to (orgId, clientId) — each Radix client (brand) connects its
+// own platform accounts independently.
+// ─────────────────────────────────────────────────────────────────────
+model PlatformConnection {
+  id                  String    @id @default(cuid())
+  orgId               String
+  clientId            String
+  platform            String    // 'meta_ig' | 'tiktok' | 'linkedin'
+  externalAccountId   String    // platform's stable account id (ig_user_id, tt_open_id, urn:li:person:...)
+  externalAccountName String?   // display name shown in connector card
+  accessTokenEnc      String    // AES-256-GCM ciphertext via lib/secrets.ts
+  refreshTokenEnc     String?   // null when platform doesn't issue refresh (Meta long-lived rolls in place)
+  scopes              String[]
+  expiresAt           DateTime?
+  status              String    @default("connected") // connected | needs_reauth | revoked | error
+  lastError           String?
+  metadata            Json?     // platform-specific: pageAccessToken, audited flag, avatarUrl, etc.
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  org    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  client Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, platform, externalAccountId])
+  @@index([orgId])
+  @@index([clientId, platform])
+  @@index([status, expiresAt])
 }

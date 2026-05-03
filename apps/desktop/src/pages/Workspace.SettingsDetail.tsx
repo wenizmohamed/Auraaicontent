@@ -13,14 +13,16 @@ import { ExternalLink, Loader2, User as UserIcon, Users, CreditCard, KeyRound } 
 import { authApi, orgsApi, billingApi, type MeRecord, type OrgMembership } from '../lib/backend-api';
 import { Badge, Button, EmptyState, Separator } from '../components/ui';
 import { toast } from 'sonner';
+import { IntegrationsPanel } from '../components/settings/IntegrationsPanel';
 
 export default function SettingsDetail({ pieceId: slug }: { pieceId: string }) {
   const navigate = useNavigate();
 
-  if (slug === 'profile')   return <ProfilePanel onOpen={() => navigate('/profile')} />;
-  if (slug === 'members')   return <MembersPanel onOpen={() => navigate('/members')} />;
-  if (slug === 'billing')   return <BillingPanel onOpen={() => navigate('/billing')} />;
-  if (slug === 'api-keys')  return <ApiKeysPanel onOpen={() => navigate('/profile')} />;
+  if (slug === 'profile')      return <ProfilePanel onOpen={() => navigate('/profile')} />;
+  if (slug === 'members')      return <MembersPanel onOpen={() => navigate('/members')} />;
+  if (slug === 'billing')      return <BillingPanel onOpen={() => navigate('/billing')} />;
+  if (slug === 'api-keys')     return <ApiKeysPanel onOpen={() => navigate('/profile')} />;
+  if (slug === 'integrations') return <IntegrationsPanel />;
 
   return (
     <div className="flex h-full items-center justify-center p-8">
