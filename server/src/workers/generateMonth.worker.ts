@@ -37,6 +37,37 @@ export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: 
     }
   }
 
+  // 2c. Fetch prior posts so the prompt knows what NOT to repeat. Without this
+  // the AI happily redrafts the same MRI/Ultrasound angles every month from a
+  // thin brief, and the user perceives it as "same content across all months".
+  // Includes archived months too — the user has seen those drafts and treats
+  // them as prior published material.
+  let priorPosts: Array<{ title: string; pillar: string; keyMessage: string; month: string }> = [];
+  try {
+    const rows = await db.calendarPost.findMany({
+      where: { orgId, calendarMonth: { clientId } },
+      select: {
+        title: true, pillar: true, keyMessage: true,
+        calendarMonth: { select: { month: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 60,
+    });
+    priorPosts = rows
+      .filter((r: any) => r.title && r.calendarMonth?.month && r.calendarMonth.month !== month)
+      .map((r: any) => ({
+        title: r.title,
+        pillar: r.pillar || '',
+        keyMessage: r.keyMessage || '',
+        month: r.calendarMonth.month,
+      }));
+    if (priorPosts.length > 0) {
+      console.log(`[generateMonth] Loaded ${priorPosts.length} prior posts for theme-diversity guard`);
+    }
+  } catch (err: any) {
+    console.warn(`[generateMonth] Prior-post lookup failed, continuing without diversity guard:`, err?.message || err);
+  }
+
   // 3. Build prompt
   updateJob(job.id, { progress: 20 });
   const prompt = buildPlanningPrompt({
@@ -46,6 +77,7 @@ export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: 
     month,
     pieceCount: pieceCount || 18,
     knowledgeContext,
+    priorPosts,
   });
 
   // 4. Call AI via router. Provider order is env-driven:

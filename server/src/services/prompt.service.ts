@@ -88,6 +88,10 @@ interface BuildArgs {
   month: string;
   pieceCount: number;
   knowledgeContext?: { text: string; score: number }[];
+  /** Posts from prior months for this client. Injected so the AI doesn't
+   *  re-pitch the same angles every month — the #1 user complaint about
+   *  multi-month generation feeling repetitive. */
+  priorPosts?: Array<{ title: string; pillar: string; keyMessage: string; month: string }>;
 }
 
 // Picks Arabic vs English based on client.locale. Dialect defaults to
@@ -171,6 +175,17 @@ function buildEnglishPrompt(p: BuildArgs): string {
     });
   }
 
+  // Prior-month diversity guard — the AI can repeat the same brief endlessly
+  // unless it sees what was already published. Cap at 30 entries to keep the
+  // prompt budget under control on long-running clients.
+  if (p.priorPosts && p.priorPosts.length > 0) {
+    s.push('\n=== ALREADY PUBLISHED (DO NOT REPEAT THESE ANGLES) ===');
+    s.push(`The following ${Math.min(p.priorPosts.length, 30)} posts were already drafted for this client in prior months. Your output must cover DIFFERENT angles, hooks, and key messages. Same brand voice, fresh ideas.`);
+    for (const pr of p.priorPosts.slice(0, 30)) {
+      s.push(`- [${pr.month}] ${pr.title}${pr.pillar ? ` · pillar=${pr.pillar}` : ''}${pr.keyMessage ? ` — ${pr.keyMessage.slice(0, 80)}` : ''}`);
+    }
+  }
+
   s.push(`\n=== TASK ===\nGenerate exactly ${p.pieceCount} content pieces for ${p.month} as JSON.`);
   s.push('Return: {"strategySummary":{"overview":"...","themes":[...],"channelFocus":{...}},"posts":[{"date":"...","title":"...","pillar":"...","platform":"...","format":"...","hook":"...","keyMessage":"...","caption":"...","cta":"...","hashtags":[...],"visualDirection":"...","referenceSearchQuery":"...","ideaRationale":"...","timing":"..."}]}');
   const allowedList = channels.length > 0 ? channels.join('|') : 'Instagram';
@@ -179,7 +194,8 @@ function buildEnglishPrompt(p: BuildArgs): string {
 2. Captions must stay within the character limits for the allowed platforms listed above.
 3. Vary formats (Static/Carousel/Reel/Video) and pillars across posts.
 4. Distribute posts evenly across the calendar month.
-5. Return ONLY valid JSON. No markdown, no commentary.`);
+5. Return ONLY valid JSON. No markdown, no commentary.
+6. ${p.priorPosts && p.priorPosts.length > 0 ? 'NEVER reuse a title, hook, or key message from the "ALREADY PUBLISHED" list above. Pick fresh angles.' : 'Bring fresh angles — do not produce generic stock content.'}`);
   return s.join('\n');
 }
 
@@ -240,6 +256,15 @@ function buildArabicPrompt(p: BuildArgs): string {
     });
   }
 
+  // Prior-month diversity guard (Arabic prompt mirror — same logic as English).
+  if (p.priorPosts && p.priorPosts.length > 0) {
+    s.push('\n=== ALREADY PUBLISHED (DO NOT REPEAT THESE ANGLES) ===');
+    s.push(`The following posts were drafted for this client in prior months. Cover DIFFERENT angles, hooks, and key messages — same brand voice, fresh ideas:`);
+    for (const pr of p.priorPosts.slice(0, 30)) {
+      s.push(`- [${pr.month}] ${pr.title}${pr.pillar ? ` · ${pr.pillar}` : ''}${pr.keyMessage ? ` — ${pr.keyMessage.slice(0, 80)}` : ''}`);
+    }
+  }
+
   s.push(`\n=== TASK ===\nGenerate exactly ${p.pieceCount} content pieces for ${p.month} as JSON.`);
   s.push('CRITICAL — write all user-facing strings (title, hook, keyMessage, caption, cta, hashtags) in ARABIC using the dialect above.');
   s.push('Keep JSON keys, platform names, and date strings in English/numeric form. referenceSearchQuery stays in English so Pinterest/DDG returns visual references.');
@@ -252,6 +277,7 @@ function buildArabicPrompt(p: BuildArgs): string {
 2. كل caption يجب أن يحترم حدود الأحرف.
 3. توزيع التدوينات على مدار الشهر.
 4. مزج الصيغ والركائز.
-5. أعد JSON صحيحاً فقط — بدون Markdown أو تعليقات.`);
+5. أعد JSON صحيحاً فقط — بدون Markdown أو تعليقات.
+6. ${p.priorPosts && p.priorPosts.length > 0 ? 'لا تكرر أي عنوان أو افتتاحية أو رسالة أساسية من قائمة "ALREADY PUBLISHED" أعلاه. اختر زوايا جديدة.' : 'اختر زوايا جديدة وتجنب المحتوى العام.'}`);
   return s.join('\n');
 }
