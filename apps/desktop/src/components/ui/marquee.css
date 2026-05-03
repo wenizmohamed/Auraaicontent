@@ -1,0 +1,36 @@
+/* MarqueeLogos — horizontal infinite scroll, gpu-friendly transform. */
+
+.radix-marquee-frame {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+}
+
+.radix-marquee-track {
+  display: inline-flex;
+  gap: 3.25rem; /* 52px between logos */
+  align-items: center;
+  width: max-content;
+  animation-name: radix-marquee-scroll;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+
+.radix-marquee-frame:hover .radix-marquee-track {
+  animation-play-state: paused;
+}
+
+@keyframes radix-marquee-scroll {
+  from { transform: translate3d(0, 0, 0); }
+  /* Doubled track: -50% lands exactly at the start of the second copy,
+     making the loop seamless. */
+  to   { transform: translate3d(-50%, 0, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .radix-marquee-track {
+    animation: none;
+    transform: none;
+  }
+}

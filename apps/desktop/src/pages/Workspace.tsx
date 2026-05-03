@@ -449,6 +449,7 @@ export default function Workspace() {
       id: 'content',
       label: 'Content',
       icon: Layers,
+      group: 'Plan',
       list: <ContentList activeId={itemId} onPick={(id) => navigate(`/workspace/content/${id}`)} />,
       detail: (id: string | undefined) => (
         id ? (
@@ -475,6 +476,7 @@ export default function Workspace() {
       id: 'calendar',
       label: 'Calendar',
       icon: CalIcon,
+      group: 'Plan',
       list: <CalendarList activeId={itemId} onPick={(month) => navigate(`/workspace/calendar/${encodeURIComponent(month)}`)} />,
       detail: (id: string | undefined) => (
         id ? (
@@ -501,6 +503,7 @@ export default function Workspace() {
       id: 'strategy',
       label: 'Strategy',
       icon: FileText,
+      group: 'Plan',
       list: <StrategyList activeId={itemId} onPick={(slug) => navigate(`/workspace/strategy/${encodeURIComponent(slug)}`)} />,
       detail: (id: string | undefined) => (
         id ? (
@@ -527,6 +530,7 @@ export default function Workspace() {
       id: 'studio',
       label: 'Studio',
       icon: Wand2,
+      group: 'Make',
       list: <StudioList activeId={itemId} onPick={(id) => navigate(`/workspace/studio/${id}`)} />,
       detail: (id: string | undefined) => (
         id ? (
@@ -553,6 +557,7 @@ export default function Workspace() {
       id: 'insights',
       label: 'Insights',
       icon: BarChart3,
+      group: 'Track',
       list: <InsightsList activeId={itemId} onPick={(slug) => navigate(`/workspace/insights/${slug}`)} />,
       detail: (id: string | undefined) => (
         id ? (
@@ -579,6 +584,7 @@ export default function Workspace() {
       id: 'settings',
       label: 'Settings',
       icon: SettingsIcon,
+      group: 'Manage',
       list: <SettingsList activeId={itemId} onPick={(slug) => navigate(`/workspace/settings/${slug}`)} />,
       detail: (id: string | undefined) => (
         id ? (

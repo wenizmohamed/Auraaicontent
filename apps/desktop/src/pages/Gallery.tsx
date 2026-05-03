@@ -3,11 +3,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Image as ImageIcon, Video as VideoIcon, X, Download, Trash2, Calendar, Building2, Loader2, Sparkles, Filter } from 'lucide-react';
 import { useTheme } from '../lib/theme-context';
 import { useClients } from '../lib/client-context';
-import { galleryApi, type GalleryAsset } from '../lib/backend-api';
+import { galleryApi, assetsApi, type GalleryAsset } from '../lib/backend-api';
 import { useToast } from '../lib/toast-context';
 import { Skeleton, SkeletonAnnouncer } from '../components/ui/Skeleton';
 import { motionUI, motionBase, motionInstant } from '../lib/motion';
 import { Image } from '../components/ui/Image';
+import { Dropzone } from '../components/ui/Dropzone';
 
 type FilterType = 'all' | 'image' | 'video';
 
@@ -166,6 +167,25 @@ export default function Gallery() {
           )}
         </div>
       </motion.div>
+
+      {/* Dropzone — drag-drop upload, gated on having an active client. */}
+      {currentClient ? (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ ...motionBase, delay: 0.08 }}
+        >
+          <Dropzone
+            label={`Drop files to upload to ${currentClient.name}`}
+            sublabel="or click to browse — images & video, up to 50 MB"
+            onUpload={async (file) => {
+              await assetsApi.upload(currentClient.id, file);
+              const fresh = await galleryApi.list({ take: 500 });
+              setAssets(fresh);
+            }}
+          />
+        </motion.div>
+      ) : null}
 
       {/* Grid */}
       {loading ? (

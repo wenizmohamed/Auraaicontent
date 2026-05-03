@@ -12,6 +12,19 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, AlertCircle, ArrowRight, Sparkles } from 'lucide-react';
 import { useClients } from '../lib/client-context';
 import { motionUI, motionBase } from '../lib/motion';
+import { AnimatedHeading } from '../components/ui/AnimatedHeading';
+import { MarqueeLogos } from '../components/ui/MarqueeLogos';
+
+const TRUSTED_AGENCIES = [
+  'Al Fardan Studio',
+  'Hadid Creative',
+  'Madinat Atelier',
+  'Karam Communications',
+  'Northbound Brand Co.',
+  'Riyadh Field Notes',
+  'Bait al-Sard',
+  'Studio Levant',
+];
 
 export default function Login() {
   const { login, register, authError } = useClients();
@@ -226,16 +239,13 @@ export default function Login() {
             >
               AI Content Operating System
             </p>
-            <h2
+            <AnimatedHeading
+              lines={['Generate.', 'Schedule.', 'Ship.']}
               className="font-display text-[64px] font-bold leading-[0.96] tracking-tight"
               style={{ color: 'var(--color-fg)' }}
-            >
-              Generate.
-              <br />
-              Schedule.
-              <br />
-              Ship.
-            </h2>
+              stagger={0.18}
+              delay={0.15}
+            />
             <p
               className="mx-auto mt-6 max-w-[340px] text-[14px] leading-relaxed"
               style={{ color: 'var(--color-fg-muted)' }}
@@ -243,6 +253,19 @@ export default function Login() {
               One workspace for briefs, calendar, and AI-generated posts —
               tuned for agencies running multiple brands.
             </p>
+          </motion.div>
+
+          <motion.div
+            className="mt-12"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ ...motionBase, delay: 0.9 }}
+          >
+            <MarqueeLogos
+              label="Trusted by agencies across MENA"
+              items={TRUSTED_AGENCIES}
+              durationSec={42}
+            />
           </motion.div>
         </div>
       </aside>

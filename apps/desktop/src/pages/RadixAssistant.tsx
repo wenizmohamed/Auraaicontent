@@ -1,17 +1,27 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bot, Send, X, Loader2, Trash2, MessageSquare, AlertCircle, Zap, Search, FileText, Calendar, Image as ImageIcon, ExternalLink, Copy, RefreshCw, Check, Sparkles } from 'lucide-react';
+import { Bot, Send, X, Loader2, Trash2, MessageSquare, AlertCircle, Zap, Search, FileText, Calendar, Image as ImageIcon, ExternalLink, Copy, RefreshCw, Check, Sparkles, Quote, Brain, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { assistantApi, agentApi, type ChatMessage, type AgentTemplateSummary } from '../lib/backend-api';
 import { useClients } from '../lib/client-context';
 import { useNavigate } from 'react-router-dom';
 import { Z } from '../lib/z-index';
 import { ThinkingIndicator } from '../components/ui/ThinkingIndicator';
+import { motionUI } from '../lib/motion';
 
 interface ActionResult {
   type: string;
   params: Record<string, any>;
   result: any;
+}
+
+interface Citation {
+  title: string;
+  url?: string;
+  /** Optional source kind so the bubble can pick an icon. */
+  kind?: 'knowledge' | 'web' | 'brief' | 'asset';
+  /** Relevance score 0..1; not all backends return this. */
+  score?: number;
 }
 
 interface EnrichedMessage extends ChatMessage {
@@ -20,7 +30,24 @@ interface EnrichedMessage extends ChatMessage {
   provider?: string;
   /** Trust UI — round-trip latency in ms. */
   latencyMs?: number;
+  /** RAG sources / web citations cited by this reply, if the backend returned them. */
+  citations?: Citation[];
+  /** Optional chain-of-thought / reasoning trace. Hidden behind a toggle. */
+  reasoning?: string;
 }
+
+/**
+ * Provider tier colors for the model chip. Using token-derived rgba so the
+ * chip recolors with the active theme instead of hardcoded hex.
+ */
+const PROVIDER_TIERS: Record<string, { label: string; tint: string; ring: string }> = {
+  gemini:    { label: 'Gemini',  tint: 'color-mix(in srgb, var(--color-accent) 14%, transparent)', ring: 'var(--color-accent)' },
+  google:    { label: 'Gemini',  tint: 'color-mix(in srgb, var(--color-accent) 14%, transparent)', ring: 'var(--color-accent)' },
+  grok:      { label: 'Grok',    tint: 'color-mix(in srgb, var(--color-fg) 8%, transparent)',     ring: 'var(--color-fg-muted)' },
+  xai:       { label: 'Grok',    tint: 'color-mix(in srgb, var(--color-fg) 8%, transparent)',     ring: 'var(--color-fg-muted)' },
+  kimi:      { label: 'Kimi',    tint: 'color-mix(in srgb, var(--color-fg) 6%, transparent)',     ring: 'var(--color-fg-subtle)' },
+  moonshot:  { label: 'Kimi',    tint: 'color-mix(in srgb, var(--color-fg) 6%, transparent)',     ring: 'var(--color-fg-subtle)' },
+};
 
 export default function RadixAssistant() {
   const navigate = useNavigate();
@@ -50,11 +77,17 @@ export default function RadixAssistant() {
     try {
       const out = await assistantApi.chat(chatMessages, selectedClientId || undefined);
       const action = (out as any).action as ActionResult | undefined;
+      // The backend may surface RAG citations + reasoning trace on the response;
+      // both are optional, both render only when present.
+      const citations = (out as any).citations as Citation[] | undefined;
+      const reasoning = (out as any).reasoning as string | undefined;
       const assistantMsg: EnrichedMessage = {
         ...out.message,
         action,
         provider: out.provider,
         latencyMs: out.latencyMs,
+        citations,
+        reasoning,
       };
       setMessages(prev => [...prev, assistantMsg]);
 
@@ -480,15 +513,11 @@ function MessageRow({ message, isLast, onRetry, renderAction }: MessageRowProps)
         {/* Trust strip + hover actions */}
         {!isUser ? (
           <div className="mt-1 flex h-5 items-center gap-2 px-1 text-[10px]" style={{ color: 'var(--color-fg-subtle)' }}>
-            {message.provider ? (
-              <span
-                className="rounded px-1 py-0.5 font-mono"
-                style={{ background: 'var(--color-bg-sunken)', color: 'var(--color-fg-muted)' }}
-              >
-                {message.provider}
-              </span>
-            ) : null}
+            <ModelChip provider={message.provider} />
             {message.latencyMs != null ? <span>{message.latencyMs}ms</span> : null}
+            {message.citations && message.citations.length > 0 ? (
+              <span style={{ color: 'var(--color-fg-subtle)' }}>· {message.citations.length} source{message.citations.length === 1 ? '' : 's'}</span>
+            ) : null}
 
             {/* Reveal-on-hover actions; isLast keeps them visible on the latest reply */}
             <div className={`ml-auto flex items-center gap-1 transition-opacity ${isLast ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
@@ -516,8 +545,148 @@ function MessageRow({ message, isLast, onRetry, renderAction }: MessageRowProps)
           </div>
         ) : null}
 
+        {!isUser && message.citations && message.citations.length > 0 ? (
+          <CitationsBubble citations={message.citations} />
+        ) : null}
+        {!isUser && message.reasoning ? (
+          <ReasoningToggle reasoning={message.reasoning} />
+        ) : null}
         {message.action ? renderAction(message.action) : null}
       </div>
     </motion.div>
+  );
+}
+
+// ─── Trust UI sub-components ─────────────────────────────────────────
+
+function ModelChip({ provider }: { provider?: string }) {
+  if (!provider) return null;
+  const tier = PROVIDER_TIERS[provider.toLowerCase()];
+  if (!tier) {
+    return (
+      <span
+        className="rounded px-1 py-0.5 font-mono"
+        style={{ background: 'var(--color-bg-sunken)', color: 'var(--color-fg-muted)' }}
+      >
+        {provider}
+      </span>
+    );
+  }
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-mono text-[10px]"
+      style={{
+        background: tier.tint,
+        color: tier.ring,
+        boxShadow: `inset 0 0 0 1px ${tier.ring}`,
+      }}
+    >
+      <span className="h-1 w-1 rounded-full" style={{ background: tier.ring }} aria-hidden />
+      {tier.label}
+    </span>
+  );
+}
+
+function CitationsBubble({ citations }: { citations: Citation[] }) {
+  return (
+    <div
+      className="mt-2 rounded-xl border px-2.5 py-2"
+      style={{
+        background: 'var(--color-bg-elevated)',
+        borderColor: 'var(--color-border-subtle)',
+      }}
+    >
+      <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-fg-subtle)' }}>
+        <Quote className="h-3 w-3" /> Sources
+      </div>
+      <ul className="space-y-1">
+        {citations.slice(0, 6).map((c, i) => {
+          const Inner = (
+            <>
+              <span
+                className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded text-[9px] font-bold tabular-nums"
+                style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}
+              >
+                {i + 1}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-[11px]" style={{ color: 'var(--color-fg)' }}>
+                {c.title}
+              </span>
+              {c.score != null ? (
+                <span className="text-[10px] font-mono" style={{ color: 'var(--color-fg-subtle)' }}>
+                  {Math.round(c.score * 100)}%
+                </span>
+              ) : null}
+            </>
+          );
+          return (
+            <li key={i}>
+              {c.url ? (
+                <a
+                  href={c.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 rounded-md px-1.5 py-1 transition-colors hover:bg-[color:var(--color-surface-hover)]"
+                >
+                  {Inner}
+                  <ExternalLink className="h-2.5 w-2.5 flex-shrink-0" style={{ color: 'var(--color-fg-subtle)' }} />
+                </a>
+              ) : (
+                <div className="flex items-center gap-2 px-1.5 py-1">{Inner}</div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+function ReasoningToggle({ reasoning }: { reasoning: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-2">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        aria-expanded={open}
+        className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[10px] font-medium transition-colors"
+        style={{
+          background: 'var(--color-surface)',
+          color: 'var(--color-fg-muted)',
+          border: '1px solid var(--color-border-subtle)',
+        }}
+      >
+        <Brain className="h-3 w-3" />
+        {open ? 'Hide reasoning' : 'How I got here'}
+        <ChevronDown
+          className="h-2.5 w-2.5 transition-transform"
+          style={{ transform: open ? 'rotate(180deg)' : undefined }}
+        />
+      </button>
+      <AnimatePresence initial={false}>
+        {open ? (
+          <motion.div
+            key="reasoning"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={motionUI}
+            className="overflow-hidden"
+          >
+            <pre
+              className="mt-1.5 whitespace-pre-wrap rounded-lg border px-2.5 py-2 text-[11px] leading-relaxed font-mono"
+              style={{
+                background: 'var(--color-bg-sunken)',
+                borderColor: 'var(--color-border-subtle)',
+                color: 'var(--color-fg-muted)',
+              }}
+            >
+              {reasoning}
+            </pre>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+    </div>
   );
 }

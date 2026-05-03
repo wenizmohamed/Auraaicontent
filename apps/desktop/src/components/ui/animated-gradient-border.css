@@ -1,0 +1,52 @@
+/* AnimatedGradientBorder — conic accent ring with token colors. */
+
+.radix-agb {
+  position: relative;
+  border-radius: var(--agb-radius);
+  padding: var(--agb-thickness);
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.radix-agb::before {
+  content: '';
+  position: absolute;
+  inset: -50%;
+  z-index: 0;
+  background: conic-gradient(
+    from 0deg,
+    var(--color-accent) 0deg,
+    var(--color-accent-subtle) 60deg,
+    transparent 120deg,
+    transparent 240deg,
+    var(--color-accent-subtle) 300deg,
+    var(--color-accent) 360deg
+  );
+  animation: radix-agb-rotate var(--agb-duration) linear infinite;
+  opacity: 0.55;
+  transition: opacity 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.radix-agb:hover::before {
+  opacity: 0.85;
+}
+
+.radix-agb-inner {
+  position: relative;
+  z-index: 1;
+  border-radius: calc(var(--agb-radius) - var(--agb-thickness));
+  background: var(--agb-inner-bg);
+  height: 100%;
+  width: 100%;
+}
+
+@keyframes radix-agb-rotate {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .radix-agb::before {
+    animation: none;
+  }
+}

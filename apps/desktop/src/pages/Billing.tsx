@@ -14,6 +14,18 @@ import { billingApi } from '../lib/backend-api';
 import { t } from '../i18n';
 import { Check, AlertCircle, ExternalLink, CreditCard, Sparkles } from 'lucide-react';
 import { motionUI, motionBase } from '../lib/motion';
+import { MarqueeLogos } from '../components/ui/MarqueeLogos';
+
+const TRUSTED_AGENCIES = [
+  'Al Fardan Studio',
+  'Hadid Creative',
+  'Madinat Atelier',
+  'Karam Communications',
+  'Northbound Brand Co.',
+  'Riyadh Field Notes',
+  'Bait al-Sard',
+  'Studio Levant',
+];
 
 interface Plan {
   id: 'starter' | 'studio' | 'agency';
@@ -213,6 +225,19 @@ export default function Billing() {
           {busy === 'portal' ? 'Opening…' : 'Open portal'}
           <ExternalLink size={12} />
         </button>
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ ...motionBase, delay: 0.45 }}
+        className="pt-6"
+      >
+        <MarqueeLogos
+          label="Trusted by agencies running 5+ brands"
+          items={TRUSTED_AGENCIES}
+          durationSec={42}
+        />
       </motion.div>
     </div>
   );
