@@ -5,6 +5,7 @@ import { sendAiError } from '../services/providers/errors.js';
 import { callKimiLong } from '../services/providers/kimi.provider.js';
 import { chatText } from '../services/llm/chat.js';
 import { db } from '../db/prisma.js';
+import { historyService } from '../services/history.service.js';
 
 interface ResearchBody {
   query?: string;
@@ -64,6 +65,18 @@ export async function researchRoutes(app: FastifyInstance) {
             .filter((s: any) => s.url)
         : [];
 
+      await historyService.record({
+        orgId: request.orgId,
+        userId: request.user?.userId,
+        type: 'research',
+        surface: 'research',
+        prompt: query.trim(),
+        outputText: JSON.stringify({ summary, keyPoints, sources }),
+        provider: result.provider,
+        model: result.model,
+        latencyMs: result.latencyMs,
+        metadata: { depth, kind: 'research-query' },
+      });
       return {
         summary,
         keyPoints,
@@ -156,8 +169,36 @@ export async function researchRoutes(app: FastifyInstance) {
       const stripped = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
       let parsed: any = null;
       try { parsed = JSON.parse(stripped); } catch {
+        await historyService.record({
+          orgId: request.orgId,
+          userId: request.user?.userId,
+          clientId,
+          type: 'brand_synthesis',
+          surface: 'research',
+          prompt: `Brand synthesis: ${client.name}${focus ? ` (${focus})` : ''}`,
+          outputText: text,
+          provider,
+          model,
+          latencyMs,
+          status: 'failed',
+          error: 'could not parse JSON',
+          metadata: { focus, clientName: client.name, inputChars, kind: 'brand-synthesis' },
+        });
         return { raw: text, provider, model, latencyMs, inputChars, parseError: 'could not parse JSON' };
       }
+      await historyService.record({
+        orgId: request.orgId,
+        userId: request.user?.userId,
+        clientId,
+        type: 'brand_synthesis',
+        surface: 'research',
+        prompt: `Brand synthesis: ${client.name}${focus ? ` (${focus})` : ''}`,
+        outputText: JSON.stringify(parsed),
+        provider,
+        model,
+        latencyMs,
+        metadata: { focus, clientName: client.name, inputChars, kind: 'brand-synthesis' },
+      });
       return { ...parsed, provider, model, latencyMs, inputChars };
     } catch (err: any) {
       return sendAiError(reply, err, 'Brand synthesis failed');

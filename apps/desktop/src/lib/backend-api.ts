@@ -873,6 +873,58 @@ export const integrationsApi = {
     request<{ success: boolean }>(`/api/integrations/${connectionId}`, { method: 'DELETE' }),
 };
 
+// ─── History (universal AI generation log) ───────────────────────
+
+export type GenerationType = 'image' | 'video' | 'text' | 'research' | 'brand_synthesis' | 'analyze' | 'design';
+
+export interface GenerationSummary {
+  id: string;
+  type: GenerationType;
+  surface: string | null;
+  prompt: string;
+  outputUrl: string | null;
+  outputText: string | null;       // truncated to 1000 chars in list mode
+  thumbnailUrl: string | null;
+  provider: string | null;
+  model: string | null;
+  latencyMs: number | null;
+  status: 'succeeded' | 'failed';
+  error: string | null;
+  client: { id: string; name: string; logoUrl: string | null } | null;
+  user: { id: string; name: string } | null;
+  createdAt: string;
+}
+
+export interface GenerationDetail extends GenerationSummary {
+  metadata: Record<string, unknown> | null;
+  costUsd: string | null;
+  orgId: string;
+}
+
+export interface HistoryListResponse {
+  items: GenerationSummary[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
+export const historyApi = {
+  list: (params: { type?: GenerationType; clientId?: string; surface?: string; limit?: number; cursor?: string; q?: string; status?: 'succeeded' | 'failed' } = {}) => {
+    const sp = new URLSearchParams();
+    if (params.type) sp.set('type', params.type);
+    if (params.clientId) sp.set('clientId', params.clientId);
+    if (params.surface) sp.set('surface', params.surface);
+    if (params.limit) sp.set('limit', String(params.limit));
+    if (params.cursor) sp.set('cursor', params.cursor);
+    if (params.q) sp.set('q', params.q);
+    if (params.status) sp.set('status', params.status);
+    const qs = sp.toString();
+    return request<HistoryListResponse>(`/api/history${qs ? '?' + qs : ''}`);
+  },
+  get: (id: string) => request<GenerationDetail>(`/api/history/${id}`),
+  delete: (id: string) => request<{ ok: true }>(`/api/history/${id}`, { method: 'DELETE' }),
+  stats: () => request<{ total: number; byType: Record<string, number> }>(`/api/history/stats`),
+};
+
 // ─── Publish ─────────────────────────────────────────────────────
 
 export const publishApi = {

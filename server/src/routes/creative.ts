@@ -6,6 +6,7 @@ import { createJob, processJob, getJob, updateJob } from '../workers/queue.js';
 import { storageService } from '../services/storage.service.js';
 import { db } from '../db/prisma.js';
 import { searchPinterest, searchPinterestMulti, fetchPinterestImageBase64 } from '../services/pinterest.service.js';
+import { historyService } from '../services/history.service.js';
 import type { Job } from '../workers/queue.js';
 
 export async function creativeRoutes(app: FastifyInstance) {
@@ -27,6 +28,21 @@ export async function creativeRoutes(app: FastifyInstance) {
           data: { orgId: request.orgId!, clientId, name: `ai-gen-${Date.now()}.png`, mimeType: 'image/png', fileUrl, thumbUrl, tags: ['ai-generated'], safeForClient: true },
         });
       }
+      const finalUrl = savedAsset?.fileUrl || result.output.url || null;
+      await historyService.record({
+        orgId: request.orgId,
+        userId: request.user?.userId,
+        clientId: clientId || undefined,
+        type: 'image',
+        surface: 'creative_tools',
+        prompt,
+        outputUrl: finalUrl,
+        thumbnailUrl: savedAsset?.thumbUrl || finalUrl,
+        provider: result.provider,
+        model: result.model,
+        latencyMs: result.latencyMs,
+        metadata: { aspectRatio, quality, mode: 'text-to-image', assetId: savedAsset?.id || null },
+      });
       return {
         provider: result.provider,
         model: result.model,
@@ -35,9 +51,20 @@ export async function creativeRoutes(app: FastifyInstance) {
         url: result.output.url || null,
         base64: result.output.base64 ? true : false,
         assetId: savedAsset?.id || null,
-        assetUrl: savedAsset?.fileUrl || result.output.url || null,
+        assetUrl: finalUrl,
       };
     } catch (err: any) {
+      await historyService.record({
+        orgId: request.orgId,
+        userId: request.user?.userId,
+        clientId: clientId || undefined,
+        type: 'image',
+        surface: 'creative_tools',
+        prompt,
+        status: 'failed',
+        error: err?.message || 'unknown',
+        metadata: { aspectRatio, quality, mode: 'text-to-image' },
+      });
       return sendAiError(reply, err, 'Image generation failed');
     }
   });
@@ -57,14 +84,40 @@ export async function creativeRoutes(app: FastifyInstance) {
           data: { orgId: request.orgId!, clientId, name: `ai-edit-${Date.now()}.png`, mimeType: 'image/png', fileUrl, thumbUrl, tags: ['ai-edited'], safeForClient: true },
         });
       }
+      const finalUrl = savedAsset?.fileUrl || result.output.url || null;
+      await historyService.record({
+        orgId: request.orgId,
+        userId: request.user?.userId,
+        clientId: clientId || undefined,
+        type: 'image',
+        surface: 'creative_tools',
+        prompt,
+        outputUrl: finalUrl,
+        thumbnailUrl: savedAsset?.thumbUrl || finalUrl,
+        provider: result.provider,
+        model: result.model,
+        latencyMs: result.latencyMs,
+        metadata: { aspectRatio, mode: 'image-edit', assetId: savedAsset?.id || null },
+      });
       return {
         provider: result.provider, model: result.model,
         latencyMs: result.latencyMs, fallbackUsed: result.fallbackUsed,
         url: result.output.url || null,
         assetId: savedAsset?.id || null,
-        assetUrl: savedAsset?.fileUrl || result.output.url || null,
+        assetUrl: finalUrl,
       };
     } catch (err: any) {
+      await historyService.record({
+        orgId: request.orgId,
+        userId: request.user?.userId,
+        clientId: clientId || undefined,
+        type: 'image',
+        surface: 'creative_tools',
+        prompt,
+        status: 'failed',
+        error: err?.message || 'unknown',
+        metadata: { aspectRatio, mode: 'image-edit' },
+      });
       return sendAiError(reply, err, 'AI operation failed');
     }
   });
@@ -86,6 +139,8 @@ export async function creativeRoutes(app: FastifyInstance) {
       });
     }
 
+    const orgId = request.orgId;
+    const userId = request.user?.userId;
     const job = createJob('creative-video', {
       prompt, aspectRatio, durationSeconds, resolution, clientId, imageBase64, mimeType,
     });
@@ -110,11 +165,48 @@ export async function creativeRoutes(app: FastifyInstance) {
           },
           { jobId: j.id, clientId: j.data.clientId },
         );
+        await historyService.record({
+          orgId,
+          userId,
+          clientId: j.data.clientId || undefined,
+          type: 'video',
+          surface: 'creative_tools',
+          prompt: j.data.prompt,
+          outputUrl: result.output.url || null,
+          thumbnailUrl: result.output.url || null,
+          provider: result.provider,
+          model: result.model,
+          latencyMs: result.latencyMs,
+          metadata: {
+            aspectRatio: j.data.aspectRatio,
+            durationSeconds: j.data.durationSeconds,
+            resolution: j.data.resolution,
+            mode: j.data.imageBase64 ? 'image-to-video' : 'text-to-video',
+            jobId: j.id,
+          },
+        });
         return {
           provider: result.provider, model: result.model,
           latencyMs: result.latencyMs, fallbackUsed: result.fallbackUsed,
           url: result.output.url,
         };
+      } catch (err: any) {
+        await historyService.record({
+          orgId,
+          userId,
+          clientId: j.data.clientId || undefined,
+          type: 'video',
+          surface: 'creative_tools',
+          prompt: j.data.prompt,
+          status: 'failed',
+          error: err?.message || 'unknown',
+          metadata: {
+            aspectRatio: j.data.aspectRatio,
+            mode: j.data.imageBase64 ? 'image-to-video' : 'text-to-video',
+            jobId: j.id,
+          },
+        });
+        throw err;
       } finally {
         clearInterval(ticker);
       }
@@ -175,6 +267,18 @@ export async function creativeRoutes(app: FastifyInstance) {
         .trim()
         .replace(/^["']+|["']+$/g, '')   // strip wrap quotes if model added them
         .replace(/^Improved prompt:\s*/i, '');
+      await historyService.record({
+        orgId: request.orgId,
+        userId: request.user?.userId,
+        type: 'text',
+        surface: 'creative_tools',
+        prompt: `[improve:${mode || 'unknown'}] ${prompt}`,
+        outputText: improved,
+        provider: result.provider,
+        model: result.model,
+        latencyMs: result.latencyMs,
+        metadata: { mode: mode || null, kind: 'prompt-improver' },
+      });
       return {
         original: prompt,
         improved,

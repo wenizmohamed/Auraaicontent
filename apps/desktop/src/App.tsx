@@ -12,7 +12,7 @@ import { readJson } from './lib/safe-storage';
 const isElectron = !!window.electron?.isDesktop;
 const Router = isElectron ? HashRouter : BrowserRouter;
 import { StoreProvider, useStore } from './lib/store';
-import { LayoutDashboard, Calendar, ImagePlus, Image as ImageIcon, Video, Search, UserCircle, ChevronLeft, ChevronRight, FileText, Palette, Layers, Wand2, FolderOpen, Radio, Building2, AlertCircle, Plug } from 'lucide-react';
+import { LayoutDashboard, Calendar, ImagePlus, Image as ImageIcon, Video, Search, UserCircle, ChevronLeft, ChevronRight, FileText, Palette, Layers, Wand2, FolderOpen, Radio, Building2, AlertCircle, Plug, History as HistoryIcon } from 'lucide-react';
 
 // Phase 8.1 — every page lazy-loaded into its own chunk, prefetched on
 // hover later. Cuts the initial bundle from ~1MB to ~250KB gzipped.
@@ -43,6 +43,7 @@ const AcceptInvite      = lazy(() => import('./pages/AcceptInvite'));
 const Workspace         = lazy(() => import('./pages/Workspace'));
 const Agent             = lazy(() => import('./pages/Agent'));
 const Integrations      = lazy(() => import('./pages/Integrations'));
+const History           = lazy(() => import('./pages/History'));
 
 import MobileMenu from './components/MobileMenu';
 import OrgSwitcher from './components/OrgSwitcher';
@@ -136,6 +137,7 @@ function Layout({ children }: { children: React.ReactNode }) {
     { name: t('nav.dashboard'),    href: '/',                     icon: LayoutDashboard, prefetch: () => import('./pages/Dashboard') },
     { name: t('nav.workspace'),    href: '/workspace/content',    icon: Layers,          prefetch: () => import('./pages/Workspace') },
     { name: 'Integrations',         href: '/integrations',         icon: Plug,            prefetch: () => import('./pages/Integrations') },
+    { name: 'History',              href: '/history',              icon: HistoryIcon,     prefetch: () => import('./pages/History') },
     { name: t('nav.clients'),      href: '/clients',              icon: Building2,       prefetch: () => import('./pages/Clients') },
     { name: t('nav.brief'),     href: '/brief',                icon: FileText,        prefetch: () => import('./pages/BriefInput') },
     { name: t('nav.review'),    href: '/content-review',       icon: Layers,          prefetch: () => import('./pages/ContentReview') },
@@ -448,6 +450,7 @@ export default function App() {
               <Route path="/workspace/:surface" element={<Workspace />} />
               <Route path="/workspace/:surface/:itemId" element={<Workspace />} />
               <Route path="/integrations" element={<Integrations />} />
+              <Route path="/history" element={<History />} />
               <Route path="/clients" element={<Clients />} />
               <Route path="/brief" element={<BriefInput />} />
               <Route path="/content-review" element={<ContentReview />} />

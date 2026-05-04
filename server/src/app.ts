@@ -27,6 +27,7 @@ import { adminRoutes } from './routes/admin.js';
 import { orgsRoutes, invitationsRoutes } from './routes/orgs.js';
 import { integrationsRoutes } from './routes/integrations.js';
 import { publishRoutes } from './routes/publish.js';
+import { historyRoutes } from './routes/history.js';
 import { startTokenHealthWorker } from './workers/tokenHealth.worker.js';
 import { initSentry } from './lib/sentry.js';
 import { registerRateLimiter } from './middleware/rate-limiter.js';
@@ -223,6 +224,7 @@ export async function buildApp() {
   await app.register(invitationsRoutes, { prefix: '/api/invitations' });
   await app.register(integrationsRoutes, { prefix: '/api' });
   await app.register(publishRoutes, { prefix: '/api' });
+  await app.register(historyRoutes, { prefix: '/api' });
 
   // Boot the token-health worker — runs hourly after a 60s warmup. Refreshes
   // platform connection tokens before they expire; flips status to

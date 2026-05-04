@@ -50,6 +50,7 @@ model Organization {
   agentEvents     AgentEvent[]
   usageEvents     UsageEvent[]
   platformConnections PlatformConnection[]
+  generations     Generation[]
 }
 
 enum OrgRole {
@@ -107,6 +108,7 @@ model User {
   refreshTokens  RefreshToken[]
   memberships    OrgMembership[]
   usageEvents    UsageEvent[]
+  generations    Generation[]
 }
 
 model RefreshToken {
@@ -156,6 +158,7 @@ model Client {
   contentPieces   ContentPiece[]
   apiKeys         ApiKey[]
   platformConnections PlatformConnection[]
+  generations     Generation[]
 
   @@unique([orgId, slug])
   @@index([orgId])
@@ -602,4 +605,40 @@ model PlatformConnection {
   @@index([orgId])
   @@index([clientId, platform])
   @@index([status, expiresAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Generation — universal AI generation history. Every image/video/text/
+// research/analysis call should write one row via lib/history.service.ts
+// recordGeneration(), best-effort. Lets users recover any prompt + output
+// even if they didn't explicitly save the result as an Asset/Post.
+// ─────────────────────────────────────────────────────────────────────
+model Generation {
+  id           String   @id @default(cuid())
+  orgId        String
+  userId       String?  // nullable for system/worker calls; set when call originated from a user request
+  clientId     String?  // nullable for ad-hoc generations not scoped to a brand
+  type         String   // 'image' | 'video' | 'text' | 'research' | 'brand_synthesis' | 'analyze' | 'design'
+  surface      String?  // 'creative_tools' | 'studio' | 'research' | 'design_textures' | 'video_analysis' | 'agent' — origin UI
+  prompt       String   // the user prompt or task summary
+  outputUrl    String?  // image/video URL if applicable
+  outputText   String?  // text/JSON result if applicable (truncated to 50k chars at write time)
+  thumbnailUrl String?  // small preview for grid view
+  provider     String?  // 'gemini' | 'xai' | 'moonshot' | etc.
+  model        String?  // exact model id used
+  costUsd      Decimal? @db.Decimal(10, 6)
+  latencyMs    Int?
+  status       String   @default("succeeded") // succeeded | failed
+  error        String?  // last error message when status='failed'
+  metadata     Json?    // surface-specific extras (aspectRatio, duration, sourceImageUrl, etc.)
+  createdAt    DateTime @default(now())
+
+  org    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user   User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  client Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  @@index([orgId, createdAt])
+  @@index([orgId, type, createdAt])
+  @@index([clientId, createdAt])
+  @@index([userId, createdAt])
 }

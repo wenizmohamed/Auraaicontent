@@ -3,6 +3,7 @@ import { authGuard } from '../middleware/auth.js';
 import { aiRouter } from '../services/providers/ai-router.js';
 import { sendAiError } from '../services/providers/errors.js';
 import { db } from '../db/prisma.js';
+import { historyService } from '../services/history.service.js';
 
 interface DesignBriefBody {
   topic?: string;
@@ -100,6 +101,19 @@ export async function designRoutes(app: FastifyInstance) {
           : [],
       };
 
+      await historyService.record({
+        orgId: request.orgId,
+        userId: request.user?.userId,
+        clientId: clientId || undefined,
+        type: 'design',
+        surface: 'design_textures',
+        prompt: topic,
+        outputText: JSON.stringify(safe),
+        provider: result.provider,
+        model: result.model,
+        latencyMs: result.latencyMs,
+        metadata: { audience, objective, mood, brandColors, kind: 'design-brief' },
+      });
       return {
         ...safe,
         provider: result.provider,

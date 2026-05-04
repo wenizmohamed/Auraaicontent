@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { authGuard } from '../middleware/auth.js';
 import { aiRouter } from '../services/providers/ai-router.js';
 import { sendAiError } from '../services/providers/errors.js';
+import { historyService } from '../services/history.service.js';
 
 interface AnalyzeVideoBody {
   videoUrl?: string;
@@ -93,6 +94,20 @@ export async function analyzeRoutes(app: FastifyInstance) {
         suggestions: Array.isArray(out?.suggestions) ? out.suggestions.filter((s: any) => typeof s === 'string') : [],
       };
 
+      await historyService.record({
+        orgId: request.orgId,
+        userId: request.user?.userId,
+        clientId: clientId || undefined,
+        type: 'analyze',
+        surface: 'video_analysis',
+        prompt: userPrompt,
+        outputText: JSON.stringify(safe),
+        thumbnailUrl: videoUrl,
+        provider: result.provider,
+        model: result.model,
+        latencyMs: result.latencyMs,
+        metadata: { videoUrl, kind: 'video-analysis' },
+      });
       return {
         ...safe,
         provider: result.provider,
