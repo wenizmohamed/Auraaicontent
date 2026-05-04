@@ -109,9 +109,30 @@ export class AllProvidersFailedError extends Error {
     const allSafetyBlocked = failures.length > 0 && failures.every(f => isSafetyBlock(f.message));
     const status = allRateLimited ? 429 : allSafetyBlocked ? 422 : 503;
 
+    // Distinguish billing-quota exhaustion ("you exceeded your plan") from
+    // burst rate-limiting ("too many requests in a window"). The first needs
+    // a billing top-up; the second needs the user to wait.
+    const allBillingExhausted = failures.length > 0 && failures.every(f =>
+      /exceeded your current quota|resource has been exhausted|insufficient.?credit|insufficient.?balance|payment.?required|billing|plan and billing/i.test(f.message),
+    );
+
+    // Per-provider top-up links so the error can guide the user to the right place.
+    const TOP_UP_LINKS: Record<string, string> = {
+      gemini: 'https://aistudio.google.com/usage',
+      xai: 'https://console.x.ai/',
+      moonshot: 'https://platform.moonshot.cn/console',
+    };
+
     let msg: string;
-    if (allRateLimited) {
-      msg = `All AI providers rate-limited for ${task}. Try again shortly.`;
+    if (allBillingExhausted) {
+      const links = failures
+        .map(f => TOP_UP_LINKS[f.provider])
+        .filter(Boolean)
+        .filter((v, i, a) => a.indexOf(v) === i);
+      const linkHint = links.length ? ` Top up: ${links.join(' or ')}.` : '';
+      msg = `Out of ${task} credits on every provider (${providerNames}).${linkHint}`;
+    } else if (allRateLimited) {
+      msg = `All AI providers rate-limited for ${task}. Wait ~60s and retry — if it persists, your provider plan may be exhausted (Gemini: https://aistudio.google.com/usage · xAI: https://console.x.ai/).`;
     } else if (allSafetyBlocked) {
       // Surface the actual block reason from the last provider so the user
       // can adjust the source material. Most provider errors include "Sorry,
