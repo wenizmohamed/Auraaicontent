@@ -108,13 +108,13 @@ export const geminiProvider: AiProvider = {
 
   async image(req: ImageRequest): Promise<ProviderResult<{ url?: string; base64?: string }>> {
     const ai = getAI();
-    // Default is imagen-4.0-fast-generate-001 — it's the ONLY Google image
-    // model that currently responds for our API key (verified 2026-04-23 via
-    // direct curl: gemini-3.1-flash-image-preview hangs 70s/no-response,
-    // imagen-4.0-fast returns HTTP 200 in 5s).  Ultra path uses imagen-4 ultra.
+    // Default model rotation: imagen-4.0-fast was working 2026-04-23 but now
+    // returns 404 (Google deprecated or renamed). Falling back default to the
+    // Gemini Flash image model which is currently active. Prod .env can still
+    // override either way. Ultra path keeps imagen-4 ultra (still live).
     const model = req.quality === 'ultra'
       ? (process.env.GEMINI_IMAGE_ULTRA_MODEL || 'imagen-4.0-ultra-generate-001')
-      : (process.env.GEMINI_IMAGE_MODEL || 'imagen-4.0-fast-generate-001');
+      : (process.env.GEMINI_IMAGE_MODEL || 'gemini-3.1-flash-image-preview');
     const start = Date.now();
 
     // Imagen models (imagen-*) live behind the :predict endpoint and are
