@@ -237,18 +237,21 @@ export const geminiProvider: AiProvider = {
     const start = Date.now();
 
     const ladderResult = await runModelLadder('gemini', 'video', ladder, async (entry) => {
+      // personGeneration field is intentionally omitted: Google's accepted
+      // enum has churned twice in 2026-05-04 alone — 'allow_adult' and
+      // 'dont_allow' deprecated, then 'allow_all' rejected by Pro while
+      // accepted by Fast. Pro/Fast have different validators. Omitting
+      // works on both and uses the model's default safety policy.
+      // Re-add only with an env-driven opt-in once the enum stabilizes.
       let operation = await ai.models.generateVideos({
         model: entry.model,
         prompt: req.prompt,
         config: {
           aspectRatio: req.aspectRatio || '16:9',
-          // personGeneration: Google deprecated 'allow_adult' and 'dont_allow'
-          // (verified 2026-05-04 — both return 400 INVALID_ARGUMENT). The
-          // currently-accepted value is 'allow_all'. Required for image-to-video
-          // on most regions to render people from the source frame instead of
-          // immediately safety-filtering everything containing humans.
-          personGeneration: 'allow_all' as any,
           ...(req.resolution ? { resolution: req.resolution } : {}),
+          ...(process.env.GEMINI_VIDEO_PERSON_GENERATION
+            ? { personGeneration: process.env.GEMINI_VIDEO_PERSON_GENERATION as any }
+            : {}),
         },
         ...(req.imageBase64 && req.mimeType ? {
           image: { imageBytes: req.imageBase64, mimeType: req.mimeType },
