@@ -1,5 +1,6 @@
 import type { AiProvider, AnalysisRequest, ImageRequest, ProviderResult, TextRequest, VideoRequest } from './types.js';
 import { AiProviderError } from './errors.js';
+import { runModelLadder, readLadder } from './model-chain.js';
 
 const BASE_URL = process.env.XAI_BASE_URL || 'https://api.x.ai/v1';
 const TIMEOUT = parseInt(process.env.XAI_TIMEOUT_MS || '180000', 10);
@@ -119,7 +120,13 @@ export const xaiProvider: AiProvider = {
   },
 
   async video(req: VideoRequest): Promise<ProviderResult<{ url: string }>> {
-    const model = process.env.XAI_VIDEO_MODEL || 'grok-imagine-video';
+    // Model ladder: grok-imagine-video → fast variant if quota tight.
+    // Override via XAI_VIDEO_LADDER (colon-sep).
+    const ladder = readLadder('XAI_VIDEO_LADDER', [
+      process.env.XAI_VIDEO_MODEL || 'grok-imagine-video',
+      'grok-imagine-video-fast',
+      'grok-imagine-video-2',
+    ]);
     const start = Date.now();
     // Build reference images: explicit URLs first, then fall back to imageBase64
     // so image-to-video requests from Gemini fallback still carry the source frame.
@@ -128,15 +135,18 @@ export const xaiProvider: AiProvider = {
       : req.imageBase64 && req.mimeType
         ? [{ url: `data:${req.mimeType};base64,${req.imageBase64}` }]
         : undefined;
-    const data = await xaiFetch('/videos/generations', {
-      model, prompt: req.prompt,
-      duration: req.durationSeconds ?? 8,
-      aspect_ratio: req.aspectRatio ?? '16:9',
-      resolution: req.resolution ?? '720p',
-      ...(refImages ? { reference_images: refImages } : {}),
+
+    const ladderResult = await runModelLadder('xai', 'video', ladder, async (entry) => {
+      const data = await xaiFetch('/videos/generations', {
+        model: entry.model, prompt: req.prompt,
+        duration: req.durationSeconds ?? 8,
+        aspect_ratio: req.aspectRatio ?? '16:9',
+        resolution: req.resolution ?? '720p',
+        ...(refImages ? { reference_images: refImages } : {}),
+      });
+      return await pollVideo(data.request_id);
     });
-    const url = await pollVideo(data.request_id);
-    return { provider: 'xai', model, latencyMs: Date.now() - start, fallbackUsed: false, output: { url } };
+    return { provider: 'xai', model: ladderResult.modelUsed, latencyMs: Date.now() - start, fallbackUsed: false, output: { url: ladderResult.result } };
   },
 
   async analysis(_req: AnalysisRequest): Promise<never> {

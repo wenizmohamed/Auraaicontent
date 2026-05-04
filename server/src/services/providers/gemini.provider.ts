@@ -4,6 +4,7 @@ import { promises as fsp } from 'fs';
 import type { AiProvider, AnalysisRequest, ImageRequest, ProviderResult, TextRequest, VideoRequest } from './types.js';
 import { AiProviderError } from './errors.js';
 import { storageService } from '../storage.service.js';
+import { runModelLadder, readLadder } from './model-chain.js';
 
 const TIMEOUT = parseInt(process.env.GEMINI_TIMEOUT_MS || '60000', 10);
 // Separate budget for image paths.  Google's nano-banana edit model
@@ -85,16 +86,29 @@ export const geminiProvider: AiProvider = {
 
   async text(req: TextRequest): Promise<ProviderResult<string | object>> {
     const ai = getAI();
-    const model = process.env.GEMINI_TEXT_MODEL || 'gemini-3.1-pro-preview';
+    // Model ladder: Pro → Flash-Lite → 2.5-Flash. When Pro 429s on quota the
+    // ladder auto-tries Flash on the same provider before crossing to xAI.
+    // Override via GEMINI_TEXT_LADDER (colon-sep). Single-model env still works.
+    const ladder = readLadder('GEMINI_TEXT_LADDER', [
+      process.env.GEMINI_TEXT_MODEL || 'gemini-3.1-pro-preview',
+      process.env.GEMINI_FLASH_TEXT_MODEL || 'gemini-3.1-flash-lite-preview',
+      'gemini-2.5-flash',
+      'gemini-2.0-flash',
+    ]);
     const start = Date.now();
-    const response = await withRetry('text', () => withTimeout(
-      ai.models.generateContent({
-        model,
-        contents: req.system ? `${req.system}\n\n${req.prompt}` : req.prompt,
-        config: req.json ? { responseMimeType: 'application/json' } : undefined,
-      }),
-      TIMEOUT, 'text',
-    ));
+
+    const ladderResult = await runModelLadder('gemini', 'text', ladder, async (entry) =>
+      withRetry('text', () => withTimeout(
+        ai.models.generateContent({
+          model: entry.model,
+          contents: req.system ? `${req.system}\n\n${req.prompt}` : req.prompt,
+          config: req.json ? { responseMimeType: 'application/json' } : undefined,
+        }),
+        TIMEOUT, 'text',
+      )),
+    );
+    const response = ladderResult.result;
+    const model = ladderResult.modelUsed;
     const text = response.text ?? '';
     const usage = (response as any).usageMetadata;
     return {
@@ -108,52 +122,64 @@ export const geminiProvider: AiProvider = {
 
   async image(req: ImageRequest): Promise<ProviderResult<{ url?: string; base64?: string }>> {
     const ai = getAI();
-    // Default model rotation: imagen-4.0-fast was working 2026-04-23 but now
-    // returns 404 (Google deprecated or renamed). Falling back default to the
-    // Gemini Flash image model which is currently active. Prod .env can still
-    // override either way. Ultra path keeps imagen-4 ultra (still live).
-    const model = req.quality === 'ultra'
-      ? (process.env.GEMINI_IMAGE_ULTRA_MODEL || 'imagen-4.0-ultra-generate-001')
-      : (process.env.GEMINI_IMAGE_MODEL || 'gemini-3.1-flash-image-preview');
+    // Model ladder: ultra requests get the heavy imagen first then drop to
+    // gemini-flash-image; standard requests start with flash-image and ladder
+    // through imagen-fast → imagen-3. Override via GEMINI_IMAGE_LADDER /
+    // GEMINI_IMAGE_ULTRA_LADDER (colon-sep).
+    const defaultLadder = req.quality === 'ultra'
+      ? readLadder('GEMINI_IMAGE_ULTRA_LADDER', [
+          process.env.GEMINI_IMAGE_ULTRA_MODEL || 'imagen-4.0-ultra-generate-001',
+          'imagen-4.0-generate-001',
+          'gemini-3.1-flash-image-preview',
+        ])
+      : readLadder('GEMINI_IMAGE_LADDER', [
+          process.env.GEMINI_IMAGE_MODEL || 'gemini-3.1-flash-image-preview',
+          'imagen-4.0-generate-001',
+          'imagen-3.0-generate-002',
+        ]);
     const start = Date.now();
 
-    // Imagen models (imagen-*) live behind the :predict endpoint and are
-    // dispatched via ai.models.generateImages().  Gemini image models
-    // (gemini-*-image-*) use :generateContent with responseModalities.
-    // Wrong dispatch = SDK error or silent hang, so branch on model family.
-    const isImagen = /^imagen-/i.test(model);
-
-    if (isImagen) {
-      const response = await withRetry('image', () => withTimeout(
-        ai.models.generateImages({
-          model,
-          prompt: req.prompt,
+    const ladderResult = await runModelLadder('gemini', 'image', defaultLadder, async (entry) => {
+      // Branch on model family — imagen-* uses generateImages(), gemini-*-image-*
+      // uses generateContent() with responseModalities. Wrong dispatch = silent hang.
+      const isImagen = /^imagen-/i.test(entry.model);
+      if (isImagen) {
+        const r = await withRetry('image', () => withTimeout(
+          ai.models.generateImages({
+            model: entry.model,
+            prompt: req.prompt,
+            config: {
+              numberOfImages: 1,
+              ...(req.aspectRatio ? { aspectRatio: req.aspectRatio } : {}),
+            },
+          }),
+          TIMEOUT, 'image',
+        ));
+        return { kind: 'imagen' as const, response: r };
+      }
+      const r = await withRetry('image', () => withTimeout(
+        ai.models.generateContent({
+          model: entry.model,
+          contents: [{ parts: [{ text: req.prompt }] }],
           config: {
-            numberOfImages: 1,
-            ...(req.aspectRatio ? { aspectRatio: req.aspectRatio } : {}),
+            responseModalities: ['TEXT', 'IMAGE'],
+            ...(req.aspectRatio ? { imageConfig: { aspectRatio: req.aspectRatio } } : {}),
           },
         }),
         TIMEOUT, 'image',
       ));
-      const base64 = response.generatedImages?.[0]?.image?.imageBytes;
+      return { kind: 'gemini' as const, response: r };
+    });
+
+    const model = ladderResult.modelUsed;
+    if (ladderResult.result.kind === 'imagen') {
+      const base64 = ladderResult.result.response.generatedImages?.[0]?.image?.imageBytes;
       return {
         provider: 'gemini', model, latencyMs: Date.now() - start, fallbackUsed: false,
         output: { base64 },
       };
     }
-
-    const response = await withRetry('image', () => withTimeout(
-      ai.models.generateContent({
-        model,
-        contents: [{ parts: [{ text: req.prompt }] }],
-        config: {
-          responseModalities: ['TEXT', 'IMAGE'],
-          ...(req.aspectRatio ? { imageConfig: { aspectRatio: req.aspectRatio } } : {}),
-        },
-      }),
-      TIMEOUT, 'image',
-    ));
-    const part = (response as any).candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData);
+    const part = (ladderResult.result.response as any).candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData);
     return {
       provider: 'gemini', model, latencyMs: Date.now() - start, fallbackUsed: false,
       output: { base64: part?.inlineData?.data },
@@ -201,29 +227,39 @@ export const geminiProvider: AiProvider = {
 
   async video(req: VideoRequest): Promise<ProviderResult<{ url: string }>> {
     const ai = getAI();
-    const model = req.fast
-      ? (process.env.GEMINI_VIDEO_FAST_MODEL || 'veo-3.1-fast-generate-preview')
-      : (process.env.GEMINI_VIDEO_MODEL || 'veo-3.1-generate-preview');
+    // Model ladder: try Veo Pro → Veo Fast → Veo 2 (Pro and Fast meter
+    // separately; Veo 2 is older and may have leftover quota even when
+    // 3.1 is exhausted). Override via GEMINI_VIDEO_LADDER env (colon-sep).
+    const defaultLadder = req.fast
+      ? ['veo-3.1-fast-generate-preview', 'veo-3.1-generate-preview', 'veo-2.0-generate-001']
+      : ['veo-3.1-generate-preview', 'veo-3.1-fast-generate-preview', 'veo-2.0-generate-001'];
+    const ladder = readLadder('GEMINI_VIDEO_LADDER', defaultLadder);
     const start = Date.now();
-    let operation = await ai.models.generateVideos({
-      model,
-      prompt: req.prompt,
-      config: {
-        aspectRatio: req.aspectRatio || '16:9',
-        // personGeneration is required for image-to-video on most regions —
-        // 'allow_adult' lets the model render people from the source image
-        // instead of immediately filtering everything containing humans.
-        personGeneration: 'allow_adult' as any,
-        ...(req.resolution ? { resolution: req.resolution } : {}),
-      },
-      ...(req.imageBase64 && req.mimeType ? {
-        image: { imageBytes: req.imageBase64, mimeType: req.mimeType },
-      } : {}),
+
+    const ladderResult = await runModelLadder('gemini', 'video', ladder, async (entry) => {
+      let operation = await ai.models.generateVideos({
+        model: entry.model,
+        prompt: req.prompt,
+        config: {
+          aspectRatio: req.aspectRatio || '16:9',
+          // personGeneration is required for image-to-video on most regions —
+          // 'allow_adult' lets the model render people from the source image
+          // instead of immediately filtering everything containing humans.
+          personGeneration: 'allow_adult' as any,
+          ...(req.resolution ? { resolution: req.resolution } : {}),
+        },
+        ...(req.imageBase64 && req.mimeType ? {
+          image: { imageBytes: req.imageBase64, mimeType: req.mimeType },
+        } : {}),
+      });
+      while (!operation.done) {
+        await new Promise(r => setTimeout(r, 10000));
+        operation = await ai.operations.getVideosOperation({ operation });
+      }
+      return operation;
     });
-    while (!operation.done) {
-      await new Promise(r => setTimeout(r, 10000));
-      operation = await ai.operations.getVideosOperation({ operation });
-    }
+    const operation = ladderResult.result;
+    const model = ladderResult.modelUsed;
     // Veo can return done:true with NO video — typically because of a safety
     // filter, an invalid image, or quota exhaustion. The previous code threw
     // a generic "No video URI" which made these indistinguishable. Now we
