@@ -153,12 +153,10 @@ export function WorkspaceShell({ surfaces, activeSurface, activeItemId }: Worksp
       </nav>
 
       <PanelGroup direction="horizontal" autoSaveId="radix.workspace.panels" className="flex-1">
-        {/* Middle list pane */}
-        <Panel defaultSize={32} minSize={20} maxSize={50} className="overflow-hidden">
-          <div
-            className="flex h-full flex-col border-r"
-            style={{ borderColor: 'var(--color-border-subtle)' }}
-          >
+        {/* Middle list pane — hairline border on the right edge handled by the
+            resize handle itself so we don't draw a competing 1px line. */}
+        <Panel defaultSize={32} minSize={15} maxSize={60} className="overflow-hidden">
+          <div className="flex h-full flex-col">
             <div
               className="flex items-center justify-between border-b px-4 py-3"
               style={{ borderColor: 'var(--color-border-subtle)' }}
@@ -169,10 +167,33 @@ export function WorkspaceShell({ surfaces, activeSurface, activeItemId }: Worksp
           </div>
         </Panel>
 
-        <PanelResizeHandle className="w-px transition-colors hover:bg-[color:var(--color-accent)]" style={{ background: 'var(--color-border-subtle)' }} />
+        {/*
+         * Resize handle — was 1px wide which is essentially un-grabbable.
+         * Now: 6px hit zone (col-resize cursor on hover) wrapping a 1px
+         * visible hairline. The hit zone shows a subtle accent fill on
+         * hover/drag so the user gets visual confirmation that they
+         * can drag here.
+         */}
+        <PanelResizeHandle
+          className="group relative flex w-1.5 cursor-col-resize items-stretch justify-center transition-colors data-[resize-handle-active]:bg-[color:var(--color-accent-subtle)] hover:bg-[color:var(--color-accent-subtle)]"
+          aria-label="Resize panels"
+        >
+          <span
+            aria-hidden
+            className="pointer-events-none my-2 block w-px transition-colors group-hover:bg-[color:var(--color-accent)]"
+            style={{ background: 'var(--color-border-subtle)' }}
+          />
+          {/* Tiny grab dot — surfaces only on hover/active so it doesn't add visual noise at rest. */}
+          <span
+            aria-hidden
+            className="pointer-events-none absolute top-1/2 -translate-y-1/2 flex h-6 w-1.5 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100 group-data-[resize-handle-active]:opacity-100"
+          >
+            <span className="block h-3 w-[2px] rounded-full" style={{ background: 'var(--color-accent)' }} />
+          </span>
+        </PanelResizeHandle>
 
         {/* Right detail pane */}
-        <Panel defaultSize={68} minSize={40} className="overflow-hidden">
+        <Panel defaultSize={68} minSize={30} className="overflow-hidden">
           <div className="h-full overflow-y-auto">
             {surface.detail(activeItemId)}
           </div>
