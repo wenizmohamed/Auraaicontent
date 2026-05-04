@@ -1,7 +1,14 @@
 import type { FastifyReply } from 'fastify';
 
 // Retryable errors that should trigger fallback to the next provider
-// Non-retryable errors (bad request, auth, safety) should NOT fallback
+// Non-retryable errors (bad request, auth, malformed payload) should NOT fallback
+//
+// Safety-filter / blocked / content-filter errors ARE retryable across providers
+// because each provider has different content policies (e.g. Veo refuses
+// photorealistic children but xAI Grok image-to-video might accept them).
+// They were previously NON-retryable on the assumption that "policy = bad
+// request" — but that assumed all providers share the same policy, which they
+// don't.
 
 const RETRYABLE_PATTERNS = [
   /timeout/i,
@@ -24,6 +31,11 @@ const RETRYABLE_PATTERNS = [
   /ENOTFOUND/,
   /socket hang up/i,
   /aborted/i,
+  // Cross-provider safety differences — see comment above
+  /safety/i,
+  /blocked/i,
+  /content.?filter/i,
+  /safety.?filter/i,
 ];
 
 const NON_RETRYABLE_PATTERNS = [
@@ -35,13 +47,17 @@ const NON_RETRYABLE_PATTERNS = [
   /forbidden/i,
   /invalid.*key/i,
   /api.?key/i,
-  /safety/i,
-  /blocked/i,
-  /content.?filter/i,
   /malformed/i,
   /invalid.*payload/i,
   /missing.*required/i,
 ];
+
+/** True if the message indicates the content itself was rejected by a safety
+ *  policy — useful for surfacing a smart "all providers refused this content"
+ *  message when every fallback also blocked. */
+export function isSafetyBlock(msg: string): boolean {
+  return /safety|blocked|content.?filter|policy|prohibited|child|photorealistic/i.test(msg);
+}
 
 export function isRetryableAiError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err);
@@ -90,13 +106,23 @@ export class AllProvidersFailedError extends Error {
     const allRateLimited = failures.length > 0 && failures.every(f =>
       /rate.?limit|429|too many requests/i.test(f.message),
     );
-    const status = allRateLimited ? 429 : 503;
+    const allSafetyBlocked = failures.length > 0 && failures.every(f => isSafetyBlock(f.message));
+    const status = allRateLimited ? 429 : allSafetyBlocked ? 422 : 503;
 
-    super(
-      allRateLimited
-        ? `All AI providers rate-limited for ${task}. Try again shortly.`
-        : `All AI providers failed for ${task} (${providerNames}). ${failures[failures.length - 1]?.message || 'Unknown error'}`,
-    );
+    let msg: string;
+    if (allRateLimited) {
+      msg = `All AI providers rate-limited for ${task}. Try again shortly.`;
+    } else if (allSafetyBlocked) {
+      // Surface the actual block reason from the last provider so the user
+      // can adjust the source material. Most provider errors include "Sorry,
+      // we can't ..." which is itself a clear UI-grade message.
+      const lastReason = failures[failures.length - 1]?.message || '';
+      msg = `Every provider declined this content for safety reasons. ${lastReason.replace(/^\[[^\]]+\]\s*/, '').slice(0, 240)}`;
+    } else {
+      msg = `All AI providers failed for ${task} (${providerNames}). ${failures[failures.length - 1]?.message || 'Unknown error'}`;
+    }
+
+    super(msg);
 
     this.name = 'AllProvidersFailedError';
     this.failures = failures;
