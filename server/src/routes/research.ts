@@ -3,6 +3,7 @@ import { authGuard } from '../middleware/auth.js';
 import { aiRouter } from '../services/providers/ai-router.js';
 import { sendAiError } from '../services/providers/errors.js';
 import { callKimiLong } from '../services/providers/kimi.provider.js';
+import { chatText } from '../services/llm/chat.js';
 import { db } from '../db/prisma.js';
 
 interface ResearchBody {
@@ -139,18 +140,25 @@ export async function researchRoutes(app: FastifyInstance) {
       `Return ONLY the JSON, no prose wrapper, no markdown fences.`,
     ].join('\n');
 
+    // Brand synthesis prefers Kimi for the long-context summarization, but
+    // falls back through the standard chain (kimi → gemini → xai) so a
+    // Moonshot outage doesn't crash the feature. chatText handles fallback +
+    // returns the actual provider/model that answered.
+    const inputChars = prompt.length;
     try {
-      const { text, model, latencyMs, inputChars } = await callKimiLong(
-        'You are a senior brand strategist. You spot drift, gaps, and patterns that slip past content writers. Be specific, cite post titles.',
-        prompt,
-        8192,
-      );
+      const { text, provider, model, latencyMs } = await chatText({
+        messages: [
+          { role: 'system', content: 'You are a senior brand strategist. You spot drift, gaps, and patterns that slip past content writers. Be specific, cite post titles.' },
+          { role: 'user', content: prompt },
+        ],
+        max_tokens: 8192,
+      }, { chain: ['moonshot', 'gemini', 'xai'] });
       const stripped = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
       let parsed: any = null;
       try { parsed = JSON.parse(stripped); } catch {
-        return { raw: text, provider: 'moonshot', model, latencyMs, inputChars, parseError: 'could not parse JSON' };
+        return { raw: text, provider, model, latencyMs, inputChars, parseError: 'could not parse JSON' };
       }
-      return { ...parsed, provider: 'moonshot', model, latencyMs, inputChars };
+      return { ...parsed, provider, model, latencyMs, inputChars };
     } catch (err: any) {
       return sendAiError(reply, err, 'Brand synthesis failed');
     }
