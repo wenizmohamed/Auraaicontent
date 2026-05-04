@@ -210,6 +210,10 @@ export const geminiProvider: AiProvider = {
       prompt: req.prompt,
       config: {
         aspectRatio: req.aspectRatio || '16:9',
+        // personGeneration is required for image-to-video on most regions —
+        // 'allow_adult' lets the model render people from the source image
+        // instead of immediately filtering everything containing humans.
+        personGeneration: 'allow_adult' as any,
         ...(req.resolution ? { resolution: req.resolution } : {}),
       },
       ...(req.imageBase64 && req.mimeType ? {
@@ -220,8 +224,33 @@ export const geminiProvider: AiProvider = {
       await new Promise(r => setTimeout(r, 10000));
       operation = await ai.operations.getVideosOperation({ operation });
     }
-    const file = (operation as any).response?.generatedVideos?.[0]?.video;
-    if (!file?.uri) throw new AiProviderError('gemini', 'video', 'No video URI in response');
+    // Veo can return done:true with NO video — typically because of a safety
+    // filter, an invalid image, or quota exhaustion. The previous code threw
+    // a generic "No video URI" which made these indistinguishable. Now we
+    // inspect operation.error first, then the safety-filter fields on the
+    // response, before falling back to a verbose dump.
+    const op: any = operation;
+    if (op.error) {
+      throw new AiProviderError('gemini', 'video', `Veo operation error: ${op.error.message || JSON.stringify(op.error).slice(0, 200)}`);
+    }
+    // Common safety-block field names across Veo versions
+    const blocked =
+      op.response?.raiMediaFilteredReasons?.[0] ||
+      op.response?.generatedVideos?.[0]?.raiFilteredReason ||
+      op.response?.generatedVideos?.[0]?.video?.filteredReason;
+    if (blocked) {
+      throw new AiProviderError('gemini', 'video', `Veo safety-filtered: ${blocked}`);
+    }
+    // Try multiple URI paths — the SDK shape has shifted between versions.
+    const file =
+      op.response?.generatedVideos?.[0]?.video ||
+      op.response?.video ||
+      op.response?.videos?.[0];
+    if (!file?.uri) {
+      const shape = JSON.stringify(op.response || op).slice(0, 400);
+      console.warn(`[gemini/video] No URI in operation. Shape: ${shape}`);
+      throw new AiProviderError('gemini', 'video', `No video URI in response (shape: ${shape.slice(0, 120)}…)`);
+    }
 
     // Gemini Veo returns a temporary, auth-required URL like
     //   https://generativelanguage.googleapis.com/v1beta/files/<id>:download?alt=media
