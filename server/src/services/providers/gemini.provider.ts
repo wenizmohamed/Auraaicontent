@@ -242,10 +242,12 @@ export const geminiProvider: AiProvider = {
         prompt: req.prompt,
         config: {
           aspectRatio: req.aspectRatio || '16:9',
-          // personGeneration is required for image-to-video on most regions —
-          // 'allow_adult' lets the model render people from the source image
-          // instead of immediately filtering everything containing humans.
-          personGeneration: 'allow_adult' as any,
+          // personGeneration: Google deprecated 'allow_adult' and 'dont_allow'
+          // (verified 2026-05-04 — both return 400 INVALID_ARGUMENT). The
+          // currently-accepted value is 'allow_all'. Required for image-to-video
+          // on most regions to render people from the source frame instead of
+          // immediately safety-filtering everything containing humans.
+          personGeneration: 'allow_all' as any,
           ...(req.resolution ? { resolution: req.resolution } : {}),
         },
         ...(req.imageBase64 && req.mimeType ? {
