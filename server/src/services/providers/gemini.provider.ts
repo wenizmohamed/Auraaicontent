@@ -12,7 +12,12 @@ const TIMEOUT = parseInt(process.env.GEMINI_TIMEOUT_MS || '60000', 10);
 // (verified 2026-04-23: direct curl hangs → 70s timeout, no response).
 // Short budget here makes the ai-router fall to xai/grok-imagine-image in
 // seconds instead of making the user wait a full minute per image edit.
-const IMAGE_EDIT_TIMEOUT = parseInt(process.env.GEMINI_IMAGE_EDIT_TIMEOUT_MS || '15000', 10);
+// Was 15000 (deliberately short to fail-fast to xAI), but xAI ran out of
+// credits 2026-05-05 and Gemini imageEdit can take 60-180s under load —
+// the short timeout caused every imageEdit to surface PROVIDER UNAVAILABLE.
+// 240000 lets Gemini complete; if that becomes painful again, re-add a
+// shorter ceiling once xAI billing is restored.
+const IMAGE_EDIT_TIMEOUT = parseInt(process.env.GEMINI_IMAGE_EDIT_TIMEOUT_MS || '240000', 10);
 
 // Retry budget before dropping to ai-router's cross-provider fallback.
 // Retry only on Google's 503 "high demand" throttle + 429 rate-limit — those
