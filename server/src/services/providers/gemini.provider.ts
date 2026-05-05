@@ -262,7 +262,14 @@ export const geminiProvider: AiProvider = {
           image: { imageBytes: req.imageBase64, mimeType: req.mimeType },
         } : {}),
       });
+      // Symmetry with xAI: client-side 10-min deadline on the poll loop so a
+      // hung getVideosOperation can't hold a slot forever. Veo's server-side
+      // deadline is ~10min anyway; this just bounds the failure mode.
+      const deadline = Date.now() + 10 * 60 * 1000;
       while (!operation.done) {
+        if (Date.now() > deadline) {
+          throw new AiProviderError('gemini', 'video', 'poll deadline exceeded after 10min');
+        }
         await new Promise(r => setTimeout(r, 10000));
         operation = await ai.operations.getVideosOperation({ operation });
       }

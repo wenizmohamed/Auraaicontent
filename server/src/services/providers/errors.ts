@@ -40,6 +40,14 @@ const RETRYABLE_PATTERNS = [
   /try again later/i,
   /try again in a few minutes/i,
   /spikes in demand/i,
+  // gRPC status names — the @google/genai SDK sometimes returns these by
+  // name rather than HTTP code (per Gemini API troubleshooting guide
+  // 2026-05-05). Match RESOURCE_EXHAUSTED/UNAVAILABLE/INTERNAL/DEADLINE so
+  // the chain falls to the next provider on transient backend issues.
+  /RESOURCE_EXHAUSTED/,
+  /UNAVAILABLE/,
+  /INTERNAL/,
+  /DEADLINE_EXCEEDED/,
   // Cross-provider safety differences — see comment above
   /safety/i,
   /blocked/i,
@@ -122,7 +130,7 @@ export class AllProvidersFailedError extends Error {
     // burst rate-limiting ("too many requests in a window"). The first needs
     // a billing top-up; the second needs the user to wait.
     const allBillingExhausted = failures.length > 0 && failures.every(f =>
-      /exceeded your current quota|resource has been exhausted|insufficient.?credit|insufficient.?balance|payment.?required|billing|plan and billing/i.test(f.message),
+      /exceeded your current quota|resource has been exhausted|RESOURCE_EXHAUSTED|insufficient.?credit|insufficient.?balance|payment.?required|billing|plan and billing|FAILED_PRECONDITION|free tier.*not available|enable billing/i.test(f.message),
     );
 
     // Per-provider top-up links so the error can guide the user to the right place.
