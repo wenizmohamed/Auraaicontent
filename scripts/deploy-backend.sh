@@ -51,13 +51,20 @@ fi
 cd "$SOURCE/server"
 
 if [ "$DO_INSTALL" = "1" ]; then
-  echo "--- npm install --omit=dev ---"
-  npm install --omit=dev --prefer-offline --no-audit
+  # Install with dev deps — tsc needs @types/* and TypeScript itself.
+  # We prune to production after the build succeeds.
+  echo "--- npm install (with dev deps for build) ---"
+  npm install --prefer-offline --no-audit
 fi
 
 if [ "$DO_BUILD" = "1" ]; then
   echo "--- npm run build (tsc) ---"
   npm run build
+fi
+
+if [ "$DO_INSTALL" = "1" ]; then
+  echo "--- pruning dev deps post-build ---"
+  npm prune --omit=dev
 fi
 
 echo "--- rsync dist/ to live ---"
