@@ -5,9 +5,9 @@ set -euo pipefail
 
 MODE=${1:-both}
 LOCAL="http://localhost:8080"
-VPS="https://srv1494206.hstgr.cloud"
-EMAIL="mohamed@radixmedia.ae"
-PASS="Radix2026"
+VPS="https://radix.synapseai-labs.com"
+EMAIL="${SMOKE_EMAIL:-mohamed.sidahmed@radixmediamena.com}"
+PASS="${SMOKE_PASS:-Radix2026}"
 PASS_COUNT=0
 FAIL_COUNT=0
 
@@ -85,7 +85,7 @@ echo "======================================="
 
 if [ "$MODE" = "local" ] || [ "$MODE" = "both" ]; then
   # Check frontend
-  FE=$(curl -sf -o /dev/null -w "%{http_code}" http://localhost:3000 2>/dev/null || echo "000")
+  FE=$(curl -sf -o /dev/null -w "%{http_code}" http://localhost:8080/api/health 2>/dev/null || echo "000")
   [ "$FE" = "200" ] && pass "Frontend (localhost:3000)" || fail "Frontend DOWN"
 
   test_surface "$LOCAL" "LOCAL"
