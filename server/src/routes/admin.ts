@@ -117,4 +117,112 @@ export async function adminRoutes(app: FastifyInstance) {
       costUsd: Number(g._sum.costUsd ?? 0),
     }));
   });
+
+  // GET /api/admin/ops-digest — 24h ops summary for the daily Routine.
+  // Reads the pm2 log files server-side (Anthropic-cloud Routines have no SSH
+  // to the VPS), counts pattern matches, returns JSON ready for an email body.
+  app.get('/ops-digest', async () => {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+
+    const PM2_LOG_DIR = process.env.PM2_LOG_DIR || '/root/.pm2/logs';
+    const SERVICE = 'radix-api';
+    const SINCE_MS = Date.now() - 24 * 60 * 60 * 1000;
+
+    type PatternKey =
+      | 'ladder_text_fail'
+      | 'ladder_image_fail'
+      | 'veo_safety_filtered'
+      | 'json_parse_failed'
+      | 'json_repair_fired'
+      | 'job_failed'
+      | 'http_5xx'
+      | 'http_2xx';
+
+    const patterns: Record<PatternKey, RegExp> = {
+      ladder_text_fail: /\[ladder\] gemini\/text [\w.\-]+ failed/g,
+      ladder_image_fail: /\[ladder\] gemini\/image [\w.\-]+ failed/g,
+      veo_safety_filtered: /Veo safety-filtered/g,
+      json_parse_failed: /JSON parse failed/g,
+      json_repair_fired: /truncated JSON repaired/g,
+      job_failed: /\[JOB FAILED\]/g,
+      http_5xx: /"statusCode":5\d\d/g,
+      http_2xx: /"statusCode":2\d\d/g,
+    };
+
+    const counts: Record<PatternKey, number> = Object.fromEntries(
+      Object.keys(patterns).map((k) => [k, 0]),
+    ) as Record<PatternKey, number>;
+
+    async function tail(file: string, maxBytes = 2_000_000): Promise<string> {
+      try {
+        const fh = await fs.open(file, 'r');
+        const stat = await fh.stat();
+        const start = Math.max(0, Number(stat.size) - maxBytes);
+        const buf = Buffer.alloc(Number(stat.size) - start);
+        await fh.read(buf, 0, buf.length, start);
+        await fh.close();
+        return buf.toString('utf8');
+      } catch {
+        return '';
+      }
+    }
+
+    const outLog = await tail(path.join(PM2_LOG_DIR, `${SERVICE}-out.log`));
+    const errLog = await tail(path.join(PM2_LOG_DIR, `${SERVICE}-error.log`));
+    const combined = outLog + '\n' + errLog;
+
+    // Count pattern matches inside lines whose embedded "time":N is recent.
+    // pm2 line-format from pino is JSON with "time":<unix-ms>; non-JSON lines
+    // (provider chatter from console.warn) get scored unconditionally — they
+    // tend to be timestamped by file rotation, not embedded clock.
+    const lines = combined.split('\n');
+    for (const line of lines) {
+      const tm = line.match(/"time":(\d{13})/);
+      if (tm && Number(tm[1]) < SINCE_MS) continue;
+      for (const [key, re] of Object.entries(patterns)) {
+        const matches = line.match(re);
+        if (matches) counts[key as PatternKey] += matches.length;
+      }
+    }
+
+    const totalRequests = counts.http_2xx + counts.http_5xx;
+    const successRate =
+      totalRequests > 0 ? Math.round((counts.http_2xx / totalRequests) * 1000) / 10 : 100;
+
+    // Health probe of self
+    const healthOk = (() => {
+      try { return process.uptime() > 0; } catch { return false; }
+    })();
+
+    return {
+      generatedAt: new Date().toISOString(),
+      windowHours: 24,
+      health: {
+        ok: healthOk,
+        processUptimeSec: Math.round(process.uptime()),
+        nodeVersion: process.version,
+      },
+      ai: {
+        ladderTextFails: counts.ladder_text_fail,
+        ladderImageFails: counts.ladder_image_fail,
+        veoSafetyFiltered: counts.veo_safety_filtered,
+        jsonParseFailed: counts.json_parse_failed,
+        jsonRepairFired: counts.json_repair_fired,
+        jobsFailed: counts.job_failed,
+      },
+      http: {
+        success: counts.http_2xx,
+        serverErrors: counts.http_5xx,
+        successRatePct: successRate,
+      },
+      severity:
+        counts.http_5xx > 5 || counts.job_failed > 3 || successRate < 90
+          ? 'RED'
+          : counts.json_repair_fired >= 5 || counts.ladder_text_fail > 20
+          ? 'YELLOW'
+          : 'GREEN',
+      logBytesScanned: combined.length,
+    };
+  });
 }
