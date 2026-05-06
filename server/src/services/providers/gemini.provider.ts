@@ -37,6 +37,48 @@ function getAI(): GoogleGenAI {
   return _ai;
 }
 
+// Best-effort repair for Gemini responses that get truncated mid-stream
+// (common at high content lengths — workshop 2026-05-06 generate-month bug).
+// Strategy: trim non-JSON wrapper, close unterminated string, close unbalanced
+// brackets. Not a full JSON5 parser, just enough to recover the structured
+// payload when the only damage is "ran out of tokens".
+function repairTruncatedJson(text: string): string {
+  let s = text.trim();
+  const firstBrace = s.search(/[\[{]/);
+  if (firstBrace > 0) s = s.slice(firstBrace);
+  // Close an unterminated string (odd number of unescaped quotes).
+  let inString = false;
+  let escape = false;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (escape) { escape = false; continue; }
+    if (c === '\\') { escape = true; continue; }
+    if (c === '"') inString = !inString;
+  }
+  if (inString) s += '"';
+  // Drop a trailing comma before the missing close bracket.
+  s = s.replace(/,\s*$/, '');
+  // Balance brackets.
+  const stack: string[] = [];
+  inString = false;
+  escape = false;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (escape) { escape = false; continue; }
+    if (c === '\\') { escape = true; continue; }
+    if (c === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (c === '{' || c === '[') stack.push(c);
+    else if (c === '}' && stack[stack.length - 1] === '{') stack.pop();
+    else if (c === ']' && stack[stack.length - 1] === '[') stack.pop();
+  }
+  while (stack.length) {
+    const open = stack.pop();
+    s += open === '{' ? '}' : ']';
+  }
+  return s;
+}
+
 function safeJsonParse(text: string, label: string): any {
   try {
     return JSON.parse(text);
@@ -45,6 +87,13 @@ function safeJsonParse(text: string, label: string): any {
     if (match) {
       try { return JSON.parse(match[0]); } catch {}
     }
+    // Last resort: repair a truncated payload (workshop fix 2026-05-06).
+    try {
+      const repaired = repairTruncatedJson(text);
+      const parsed = JSON.parse(repaired);
+      console.warn(`[gemini/${label}] truncated JSON repaired (${text.length} → ${repaired.length} chars)`);
+      return parsed;
+    } catch {}
     throw new AiProviderError('gemini', label, `JSON parse failed. Response: ${text.slice(0, 200)}`);
   }
 }
@@ -107,7 +156,12 @@ export const geminiProvider: AiProvider = {
         ai.models.generateContent({
           model: entry.model,
           contents: req.system ? `${req.system}\n\n${req.prompt}` : req.prompt,
-          config: req.json ? { responseMimeType: 'application/json' } : undefined,
+          // json:true means we usually want a structured payload (e.g. monthly
+          // content plan with 18-30 posts). The default token budget can truncate
+          // mid-array; bump explicitly to avoid the workshop "truncated JSON" bug.
+          config: req.json
+            ? { responseMimeType: 'application/json', maxOutputTokens: 32768 }
+            : { maxOutputTokens: 8192 },
         }),
         TIMEOUT, 'text',
       )),
