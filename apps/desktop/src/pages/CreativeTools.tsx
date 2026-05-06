@@ -291,6 +291,23 @@ export default function CreativeTools() {
 
     let generatedUrl = '';
 
+    // Fake-progress estimator for image modes (workshop fix 2026-05-06).
+    // Videos already have real progress via job polling. Images don't, so the
+    // user used to see only a spinner with no sense of how long is left.
+    // Tick linearly toward 90% over the expected duration, hold there until
+    // the await resolves, then jump to 100% in the success branch.
+    let fakeTicker: ReturnType<typeof setInterval> | null = null;
+    if (mode === 'text-to-image' || mode === 'image-edit') {
+      const expectedSeconds = mode === 'image-edit' ? 45 : 28; // edit is slower
+      const tickMs = 500;
+      const totalTicks = Math.round((expectedSeconds * 1000) / tickMs);
+      const stepPct = 90 / totalTicks; // cap at 90% until real success
+      fakeTicker = setInterval(() => {
+        if (cancelledRef.current) return;
+        setProgress(p => Math.min(90, +(p + stepPct).toFixed(1)));
+      }, tickMs);
+    }
+
     try {
       if (mode === 'text-to-image') {
         const out = await creativeApi.generateImage({
@@ -373,6 +390,9 @@ export default function CreativeTools() {
           timestamp: Date.now(),
         });
         setRecentAssets(loadRecentAssets());
+        // Snap progress to 100% on success — visual confirmation before the
+        // result panel renders.
+        setProgress(100);
       }
     } catch (err: any) {
       if (!cancelledRef.current) {
@@ -380,6 +400,7 @@ export default function CreativeTools() {
         setErrorCode(err?.statusCode || null);
       }
     } finally {
+      if (fakeTicker) clearInterval(fakeTicker);
       if (!cancelledRef.current) setLoading(false);
     }
   };
@@ -792,7 +813,7 @@ export default function CreativeTools() {
               ? <Loader2 className="w-4 h-4 animate-spin" />
               : <Sparkles className="w-4 h-4" />}
             {loading
-              ? (isVideoMode ? `Generating... ${progress}%` : 'Generating...')
+              ? `Generating... ${Math.round(progress)}%`
               : `Generate ${isVideoMode ? 'Video' : 'Image'}`}
           </button>
           {loading && (
@@ -807,6 +828,18 @@ export default function CreativeTools() {
             {selectedClientId ? 'Result will be saved to client assets' : 'Pick a client to auto-save results'}
           </p>
         </div>
+
+        {/* Progress bar — visible during all generation modes (workshop fix 2026-05-06) */}
+        {loading && (
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/5">
+            <motion.div
+              className="h-full rounded-full bg-gradient-to-r from-amber-500 to-amber-400"
+              initial={false}
+              animate={{ width: `${progress}%` }}
+              transition={{ ease: 'easeOut', duration: 0.4 }}
+            />
+          </div>
+        )}
 
         {/* Error */}
         <AnimatePresence>

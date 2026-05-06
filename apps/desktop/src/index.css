@@ -370,9 +370,40 @@ html.theme-studio .glass-card:hover {
 
 @layer base {
   body {
-    @apply bg-[var(--color-bg)] text-[var(--color-fg)] font-sans antialiased selection:bg-white/20;
+    @apply bg-[var(--color-bg)] text-[var(--color-fg)] font-sans antialiased;
     /* Public Sans rendering: tabular numerics + ligatures off for UI clarity */
     font-feature-settings: "ss01" on, "cv11" on;
+  }
+
+  /* Theme-aware text selection (workshop fix 2026-05-06).
+     Old rule was a single `selection:bg-white/20` — invisible in light/studio
+     because white-on-light has zero contrast. Each theme now gets a tinted
+     selection layer that shows up against its background. */
+  ::selection {
+    background: rgba(255, 255, 255, 0.22);
+    color: inherit;
+  }
+  html.light ::selection {
+    background: rgba(180, 83, 9, 0.20); /* amber-700 at low alpha — readable on white */
+    color: #0f172a;
+  }
+  html.theme-studio ::selection {
+    background: rgba(255, 255, 255, 0.32);
+    color: #ffffff;
+  }
+
+  /* Caret + cursor — explicit so the text-edit cursor stays visible across themes
+     even when child styles override `color`. Browsers default caret to inherited
+     `color`, but with `color: var(--color-fg) !important` overrides downstream
+     this guarantees the cursor shows. */
+  html input, html textarea, html [contenteditable="true"] {
+    caret-color: var(--color-fg);
+  }
+  html.light input, html.light textarea, html.light [contenteditable="true"] {
+    caret-color: #0f172a;
+  }
+  html.theme-studio input, html.theme-studio textarea, html.theme-studio [contenteditable="true"] {
+    caret-color: #ffffff;
   }
 
   /* Libre Bodoni is a high-contrast didone serif — needs slightly tighter
