@@ -50,6 +50,31 @@ function pushHistory(entry: PromptHistoryEntry) {
   saveHistory([entry, ...prev]);
 }
 
+// ─── Recent Assets (inline thumbnail strip — workshop ask 2026-05-06) ─────────
+// Keeps the last N generated assets so users see them without tab-switching to History.
+
+const RECENT_ASSETS_KEY = 'radix_recent_assets';
+const MAX_RECENT_ASSETS = 8;
+
+interface RecentAsset {
+  url: string;
+  mode: Mode;
+  prompt: string;
+  outputType: 'image' | 'video';
+  timestamp: number;
+}
+
+function loadRecentAssets(): RecentAsset[] {
+  return readJson<RecentAsset[]>(RECENT_ASSETS_KEY, []);
+}
+
+function pushRecentAsset(asset: RecentAsset) {
+  try {
+    const prev = loadRecentAssets().filter(a => a.url !== asset.url);
+    localStorage.setItem(RECENT_ASSETS_KEY, JSON.stringify([asset, ...prev].slice(0, MAX_RECENT_ASSETS)));
+  } catch {}
+}
+
 // ─── Types ─────────────────────────────────────────────────────────
 
 type Mode = 'text-to-image' | 'image-edit' | 'text-to-video' | 'image-to-video';
@@ -187,6 +212,17 @@ export default function CreativeTools() {
   const [attachPostId, setAttachPostId] = useState('');
   const [copiedAssetId, setCopiedAssetId] = useState(false);
 
+  // Improve-with-AI preview (non-destructive — workshop fix 2026-05-06)
+  // Drishti + Haneen reported "improve prompt sometimes goes out of context" and
+  // "I can't edit my prompt after improve". Root cause: improvePrompt replaced the
+  // user's text instantly, so the AI version dominated the textarea. Now the
+  // improved version sits in a banner above the textarea — accept/discard.
+  const [improvedPreview, setImprovedPreview] = useState<string | null>(null);
+  const [originalBeforeImprove, setOriginalBeforeImprove] = useState<string | null>(null);
+
+  // Recent assets (inline thumbnail strip — workshop fix 2026-05-06)
+  const [recentAssets, setRecentAssets] = useState<RecentAsset[]>(loadRecentAssets);
+
   useEffect(() => () => { cancelledRef.current = true; }, []);
 
   // When the user switches mode, reset everything mode-specific but keep prompt
@@ -253,6 +289,8 @@ export default function CreativeTools() {
     setProvider('');
     setProgress(0);
 
+    let generatedUrl = '';
+
     try {
       if (mode === 'text-to-image') {
         const out = await creativeApi.generateImage({
@@ -260,7 +298,8 @@ export default function CreativeTools() {
           aspectRatio,
           clientId: selectedClientId || undefined,
         });
-        setResultUrl(out.assetUrl || out.url || '');
+        generatedUrl = out.assetUrl || out.url || '';
+        setResultUrl(generatedUrl);
         setSavedAssetId(out.assetId || null);
         setProvider(out.provider || '');
       } else if (mode === 'image-edit') {
@@ -271,7 +310,8 @@ export default function CreativeTools() {
           aspectRatio,
           clientId: selectedClientId || undefined,
         });
-        setResultUrl(out.assetUrl || out.url || '');
+        generatedUrl = out.assetUrl || out.url || '';
+        setResultUrl(generatedUrl);
         setSavedAssetId(out.assetId || null);
         setProvider(out.provider || '');
       } else {
@@ -306,7 +346,8 @@ export default function CreativeTools() {
 
           setProgress(job.progress || 0);
           if (job.status === 'completed') {
-            setResultUrl(job.result?.url || '');
+            generatedUrl = job.result?.url || '';
+            setResultUrl(generatedUrl);
             setProvider(job.result?.provider || '');
             break;
           }
@@ -320,6 +361,19 @@ export default function CreativeTools() {
       const entry: PromptHistoryEntry = { prompt: prompt.trim(), mode, timestamp: Date.now() };
       pushHistory(entry);
       setPromptHistory(loadHistory());
+
+      // Push to recent assets so it shows inline (no tab-switch to History needed).
+      // generatedUrl was captured in the branch that ran above.
+      if (generatedUrl) {
+        pushRecentAsset({
+          url: generatedUrl,
+          mode,
+          prompt: prompt.trim(),
+          outputType: modeDef.outputType,
+          timestamp: Date.now(),
+        });
+        setRecentAssets(loadRecentAssets());
+      }
     } catch (err: any) {
       if (!cancelledRef.current) {
         setError(err?.message || 'Generation failed');
@@ -340,15 +394,37 @@ export default function CreativeTools() {
     if (!prompt.trim() || improving) return;
     setImproving(true);
     setError('');
+    setImprovedPreview(null);
     try {
       const out = await creativeApi.improvePrompt(prompt.trim(), mode);
-      if (out?.improved) setPrompt(out.improved);
+      // Non-destructive: surface the AI version in a preview banner so the user
+      // can accept, discard, or keep editing their original. Workshop ask 2026-05-06.
+      if (out?.improved && out.improved.trim() && out.improved.trim() !== prompt.trim()) {
+        setImprovedPreview(out.improved);
+      }
     } catch (err: any) {
       setError(`Prompt improver failed: ${err?.message || 'unknown'}`);
       setErrorCode(err?.statusCode || null);
     } finally {
       setImproving(false);
     }
+  };
+
+  const acceptImprovedPrompt = () => {
+    if (!improvedPreview) return;
+    setOriginalBeforeImprove(prompt);
+    setPrompt(improvedPreview);
+    setImprovedPreview(null);
+  };
+
+  const discardImprovedPrompt = () => {
+    setImprovedPreview(null);
+  };
+
+  const undoImprovedPrompt = () => {
+    if (originalBeforeImprove === null) return;
+    setPrompt(originalBeforeImprove);
+    setOriginalBeforeImprove(null);
   };
 
   const isVideoMode = modeDef.outputType === 'video';
@@ -502,6 +578,55 @@ export default function CreativeTools() {
           </div>
         </div>
 
+        {/* Improve-with-AI preview banner — non-destructive (workshop fix 2026-05-06) */}
+        <AnimatePresence>
+          {improvedPreview && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="rounded-xl border border-violet-500/30 bg-gradient-to-br from-violet-500/[0.07] to-fuchsia-500/[0.04] p-4">
+                <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-violet-300 font-bold mb-2">
+                  <Sparkles className="w-3 h-3" />
+                  AI-improved version — review before applying
+                </div>
+                <p className="text-sm text-zinc-200 leading-relaxed whitespace-pre-wrap">{improvedPreview}</p>
+                <div className="mt-3 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={acceptImprovedPrompt}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-violet-500/20 border border-violet-500/40 px-3 py-1.5 text-xs font-semibold text-violet-200 hover:bg-violet-500/30 transition-all"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Use this version
+                  </button>
+                  <button
+                    type="button"
+                    onClick={discardImprovedPrompt}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.02] px-3 py-1.5 text-xs font-medium text-zinc-400 hover:text-white hover:bg-white/[0.05] transition-all"
+                  >
+                    <X className="w-3.5 h-3.5" /> Discard
+                  </button>
+                  <span className="ml-1 text-[10px] text-zinc-600">your original prompt is untouched</span>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Undo improve — surfaces only after the user accepted an improvement */}
+        {originalBeforeImprove !== null && !improvedPreview && (
+          <button
+            type="button"
+            onClick={undoImprovedPrompt}
+            className="inline-flex items-center gap-1.5 text-[11px] text-violet-300/70 hover:text-violet-300 transition-colors"
+          >
+            <ChevronUp className="w-3 h-3 rotate-180" />
+            Undo improve — restore original prompt
+          </button>
+        )}
+
         {/* Prompt history */}
         {promptHistory.length > 0 && (
           <div>
@@ -554,6 +679,62 @@ export default function CreativeTools() {
                 </motion.div>
               )}
             </AnimatePresence>
+          </div>
+        )}
+
+        {/* Recent assets — inline thumbnail strip (workshop fix 2026-05-06)
+            Haneen reported that switching tabs lost sight of recent generations.
+            Now the last MAX_RECENT_ASSETS show inline; click to set as image source. */}
+        {recentAssets.length > 0 && (
+          <div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-zinc-500 font-bold">
+                <ImageLucide className="w-3 h-3" />
+                Recent generations ({recentAssets.length})
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  try { localStorage.removeItem(RECENT_ASSETS_KEY); } catch {}
+                  setRecentAssets([]);
+                }}
+                className="text-[10px] text-zinc-600 hover:text-red-400 transition-colors"
+              >
+                Clear
+              </button>
+            </div>
+            <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+              {recentAssets.map((asset, i) => (
+                <button
+                  key={`${asset.timestamp}-${i}`}
+                  type="button"
+                  onClick={() => {
+                    if (asset.outputType === 'image') {
+                      // Reuse the image as the source for image-edit / image-to-video
+                      // by setting the source preview + base64 fields. Keeps the page in-place.
+                      setSourcePreview(asset.url);
+                    }
+                    setResultUrl(asset.url);
+                    setProvider('');
+                    setError('');
+                  }}
+                  className="group relative shrink-0 rounded-lg overflow-hidden border border-white/10 hover:border-amber-500/50 transition-all"
+                  title={asset.prompt}
+                >
+                  {asset.outputType === 'video' ? (
+                    <div className="w-20 h-20 bg-zinc-900 flex items-center justify-center">
+                      <Video className="w-5 h-5 text-zinc-500 group-hover:text-amber-400 transition-colors" />
+                    </div>
+                  ) : (
+                    <img src={asset.url} alt="" className="w-20 h-20 object-cover" loading="lazy" />
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <div className="absolute bottom-0.5 left-0.5 right-0.5 text-[8px] text-white opacity-0 group-hover:opacity-100 truncate transition-opacity">
+                    {asset.mode.replace(/-/g, ' ')}
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
