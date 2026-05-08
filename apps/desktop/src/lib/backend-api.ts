@@ -807,6 +807,59 @@ export interface AdminOrg {
   stripeCustomerId: string | null; createdAt: string;
   seats: number; clients: number; calendars: number; mrr: number;
 }
+// ─── Admin: usage reporting (finance) ────────────────────────────
+// Per-user totals + per-kind breakdown for an org over a date range.
+export interface AdminUsageByUser {
+  userId: string | null;
+  userEmail: string | null;
+  userName: string | null;
+  calls: number;
+  units: number;
+  costUsd: number;
+  breakdown: Record<string, { calls: number; units: number; costUsd: number }>;
+}
+// Per-day totals (one row per day) with per-kind cost breakdown.
+export interface AdminUsageByDay {
+  date: string;            // YYYY-MM-DD
+  calls: number;
+  units: number;
+  costUsd: number;
+  breakdown: Record<string, number>;  // kind -> costUsd
+}
+// Global rollup with kind / provider / top-model splits.
+export interface AdminUsageTotals {
+  calls: number;
+  units: number;
+  costUsd: number;
+  byKind: Record<string, { calls: number; units: number; costUsd: number }>;
+  byProvider: Record<string, { calls: number; costUsd: number }>;
+  topModels: Array<{ model: string; calls: number; costUsd: number }>;
+}
+export interface AdminAuditLogEntry {
+  id: string;
+  orgId: string;
+  userId: string | null;
+  userEmail: string | null;
+  clientId: string | null;
+  action: string;
+  entityType: string;
+  entityId: string | null;
+  payload: any;
+  createdAt: string;
+}
+
+function buildUsageQs(params: { orgId?: string; from?: string; to?: string; userId?: string; action?: string; limit?: number }): string {
+  const sp = new URLSearchParams();
+  if (params.orgId) sp.set('orgId', params.orgId);
+  if (params.from) sp.set('from', params.from);
+  if (params.to) sp.set('to', params.to);
+  if (params.userId) sp.set('userId', params.userId);
+  if (params.action) sp.set('action', params.action);
+  if (params.limit) sp.set('limit', String(params.limit));
+  const qs = sp.toString();
+  return qs ? `?${qs}` : '';
+}
+
 export const adminApi = {
   metrics: () => request<AdminMetrics>('/api/admin/metrics'),
   orgs: () => request<AdminOrg[]>('/api/admin/orgs'),
@@ -814,6 +867,38 @@ export const adminApi = {
     request<{ kind: string; calls: number; units: number; costUsd: number }[]>(
       `/api/admin/orgs/${orgId}/usage`,
     ),
+  // Usage reporting (finance dashboard)
+  usageByUser: (params: { orgId: string; from?: string; to?: string }) =>
+    request<AdminUsageByUser[]>(`/api/admin/usage/by-user${buildUsageQs(params)}`),
+  usageByDay: (params: { orgId: string; from?: string; to?: string }) =>
+    request<AdminUsageByDay[]>(`/api/admin/usage/by-day${buildUsageQs(params)}`),
+  usageTotals: (params: { orgId?: string; from?: string; to?: string }) =>
+    request<AdminUsageTotals>(`/api/admin/usage/totals${buildUsageQs(params)}`),
+  auditLog: (params: { orgId: string; userId?: string; action?: string; from?: string; to?: string; limit?: number }) =>
+    request<AdminAuditLogEntry[]>(`/api/admin/audit-log${buildUsageQs(params)}`),
+  // CSV export — fetch with auth header → blob → anchor click. Top-level
+  // navigation (window.open) would strip the Authorization header, so the
+  // bearer-only endpoint would 401. Same pattern used by integrationsApi.initiate.
+  usageExportCsv: async (params: { orgId: string; from?: string; to?: string }): Promise<void> => {
+    const qs = buildUsageQs(params);
+    const headers: Record<string, string> = {};
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+    const res = await fetch(`${API_URL}/api/admin/usage/export.csv${qs}`, { headers });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: res.statusText }));
+      throw new Error((err as any).error || `Export failed: ${res.status}`);
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const stamp = new Date().toISOString().slice(0, 10);
+    a.download = `usage-${params.orgId}-${stamp}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  },
 };
 
 export const galleryApi = {
