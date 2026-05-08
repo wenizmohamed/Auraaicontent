@@ -4,6 +4,7 @@ import { knowledgeService } from '../services/knowledge.service.js';
 import { storageService } from '../services/storage.service.js';
 import { embedKnowledgeItem } from '../workers/embeddings.worker.js';
 import { retrieveContext } from '../services/retrieval.service.js';
+import { auditService } from '../services/audit.service.js';
 import { assertClientInOrg } from '../lib/tenant.js';
 
 export async function knowledgeRoutes(app: FastifyInstance) {
@@ -43,6 +44,16 @@ export async function knowledgeRoutes(app: FastifyInstance) {
       type: file.mimetype,
       fileUrl,
     });
+
+    auditService.log({
+      orgId,
+      userId: request.user?.userId,
+      clientId,
+      action: 'knowledge.upload',
+      entityType: 'KnowledgeItem',
+      entityId: (item as any)?.id,
+      payload: { title: file.filename, sizeBytes: buffer.length },
+    }).catch(() => {});
 
     return reply.status(201).send(item);
   });

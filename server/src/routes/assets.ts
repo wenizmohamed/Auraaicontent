@@ -3,6 +3,7 @@ import { authGuard } from '../middleware/auth.js';
 import { assetService } from '../services/asset.service.js';
 import { storageService } from '../services/storage.service.js';
 import { analyzeAssetWorker } from '../workers/assetAnalysis.worker.js';
+import { auditService } from '../services/audit.service.js';
 import { db } from '../db/prisma.js';
 import { assertClientInOrg } from '../lib/tenant.js';
 
@@ -76,6 +77,16 @@ export async function assetRoutes(app: FastifyInstance) {
       mimeType: file.mimetype,
     });
 
+    auditService.log({
+      orgId,
+      userId: request.user?.userId,
+      clientId,
+      action: 'asset.upload',
+      entityType: 'Asset',
+      entityId: (asset as any)?.id,
+      payload: { mimeType: file.mimetype, sizeBytes: buffer.length },
+    }).catch(() => {});
+
     return reply.status(201).send(asset);
   });
 
@@ -113,6 +124,15 @@ export async function assetRoutes(app: FastifyInstance) {
     if (asset.fileUrl) await storageService.deleteFile(asset.fileUrl);
     if (asset.thumbUrl) await storageService.deleteFile(asset.thumbUrl);
     await assetService.remove(orgId, assetId);
+    auditService.log({
+      orgId,
+      userId: request.user?.userId,
+      clientId: (asset as any)?.clientId ?? undefined,
+      action: 'asset.delete',
+      entityType: 'Asset',
+      entityId: assetId,
+      payload: { mimeType: (asset as any)?.mimeType },
+    }).catch(() => {});
     return { success: true };
   });
 

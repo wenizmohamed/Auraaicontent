@@ -160,6 +160,15 @@ export async function calendarRoutes(app: FastifyInstance) {
         data: { isArchived: true, archivedAt },
       });
     }
+    auditService.log({
+      orgId,
+      userId: request.user?.userId,
+      clientId,
+      action: 'calendar.archive',
+      entityType: 'CalendarMonth',
+      entityId: all[0]?.id,
+      payload: { month: decodedMonth, archivedCount: all.length },
+    }).catch(() => {});
     return { success: true, mode: 'archive' as const, archived: all.length, month: decodedMonth, archivedAt: archivedAt.toISOString() };
   });
 
@@ -233,7 +242,17 @@ export async function calendarRoutes(app: FastifyInstance) {
     for (const k of PATCHABLE_FIELDS) {
       if (Object.prototype.hasOwnProperty.call(updates, k)) data[k] = updates[k];
     }
-    return db.calendarPost.update({ where: { id: postId, orgId: request.orgId }, data });
+    const updated = await db.calendarPost.update({ where: { id: postId, orgId: request.orgId }, data });
+    auditService.log({
+      orgId: request.orgId,
+      userId: request.user?.userId,
+      clientId: (updated as any)?.clientId ?? undefined,
+      action: 'post.upsert',
+      entityType: 'CalendarPost',
+      entityId: postId,
+      payload: { fields: Object.keys(data) },
+    }).catch(() => {});
+    return updated;
   });
 
   // DELETE /api/calendar-posts/:postId
@@ -244,7 +263,20 @@ export async function calendarRoutes(app: FastifyInstance) {
     } catch (err: any) {
       return reply.status(err.statusCode || 500).send({ error: err.message });
     }
+    const existing = await db.calendarPost.findUnique({
+      where: { id: postId, orgId: request.orgId },
+      select: { clientId: true, calendarMonthId: true },
+    }).catch(() => null);
     await db.calendarPost.delete({ where: { id: postId, orgId: request.orgId } });
+    auditService.log({
+      orgId: request.orgId,
+      userId: request.user?.userId,
+      clientId: existing?.clientId ?? undefined,
+      action: 'post.delete',
+      entityType: 'CalendarPost',
+      entityId: postId,
+      payload: { calendarMonthId: existing?.calendarMonthId ?? null },
+    }).catch(() => {});
     return { success: true, deletedId: postId };
   });
 

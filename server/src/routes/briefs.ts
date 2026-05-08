@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { briefService } from '../services/brief.service.js';
 import { clientService } from '../services/client.service.js';
 import { authGuard } from '../middleware/auth.js';
+import { auditService } from '../services/audit.service.js';
 import { assertClientInOrg } from '../lib/tenant.js';
 
 export async function briefRoutes(app: FastifyInstance) {
@@ -29,8 +30,23 @@ export async function briefRoutes(app: FastifyInstance) {
     } catch (err: any) {
       return reply.status(err.statusCode || 500).send({ error: err.message });
     }
+    // Detect create vs update by checking for an existing brief BEFORE upsert.
+    const existingBefore = await briefService.getByClientId(request.orgId!, clientId).catch(() => null);
     try {
-      return await briefService.upsert(request.orgId!, clientId, request.body);
+      const saved = await briefService.upsert(request.orgId!, clientId, request.body);
+      auditService.log({
+        orgId: request.orgId,
+        userId: request.user?.userId,
+        clientId,
+        action: 'brief.save',
+        entityType: 'ClientBrief',
+        entityId: (saved as any)?.id,
+        payload: {
+          mode: existingBefore ? 'update' : 'create',
+          fields: Object.keys((request.body as any) || {}),
+        },
+      }).catch(() => {});
+      return saved;
     } catch (err: any) {
       if (err?.code === 'P2003') {
         return reply.status(404).send({ error: `Client ${clientId} no longer exists.` });

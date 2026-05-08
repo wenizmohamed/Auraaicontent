@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { clientService } from '../services/client.service.js';
 import { authGuard } from '../middleware/auth.js';
+import { auditService } from '../services/audit.service.js';
 
 export async function clientRoutes(app: FastifyInstance) {
 
@@ -19,6 +20,15 @@ export async function clientRoutes(app: FastifyInstance) {
     if (!name) return reply.status(400).send({ error: 'Client name is required' });
     try {
       const client = await clientService.create(request.orgId!, { name, industry, website, instagramHandle, primaryColor, logoUrl, locale, dialect, whatsappNumber });
+      auditService.log({
+        orgId: request.orgId,
+        userId: request.user?.userId,
+        clientId: client.id,
+        action: 'client.create',
+        entityType: 'Client',
+        entityId: client.id,
+        payload: { name: client.name, industry: client.industry ?? null },
+      }).catch(() => {});
       return reply.status(201).send(client);
     } catch (err: any) {
       if (err.statusCode === 409) return reply.status(409).send({ error: err.message });
@@ -38,7 +48,18 @@ export async function clientRoutes(app: FastifyInstance) {
   app.patch('/:clientId', async (request, reply) => {
     const { clientId } = request.params as { clientId: string };
     try {
-      return await clientService.update(request.orgId!, clientId, request.body as any);
+      const updated = await clientService.update(request.orgId!, clientId, request.body as any);
+      const updatedKeys = Object.keys((request.body as any) || {});
+      auditService.log({
+        orgId: request.orgId,
+        userId: request.user?.userId,
+        clientId,
+        action: 'client.update',
+        entityType: 'Client',
+        entityId: clientId,
+        payload: { fields: updatedKeys },
+      }).catch(() => {});
+      return updated;
     } catch (err: any) {
       if (err.statusCode === 404) return reply.status(404).send({ error: err.message });
       throw err;
@@ -50,6 +71,14 @@ export async function clientRoutes(app: FastifyInstance) {
     const { clientId } = request.params as { clientId: string };
     try {
       await clientService.remove(request.orgId!, clientId);
+      auditService.log({
+        orgId: request.orgId,
+        userId: request.user?.userId,
+        clientId,
+        action: 'client.delete',
+        entityType: 'Client',
+        entityId: clientId,
+      }).catch(() => {});
       return { success: true };
     } catch (err: any) {
       if (err.statusCode === 404) return reply.status(404).send({ error: err.message });

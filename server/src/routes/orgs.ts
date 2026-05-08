@@ -18,6 +18,7 @@ import crypto from 'crypto';
 import { db } from '../db/prisma.js';
 import { authGuard, type JwtPayload } from '../middleware/auth.js';
 import { sendEmail, inviteEmailHtml, inviteEmailText } from '../lib/email.js';
+import { auditService } from '../services/audit.service.js';
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
@@ -172,6 +173,15 @@ export async function orgsRoutes(app: FastifyInstance) {
       text: inviteEmailText({ orgName, inviterName: inviter?.name, role: invite.role, inviteUrl, expiresAt }),
     }).catch((e) => console.error('[invite-email] send failed', e));
 
+    auditService.log({
+      orgId,
+      userId: caller.userId,
+      action: 'member.invite',
+      entityType: 'Invitation',
+      entityId: invite.id,
+      payload: { email: invite.email, role: invite.role },
+    }).catch(() => {});
+
     return {
       id: invite.id,
       email: invite.email,
@@ -246,6 +256,14 @@ export async function orgsRoutes(app: FastifyInstance) {
       where: { userId_orgId: { userId, orgId } },
       data: { role: next as any },
     });
+    auditService.log({
+      orgId,
+      userId: caller.userId,
+      action: 'member.role-change',
+      entityType: 'OrgMembership',
+      entityId: target.id,
+      payload: { targetUserId: userId, fromRole: target.role, toRole: next },
+    }).catch(() => {});
     return { success: true, role: next };
   });
 

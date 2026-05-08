@@ -454,30 +454,63 @@ export async function adminRoutes(app: FastifyInstance) {
 
     const lim = Math.min(1000, Math.max(1, Number(request.query.limit ?? 100) || 100));
 
-    // Optional filters as parameter-bound NULL-safe predicates.
+    // UNION audit-log + UsageEvent — formal action records PLUS every AI call
+    // attributed to a user. Without UsageEvent the feed only shows the ~9
+    // explicitly-instrumented sites; with it, every text/image/video/analysis
+    // gen surfaces with its model + cost. Same row shape so the UI stays the
+    // same.
     const rows = await db.$queryRaw<Array<{
       id: string; orgId: string; userId: string | null; userEmail: string | null;
       clientId: string | null; action: string; entityType: string;
-      entityId: string | null; payload: any; createdAt: Date;
+      entityId: string | null; payload: any; createdAt: Date; source: string;
     }>>`
-      SELECT a.id              AS id,
-             a."orgId"          AS "orgId",
-             a."userId"         AS "userId",
-             usr.email          AS "userEmail",
-             a."clientId"       AS "clientId",
-             a.action           AS action,
-             a."entityType"     AS "entityType",
-             a."entityId"       AS "entityId",
-             a.payload          AS payload,
-             a."createdAt"      AS "createdAt"
-      FROM "AuditLog" a
-      LEFT JOIN "User" usr ON usr.id = a."userId"
-      WHERE a."orgId" = ${orgId}
-        AND a."createdAt" >= ${from}
-        AND a."createdAt" <= ${to}
-        AND (${userId ?? null}::text IS NULL OR a."userId" = ${userId ?? null}::text)
-        AND (${action ?? null}::text IS NULL OR a.action = ${action ?? null}::text)
-      ORDER BY a."createdAt" DESC
+      SELECT * FROM (
+        SELECT a.id              AS id,
+               a."orgId"          AS "orgId",
+               a."userId"         AS "userId",
+               usr.email          AS "userEmail",
+               a."clientId"       AS "clientId",
+               a.action           AS action,
+               a."entityType"     AS "entityType",
+               a."entityId"       AS "entityId",
+               a.payload          AS payload,
+               a."createdAt"      AS "createdAt",
+               'audit'::text      AS source
+        FROM "AuditLog" a
+        LEFT JOIN "User" usr ON usr.id = a."userId"
+        WHERE a."orgId" = ${orgId}
+          AND a."createdAt" >= ${from}
+          AND a."createdAt" <= ${to}
+          AND (${userId ?? null}::text IS NULL OR a."userId" = ${userId ?? null}::text)
+          AND (${action ?? null}::text IS NULL OR a.action = ${action ?? null}::text)
+
+        UNION ALL
+
+        SELECT u.id                                  AS id,
+               u."orgId"                              AS "orgId",
+               u."userId"                             AS "userId",
+               usr.email                              AS "userEmail",
+               (u.metadata->>'clientId')              AS "clientId",
+               u.kind                                 AS action,
+               'AI'::text                             AS "entityType",
+               u.ref                                  AS "entityId",
+               jsonb_build_object(
+                 'model',    u.metadata->>'model',
+                 'units',    u.units,
+                 'costUsd',  u."costUsd",
+                 'task',     u.metadata->>'task'
+               )                                      AS payload,
+               u."createdAt"                          AS "createdAt",
+               'usage'::text                          AS source
+        FROM "UsageEvent" u
+        LEFT JOIN "User" usr ON usr.id = u."userId"
+        WHERE u."orgId" = ${orgId}
+          AND u."createdAt" >= ${from}
+          AND u."createdAt" <= ${to}
+          AND (${userId ?? null}::text IS NULL OR u."userId" = ${userId ?? null}::text)
+          AND (${action ?? null}::text IS NULL OR u.kind = ${action ?? null}::text)
+      ) merged
+      ORDER BY merged."createdAt" DESC
       LIMIT ${lim}
     `;
     return rows;
