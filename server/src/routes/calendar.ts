@@ -264,18 +264,18 @@ export async function calendarRoutes(app: FastifyInstance) {
       return reply.status(err.statusCode || 500).send({ error: err.message });
     }
     const existing = await db.calendarPost.findUnique({
-      where: { id: postId, orgId: request.orgId },
-      select: { clientId: true, calendarMonthId: true },
+      where: { id: postId },
+      include: { calendarMonth: { select: { clientId: true } } },
     }).catch(() => null);
-    await db.calendarPost.delete({ where: { id: postId, orgId: request.orgId } });
+    await db.calendarPost.delete({ where: { id: postId } });
     auditService.log({
       orgId: request.orgId,
       userId: request.user?.userId,
-      clientId: existing?.clientId ?? undefined,
+      clientId: (existing as any)?.calendarMonth?.clientId ?? undefined,
       action: 'post.delete',
       entityType: 'CalendarPost',
       entityId: postId,
-      payload: { calendarMonthId: existing?.calendarMonthId ?? null },
+      payload: { calendarMonthId: (existing as any)?.calendarMonthId ?? null },
     }).catch(() => {});
     return { success: true, deletedId: postId };
   });
