@@ -21,7 +21,7 @@ export async function creativeRoutes(app: FastifyInstance) {
     const prompt = sanitizePrompt(rawPrompt);
 
     try {
-      const result = await aiRouter.image({ prompt, aspectRatio, quality }, { clientId });
+      const result = await aiRouter.image({ prompt, aspectRatio, quality }, { orgId: request.orgId, userId: request.user?.userId, clientId });
       // Save to assets if we have base64
       let savedAsset = null;
       if (result.output.base64 && clientId) {
@@ -78,7 +78,7 @@ export async function creativeRoutes(app: FastifyInstance) {
     if (!prompt || !imageBase64) return reply.status(400).send({ error: 'prompt and imageBase64 are required' });
 
     try {
-      const result = await aiRouter.image({ prompt, imageBase64, mimeType: mimeType || 'image/png', aspectRatio }, { clientId });
+      const result = await aiRouter.image({ prompt, imageBase64, mimeType: mimeType || 'image/png', aspectRatio }, { orgId: request.orgId, userId: request.user?.userId, clientId });
       let savedAsset = null;
       if (result.output.base64 && clientId) {
         const buf = Buffer.from(result.output.base64, 'base64');
@@ -166,7 +166,7 @@ export async function creativeRoutes(app: FastifyInstance) {
             imageBase64: j.data.imageBase64,
             mimeType: j.data.mimeType,
           },
-          { jobId: j.id, clientId: j.data.clientId },
+          { orgId, userId, jobId: j.id, clientId: j.data.clientId },
         );
         await historyService.record({
           orgId,
@@ -265,7 +265,7 @@ export async function creativeRoutes(app: FastifyInstance) {
     ].join('\n');
 
     try {
-      const result = await aiRouter.text({ prompt: improvePrompt, temperature: 0.6 });
+      const result = await aiRouter.text({ prompt: improvePrompt, temperature: 0.6 }, { orgId: request.orgId, userId: request.user?.userId });
       const improved = (typeof result.output === 'string' ? result.output : JSON.stringify(result.output))
         .trim()
         .replace(/^["']+|["']+$/g, '')   // strip wrap quotes if model added them

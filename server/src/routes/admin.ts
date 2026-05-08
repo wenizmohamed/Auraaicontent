@@ -225,4 +225,343 @@ export async function adminRoutes(app: FastifyInstance) {
       logBytesScanned: combined.length,
     };
   });
+
+  // ── Finance-grade visibility helpers ─────────────────────────────────
+  // Shared date-range parser. `from` defaults to first-of-current-month UTC,
+  // `to` defaults to now. Returns 400 via a thrown sentinel if either is
+  // present-but-invalid; callers translate the sentinel to a reply.
+  function parseRange(q: any, defaultDays?: number): { from: Date; to: Date } {
+    const now = new Date();
+    let from: Date;
+    let to: Date;
+
+    if (q?.to) {
+      const t = new Date(String(q.to));
+      if (Number.isNaN(t.getTime())) throw new Error('BAD_TO');
+      to = t;
+    } else {
+      to = now;
+    }
+
+    if (q?.from) {
+      const f = new Date(String(q.from));
+      if (Number.isNaN(f.getTime())) throw new Error('BAD_FROM');
+      from = f;
+    } else if (defaultDays && defaultDays > 0) {
+      from = new Date(now.getTime() - defaultDays * 24 * 60 * 60 * 1000);
+    } else {
+      from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    }
+    return { from, to };
+  }
+
+  function csvEscape(v: unknown): string {
+    if (v === null || v === undefined) return '';
+    const s = typeof v === 'string' ? v : String(v);
+    if (/[",\n\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  }
+
+  // 1. GET /api/admin/usage/by-user — per-user totals + per-kind breakdown
+  app.get<{ Querystring: { orgId?: string; from?: string; to?: string } }>(
+    '/usage/by-user',
+    async (request, reply) => {
+      const { orgId } = request.query;
+      if (!orgId) return reply.status(400).send({ error: 'orgId required' });
+      let from: Date, to: Date;
+      try { ({ from, to } = parseRange(request.query)); }
+      catch (e: any) { return reply.status(400).send({ error: `Invalid ${e.message === 'BAD_FROM' ? 'from' : 'to'} date` }); }
+
+      // Totals per user (raw — Prisma's groupBy on a nullable userId joined to User
+      // is awkward; raw SQL is cleaner and lets us LEFT JOIN User in one shot).
+      const totals = await db.$queryRaw<Array<{
+        userId: string | null; userEmail: string | null; userName: string | null;
+        calls: bigint; units: bigint; costUsd: any;
+      }>>`
+        SELECT u."userId"                        AS "userId",
+               usr.email                          AS "userEmail",
+               usr.name                           AS "userName",
+               COUNT(*)::bigint                   AS calls,
+               COALESCE(SUM(u.units), 0)::bigint  AS units,
+               COALESCE(SUM(u."costUsd"), 0)      AS "costUsd"
+        FROM "UsageEvent" u
+        LEFT JOIN "User" usr ON usr.id = u."userId"
+        WHERE u."orgId" = ${orgId}
+          AND u."createdAt" >= ${from}
+          AND u."createdAt" <= ${to}
+        GROUP BY u."userId", usr.email, usr.name
+        ORDER BY "costUsd" DESC
+      `;
+
+      // Per-(user,kind) breakdown.
+      const breakdown = await db.$queryRaw<Array<{
+        userId: string | null; kind: string;
+        calls: bigint; units: bigint; costUsd: any;
+      }>>`
+        SELECT u."userId" AS "userId",
+               u.kind     AS kind,
+               COUNT(*)::bigint                   AS calls,
+               COALESCE(SUM(u.units), 0)::bigint  AS units,
+               COALESCE(SUM(u."costUsd"), 0)      AS "costUsd"
+        FROM "UsageEvent" u
+        WHERE u."orgId" = ${orgId}
+          AND u."createdAt" >= ${from}
+          AND u."createdAt" <= ${to}
+        GROUP BY u."userId", u.kind
+      `;
+
+      const bdMap = new Map<string, Record<string, { calls: number; units: number; costUsd: number }>>();
+      for (const row of breakdown) {
+        const key = row.userId ?? '__null__';
+        const inner = bdMap.get(key) ?? {};
+        inner[row.kind] = {
+          calls: Number(row.calls),
+          units: Number(row.units),
+          costUsd: Number(row.costUsd ?? 0),
+        };
+        bdMap.set(key, inner);
+      }
+
+      return totals.map((r) => ({
+        userId: r.userId,
+        userEmail: r.userEmail,
+        userName: r.userName,
+        calls: Number(r.calls),
+        units: Number(r.units),
+        costUsd: Number(r.costUsd ?? 0),
+        breakdown: bdMap.get(r.userId ?? '__null__') ?? {},
+      }));
+    },
+  );
+
+  // 2. GET /api/admin/usage/by-day — per-day totals + per-kind cost breakdown
+  app.get<{ Querystring: { orgId?: string; from?: string; to?: string } }>(
+    '/usage/by-day',
+    async (request, reply) => {
+      const { orgId } = request.query;
+      if (!orgId) return reply.status(400).send({ error: 'orgId required' });
+      let from: Date, to: Date;
+      try { ({ from, to } = parseRange(request.query, 30)); }
+      catch (e: any) { return reply.status(400).send({ error: `Invalid ${e.message === 'BAD_FROM' ? 'from' : 'to'} date` }); }
+
+      const rows = await db.$queryRaw<Array<{
+        day: Date; kind: string;
+        calls: bigint; units: bigint; costUsd: any;
+      }>>`
+        SELECT DATE_TRUNC('day', u."createdAt") AS day,
+               u.kind                            AS kind,
+               COUNT(*)::bigint                  AS calls,
+               COALESCE(SUM(u.units), 0)::bigint AS units,
+               COALESCE(SUM(u."costUsd"), 0)     AS "costUsd"
+        FROM "UsageEvent" u
+        WHERE u."orgId" = ${orgId}
+          AND u."createdAt" >= ${from}
+          AND u."createdAt" <= ${to}
+        GROUP BY day, u.kind
+        ORDER BY day ASC
+      `;
+
+      const byDay = new Map<string, { date: string; calls: number; units: number; costUsd: number; breakdown: Record<string, number> }>();
+      for (const r of rows) {
+        const date = new Date(r.day).toISOString().slice(0, 10);
+        const cur = byDay.get(date) ?? { date, calls: 0, units: 0, costUsd: 0, breakdown: {} };
+        const cost = Number(r.costUsd ?? 0);
+        cur.calls += Number(r.calls);
+        cur.units += Number(r.units);
+        cur.costUsd += cost;
+        cur.breakdown[r.kind] = (cur.breakdown[r.kind] || 0) + cost;
+        byDay.set(date, cur);
+      }
+      return Array.from(byDay.values());
+    },
+  );
+
+  // 3. GET /api/admin/usage/export.csv — raw rows, capped at 10k.
+  app.get<{ Querystring: { orgId?: string; from?: string; to?: string } }>(
+    '/usage/export.csv',
+    async (request, reply) => {
+      const { orgId } = request.query;
+      if (!orgId) return reply.status(400).send({ error: 'orgId required' });
+      let from: Date, to: Date;
+      try { ({ from, to } = parseRange(request.query)); }
+      catch (e: any) { return reply.status(400).send({ error: `Invalid ${e.message === 'BAD_FROM' ? 'from' : 'to'} date` }); }
+
+      const CAP = 10000;
+      const rows = await db.$queryRaw<Array<{
+        createdAt: Date; userId: string | null; userEmail: string | null;
+        kind: string; metadata: any; units: number; costUsd: any; ref: string | null;
+      }>>`
+        SELECT u."createdAt"  AS "createdAt",
+               u."userId"      AS "userId",
+               usr.email       AS "userEmail",
+               u.kind          AS kind,
+               u.metadata      AS metadata,
+               u.units         AS units,
+               u."costUsd"    AS "costUsd",
+               u.ref           AS ref
+        FROM "UsageEvent" u
+        LEFT JOIN "User" usr ON usr.id = u."userId"
+        WHERE u."orgId" = ${orgId}
+          AND u."createdAt" >= ${from}
+          AND u."createdAt" <= ${to}
+        ORDER BY u."createdAt" DESC
+        LIMIT ${CAP + 1}
+      `;
+
+      const truncated = rows.length > CAP;
+      const data = truncated ? rows.slice(0, CAP) : rows;
+
+      const header = 'timestamp,userId,userEmail,kind,model,units,costUsd,ref';
+      const lines: string[] = [header];
+      for (const r of data) {
+        const model = (r.metadata && typeof r.metadata === 'object' && (r.metadata as any).model) || '';
+        lines.push(
+          [
+            csvEscape(new Date(r.createdAt).toISOString()),
+            csvEscape(r.userId),
+            csvEscape(r.userEmail),
+            csvEscape(r.kind),
+            csvEscape(model),
+            csvEscape(r.units),
+            csvEscape(Number(r.costUsd ?? 0)),
+            csvEscape(r.ref),
+          ].join(','),
+        );
+      }
+      if (truncated) lines.push('# truncated at 10000 rows');
+
+      const fromTag = from.toISOString().slice(0, 10);
+      const toTag = to.toISOString().slice(0, 10);
+      reply
+        .header('Content-Type', 'text/csv; charset=utf-8')
+        .header('Content-Disposition', `attachment; filename="usage-${orgId}-${fromTag}-${toTag}.csv"`);
+      return lines.join('\n');
+    },
+  );
+
+  // 4. GET /api/admin/audit-log — recent audit rows with user email join
+  app.get<{
+    Querystring: {
+      orgId?: string; userId?: string; action?: string;
+      from?: string; to?: string; limit?: string;
+    };
+  }>('/audit-log', async (request, reply) => {
+    const { orgId, userId, action } = request.query;
+    if (!orgId) return reply.status(400).send({ error: 'orgId required' });
+    let from: Date, to: Date;
+    try { ({ from, to } = parseRange(request.query)); }
+    catch (e: any) { return reply.status(400).send({ error: `Invalid ${e.message === 'BAD_FROM' ? 'from' : 'to'} date` }); }
+
+    const lim = Math.min(1000, Math.max(1, Number(request.query.limit ?? 100) || 100));
+
+    // Optional filters as parameter-bound NULL-safe predicates.
+    const rows = await db.$queryRaw<Array<{
+      id: string; orgId: string; userId: string | null; userEmail: string | null;
+      clientId: string | null; action: string; entityType: string;
+      entityId: string | null; payload: any; createdAt: Date;
+    }>>`
+      SELECT a.id              AS id,
+             a."orgId"          AS "orgId",
+             a."userId"         AS "userId",
+             usr.email          AS "userEmail",
+             a."clientId"       AS "clientId",
+             a.action           AS action,
+             a."entityType"     AS "entityType",
+             a."entityId"       AS "entityId",
+             a.payload          AS payload,
+             a."createdAt"      AS "createdAt"
+      FROM "AuditLog" a
+      LEFT JOIN "User" usr ON usr.id = a."userId"
+      WHERE a."orgId" = ${orgId}
+        AND a."createdAt" >= ${from}
+        AND a."createdAt" <= ${to}
+        AND (${userId ?? null}::text IS NULL OR a."userId" = ${userId ?? null}::text)
+        AND (${action ?? null}::text IS NULL OR a.action = ${action ?? null}::text)
+      ORDER BY a."createdAt" DESC
+      LIMIT ${lim}
+    `;
+    return rows;
+  });
+
+  // 5. GET /api/admin/usage/totals — global rollup with kind/provider/model splits
+  app.get<{ Querystring: { orgId?: string; from?: string; to?: string } }>(
+    '/usage/totals',
+    async (request, reply) => {
+      const { orgId } = request.query;
+      let from: Date, to: Date;
+      try { ({ from, to } = parseRange(request.query)); }
+      catch (e: any) { return reply.status(400).send({ error: `Invalid ${e.message === 'BAD_FROM' ? 'from' : 'to'} date` }); }
+
+      // Top-line totals + per-kind breakdown.
+      const kindRows = await db.$queryRaw<Array<{
+        kind: string; calls: bigint; units: bigint; costUsd: any;
+      }>>`
+        SELECT u.kind                            AS kind,
+               COUNT(*)::bigint                  AS calls,
+               COALESCE(SUM(u.units), 0)::bigint AS units,
+               COALESCE(SUM(u."costUsd"), 0)     AS "costUsd"
+        FROM "UsageEvent" u
+        WHERE u."createdAt" >= ${from}
+          AND u."createdAt" <= ${to}
+          AND (${orgId ?? null}::text IS NULL OR u."orgId" = ${orgId ?? null}::text)
+        GROUP BY u.kind
+      `;
+
+      let calls = 0, units = 0, costUsd = 0;
+      const byKind: Record<string, { calls: number; units: number; costUsd: number }> = {};
+      for (const r of kindRows) {
+        const c = Number(r.calls), un = Number(r.units), co = Number(r.costUsd ?? 0);
+        calls += c; units += un; costUsd += co;
+        byKind[r.kind] = { calls: c, units: un, costUsd: co };
+      }
+
+      // Per-model + per-provider via metadata->>'model'. We pull raw model strings
+      // and bucket provider in JS so we don't lock ourselves to a hardcoded list.
+      const modelRows = await db.$queryRaw<Array<{
+        model: string | null; calls: bigint; costUsd: any;
+      }>>`
+        SELECT (u.metadata->>'model') AS model,
+               COUNT(*)::bigint        AS calls,
+               COALESCE(SUM(u."costUsd"), 0) AS "costUsd"
+        FROM "UsageEvent" u
+        WHERE u."createdAt" >= ${from}
+          AND u."createdAt" <= ${to}
+          AND (${orgId ?? null}::text IS NULL OR u."orgId" = ${orgId ?? null}::text)
+          AND u.metadata ? 'model'
+        GROUP BY (u.metadata->>'model')
+        ORDER BY "costUsd" DESC
+      `;
+
+      function providerOf(model: string): string {
+        const m = model.toLowerCase();
+        if (m.startsWith('gemini') || m.startsWith('imagen') || m.startsWith('veo')) return 'gemini';
+        if (m.startsWith('grok') || m.startsWith('xai-') || m.startsWith('x-ai')) return 'xai';
+        if (m.startsWith('kimi') || m.startsWith('moonshot')) return 'kimi';
+        if (m.startsWith('gpt') || m.startsWith('o1') || m.startsWith('o3') || m.startsWith('openai')) return 'openai';
+        if (m.startsWith('claude') || m.startsWith('anthropic')) return 'anthropic';
+        return 'other';
+      }
+
+      const byProvider: Record<string, { calls: number; costUsd: number }> = {};
+      const topModels: Array<{ model: string; calls: number; costUsd: number }> = [];
+      for (const r of modelRows) {
+        if (!r.model) continue;
+        const c = Number(r.calls), co = Number(r.costUsd ?? 0);
+        topModels.push({ model: r.model, calls: c, costUsd: co });
+        const p = providerOf(r.model);
+        const cur = byProvider[p] ?? { calls: 0, costUsd: 0 };
+        cur.calls += c; cur.costUsd += co;
+        byProvider[p] = cur;
+      }
+
+      return {
+        calls,
+        units,
+        costUsd,
+        byKind,
+        byProvider,
+        topModels: topModels.slice(0, 20),
+      };
+    },
+  );
 }

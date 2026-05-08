@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import bcrypt from 'bcryptjs';
 import { db } from '../db/prisma.js';
 import { signToken, authGuard, mintRefreshToken, hashRefreshToken, type JwtPayload } from '../middleware/auth.js';
+import { auditService } from '../services/audit.service.js';
 
 function reqMeta(request: any): { userAgent: string | null; ip: string | null } {
   const ua = (request.headers['user-agent'] as string | undefined)?.slice(0, 300) ?? null;
@@ -85,6 +86,15 @@ export async function authRoutes(app: FastifyInstance) {
       where: { userId: user.id },
       include: { org: { select: { id: true, name: true, slug: true, plan: true } } },
     });
+
+    auditService.log({
+      orgId: active.orgId,
+      userId: user.id,
+      action: 'auth.login',
+      entityType: 'User',
+      entityId: user.id,
+      payload: { rememberMe: Boolean(rememberMe) },
+    }).catch(() => {});
 
     return {
       token,
@@ -275,6 +285,16 @@ export async function authRoutes(app: FastifyInstance) {
       { userId: result.user.id, email: result.user.email, role: result.user.role, orgId: result.org.id, orgRole: 'OWNER' },
       Boolean(rememberMe),
     );
+
+    auditService.log({
+      orgId: result.org.id,
+      userId: result.user.id,
+      action: 'auth.register',
+      entityType: 'User',
+      entityId: result.user.id,
+      payload: { orgId: result.org.id },
+    }).catch(() => {});
+
     return {
       token,
       rememberMe: Boolean(rememberMe),

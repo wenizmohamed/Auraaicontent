@@ -232,6 +232,7 @@ export const visualSearchService = {
   async search(
     query: string,
     count: number = 8,
+    meta?: { orgId?: string; userId?: string; clientId?: string; jobId?: string },
   ): Promise<{ results: VisualSearchResult[]; provider: string }> {
     const safeCount = Math.max(1, Math.min(20, count));
     const trimmedQuery = (query || '').trim();
@@ -320,7 +321,7 @@ export const visualSearchService = {
           `thumbnailUrl must be a direct image URL, sourceUrl must be the page URL.`,
           `Return ONLY the JSON.`,
         ].join('\n');
-        const result = await aiRouter.text({ prompt, json: true });
+        const result = await aiRouter.text({ prompt, json: true }, meta);
         const aiResults = normalizeAiResult(result.output, trimmedQuery);
         for (const r of aiResults) {
           if (merged.length >= safeCount) break;

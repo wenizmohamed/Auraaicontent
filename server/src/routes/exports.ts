@@ -4,6 +4,7 @@ import { authGuard } from '../middleware/auth.js';
 import { assertClientInOrg } from '../lib/tenant.js';
 import { createJob, processJob } from '../workers/queue.js';
 import { exportWorker } from '../workers/export.worker.js';
+import { auditService } from '../services/audit.service.js';
 
 export async function exportRoutes(app: FastifyInstance) {
 
@@ -32,6 +33,16 @@ export async function exportRoutes(app: FastifyInstance) {
 
     const job = createJob('export', { orgId: request.orgId, clientId, calendarMonthId: calendarMonth.id, type });
     processJob(job.id, exportWorker);
+
+    auditService.log({
+      orgId: request.orgId,
+      userId: request.user?.userId,
+      clientId,
+      action: 'export.create',
+      entityType: 'ExportJob',
+      entityId: job.id,
+      payload: { format: type, scope: 'month', month: decodedMonth, calendarMonthId: calendarMonth.id },
+    }).catch(() => {});
 
     return reply.status(202).send({ jobId: job.id });
   });

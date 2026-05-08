@@ -4,6 +4,7 @@ import { authGuard } from '../middleware/auth.js';
 import { reviewService } from '../services/review.service.js';
 import { env } from '../config/env.js';
 import { assertClientInOrg } from '../lib/tenant.js';
+import { auditService } from '../services/audit.service.js';
 
 export async function reviewRoutes(app: FastifyInstance) {
 
@@ -76,6 +77,15 @@ export async function reviewRoutes(app: FastifyInstance) {
     }
 
     const updated = await reviewService.approvePost(link.orgId, postId);
+
+    auditService.log({
+      orgId: link.orgId,
+      action: 'review.approve',
+      entityType: 'CalendarPost',
+      entityId: updated.id,
+      payload: { reviewToken: token.slice(0, 8), status: updated.status },
+    }).catch(() => {});
+
     return { success: true, postId: updated.id, status: updated.status };
   });
 

@@ -285,7 +285,7 @@ export async function calendarRoutes(app: FastifyInstance) {
 
     for (const p of candidates) {
       try {
-        const { results } = await visualSearchService.search(p.referenceQuery!, perPost);
+        const { results } = await visualSearchService.search(p.referenceQuery!, perPost, { orgId, userId: request.user?.userId, clientId });
         let position = 0;
         for (const r of results) {
           await db.postVisualReference.create({

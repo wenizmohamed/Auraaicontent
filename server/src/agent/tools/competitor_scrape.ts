@@ -155,6 +155,7 @@ async function inferPosts(
   platform: Platform,
   limit: number,
   signal: AbortSignal,
+  meta?: { orgId?: string; clientId?: string; sessionId?: string },
 ): Promise<RecentPost[]> {
   const prompt =
     `You are a social-media analyst. Describe the typical recent posting pattern for ` +
@@ -162,7 +163,10 @@ async function inferPosts(
     `with ${limit} entries reflecting their known content pillars, hook style, and hashtag ` +
     `conventions. If the account is unknown, return posts:[] — do not fabricate specifics.`;
   try {
-    const res = await aiRouter.text({ prompt, json: true, temperature: 0.4 });
+    const res = await aiRouter.text(
+      { prompt, json: true, temperature: 0.4 },
+      { orgId: meta?.orgId, clientId: meta?.clientId, jobId: meta?.sessionId },
+    );
     if (signal.aborted) return [];
     const out = res.output as { posts?: { caption?: string; engagement?: string }[] };
     const arr = Array.isArray(out?.posts) ? out.posts : [];
@@ -225,15 +229,16 @@ export const tool = defineTool<Args, Result>({
       let source: HandleResult['source'] = 'scrape';
       let note: string | undefined;
 
+      const inferMeta = { orgId: ctx.orgId, clientId: ctx.clientId ?? undefined, sessionId: ctx.sessionId };
       if (posts.length === 0) {
-        const inferred = await inferPosts(handle, args.platform, limit, ctx.signal);
+        const inferred = await inferPosts(handle, args.platform, limit, ctx.signal, inferMeta);
         posts = inferred;
         source = 'inferred';
         note =
           'Live scrape blocked or returned empty — these are AI-inferred posting patterns, ' +
           'not verified posts.';
       } else if (posts.length < limit) {
-        const extra = await inferPosts(handle, args.platform, limit - posts.length, ctx.signal);
+        const extra = await inferPosts(handle, args.platform, limit - posts.length, ctx.signal, inferMeta);
         if (extra.length > 0) {
           posts = posts.concat(extra);
           source = 'mixed';

@@ -48,7 +48,7 @@ export async function researchRoutes(app: FastifyInstance) {
     ].join('\n');
 
     try {
-      const result = await aiRouter.text({ prompt, json: true });
+      const result = await aiRouter.text({ prompt, json: true }, { orgId: request.orgId, userId: request.user?.userId });
       const out = result.output as any;
 
       // Tolerate non-conforming outputs

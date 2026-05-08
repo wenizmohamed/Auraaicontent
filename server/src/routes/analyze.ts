@@ -70,7 +70,7 @@ export async function analyzeRoutes(app: FastifyInstance) {
     ].join('\n');
 
     try {
-      const result = await aiRouter.text({ prompt: llmPrompt, json: true });
+      const result = await aiRouter.text({ prompt: llmPrompt, json: true }, { orgId: request.orgId, userId: request.user?.userId, clientId });
       const out = result.output as any;
 
       // If the LLM flagged it as blocked content

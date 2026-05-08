@@ -106,7 +106,7 @@ export const tool = defineTool<Args, Result>({
         quality: args.quality,
         n: 1,
       },
-      { clientId },
+      { orgId: ctx.orgId, clientId, jobId: ctx.sessionId },
     );
     checkAbort(ctx.signal);
 

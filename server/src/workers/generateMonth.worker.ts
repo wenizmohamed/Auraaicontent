@@ -86,9 +86,10 @@ export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: 
   //   text=gemini, image=gemini, video=xai, analysis=gemini.
   updateJob(job.id, { progress: 40 });
   console.log(`[generateMonth] Prompt: ${prompt.length} chars`);
+  const userId = job.data.userId as string | undefined;
   const result = await aiRouter.text(
     { prompt, json: true, temperature: 0.7 },
-    { jobId: job.id, clientId },
+    { orgId, userId, jobId: job.id, clientId },
   );
 
   const parsed = result.output as { strategySummary?: any; posts?: any[] };
@@ -173,7 +174,7 @@ export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: 
     createdPostIds
       .filter(p => p.referenceQuery && p.referenceQuery.trim())
       .map(async (p) => {
-        const { results } = await visualSearchService.search(p.referenceQuery!, 6);
+        const { results } = await visualSearchService.search(p.referenceQuery!, 6, { orgId, userId, clientId, jobId: job.id });
         // Bulk-insert all references for this post in a single createMany call
         if (results.length === 0) return 0;
         await db.postVisualReference.createMany({

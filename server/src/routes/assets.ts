@@ -84,7 +84,7 @@ export async function assetRoutes(app: FastifyInstance) {
     const { assetId } = request.params as { assetId: string };
     const orgId = request.orgId!;
     try {
-      const analysis = await analyzeAssetWorker(orgId, assetId);
+      const analysis = await analyzeAssetWorker(orgId, assetId, request.user?.userId);
       return { assetId, analysis };
     } catch (err: any) {
       return reply.status(422).send({ error: err.message });

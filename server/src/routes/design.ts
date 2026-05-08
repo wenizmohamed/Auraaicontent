@@ -65,7 +65,7 @@ export async function designRoutes(app: FastifyInstance) {
     ].filter(Boolean).join('\n');
 
     try {
-      const result = await aiRouter.text({ prompt, json: true });
+      const result = await aiRouter.text({ prompt, json: true }, { orgId: request.orgId, userId: request.user?.userId, clientId });
       const out = result.output as any;
 
       // Best-effort normalization

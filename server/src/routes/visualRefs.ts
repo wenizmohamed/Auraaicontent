@@ -135,7 +135,7 @@ export async function visualRefRoutes(app: FastifyInstance) {
     if (!query || typeof query !== 'string' || !query.trim()) {
       return reply.status(400).send({ error: 'query is required' });
     }
-    const out = await visualSearchService.search(query.trim(), count || 8);
+    const out = await visualSearchService.search(query.trim(), count || 8, { orgId: request.orgId, userId: request.user?.userId });
     return out;
   });
 
@@ -156,7 +156,7 @@ export async function visualRefRoutes(app: FastifyInstance) {
       return reply.status(422).send({ error: 'post has no referenceQuery — add a referenceQuery first or use the manual add endpoint' });
     }
 
-    const { results } = await visualSearchService.search(post.referenceQuery, count || 6);
+    const { results } = await visualSearchService.search(post.referenceQuery, count || 6, { orgId, userId: request.user?.userId });
     let position = await nextPosition(orgId, postId);
 
     const created = [];
