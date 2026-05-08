@@ -32,7 +32,6 @@ import { historyRoutes } from './routes/history.js';
 import { startTokenHealthWorker } from './workers/tokenHealth.worker.js';
 import { initSentry } from './lib/sentry.js';
 import { registerRateLimiter } from './middleware/rate-limiter.js';
-import { authGuard } from './middleware/auth.js';
 import { kimiStatus } from './services/providers/kimi.provider.js';
 import { chainStatus, DEFAULT_CHAIN } from './services/llm/chat.js';
 
