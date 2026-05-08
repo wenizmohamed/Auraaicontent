@@ -7,6 +7,7 @@ import { storageService } from '../services/storage.service.js';
 import { db } from '../db/prisma.js';
 import { searchPinterest, searchPinterestMulti, fetchPinterestImageBase64 } from '../services/pinterest.service.js';
 import { historyService } from '../services/history.service.js';
+import { sanitizePrompt, validatePrompt } from '../middleware/sanitize.js';
 import type { Job } from '../workers/queue.js';
 
 export async function creativeRoutes(app: FastifyInstance) {
@@ -14,8 +15,10 @@ export async function creativeRoutes(app: FastifyInstance) {
 
   // POST /api/creative/images/generate
   app.post('/creative/images/generate', async (request, reply) => {
-    const { prompt, aspectRatio, clientId, quality } = request.body as { prompt: string; aspectRatio?: string; clientId?: string; quality?: 'standard' | 'ultra' };
-    if (!prompt) return reply.status(400).send({ error: 'prompt is required' });
+    const { prompt: rawPrompt, aspectRatio, clientId, quality } = request.body as { prompt: string; aspectRatio?: string; clientId?: string; quality?: 'standard' | 'ultra' };
+    const v = validatePrompt(rawPrompt);
+    if (!v.valid) return reply.status(400).send({ error: v.error });
+    const prompt = sanitizePrompt(rawPrompt);
 
     try {
       const result = await aiRouter.image({ prompt, aspectRatio, quality }, { clientId });

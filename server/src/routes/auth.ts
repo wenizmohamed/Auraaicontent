@@ -218,14 +218,16 @@ export async function authRoutes(app: FastifyInstance) {
     return { token: newToken, activeOrgId: orgId, orgRole: mem.role };
   });
 
-  // POST /api/auth/register — gated behind ALLOW_REGISTRATION env so prod
-  // is invitation-only by default. Set ALLOW_REGISTRATION=true to enable
-  // self-serve signup. Creates a personal Organization for new signups so
-  // they immediately have a tenant scope.
+  // POST /api/auth/register — dev convenience, GATED in production.
+  // Set ALLOW_PUBLIC_REGISTER=true to re-enable in prod once invite flow ships.
+  // Creates a personal Organization for new signups so they immediately
+  // have a tenant scope.
   app.post('/register', async (request, reply) => {
-    if (process.env.ALLOW_REGISTRATION !== 'true') {
+    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_PUBLIC_REGISTER !== 'true') {
       return reply.status(404).send({ error: 'Not found' });
     }
+
+
     const { email, password, name, rememberMe } = request.body as {
       email: string;
       password: string;

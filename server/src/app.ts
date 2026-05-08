@@ -32,17 +32,33 @@ import { historyRoutes } from './routes/history.js';
 import { startTokenHealthWorker } from './workers/tokenHealth.worker.js';
 import { initSentry } from './lib/sentry.js';
 import { registerRateLimiter } from './middleware/rate-limiter.js';
+import { authGuard } from './middleware/auth.js';
 import { kimiStatus } from './services/providers/kimi.provider.js';
 import { chainStatus, DEFAULT_CHAIN } from './services/llm/chat.js';
 
 import { execSync } from 'child_process';
 
-const GIT_COMMIT = (() => { try { return execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim(); } catch { return 'unknown'; } })();
+const GIT_COMMIT = (() => { try { return execSync('git rev-parse --short HEAD', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch { return process.env.GIT_COMMIT || 'unknown'; } })();
 
 export async function buildApp() {
-  // trustProxy=loopback — only trust X-Forwarded-For from nginx on 127.0.0.1.
   // Without this, attacker-supplied X-F-F headers would spoof rate-limit IP keys.
   const app = Fastify({ logger: true, trustProxy: 'loopback' });
+
+  // Global error handler — strips raw destructure / parser internals in prod
+  // so /api/auth/login + others return 400 instead of 500 with leaked stack.
+  app.setErrorHandler((err: any, request, reply) => {
+    const status = (err && typeof err.statusCode === 'number') ? err.statusCode : 500;
+    const message = (err && typeof err.message === 'string') ? err.message : '';
+    const isClient = status >= 400 && status < 500;
+    request.log.error({ err, path: request.url }, '[error-handler]');
+    if (status === 500 && /destructure|JSON|Unexpected token|Expected property/i.test(message)) {
+      return reply.status(400).send({ error: 'Invalid request body' });
+    }
+    if (process.env.NODE_ENV === 'production' && !isClient) {
+      return reply.status(500).send({ error: 'Internal server error' });
+    }
+    return reply.status(status).send({ error: message || 'Internal server error' });
+  });
 
   // Sentry — no-op unless SENTRY_DSN + @sentry/node are configured.
   await initSentry(app);
