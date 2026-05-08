@@ -12,7 +12,7 @@ import { readJson } from './lib/safe-storage';
 const isElectron = !!window.electron?.isDesktop;
 const Router = isElectron ? HashRouter : BrowserRouter;
 import { StoreProvider, useStore } from './lib/store';
-import { LayoutDashboard, Calendar, ImagePlus, Image as ImageIcon, Video, Search, UserCircle, ChevronLeft, ChevronRight, FileText, Palette, Layers, Wand2, FolderOpen, Radio, Building2, AlertCircle, Plug, History as HistoryIcon } from 'lucide-react';
+import { LayoutDashboard, Calendar, ImagePlus, Image as ImageIcon, Video, Search, UserCircle, ChevronLeft, ChevronRight, FileText, Palette, Layers, Wand2, FolderOpen, Radio, Building2, AlertCircle, Plug, History as HistoryIcon, ShieldCheck } from 'lucide-react';
 
 // Phase 8.1 — every page lazy-loaded into its own chunk, prefetched on
 // hover later. Cuts the initial bundle from ~1MB to ~250KB gzipped.
@@ -62,11 +62,17 @@ import { Toaster } from 'sonner';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './lib/query-client';
 
-// Email allowlist for the Team page (mirrors server-side TEAM_ADMIN_EMAILS).
-// Anyone not listed here doesn't see the nav item AND gets bounced from the
-// route — the backend enforces this independently, so client-side hiding is
-// strictly UX (not a security boundary).
-const TEAM_ADMIN_EMAILS = ['weni.mohamed@gmail.com'];
+// Email allowlist for the Team page + Admin (cross-org) page. Mirrors
+// server-side TEAM_ADMIN_EMAILS + STAFF_EMAILS env vars. Anyone not listed
+// here doesn't see the nav items AND gets bounced from the routes — the
+// backend enforces this independently, so client-side hiding is strictly
+// UX (not a security boundary).
+const TEAM_ADMIN_EMAILS = [
+  'weni.mohamed@gmail.com',
+  'mohamed.sidahmed@radixmediamena.com',
+  'mohamaed.hyatt@gmail.com',
+];
+const STAFF_EMAILS = TEAM_ADMIN_EMAILS;
 
 function getCallerEmail(): string | null {
   try {
@@ -79,6 +85,10 @@ function isTeamAdmin(): boolean {
   const e = getCallerEmail();
   return !!e && TEAM_ADMIN_EMAILS.includes(e.toLowerCase());
 }
+function isStaff(): boolean {
+  const e = getCallerEmail();
+  return !!e && STAFF_EMAILS.includes(e.toLowerCase());
+}
 
 function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
@@ -86,6 +96,7 @@ function Layout({ children }: { children: React.ReactNode }) {
   const { generatedImages, isLoading, error } = useStore();
   const { theme, toggleTheme } = useTheme();
   const showTeam = isTeamAdmin();
+  const showStaff = isStaff();
   const [cmdkOpen, setCmdkOpen] = useState(false);
 
   // Onboarding tour — fires once per browser per JWT-orgId on first authed
@@ -145,6 +156,7 @@ function Layout({ children }: { children: React.ReactNode }) {
     { name: t('nav.creative'),  href: '/creative',             icon: Wand2,           prefetch: () => import('./pages/CreativeTools') },
     { name: t('nav.gallery'),   href: '/gallery',              icon: ImageIcon,       prefetch: () => import('./pages/Gallery') },
     ...(showTeam ? [{ name: t('nav.members'), href: '/settings/members', icon: UserCircle, prefetch: () => import('./pages/Members') }] : []),
+    ...(showStaff ? [{ name: 'Admin',          href: '/admin',                icon: ShieldCheck,     prefetch: () => import('./pages/Admin') }] : []),
     { name: t('nav.billing'),   href: '/settings/billing',     icon: UserCircle,      prefetch: () => import('./pages/Billing') },
   ];
 
@@ -473,7 +485,7 @@ export default function App() {
               <Route path="/studio" element={<Studio />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/onboarding" element={<Onboarding />} />
-              <Route path="/admin" element={<Admin />} />
+              <Route path="/admin" element={isStaff() ? <Admin /> : <Navigate to="/" replace />} />
               <Route path="/agent" element={<Agent />} />
               <Route path="/settings/billing" element={<Billing />} />
               <Route path="/settings/members" element={isTeamAdmin() ? <Members /> : <Navigate to="/" replace />} />
