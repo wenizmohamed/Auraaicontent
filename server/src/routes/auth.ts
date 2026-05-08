@@ -259,47 +259,83 @@ export async function authRoutes(app: FastifyInstance) {
 
     const passwordHash = await bcrypt.hash(password, 12);
 
-    // Atomic: create User + Organization + OrgMembership(OWNER) + currentOrgId.
-    // 14-day trial — Phase 2 billing flips to free/paid via Stripe webhook.
+    // Email-domain → org auto-join rule. Comma-separated DOMAIN:ORG_ID:ROLE
+    // entries in env. Example: "radixmediamena.com:org_radix_media:EDITOR"
+    // When the new user's email matches a configured domain, skip personal-org
+    // creation and add them straight to the existing tenant.
+    function lookupDomainOrg(addr: string): { orgId: string; role: string } | null {
+      const raw = process.env.AUTO_ORG_DOMAINS || 'radixmediamena.com:org_radix_media:EDITOR';
+      const domain = addr.split('@')[1]?.toLowerCase();
+      if (!domain) return null;
+      for (const entry of raw.split(',').map(s => s.trim()).filter(Boolean)) {
+        const [d, oid, role] = entry.split(':');
+        if (d?.toLowerCase() === domain && oid) {
+          return { orgId: oid, role: (role || 'EDITOR').toUpperCase() };
+        }
+      }
+      return null;
+    }
+    const autoOrg = lookupDomainOrg(email);
+
+    // Atomic: create User + (auto-join existing org OR create personal Organization)
+    //         + OrgMembership + currentOrgId.
+    // 14-day trial only applies to personal-org path. Auto-join uses existing org's plan.
     const slug = (email.split('@')[0] + '-' + Math.random().toString(36).slice(2, 6)).toLowerCase();
     const result = await db.$transaction(async (tx: any) => {
       const user = await tx.user.create({
         data: { email, passwordHash, name, role: 'member' },
       });
-      const org = await tx.organization.create({
-        data: {
-          name: `${name}'s workspace`,
-          slug,
-          plan: 'trial',
-          trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
-        },
-      });
-      await tx.orgMembership.create({
-        data: { userId: user.id, orgId: org.id, role: 'OWNER' },
-      });
-      await tx.user.update({ where: { id: user.id }, data: { currentOrgId: org.id } });
-      return { user, org };
+      let orgId: string;
+      let orgRole: string;
+      if (autoOrg) {
+        // Confirm the configured org actually exists; fall back to personal-org
+        // if it's been deleted (defensive — bad env config shouldn't 500 signup).
+        const existing = await tx.organization.findUnique({ where: { id: autoOrg.orgId } });
+        if (existing) {
+          orgId = existing.id;
+          orgRole = autoOrg.role;
+          await tx.orgMembership.create({
+            data: { userId: user.id, orgId, role: orgRole },
+          });
+        } else {
+          const org = await tx.organization.create({
+            data: { name: `${name}'s workspace`, slug, plan: 'trial', trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000) },
+          });
+          orgId = org.id;
+          orgRole = 'OWNER';
+          await tx.orgMembership.create({ data: { userId: user.id, orgId, role: 'OWNER' } });
+        }
+      } else {
+        const org = await tx.organization.create({
+          data: { name: `${name}'s workspace`, slug, plan: 'trial', trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000) },
+        });
+        orgId = org.id;
+        orgRole = 'OWNER';
+        await tx.orgMembership.create({ data: { userId: user.id, orgId, role: 'OWNER' } });
+      }
+      await tx.user.update({ where: { id: user.id }, data: { currentOrgId: orgId } });
+      return { user, orgId, orgRole };
     });
 
     const token = signToken(
-      { userId: result.user.id, email: result.user.email, role: result.user.role, orgId: result.org.id, orgRole: 'OWNER' },
+      { userId: result.user.id, email: result.user.email, role: result.user.role, orgId: result.orgId, orgRole: result.orgRole },
       Boolean(rememberMe),
     );
 
     auditService.log({
-      orgId: result.org.id,
+      orgId: result.orgId,
       userId: result.user.id,
       action: 'auth.register',
       entityType: 'User',
       entityId: result.user.id,
-      payload: { orgId: result.org.id },
+      payload: { orgId: result.orgId, autoJoined: !!autoOrg },
     }).catch(() => {});
 
     return {
       token,
       rememberMe: Boolean(rememberMe),
       user: { id: result.user.id, email: result.user.email, name: result.user.name, role: result.user.role },
-      activeOrgId: result.org.id,
+      activeOrgId: result.orgId,
     };
   });
 }

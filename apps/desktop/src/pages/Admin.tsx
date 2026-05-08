@@ -159,12 +159,23 @@ export default function Admin() {
       </header>
 
       {metrics && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Tile card={card} text={text} sub={sub} num={numeric} icon={<DollarSign size={16} />} label="MRR" value={fmtUsd(metrics.mrr)} foot={`ARR ${fmtUsd(metrics.arr)}`} />
-          <Tile card={card} text={text} sub={sub} num={numeric} icon={<TrendingUp size={16} />} label="Gross margin (mo)" value={fmtUsd(metrics.monthGrossMarginUsd)} foot={`AI cost ${fmtUsd(metrics.monthAiCostUsd)}`} />
-          <Tile card={card} text={text} sub={sub} num={numeric} icon={<Building2 size={16} />} label="Paying orgs" value={String(metrics.paidOrgs)} foot={`${metrics.trialOrgs} on trial`} />
-          <Tile card={card} text={text} sub={sub} num={numeric} icon={<Users size={16} />} label="Total seats" value={String(metrics.totalSeats)} foot={`${fmtTokens(metrics.monthAiTokens)} tokens (mo)`} />
-        </div>
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Tile card={card} text={text} sub={sub} num={numeric} icon={<DollarSign size={16} />} label="MRR (subscription revenue)" value={fmtUsd(metrics.mrr)} foot={`ARR ${fmtUsd(metrics.arr)} — what clients pay us`} />
+            <Tile card={card} text={text} sub={sub} num={numeric} icon={<TrendingUp size={16} />} label="AI cost (this month)" value={fmtUsd(metrics.monthAiCostUsd)} foot={`${metrics.monthAiCalls} calls · ${fmtTokens(metrics.monthAiTokens)} tokens`} />
+            <Tile card={card} text={text} sub={sub} num={numeric} icon={<DollarSign size={16} />} label="Net margin (mo)" value={fmtUsd(metrics.monthGrossMarginUsd)} foot={`MRR − AI cost`} />
+            <Tile card={card} text={text} sub={sub} num={numeric} icon={<Users size={16} />} label="Total seats" value={String(metrics.totalSeats)} foot={`${metrics.paidOrgs} paying · ${metrics.trialOrgs} trial`} />
+          </div>
+          <div className={`${card} rounded-xl px-4 py-3 text-[12px] ${sub} flex gap-2 items-start`}>
+            <AlertCircle size={14} className="mt-0.5 shrink-0" />
+            <div>
+              <span className={isDark ? 'text-amber-400' : 'text-amber-700'}>Note —</span>{' '}
+              AI cost data is reliable from <strong>2026-05-08 18:00 UTC</strong> onward. 12 callsites were silently
+              unbilled before that fix; earlier months/orgs showing <strong>$0</strong> are undercounted, not zero-spend.
+              Going forward every call writes a UsageEvent row with orgId + userId + clientId.
+            </div>
+          </div>
+        </>
       )}
 
       <section className={`${card} rounded-2xl overflow-hidden`}>
