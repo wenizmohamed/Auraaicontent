@@ -85,7 +85,7 @@ export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: 
   //   to xAI (Grok) when AI_ENABLE_FALLBACK=true.  Today's live config:
   //   text=gemini, image=gemini, video=xai, analysis=gemini.
   updateJob(job.id, { progress: 40 });
-  console.log(`[generateMonth] Prompt: ${prompt.length} chars, first 200: ${prompt.slice(0, 200).replace(/\n/g, ' ')}`);
+  console.log(`[generateMonth] Prompt: ${prompt.length} chars`);
   const result = await aiRouter.text(
     { prompt, json: true, temperature: 0.7 },
     { jobId: job.id, clientId },

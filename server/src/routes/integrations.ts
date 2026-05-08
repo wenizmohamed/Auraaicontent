@@ -79,12 +79,25 @@ export async function integrationsRoutes(app: FastifyInstance) {
     } catch (err: any) {
       return reply.status(400).send({ error: err.message });
     }
+    // Validate returnUrl against APP_BASE_URL host to prevent open-redirect:
+    // a phishing setup that runs the user through a real Meta/TikTok/LinkedIn
+    // consent screen and bounces them to attacker.com. Default falls through.
+    let safeReturnUrl = `${APP_BASE_URL}/workspace/settings/integrations?connected=${platform}`;
+    if (returnUrl) {
+      try {
+        const url = new URL(returnUrl, APP_BASE_URL);
+        const base = new URL(APP_BASE_URL);
+        if (url.origin === base.origin) safeReturnUrl = url.toString();
+      } catch {
+        /* malformed → keep default */
+      }
+    }
     const state = issueState({
       orgId: request.orgId!,
       userId: request.user!.userId,
       clientId,
       platform,
-      returnUrl: returnUrl || `${APP_BASE_URL}/workspace/settings/integrations?connected=${platform}`,
+      returnUrl: safeReturnUrl,
     });
     const url = mod.oauth.initiateUrl({ state, redirectUri: redirectUri(platform) });
 
@@ -176,7 +189,9 @@ export async function integrationsRoutes(app: FastifyInstance) {
 
       return reply.redirect(ctx.returnUrl);
     } catch (err: any) {
-      console.error('[integrations callback] error', err);
+      // Sanitized log — no full error spread (could capture provider tokens
+      // if a future code path holds one in scope when throwing).
+      console.error('[integrations callback] error', { platform, message: err?.message });
       return reply.status(500).send({ error: `Connect failed: ${err.message}` });
     }
   });

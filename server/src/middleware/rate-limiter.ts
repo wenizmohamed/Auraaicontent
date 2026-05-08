@@ -25,9 +25,11 @@ setInterval(() => {
 }, 300_000);
 
 function getClientIp(request: FastifyRequest): string {
-  return (request.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()
-    || request.ip
-    || 'unknown';
+  // Fastify is configured with trustProxy='loopback' (see app.ts), so request.ip
+  // resolves the real client IP from X-Forwarded-For ONLY when the upstream
+  // hop is 127.0.0.1 (nginx). Reading X-F-F directly would let any attacker
+  // spoof the rate-limit key by sending the header.
+  return request.ip || 'unknown';
 }
 
 function checkLimit(key: string, max: number): { allowed: boolean; remaining: number; resetAt: number } {
@@ -57,7 +59,7 @@ export function registerRateLimiter(app: FastifyInstance) {
   const AI_PREFIXES = ['/api/creative/', '/api/assistant/', '/api/research', '/api/design/'];
   // Auth is login/register brute-force territory; agent runs burn real money.
   // Both get their own stricter bucket separate from the generic AI pool.
-  const AUTH_PREFIXES = ['/api/auth/login', '/api/auth/register'];
+  const AUTH_PREFIXES = ['/api/auth/login', '/api/auth/register', '/api/auth/refresh'];
   const AGENT_PREFIXES = ['/api/agent/runs', '/api/agent/sessions'];
 
   app.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {

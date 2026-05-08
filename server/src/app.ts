@@ -5,6 +5,7 @@ import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import path from 'path';
 import crypto from 'crypto';
+import { authGuard } from './middleware/auth.js';
 import { authRoutes } from './routes/auth.js';
 import { clientRoutes } from './routes/clients.js';
 import { briefRoutes } from './routes/briefs.js';
@@ -39,7 +40,9 @@ import { execSync } from 'child_process';
 const GIT_COMMIT = (() => { try { return execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim(); } catch { return 'unknown'; } })();
 
 export async function buildApp() {
-  const app = Fastify({ logger: true });
+  // trustProxy=loopback — only trust X-Forwarded-For from nginx on 127.0.0.1.
+  // Without this, attacker-supplied X-F-F headers would spoof rate-limit IP keys.
+  const app = Fastify({ logger: true, trustProxy: 'loopback' });
 
   // Sentry — no-op unless SENTRY_DSN + @sentry/node are configured.
   await initSentry(app);
@@ -165,8 +168,19 @@ export async function buildApp() {
     };
   });
 
-  // Health details (auth-gated) — proves runtime env is fresh
-  app.get('/api/health/details', async () => {
+  // Health details (auth + staff-gated) — proves runtime env is fresh.
+  // Returns SHA-256 fingerprints of secret prefixes; staff-only to prevent
+  // anyone from confirming a leaked-key prefix matches the live key.
+  app.get('/api/health/details', { preHandler: [authGuard] }, async (request, reply) => {
+    const allowed = new Set((process.env.STAFF_EMAILS || '').split(',').map((s) => s.trim()).filter(Boolean));
+    const email = request.user?.email;
+    if (allowed.size === 0 || !email || !allowed.has(email)) {
+      return reply.status(403).send({ error: 'Staff only' });
+    }
+    return buildHealthDetails();
+  });
+
+  function buildHealthDetails() {
     const fingerprint = (key: string) => {
       const val = process.env[key] || '';
       if (!val) return 'NOT_SET';
@@ -198,7 +212,7 @@ export async function buildApp() {
         GEMINI_TIMEOUT_MS: process.env.GEMINI_TIMEOUT_MS || '180000',
       },
     };
-  });
+  }
 
   // Routes
   await app.register(authRoutes, { prefix: '/api/auth' });

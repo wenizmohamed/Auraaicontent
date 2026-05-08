@@ -218,10 +218,14 @@ export async function authRoutes(app: FastifyInstance) {
     return { token: newToken, activeOrgId: orgId, orgRole: mem.role };
   });
 
-  // POST /api/auth/register — dev convenience, disable in production.
-  // Creates a personal Organization for new signups so they immediately
-  // have a tenant scope.
+  // POST /api/auth/register — gated behind ALLOW_REGISTRATION env so prod
+  // is invitation-only by default. Set ALLOW_REGISTRATION=true to enable
+  // self-serve signup. Creates a personal Organization for new signups so
+  // they immediately have a tenant scope.
   app.post('/register', async (request, reply) => {
+    if (process.env.ALLOW_REGISTRATION !== 'true') {
+      return reply.status(404).send({ error: 'Not found' });
+    }
     const { email, password, name, rememberMe } = request.body as {
       email: string;
       password: string;
@@ -231,6 +235,9 @@ export async function authRoutes(app: FastifyInstance) {
 
     if (!email || !password || !name) {
       return reply.status(400).send({ error: 'Email, password, and name required' });
+    }
+    if (password.length < 12) {
+      return reply.status(400).send({ error: 'Password must be at least 12 characters' });
     }
 
     const existing = await db.user.findUnique({ where: { email } });

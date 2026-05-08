@@ -203,6 +203,9 @@ export async function calendarRoutes(app: FastifyInstance) {
   });
 
   // PATCH /api/calendar-posts/:postId
+  // Explicit allowlist — denies mass-assignment of clientId, orgId, status-jumping,
+  // platformPublishStatus (worker-only), etc. Blocking only on top-level fields
+  // an authenticated org member is intended to edit.
   app.patch('/calendar-posts/:postId', async (request, reply) => {
     const { postId } = request.params as { postId: string };
     try {
@@ -210,8 +213,26 @@ export async function calendarRoutes(app: FastifyInstance) {
     } catch (err: any) {
       return reply.status(err.statusCode || 500).send({ error: err.message });
     }
-    const updates = request.body as any;
-    const { id, calendarMonthId, orgId: _omitOrgId, createdAt, updatedAt, ...data } = updates;
+    const PATCHABLE_FIELDS = [
+      'title',
+      'caption',
+      'platform',
+      'hashtags',
+      'status',
+      'date',
+      'timing',
+      'referenceQuery',
+      'pillar',
+      'format',
+      'notes',
+      'scheduledAt',
+      'position',
+    ] as const;
+    const updates = request.body as Record<string, unknown>;
+    const data: Record<string, unknown> = {};
+    for (const k of PATCHABLE_FIELDS) {
+      if (Object.prototype.hasOwnProperty.call(updates, k)) data[k] = updates[k];
+    }
     return db.calendarPost.update({ where: { id: postId, orgId: request.orgId }, data });
   });
 
