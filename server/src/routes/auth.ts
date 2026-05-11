@@ -228,22 +228,40 @@ export async function authRoutes(app: FastifyInstance) {
     return { token: newToken, activeOrgId: orgId, orgRole: mem.role };
   });
 
-  // POST /api/auth/register — dev convenience, GATED in production.
-  // Set ALLOW_PUBLIC_REGISTER=true to re-enable in prod once invite flow ships.
-  // Creates a personal Organization for new signups so they immediately
-  // have a tenant scope.
+  // POST /api/auth/register — gated in production, but ALWAYS open for emails
+  // whose domain matches AUTO_ORG_DOMAINS (configured agency tenants). This
+  // lets employees self-onboard without admin intervention while still blocking
+  // arbitrary public signups + spam. Override the gate entirely with
+  // ALLOW_PUBLIC_REGISTER=true.
   app.post('/register', async (request, reply) => {
-    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_PUBLIC_REGISTER !== 'true') {
-      return reply.status(404).send({ error: 'Not found' });
-    }
-
-
     const { email, password, name, rememberMe } = request.body as {
       email: string;
       password: string;
       name: string;
       rememberMe?: boolean;
     };
+
+    // Compute whether the email belongs to a whitelisted auto-join domain.
+    // Done BEFORE the prod gate so domain-employees bypass the 404.
+    const domainAllowed = (() => {
+      const raw = process.env.AUTO_ORG_DOMAINS || 'radixmediamena.com:org_radix_media:EDITOR';
+      const domain = email?.split('@')[1]?.toLowerCase();
+      if (!domain) return false;
+      return raw.split(',').map(s => s.trim()).filter(Boolean).some(entry => {
+        const [d] = entry.split(':');
+        return d?.toLowerCase() === domain;
+      });
+    })();
+
+    // Prod gate: 404 unless ALLOW_PUBLIC_REGISTER=true OR the email's domain is
+    // whitelisted in AUTO_ORG_DOMAINS. Spam/random emails stay blocked.
+    if (
+      process.env.NODE_ENV === 'production' &&
+      process.env.ALLOW_PUBLIC_REGISTER !== 'true' &&
+      !domainAllowed
+    ) {
+      return reply.status(404).send({ error: 'Not found' });
+    }
 
     if (!email || !password || !name) {
       return reply.status(400).send({ error: 'Email, password, and name required' });
