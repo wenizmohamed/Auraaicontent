@@ -235,12 +235,26 @@ export async function calendarRoutes(app: FastifyInstance) {
       'format',
       'notes',
       'scheduledAt',
+      'platformConnectionId',
       'position',
     ] as const;
     const updates = request.body as Record<string, unknown>;
     const data: Record<string, unknown> = {};
     for (const k of PATCHABLE_FIELDS) {
       if (Object.prototype.hasOwnProperty.call(updates, k)) data[k] = updates[k];
+    }
+    // F2 scheduler — when the caller writes a non-null scheduledAt and
+    // doesn't override status, stamp status='scheduled' so the scheduler
+    // worker (workers/scheduler.worker.ts) picks the row up on its next
+    // tick. Caller can explicitly pass status to opt out.
+    if (
+      Object.prototype.hasOwnProperty.call(updates, 'scheduledAt') &&
+      updates.scheduledAt &&
+      !Object.prototype.hasOwnProperty.call(updates, 'status')
+    ) {
+      data.status = 'scheduled';
+      // Clear any stale schedule error from a previous failed attempt.
+      (data as any).scheduleError = null;
     }
     const updated = await db.calendarPost.update({ where: { id: postId, orgId: request.orgId }, data });
     auditService.log({

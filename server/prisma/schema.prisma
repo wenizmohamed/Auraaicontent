@@ -36,6 +36,7 @@ model Organization {
   knowledgeItems  KnowledgeItem[]
   knowledgeChunks KnowledgeChunk[]
   assets          Asset[]
+  brandKits       BrandKit[]
   productRefs     ProductReference[]
   calendarMonths  CalendarMonth[]
   calendarPosts   CalendarPost[]
@@ -151,6 +152,7 @@ model Client {
 
   org             Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
   brief           ClientBrief?
+  brandKit        BrandKit?
   assets          Asset[]
   productRefs     ProductReference[]
   knowledgeItems  KnowledgeItem[]
@@ -379,16 +381,23 @@ model CalendarPost {
   referenceQuery  String?
   rationale       String?
   timing          String?
-  status          String   @default("draft")
+  status          String   @default("draft") // draft | approved | scheduled | published | failed
   version         Int      @default(1)
   metadata        Json?    // agent annotations: compliance findings, tool provenance, etc.
   // Per-platform publish state, e.g. { meta_ig: { status: "published", externalId, url, publishedAt }, tiktok: {...} }
   platformPublishStatus Json?
+  // F2 Post scheduler (Wave 1.B) — set by user when staging an auto-publish.
+  // scheduler.worker.ts polls (status='scheduled' AND scheduledAt <= now+60s)
+  // and calls dispatchPublish(post, conn) for each match.
+  scheduledAt          DateTime?
+  platformConnectionId String?
+  scheduleError        String?   // last error from a failed scheduler run
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  org             Organization          @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  calendarMonth   CalendarMonth         @relation(fields: [calendarMonthId], references: [id], onDelete: Cascade)
+  org                Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  calendarMonth      CalendarMonth       @relation(fields: [calendarMonthId], references: [id], onDelete: Cascade)
+  platformConnection PlatformConnection? @relation(fields: [platformConnectionId], references: [id], onDelete: SetNull)
   comments        PostComment[]
   versions        PostVersion[]
   assets          CalendarPostAsset[]
@@ -399,6 +408,8 @@ model CalendarPost {
   @@index([calendarMonthId])
   @@index([createdAt])
   @@index([status])
+  @@index([status, scheduledAt])
+  @@index([platformConnectionId])
 }
 
 model PostVisualReference {
@@ -628,6 +639,7 @@ model PlatformConnection {
 
   org    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   client Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  scheduledPosts CalendarPost[]
 
   @@unique([clientId, platform, externalAccountId])
   @@index([orgId])
@@ -669,4 +681,50 @@ model Generation {
   @@index([orgId, type, createdAt])
   @@index([clientId, createdAt])
   @@index([userId, createdAt])
+}
+
+// ─── BrandKit v2 (F3) ──────────────────────────────────────────────
+// Standalone 1:1 with Client.  Avoids bloating Client schema, gives us
+// native versioning via BrandKitVersion (full prior-state snapshot for
+// rollback).  primaryColor + logoUrl on Client are PRESERVED (legacy
+// callers still read them); BrandKit mirrors primaryColor for compute
+// simplicity at injection time.  Failure mode: enricher is a no-op when
+// no BrandKit row exists for the client.
+model BrandKit {
+  id                 String   @id @default(cuid())
+  clientId           String   @unique
+  orgId              String
+  version            Int      @default(1)
+  // Visual identity
+  primaryColor       String?  // already on Client — also mirrored here for compute simplicity
+  secondaryColor     String?
+  accentColor        String?
+  // Typography
+  fontPrimary        String?  // CSS font-family or Google Fonts name
+  fontSecondary      String?
+  // Voice (multi-sample per ai-brand-kit principle "voice training requires volume")
+  voiceSamples       Json[]   // [{ context: 'instagram'|'linkedin'|'tiktok'|'x'|'email'|'general', sample: '...' }]
+  voiceDoNot         Json?    // { rules: ['Never use gradients', 'Avoid emoji in headlines', ...] }
+  voicePerPlatform   Json?    // { instagram: 'casual + ALL CAPS optional', linkedin: 'professional', ... }
+  // Visual anchors (per ai-brand-kit principle "10-20 brand anchor images")
+  sampleImages       Json[]   // [{ url, label, primary?, mimeType }] — CDN URLs, NOT base64 (DB bloat)
+  // Governance
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  changelogEntries   BrandKitVersion[]
+  org                Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  client             Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  @@index([orgId])
+  @@index([clientId])
+}
+
+model BrandKitVersion {
+  id          String   @id @default(cuid())
+  brandKitId  String
+  version     Int
+  changedBy   String?  // userId
+  changedAt   DateTime @default(now())
+  snapshot    Json     // full prior state for rollback
+  brandKit    BrandKit @relation(fields: [brandKitId], references: [id], onDelete: Cascade)
+  @@index([brandKitId, version])
 }

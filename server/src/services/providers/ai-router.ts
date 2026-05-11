@@ -5,6 +5,20 @@ import type { AiProvider, AiProviderName, AiTask, AiTelemetryEntry, AnalysisRequ
 import { db } from '../../db/prisma.js';
 import { computeCostUsd } from '../../lib/ai-pricing.js';
 import { assertOrgBudget } from '../../lib/budget.js';
+import { enrichWithBrandKit } from '../../lib/brand-kit-enricher.js';
+
+// Public meta shape passed to every aiRouter.* call.  clientId triggers the
+// BrandKit enricher; skipBrandKit bypasses it for debug/testing; platform
+// picks the voice-per-platform sample inside the enricher.  Kept in one
+// place so adding a new meta field doesn't have to touch every method.
+export type AiRouterMeta = {
+  jobId?: string;
+  clientId?: string;
+  orgId?: string;
+  userId?: string;
+  skipBrandKit?: boolean;
+  platform?: string;
+};
 
 // Map task → UsageEvent.kind. Image edits bill the same as image gens.
 function usageKind(task: AiTask): string {
@@ -95,13 +109,26 @@ export function getAiTelemetry(): AiTelemetryEntry[] {
 async function routeCall<T>(
   task: AiTask,
   fn: (provider: AiProvider) => Promise<ProviderResult<T>>,
-  meta?: { jobId?: string; clientId?: string; orgId?: string; userId?: string },
+  meta?: AiRouterMeta,
+  req?: any,
 ): Promise<ProviderResult<T>> {
   // Spend gate: refuse the call if the org has hit its monthly AI budget.
   // No-op when meta.orgId is missing (legacy callers) or the org's budget
   // is 0 (the default — means "no enforcement"). Throws OrgBudgetExceededError
   // (statusCode 402) which the route handlers serialize as JSON.
   await assertOrgBudget(meta?.orgId);
+
+  // BrandKit enrichment (F3) — single point of injection BEFORE provider
+  // selection so every task type + every fallback sees the same enriched
+  // prompt.  No-op when no clientId, skipBrandKit=true, or no BrandKit row
+  // exists for the client.  Mutates req.prompt in place so the closure
+  // captured by `fn` sees the enriched value.
+  if (req && meta?.clientId && req.prompt) {
+    req.prompt = await enrichWithBrandKit(req.prompt, meta.clientId, {
+      skip: meta?.skipBrandKit,
+      platform: meta?.platform as any,
+    });
+  }
 
   const providers = orderedProviders(task);
   const failures: ProviderFailure[] = [];
@@ -147,22 +174,22 @@ async function routeCall<T>(
 
 // ─── Public API ──────────────────────────────────────────────────
 export const aiRouter = {
-  async text(req: TextRequest, meta?: { jobId?: string; clientId?: string; orgId?: string; userId?: string }): Promise<ProviderResult<string | object>> {
-    return routeCall('text', p => p.text(req), meta);
+  async text(req: TextRequest, meta?: AiRouterMeta): Promise<ProviderResult<string | object>> {
+    return routeCall('text', p => p.text(req), meta, req);
   },
 
-  async image(req: ImageRequest, meta?: { jobId?: string; clientId?: string; orgId?: string; userId?: string }): Promise<ProviderResult<{ url?: string; base64?: string }>> {
-    return routeCall(req.imageBase64 ? 'image_edit' : 'image', p => req.imageBase64 ? p.imageEdit(req) : p.image(req), meta);
+  async image(req: ImageRequest, meta?: AiRouterMeta): Promise<ProviderResult<{ url?: string; base64?: string }>> {
+    return routeCall(req.imageBase64 ? 'image_edit' : 'image', p => req.imageBase64 ? p.imageEdit(req) : p.image(req), meta, req);
   },
 
-  async video(req: VideoRequest, meta?: { jobId?: string; clientId?: string; orgId?: string; userId?: string }): Promise<ProviderResult<{ url: string }>> {
+  async video(req: VideoRequest, meta?: AiRouterMeta): Promise<ProviderResult<{ url: string }>> {
     // Image-to-video prefers Gemini (native imageBase64 support), but falls
     // back to xAI via the normal routeCall chain when Gemini is unavailable.
     // xAI receives the base64 as a data-URL in referenceImageUrls.
-    return routeCall('video', p => p.video(req), meta);
+    return routeCall('video', p => p.video(req), meta, req);
   },
 
-  async analysis(req: AnalysisRequest, meta?: { jobId?: string; clientId?: string; orgId?: string; userId?: string }): Promise<ProviderResult<object>> {
-    return routeCall('analysis', p => p.analysis(req), meta);
+  async analysis(req: AnalysisRequest, meta?: AiRouterMeta): Promise<ProviderResult<object>> {
+    return routeCall('analysis', p => p.analysis(req), meta, req);
   },
 };

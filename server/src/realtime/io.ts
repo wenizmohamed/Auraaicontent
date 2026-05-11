@@ -171,6 +171,90 @@ export async function attachRealtime(app: FastifyInstance) {
   process.once('SIGTERM', shutdown);
 }
 
+// ---------------------------------------------------------------------------
+// Wave 1.C — Manus-grade emit helpers (kebab-case event names).
+//
+// These wrap `emitAndPersist` so each helper writes an `AgentEvent` Prisma row
+// best-effort (failures are logged but never thrown — the socket has already
+// delivered the event to the client by the time persistence runs).
+//
+// All six helpers take the *session uid* as the second argument (not a raw
+// socket) so a tool can fire from anywhere in the agent loop without
+// threading the originating socket through every callsite.  This matches the
+// pattern the existing snake_case emits already use.
+// ---------------------------------------------------------------------------
+
+export function emitAgentThought(sessionUid: string, content: string): void {
+  // Fire-and-forget — emitAndPersist already swallows its own errors and
+  // background-persists via queueMicrotask.  We DON'T await so a slow DB
+  // doesn't stall the agent loop between thoughts.
+  void emitAndPersist(sessionUid, 'agent:thought', {
+    text: content,
+    at: new Date().toISOString(),
+  });
+}
+
+export function emitAgentToolCallStart(
+  sessionUid: string,
+  id: string,
+  toolName: string,
+  args: Record<string, unknown>,
+): void {
+  void emitAndPersist(sessionUid, 'agent:tool-call:start', {
+    id,
+    toolName,
+    args,
+    timestamp: Date.now(),
+  });
+}
+
+export function emitAgentToolCallResult(
+  sessionUid: string,
+  id: string,
+  status: 'pending' | 'running' | 'completed' | 'failed',
+  result?: unknown,
+  latencyMs?: number,
+): void {
+  void emitAndPersist(sessionUid, 'agent:tool-call:result', {
+    id,
+    status,
+    result,
+    latencyMs,
+    timestamp: Date.now(),
+  });
+}
+
+export function emitAgentArtifact(
+  sessionUid: string,
+  url: string,
+  mimeType: string,
+  label?: string,
+): void {
+  // The persisted AgentEvent uses `path` for legacy reasons (snake_case
+  // artifact payload).  We funnel the new helper through that same shape so
+  // replay-from-DB stays back-compatible.
+  void emitAndPersist(sessionUid, 'agent:artifact', {
+    path: url,
+    mimeType,
+    preview: label,
+    at: new Date().toISOString(),
+  });
+}
+
+export function emitAgentCompleted(sessionUid: string): void {
+  void emitAndPersist(sessionUid, 'agent:completed', {
+    sessionId: sessionUid,
+    timestamp: Date.now(),
+  });
+}
+
+export function emitAgentError(sessionUid: string, message: string): void {
+  void emitAndPersist(sessionUid, 'agent:error', {
+    message,
+    at: new Date().toISOString(),
+  });
+}
+
 // Emit an agent event to the session room AND persist it for replay.
 export async function emitAndPersist<T extends AgentEventType>(
   sessionUid: string,

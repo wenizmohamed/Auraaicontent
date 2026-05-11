@@ -31,6 +31,7 @@ import { publishRoutes } from './routes/publish.js';
 import { historyRoutes } from './routes/history.js';
 import { productReferenceRoutes } from './routes/product-references.js';
 import { startTokenHealthWorker } from './workers/tokenHealth.worker.js';
+import { startSchedulerWorker } from './workers/scheduler.worker.js';
 import { initSentry } from './lib/sentry.js';
 import { registerRateLimiter } from './middleware/rate-limiter.js';
 import { kimiStatus } from './services/providers/kimi.provider.js';
@@ -265,6 +266,11 @@ export async function buildApp() {
   // platform connection tokens before they expire; flips status to
   // 'needs_reauth' when refresh fails so the UI can surface a Reconnect button.
   startTokenHealthWorker();
+
+  // Boot the F2 post scheduler — BullMQ repeating job (every 60s) polling
+  // CalendarPost rows with status='scheduled' AND scheduledAt <= now+60s,
+  // SETNX-locked per (postId, scheduledAt). Kill switch: SCHEDULER_DISABLED=true.
+  startSchedulerWorker();
 
   return app;
 }
