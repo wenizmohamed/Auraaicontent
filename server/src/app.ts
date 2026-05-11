@@ -29,6 +29,7 @@ import { orgsRoutes, invitationsRoutes } from './routes/orgs.js';
 import { integrationsRoutes } from './routes/integrations.js';
 import { publishRoutes } from './routes/publish.js';
 import { historyRoutes } from './routes/history.js';
+import { productReferenceRoutes } from './routes/product-references.js';
 import { startTokenHealthWorker } from './workers/tokenHealth.worker.js';
 import { initSentry } from './lib/sentry.js';
 import { registerRateLimiter } from './middleware/rate-limiter.js';
@@ -41,7 +42,11 @@ const GIT_COMMIT = (() => { try { return execSync('git rev-parse --short HEAD', 
 
 export async function buildApp() {
   // Without this, attacker-supplied X-F-F headers would spoof rate-limit IP keys.
-  const app = Fastify({ logger: true, trustProxy: 'loopback' });
+  // bodyLimit raised to 50MB so workshop #3 (Haneen) image-to-video can ship
+  // start+end frames as base64 in one JSON payload — at ~30MB/frame max this
+  // covers 1080p PNGs from the browser camera/upload. Multipart route stays
+  // at 25MB per individual file (helmet/multipart config below).
+  const app = Fastify({ logger: true, trustProxy: 'loopback', bodyLimit: 50 * 1024 * 1024 });
 
   // Global error handler — strips raw destructure / parser internals in prod
   // so /api/auth/login + others return 400 instead of 500 with leaked stack.
@@ -254,6 +259,7 @@ export async function buildApp() {
   await app.register(integrationsRoutes, { prefix: '/api' });
   await app.register(publishRoutes, { prefix: '/api' });
   await app.register(historyRoutes, { prefix: '/api' });
+  await app.register(productReferenceRoutes, { prefix: '/api' });
 
   // Boot the token-health worker — runs hourly after a 60s warmup. Refreshes
   // platform connection tokens before they expire; flips status to

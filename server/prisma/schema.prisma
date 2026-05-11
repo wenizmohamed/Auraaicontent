@@ -36,6 +36,7 @@ model Organization {
   knowledgeItems  KnowledgeItem[]
   knowledgeChunks KnowledgeChunk[]
   assets          Asset[]
+  productRefs     ProductReference[]
   calendarMonths  CalendarMonth[]
   calendarPosts   CalendarPost[]
   postVisualRefs  PostVisualReference[]
@@ -151,6 +152,7 @@ model Client {
   org             Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
   brief           ClientBrief?
   assets          Asset[]
+  productRefs     ProductReference[]
   knowledgeItems  KnowledgeItem[]
   calendarMonths  CalendarMonth[]
   reviewLinks     ReviewLink[]
@@ -309,6 +311,32 @@ model Asset {
   @@index([orgId])
   @@index([clientId])
   @@index([mimeType, createdAt])
+}
+
+// Product reference gallery — workshop 2026-05-06 #4 (Haneen). Per-client
+// catalog of products with multiple angle images so the user can drag-drop
+// a product into any generation prompt and the AI will reuse the angles for
+// visual consistency (Magnetic-style flow). Each ProductReference has
+// many AngleImage children stored as URL pointers (we already have a
+// storage service for asset uploads — reuse those URLs here rather than
+// duplicating bytes into Json columns that bloat PG row size).
+model ProductReference {
+  id          String   @id @default(cuid())
+  orgId       String
+  clientId    String
+  name        String
+  description String?
+  angles      Json     // [{ url, thumbUrl, mimeType, label?, primary? }]
+  tags        Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  client      Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([clientId])
+  @@index([clientId, createdAt])
 }
 
 model CalendarMonth {

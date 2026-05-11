@@ -99,8 +99,16 @@ export default function BriefInput() {
   const navigate = useNavigate();
   const { addContentBrief, updateContentBrief } = useStore();
   const { clients: backendClients, selectedClientId: contextClientId, setSelectedClientId: setContextClientId, currentClient } = useClients();
-  // Map backend clients to the shape BriefInput expects
-  const clients = backendClients.map(c => ({ id: c.id, name: c.name, industry: c.industry || '', ...c }));
+  // Map backend clients to the shape BriefInput expects. Memoized so the
+  // array reference is stable across renders — without this, every
+  // downstream useCallback/useMemo that depends on `clients` re-creates
+  // each tick, which is the most plausible root cause of the workshop
+  // 2026-05-06 Chrome crash Drishti reported on "first use" of the
+  // briefing calendar template (#5).
+  const clients = useMemo(
+    () => backendClients.map(c => ({ id: c.id, name: c.name, industry: c.industry || '', ...c })),
+    [backendClients],
+  );
   const monthOptions = useMemo(() => buildMonthOptions(), []);
 
   // ─── Form state ──────────────────────────────────────────────────

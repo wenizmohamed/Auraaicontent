@@ -456,7 +456,20 @@ export const creativeApi = {
     request<any>('/api/creative/images/generate', { method: 'POST', body: JSON.stringify(data) }, { timeoutMs: 180000 }),
   editImage: (data: { prompt: string; imageBase64: string; mimeType?: string; aspectRatio?: string; clientId?: string }) =>
     request<any>('/api/creative/images/edit', { method: 'POST', body: JSON.stringify(data) }, { timeoutMs: 180000 }),
-  generateVideo: (data: { prompt: string; aspectRatio?: string; durationSeconds?: number; resolution?: string; clientId?: string; imageBase64?: string; mimeType?: string }) =>
+  generateVideo: (data: {
+    prompt: string;
+    aspectRatio?: string;
+    durationSeconds?: number;
+    resolution?: string;
+    clientId?: string;
+    imageBase64?: string;
+    mimeType?: string;
+    // Workshop 2026-05-06 #3 (Haneen): explicit start + end frame controls
+    startImageBase64?: string;
+    startMimeType?: string;
+    endImageBase64?: string;
+    endMimeType?: string;
+  }) =>
     request<{ jobId: string }>('/api/creative/videos/generate', { method: 'POST', body: JSON.stringify(data) }),
   getJob: (jobId: string) =>
     request<{ id: string; status: string; progress: number; result?: any; error?: string }>(`/api/creative/jobs/${jobId}`),

@@ -128,8 +128,12 @@ export async function creativeRoutes(app: FastifyInstance) {
   // POST /api/creative/videos/generate — async via job queue
   // Supports both text-to-video AND image-to-video (when imageBase64 is provided).
   app.post('/creative/videos/generate', async (request, reply) => {
-    const { prompt, aspectRatio, durationSeconds, resolution, clientId, imageBase64, mimeType } =
-      request.body as any;
+    const {
+      prompt, aspectRatio, durationSeconds, resolution, clientId,
+      imageBase64, mimeType,
+      // Workshop 2026-05-06 #3 (Haneen): explicit start + end frame controls
+      startImageBase64, startMimeType, endImageBase64, endMimeType,
+    } = request.body as any;
     if (!prompt) return reply.status(400).send({ error: 'prompt is required' });
 
     // Both Gemini Veo and xAI grok-imagine-video only accept 16:9 and 9:16.
@@ -145,7 +149,9 @@ export async function creativeRoutes(app: FastifyInstance) {
     const orgId = request.orgId;
     const userId = request.user?.userId;
     const job = createJob('creative-video', {
-      prompt, aspectRatio, durationSeconds, resolution, clientId, imageBase64, mimeType,
+      prompt, aspectRatio, durationSeconds, resolution, clientId,
+      imageBase64, mimeType,
+      startImageBase64, startMimeType, endImageBase64, endMimeType,
     });
     processJob(job.id, async (j: Job) => {
       // Bump progress every 3 seconds while the long Gemini Veo call runs.
@@ -165,6 +171,10 @@ export async function creativeRoutes(app: FastifyInstance) {
             resolution: j.data.resolution,
             imageBase64: j.data.imageBase64,
             mimeType: j.data.mimeType,
+            startImageBase64: j.data.startImageBase64,
+            startMimeType: j.data.startMimeType,
+            endImageBase64: j.data.endImageBase64,
+            endMimeType: j.data.endMimeType,
           },
           { orgId, userId, jobId: j.id, clientId: j.data.clientId },
         );

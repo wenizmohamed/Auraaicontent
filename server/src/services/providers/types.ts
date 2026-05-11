@@ -29,6 +29,14 @@ export interface VideoRequest {
   mimeType?: string;
   referenceImageUrls?: string[];
   fast?: boolean;  // fast → veo-3.1-fast for quicker gen
+  // Workshop 2026-05-06 #3 (Haneen): explicit start + end frames so the
+  // video bookends are controlled, not random. Either or both can be
+  // omitted — Veo will treat missing endFrame as "free interpolation"
+  // and missing startFrame falls back to text-only.
+  startImageBase64?: string;
+  startMimeType?: string;
+  endImageBase64?: string;
+  endMimeType?: string;
 }
 
 export interface AnalysisRequest {

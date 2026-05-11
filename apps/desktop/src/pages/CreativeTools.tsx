@@ -185,11 +185,19 @@ export default function CreativeTools() {
 
   // Common form state
   const [prompt, setPrompt] = useState('');
+  const promptRef = useRef<HTMLTextAreaElement | null>(null);
   const [aspectRatio, setAspectRatio] = useState('1:1');
   const [duration, setDuration] = useState(5);
   const [sourceBase64, setSourceBase64] = useState('');
   const [sourceMime, setSourceMime] = useState('image/png');
   const [sourcePreview, setSourcePreview] = useState('');
+  // End-frame state for image-to-video (workshop 2026-05-06 #3 — Haneen).
+  // Optional: omit to let Veo free-interpolate; provide to lock the final
+  // frame so the video has controlled bookends.
+  const [endBase64, setEndBase64] = useState('');
+  const [endMime, setEndMime] = useState('image/png');
+  const [endPreview, setEndPreview] = useState('');
+  const endFileRef = useRef<HTMLInputElement>(null);
 
   // Result + lifecycle
   const [loading, setLoading] = useState(false);
@@ -241,6 +249,12 @@ export default function CreativeTools() {
       setSourceMime('image/png');
       setSourcePreview('');
     }
+    // End-frame is only meaningful in image-to-video; clear on every other mode
+    if (next !== 'image-to-video') {
+      setEndBase64('');
+      setEndMime('image/png');
+      setEndPreview('');
+    }
     // Clamp aspect ratio if the current value isn't valid for the new mode
     // (e.g. 1:1 / 4:3 are image-only — Gemini Veo + xAI Grok video reject them)
     const validAspects = aspectRatiosFor(next).map(a => a.value);
@@ -271,6 +285,24 @@ export default function CreativeTools() {
     setSourceBase64('');
     setSourceMime('image/png');
     setSourcePreview('');
+  };
+
+  const handleEndFile = async (file: File) => {
+    setError('');
+    try {
+      const { base64, mimeType } = await fileToBase64(file);
+      setEndBase64(base64);
+      setEndMime(mimeType);
+      setEndPreview(`data:${mimeType};base64,${base64}`);
+    } catch (err: any) {
+      setError(err?.message || 'Failed to read end frame');
+    }
+  };
+
+  const clearEnd = () => {
+    setEndBase64('');
+    setEndMime('image/png');
+    setEndPreview('');
   };
 
   const handleGenerate = async () => {
@@ -339,7 +371,19 @@ export default function CreativeTools() {
           durationSeconds: duration,
           clientId: selectedClientId || undefined,
           // Only attach the image when in image-to-video mode
-          ...(mode === 'image-to-video' ? { imageBase64: sourceBase64, mimeType: sourceMime } : {}),
+          ...(mode === 'image-to-video' ? {
+            imageBase64: sourceBase64,
+            mimeType: sourceMime,
+            startImageBase64: sourceBase64,
+            startMimeType: sourceMime,
+          } : {}),
+          // End frame (workshop 2026-05-06 #3 — Haneen): only sent when user
+          // uploaded one. Veo treats it as the locked final frame and
+          // interpolates between start and end instead of free-extrapolating.
+          ...(mode === 'image-to-video' && endBase64 ? {
+            endImageBase64: endBase64,
+            endMimeType: endMime,
+          } : {}),
         });
 
         let attempts = 0;
@@ -524,32 +568,72 @@ export default function CreativeTools() {
           </div>
         </div>
 
-        {/* Source upload — only for modes that need an input image */}
+        {/* Source upload — only for modes that need an input image.
+            For image-to-video, this is the START frame; end frame is a
+            separate dropper rendered below (workshop 2026-05-06 #3). */}
         {modeDef.needsImage && (
-          <div>
-            <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Source Image</label>
-            {!sourcePreview ? (
-              <button
-                onClick={() => fileRef.current?.click()}
-                className="mt-2 w-full rounded-xl border-2 border-dashed border-white/[0.08] bg-white/[0.01] px-6 py-10 flex flex-col items-center gap-2 hover:border-amber-500/30 transition-colors"
-              >
-                <Upload className="w-7 h-7 text-zinc-600" />
-                <p className="text-sm text-zinc-500">Click to upload an image</p>
-                <p className="text-[10px] text-zinc-700">PNG, JPG, WebP up to 25 MB</p>
-              </button>
-            ) : (
-              <div className="mt-2 relative rounded-xl overflow-hidden border border-white/[0.06] bg-black">
-                <img src={sourcePreview} alt="Source" className="w-full max-h-72 object-contain" />
+          <div className={mode === 'image-to-video' ? 'grid grid-cols-2 gap-4' : ''}>
+            <div>
+              <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">
+                {mode === 'image-to-video' ? 'Start Frame' : 'Source Image'}
+              </label>
+              {!sourcePreview ? (
                 <button
-                  onClick={clearSource}
-                  className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/60 text-white hover:bg-black/80"
-                  title="Clear source"
+                  onClick={() => fileRef.current?.click()}
+                  className="mt-2 w-full rounded-xl border-2 border-dashed border-white/[0.08] bg-white/[0.01] px-6 py-10 flex flex-col items-center gap-2 hover:border-amber-500/30 transition-colors"
                 >
-                  <X className="w-4 h-4" />
+                  <Upload className="w-7 h-7 text-zinc-600" />
+                  <p className="text-sm text-zinc-500">Click to upload an image</p>
+                  <p className="text-[10px] text-zinc-700">PNG, JPG, WebP up to 25 MB</p>
                 </button>
+              ) : (
+                <div className="mt-2 relative rounded-xl overflow-hidden border border-white/[0.06] bg-black">
+                  <img src={sourcePreview} alt="Source" className="w-full max-h-72 object-contain" />
+                  <button
+                    onClick={clearSource}
+                    className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/60 text-white hover:bg-black/80"
+                    title="Clear source"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+              <input ref={fileRef} type="file" accept="image/*" hidden onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
+            </div>
+
+            {/* End frame — only for image-to-video. Optional: omit to let
+                Veo free-interpolate; provide to lock the bookend (Haneen
+                workshop ask 2026-05-06). */}
+            {mode === 'image-to-video' && (
+              <div>
+                <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold flex items-center gap-2">
+                  End Frame
+                  <span className="text-[9px] font-normal text-zinc-600 normal-case tracking-normal">optional — leave blank for free interpolation</span>
+                </label>
+                {!endPreview ? (
+                  <button
+                    onClick={() => endFileRef.current?.click()}
+                    className="mt-2 w-full rounded-xl border-2 border-dashed border-white/[0.08] bg-white/[0.01] px-6 py-10 flex flex-col items-center gap-2 hover:border-amber-500/30 transition-colors"
+                  >
+                    <Upload className="w-7 h-7 text-zinc-600" />
+                    <p className="text-sm text-zinc-500">Click to upload end frame</p>
+                    <p className="text-[10px] text-zinc-700">Locks the last frame of the video</p>
+                  </button>
+                ) : (
+                  <div className="mt-2 relative rounded-xl overflow-hidden border border-white/[0.06] bg-black">
+                    <img src={endPreview} alt="End frame" className="w-full max-h-72 object-contain" />
+                    <button
+                      onClick={clearEnd}
+                      className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/60 text-white hover:bg-black/80"
+                      title="Clear end frame"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+                <input ref={endFileRef} type="file" accept="image/*" hidden onChange={e => e.target.files?.[0] && handleEndFile(e.target.files[0])} />
               </div>
             )}
-            <input ref={fileRef} type="file" accept="image/*" hidden onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
           </div>
         )}
 
@@ -574,8 +658,25 @@ export default function CreativeTools() {
           </div>
           <div className="relative">
             <textarea
+              ref={promptRef}
               value={prompt}
-              onChange={e => setPrompt(e.target.value)}
+              onChange={e => {
+                // Capture caret BEFORE React's setState batches the re-render
+                // (workshop 2026-05-06 #1 — Haneen + Drishti: "append-only"
+                // bug caused by React 19 concurrent rendering dropping caret
+                // position when prompt state stomped the textarea DOM node).
+                const el = e.target;
+                const start = el.selectionStart;
+                const end = el.selectionEnd;
+                setPrompt(e.target.value);
+                // Restore caret after the controlled re-render. Without this,
+                // typing in the middle of text moves the cursor to the end.
+                requestAnimationFrame(() => {
+                  if (promptRef.current && document.activeElement === promptRef.current) {
+                    promptRef.current.setSelectionRange(start, end);
+                  }
+                });
+              }}
               placeholder={
                 mode === 'text-to-image' ? 'A cinematic editorial shot of...' :
                 mode === 'image-edit'    ? 'Apply a retro filter, add warm tones...' :

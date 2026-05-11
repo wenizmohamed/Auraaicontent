@@ -28,6 +28,23 @@ const IMAGE_EDIT_TIMEOUT = parseInt(process.env.GEMINI_IMAGE_EDIT_TIMEOUT_MS || 
 // with grok" — caused by retry-on-timeout stacking 4×120s = 8 min per call.)
 const RETRY_BACKOFFS_MS = [500, 1500]; // 2 retries, ~2s total worst case
 
+// ─── Anatomy-stability PromptEnricher ──────────────────────────────
+// Workshop feedback 2026-05-06 (Haneen Malak): body movements inconsistency,
+// limbs warp generation-to-generation. Gemini 3.1 Flash Image + Imagen-4 both
+// drift on human anatomy unless explicitly told to stay coherent. Append
+// stability tokens whenever the prompt mentions body/pose/anatomy/limbs/
+// portrait/full-body. Token list mirrors the canonical Imagen-4 anatomy
+// stabilizers + the Gemini negative-prompt pattern recommended by DeepMind.
+// Idempotent: re-enriching an already-enriched prompt is a no-op.
+const BODY_KEYWORDS = /\b(body|bodies|pose|posing|anatomy|anatomical|limb|limbs|portrait|full[\s-]?body|figure|silhouette|standing|sitting|walking|running|dancing|stretching|yoga|workout|model|person|man|woman|girl|boy|child|character|hands?|fingers?|arms?|legs?|feet|knees?|elbows?|shoulders?)\b/i;
+const STABILITY_TOKENS = ', anatomically correct, coherent limbs, natural proportions, stable anatomy, well-formed hands';
+function enrichBodyPrompt(prompt: string): string {
+  if (!prompt) return prompt;
+  if (prompt.includes('anatomically correct')) return prompt; // idempotent
+  if (!BODY_KEYWORDS.test(prompt)) return prompt;
+  return prompt.trim().replace(/[.,;]\s*$/, '') + STABILITY_TOKENS;
+}
+
 let _ai: GoogleGenAI | null = null;
 function getAI(): GoogleGenAI {
   if (_ai) return _ai;
@@ -181,6 +198,8 @@ export const geminiProvider: AiProvider = {
 
   async image(req: ImageRequest): Promise<ProviderResult<{ url?: string; base64?: string }>> {
     const ai = getAI();
+    // Anatomy-stability enrichment (workshop 2026-05-06 #2 — Haneen)
+    const enrichedPrompt = enrichBodyPrompt(req.prompt);
     // Model ladder: ultra requests get the heavy imagen first then drop to
     // gemini-flash-image; standard requests start with flash-image and ladder
     // through imagen-fast → imagen-3. Override via GEMINI_IMAGE_LADDER /
@@ -206,7 +225,7 @@ export const geminiProvider: AiProvider = {
         const r = await withRetry('image', () => withTimeout(
           ai.models.generateImages({
             model: entry.model,
-            prompt: req.prompt,
+            prompt: enrichedPrompt,
             config: {
               numberOfImages: 1,
               ...(req.aspectRatio ? { aspectRatio: req.aspectRatio } : {}),
@@ -219,7 +238,7 @@ export const geminiProvider: AiProvider = {
       const r = await withRetry('image', () => withTimeout(
         ai.models.generateContent({
           model: entry.model,
-          contents: [{ parts: [{ text: req.prompt }] }],
+          contents: [{ parts: [{ text: enrichedPrompt }] }],
           config: {
             responseModalities: ['TEXT', 'IMAGE'],
             ...(req.aspectRatio ? { imageConfig: { aspectRatio: req.aspectRatio } } : {}),
@@ -254,6 +273,8 @@ export const geminiProvider: AiProvider = {
     const model = process.env.GEMINI_IMAGE_EDIT_MODEL
       || 'gemini-3.1-flash-image-preview';
     const start = Date.now();
+    // Anatomy-stability enrichment (workshop 2026-05-06 #2 — Haneen)
+    const enrichedPrompt = enrichBodyPrompt(req.prompt);
     const parts: any[] = [];
     if (req.imageBase64 && req.mimeType) {
       parts.push({ inlineData: { mimeType: req.mimeType, data: req.imageBase64 } });
@@ -261,7 +282,7 @@ export const geminiProvider: AiProvider = {
     for (const ref of req.referenceImages || []) {
       parts.push({ inlineData: { mimeType: ref.mimeType, data: ref.base64 } });
     }
-    parts.push({ text: req.prompt });
+    parts.push({ text: enrichedPrompt });
     // Image-edit only works via gemini-*-image-* (nano-banana) on the public
     // API.  When that model is throttled/dead at Google's end, the shorter
     // IMAGE_EDIT_TIMEOUT lets ai-router fall to xai/grok-imagine-image fast
@@ -302,9 +323,16 @@ export const geminiProvider: AiProvider = {
       // accepted by Fast. Pro/Fast have different validators. Omitting
       // works on both and uses the model's default safety policy.
       // Re-add only with an env-driven opt-in once the enum stabilizes.
+      // Start-frame resolution: explicit startImageBase64 wins over the legacy
+      // imageBase64 field (which currently doubles as the start frame). End
+      // frame is workshop 2026-05-06 #3 — pass via `lastFrame` per Veo 3.1
+      // SDK shape so the model interpolates between two known anchors instead
+      // of randomly extrapolating from a single starting still.
+      const startB64 = req.startImageBase64 || req.imageBase64;
+      const startMime = req.startMimeType || req.mimeType;
       let operation = await ai.models.generateVideos({
         model: entry.model,
-        prompt: req.prompt,
+        prompt: enrichBodyPrompt(req.prompt),
         config: {
           aspectRatio: req.aspectRatio || '16:9',
           ...(req.resolution ? { resolution: req.resolution } : {}),
@@ -312,9 +340,12 @@ export const geminiProvider: AiProvider = {
             ? { personGeneration: process.env.GEMINI_VIDEO_PERSON_GENERATION as any }
             : {}),
         },
-        ...(req.imageBase64 && req.mimeType ? {
-          image: { imageBytes: req.imageBase64, mimeType: req.mimeType },
+        ...(startB64 && startMime ? {
+          image: { imageBytes: startB64, mimeType: startMime },
         } : {}),
+        ...(req.endImageBase64 && req.endMimeType ? {
+          lastFrame: { imageBytes: req.endImageBase64, mimeType: req.endMimeType },
+        } as any : {}),
       });
       // Symmetry with xAI: client-side 10-min deadline on the poll loop so a
       // hung getVideosOperation can't hold a slot forever. Veo's server-side
