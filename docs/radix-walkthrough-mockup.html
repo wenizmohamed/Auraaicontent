@@ -1,0 +1,716 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Radix AI · Content Planner — How It Works</title>
+<style>
+  /* ── Radix design tokens (extracted from the real app) ───────────────── */
+  :root {
+    --bg:        #0a0a0a;
+    --panel:     #111111;
+    --panel-2:   #18181b;
+    --panel-3:   #1f1f23;
+    --line:      rgba(255,255,255,0.08);
+    --line-soft: rgba(255,255,255,0.05);
+    --white:     #ffffff;
+    --zinc-300:  #d4d4d8;
+    --zinc-400:  #a1a1aa;
+    --zinc-500:  #71717a;
+    --zinc-600:  #52525b;
+    --amber:     #f59e0b;
+    --amber-400: #fbbf24;
+    --violet:    #8b5cf6;
+    --fuchsia:   #d946ef;
+    --pink:      #f472b6;
+    --emerald:   #10b981;
+    --red:       #ef4444;
+    --radius:    14px;
+    --font:      'Public Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: var(--bg);
+    color: var(--white);
+    font-family: var(--font);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: rgba(245,158,11,0.25); }
+
+  /* ── Shell ───────────────────────────────────────────────────────────── */
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 32px 24px 80px; }
+
+  .topbar {
+    display: flex; align-items: center; gap: 14px; margin-bottom: 8px;
+  }
+  .logo {
+    width: 38px; height: 38px; border-radius: 11px;
+    background: linear-gradient(135deg, var(--amber), #d97706);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 6px 20px rgba(245,158,11,0.22);
+    flex-shrink: 0;
+  }
+  .logo svg { width: 20px; height: 20px; }
+  .brand-name { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
+  .brand-sub { font-size: 12.5px; color: var(--zinc-500); }
+  .intro {
+    color: var(--zinc-400); font-size: 14px; margin: 14px 0 26px;
+    max-width: 680px;
+  }
+  .intro b { color: var(--zinc-300); font-weight: 600; }
+
+  /* ── Step nav (tabs) ─────────────────────────────────────────────────── */
+  .steps {
+    display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px;
+    border-bottom: 1px solid var(--line); padding-bottom: 20px;
+  }
+  .step-btn {
+    display: flex; align-items: center; gap: 9px;
+    background: var(--panel); border: 1px solid var(--line);
+    color: var(--zinc-400); padding: 9px 14px; border-radius: 11px;
+    font-family: inherit; font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: all .18s ease;
+  }
+  .step-btn:hover { border-color: rgba(255,255,255,0.18); color: var(--zinc-300); }
+  .step-btn.active {
+    background: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.35);
+    color: var(--amber-400);
+  }
+  .step-btn .num {
+    width: 20px; height: 20px; border-radius: 6px;
+    background: var(--panel-3); display: flex; align-items: center;
+    justify-content: center; font-size: 11px; font-weight: 800;
+  }
+  .step-btn.active .num { background: rgba(245,158,11,0.2); color: var(--amber-400); }
+
+  /* ── Screen panels ───────────────────────────────────────────────────── */
+  .screen { display: none; animation: fade .28s ease; }
+  .screen.active { display: block; }
+  @keyframes fade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+  .screen-head { margin-bottom: 18px; }
+  .screen-title {
+    font-size: 26px; font-weight: 800; letter-spacing: -0.02em;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .screen-desc { color: var(--zinc-400); font-size: 13.5px; margin-top: 5px; }
+
+  /* The "app frame" — mimics the real product chrome */
+  .frame {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: var(--radius); overflow: hidden;
+  }
+  .frame-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 11px 16px; border-bottom: 1px solid var(--line);
+    background: var(--panel-2);
+  }
+  .dot { width: 11px; height: 11px; border-radius: 50%; }
+  .dot.r { background: #ff5f57; } .dot.y { background: #febc2e; } .dot.g { background: #28c840; }
+  .frame-url {
+    margin-left: 12px; font-size: 12px; color: var(--zinc-500);
+    background: var(--bg); padding: 4px 12px; border-radius: 7px;
+    border: 1px solid var(--line-soft);
+  }
+  .frame-body { padding: 22px; }
+
+  /* generic cards */
+  .card {
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 12px; padding: 16px;
+  }
+  .grid { display: grid; gap: 14px; }
+  .g3 { grid-template-columns: repeat(3, 1fr); }
+  .g4 { grid-template-columns: repeat(4, 1fr); }
+  .g2-1 { grid-template-columns: 2fr 1fr; }
+
+  .label {
+    font-size: 10px; text-transform: uppercase; letter-spacing: .09em;
+    color: var(--zinc-500); font-weight: 700; margin-bottom: 8px;
+  }
+  .stat-num { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; }
+  .stat-sub { font-size: 11.5px; color: var(--zinc-500); margin-top: 2px; }
+
+  /* annotations — the "how it works" callouts */
+  .note {
+    display: flex; gap: 10px; align-items: flex-start;
+    background: rgba(139,92,246,0.07); border: 1px solid rgba(139,92,246,0.25);
+    border-radius: 10px; padding: 11px 13px; margin-top: 14px;
+    font-size: 12.5px; color: var(--zinc-300);
+  }
+  .note svg { flex-shrink: 0; width: 15px; height: 15px; margin-top: 1px; color: var(--violet); }
+  .note b { color: #c4b5fd; font-weight: 600; }
+  .note.amber { background: rgba(245,158,11,0.07); border-color: rgba(245,158,11,0.25); }
+  .note.amber svg { color: var(--amber); }
+  .note.amber b { color: var(--amber-400); }
+
+  /* ── Creative Tool specific ──────────────────────────────────────────── */
+  .modes { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 18px; }
+  .mode {
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 11px; padding: 13px; cursor: pointer; transition: all .18s;
+  }
+  .mode:hover { border-color: rgba(255,255,255,0.16); }
+  .mode.sel { background: rgba(245,158,11,0.08); border-color: rgba(245,158,11,0.4); }
+  .mode-ico {
+    width: 30px; height: 30px; border-radius: 8px; background: var(--panel-3);
+    display: flex; align-items: center; justify-content: center; margin-bottom: 9px;
+  }
+  .mode.sel .mode-ico { background: rgba(245,158,11,0.18); }
+  .mode-ico svg { width: 16px; height: 16px; }
+  .mode-name { font-size: 12.5px; font-weight: 700; }
+  .mode-desc { font-size: 11px; color: var(--zinc-500); margin-top: 2px; line-height: 1.4; }
+
+  .prompt-box {
+    position: relative; background: #18181b; border: 1px solid var(--line);
+    border-radius: 12px; padding: 14px; min-height: 92px;
+    font-size: 13.5px; color: var(--white);
+  }
+  .prompt-box .ph { color: var(--zinc-600); }
+  .magic-pen {
+    position: absolute; bottom: 9px; right: 9px;
+    width: 30px; height: 30px; border-radius: 8px;
+    background: rgba(139,92,246,0.15); border: 1px solid rgba(139,92,246,0.35);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .magic-pen svg { width: 14px; height: 14px; color: #c4b5fd; }
+
+  /* improve-prompt preview banner — the fix I shipped */
+  .improve-banner {
+    margin-top: 12px; border: 1px solid rgba(139,92,246,0.3);
+    background: linear-gradient(135deg, rgba(139,92,246,0.08), rgba(217,70,239,0.05));
+    border-radius: 11px; padding: 14px;
+  }
+  .improve-banner .ib-head {
+    display: flex; align-items: center; gap: 7px; font-size: 10px;
+    text-transform: uppercase; letter-spacing: .08em; color: #c4b5fd;
+    font-weight: 700; margin-bottom: 8px;
+  }
+  .improve-banner p { font-size: 12.5px; color: var(--zinc-300); line-height: 1.55; }
+  .ib-actions { display: flex; gap: 8px; margin-top: 11px; align-items: center; }
+  .btn-sm {
+    font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 8px;
+    border: 1px solid; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+  }
+  .btn-violet { background: rgba(139,92,246,0.2); border-color: rgba(139,92,246,0.4); color: #ddd6fe; }
+  .btn-ghost { background: rgba(255,255,255,0.02); border-color: var(--line); color: var(--zinc-400); }
+  .ib-actions .hint { font-size: 10.5px; color: var(--zinc-600); margin-left: 2px; }
+
+  /* aspect ratio chips */
+  .chips { display: flex; gap: 7px; margin: 16px 0; }
+  .chip {
+    font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 8px;
+    background: rgba(255,255,255,0.03); border: 1px solid var(--line-soft); color: var(--zinc-500);
+  }
+  .chip.sel { background: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.3); color: var(--amber-400); }
+
+  /* generate button + progress bar — the fix I shipped */
+  .gen-row { display: flex; align-items: center; gap: 12px; }
+  .btn-gen {
+    background: var(--white); color: #000; font-weight: 800; font-size: 13px;
+    padding: 11px 22px; border-radius: 11px; border: none; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .btn-gen svg { width: 15px; height: 15px; }
+  .progress-track {
+    height: 6px; background: rgba(255,255,255,0.05); border-radius: 99px;
+    overflow: hidden; margin-top: 14px;
+  }
+  .progress-fill {
+    height: 100%; width: 64%; border-radius: 99px;
+    background: linear-gradient(90deg, var(--amber), var(--amber-400));
+  }
+
+  /* recent generations strip — the fix I shipped */
+  .recent-strip { display: flex; gap: 9px; margin-top: 8px; }
+  .thumb {
+    width: 64px; height: 64px; border-radius: 9px; border: 1px solid var(--line);
+    background: linear-gradient(135deg, #27272a, #18181b);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .thumb svg { width: 18px; height: 18px; color: var(--zinc-600); }
+  .thumb.img { background: linear-gradient(135deg, #4c1d95, #831843); }
+
+  /* result preview */
+  .result {
+    border-radius: 11px; border: 1px solid var(--line);
+    background: linear-gradient(135deg, #1e1b4b, #4a1d4a);
+    aspect-ratio: 1/1; max-width: 280px; display: flex;
+    align-items: center; justify-content: center; flex-direction: column; gap: 8px;
+  }
+  .result svg { width: 32px; height: 32px; color: rgba(255,255,255,0.4); }
+  .result span { font-size: 11px; color: rgba(255,255,255,0.45); }
+
+  /* calendar */
+  .cal-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 6px; }
+  .cal-cell {
+    aspect-ratio: 1/1.15; background: var(--panel-2); border: 1px solid var(--line-soft);
+    border-radius: 8px; padding: 6px; font-size: 10px; color: var(--zinc-600);
+    position: relative;
+  }
+  .cal-cell .d { font-weight: 700; color: var(--zinc-500); }
+  .cal-cell.has::after {
+    content: ''; position: absolute; bottom: 6px; left: 6px; right: 6px; height: 4px;
+    border-radius: 99px;
+  }
+  .cal-cell.ig::after  { background: linear-gradient(90deg, #f472b6, #f59e0b); }
+  .cal-cell.li::after  { background: #38bdf8; }
+  .cal-cell.fb::after  { background: #3b82f6; }
+  .cal-cell.hijri { border-color: rgba(16,185,129,0.3); }
+  .cal-cell.hijri .d { color: var(--emerald); }
+
+  /* channel legend */
+  .legend { display: flex; gap: 14px; margin-top: 14px; flex-wrap: wrap; }
+  .leg { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--zinc-400); }
+  .leg .sw { width: 14px; height: 4px; border-radius: 99px; }
+
+  /* brief / pillars */
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.25);
+    color: var(--amber-400); font-size: 11.5px; font-weight: 600;
+    padding: 4px 10px; border-radius: 8px; margin: 3px 3px 0 0;
+  }
+  .idea-card {
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 10px; padding: 13px; margin-bottom: 9px;
+  }
+  .idea-card .it { font-size: 13px; font-weight: 700; }
+  .idea-card .ib { font-size: 12px; color: var(--zinc-500); margin-top: 3px; }
+  .idea-actions { display: flex; gap: 6px; margin-top: 9px; }
+
+  /* AI engine routing chain — the transparency feature */
+  .chain { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+  .chain-node {
+    font-size: 11px; font-weight: 700; padding: 5px 10px; border-radius: 7px;
+    display: flex; align-items: center; gap: 5px;
+  }
+  .chain-node.ok   { background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.3); color: #6ee7b7; }
+  .chain-node.fail { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.25); color: #fca5a5; text-decoration: line-through; opacity: .7; }
+  .chain-arrow { color: var(--zinc-600); font-size: 13px; }
+
+  /* flow diagram (last screen) */
+  .flow { display: flex; align-items: stretch; gap: 0; flex-wrap: wrap; }
+  .flow-step {
+    flex: 1; min-width: 150px; background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 12px; padding: 16px; position: relative;
+  }
+  .flow-step + .flow-step { margin-left: 26px; }
+  .flow-step + .flow-step::before {
+    content: '→'; position: absolute; left: -22px; top: 50%;
+    transform: translateY(-50%); color: var(--amber); font-size: 18px; font-weight: 700;
+  }
+  .flow-step .fs-ico {
+    width: 32px; height: 32px; border-radius: 9px; margin-bottom: 10px;
+    background: rgba(245,158,11,0.12); display: flex; align-items: center; justify-content: center;
+  }
+  .flow-step .fs-ico svg { width: 17px; height: 17px; color: var(--amber-400); }
+  .flow-step h4 { font-size: 13.5px; font-weight: 700; }
+  .flow-step p { font-size: 11.5px; color: var(--zinc-500); margin-top: 4px; line-height: 1.45; }
+
+  .footer {
+    margin-top: 36px; padding-top: 20px; border-top: 1px solid var(--line);
+    font-size: 12px; color: var(--zinc-600); display: flex; justify-content: space-between;
+    flex-wrap: wrap; gap: 10px;
+  }
+  .footer a { color: var(--amber-400); text-decoration: none; }
+
+  h3.section { font-size: 15px; font-weight: 700; margin: 4px 0 12px; }
+
+  @media (max-width: 760px) {
+    .g3, .g4 { grid-template-columns: 1fr 1fr; }
+    .g2-1 { grid-template-columns: 1fr; }
+    .modes { grid-template-columns: 1fr 1fr; }
+    .flow-step + .flow-step { margin-left: 0; margin-top: 28px; }
+    .flow-step + .flow-step::before { left: 50%; top: -22px; transform: translateX(-50%); content: '↓'; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ── Header ─────────────────────────────────────────────────────── -->
+  <div class="topbar">
+    <div class="logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 3v4M3 5h4M6 17v4M4 19h4M13 3l1.9 5.1L20 10l-5.1 1.9L13 17l-1.9-5.1L6 10l5.1-1.9L13 3z"/>
+      </svg>
+    </div>
+    <div>
+      <div class="brand-name">RADIX <span style="color:var(--amber)">AI</span></div>
+      <div class="brand-sub">Content Planner · how it works</div>
+    </div>
+  </div>
+  <p class="intro">
+    Radix AI is a <b>self-evolving content platform</b> for agency teams — generate images & video,
+    plan monthly briefs, schedule across channels, and let the AI learn your clients' brand voice.
+    Click through the 5 steps below to see the flow.
+  </p>
+
+  <!-- ── Step nav ───────────────────────────────────────────────────── -->
+  <div class="steps">
+    <button class="step-btn active" data-screen="dash"><span class="num">1</span> Dashboard</button>
+    <button class="step-btn" data-screen="brief"><span class="num">2</span> Content Brief</button>
+    <button class="step-btn" data-screen="creative"><span class="num">3</span> Creative Tool</button>
+    <button class="step-btn" data-screen="calendar"><span class="num">4</span> Calendar</button>
+    <button class="step-btn" data-screen="flow"><span class="num">5</span> The Full Loop</button>
+  </div>
+
+  <!-- ════ SCREEN 1 · DASHBOARD ════════════════════════════════════════ -->
+  <section class="screen active" id="dash">
+    <div class="screen-head">
+      <div class="screen-title">Dashboard</div>
+      <div class="screen-desc">The home base — every user sees their AI usage, recent work, and clients at a glance.</div>
+    </div>
+    <div class="frame">
+      <div class="frame-bar">
+        <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="frame-url">radix.synapseai-labs.com</span>
+      </div>
+      <div class="frame-body">
+        <div class="grid g4" style="margin-bottom:14px;">
+          <div class="card">
+            <div class="label">AI Engine</div>
+            <div class="stat-num" style="color:var(--amber-400);">Gemini</div>
+            <div class="stat-sub">primary · Grok + Kimi fallback</div>
+          </div>
+          <div class="card">
+            <div class="label">Tokens Burned</div>
+            <div class="stat-num">128.4k</div>
+            <div class="stat-sub">last 7 days</div>
+          </div>
+          <div class="card">
+            <div class="label">Success Rate</div>
+            <div class="stat-num" style="color:var(--emerald);">99.8%</div>
+            <div class="stat-sub">content generated OK</div>
+          </div>
+          <div class="card">
+            <div class="label">Active Clients</div>
+            <div class="stat-num">6</div>
+            <div class="stat-sub">across this org</div>
+          </div>
+        </div>
+        <div class="grid g2-1">
+          <div class="card">
+            <div class="label">Routing Chain · last image job</div>
+            <div class="chain">
+              <span class="chain-node fail">Gemini</span>
+              <span class="chain-arrow">→</span>
+              <span class="chain-node ok">Grok ✓ delivered</span>
+            </div>
+            <div style="font-size:11.5px;color:var(--zinc-500);margin-top:10px;">
+              When one AI fails, the next takes over automatically — three-level fallback so generation never dead-ends.
+            </div>
+          </div>
+          <div class="card">
+            <div class="label">Recent Activity</div>
+            <div style="font-size:12px;color:var(--zinc-400);line-height:2;">
+              <div>· 18 posts generated — <span style="color:var(--zinc-600);">Client A</span></div>
+              <div>· Brief approved — <span style="color:var(--zinc-600);">Client C</span></div>
+              <div>· 4 videos rendered — <span style="color:var(--zinc-600);">Client B</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="note amber">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+          <span><b>Transparency built in.</b> Mohamed reviews this data weekly to keep every AI task above a 90% success rate — and to see exactly which model does the best job at each task.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════ SCREEN 2 · CONTENT BRIEF ════════════════════════════════════ -->
+  <section class="screen" id="brief">
+    <div class="screen-head">
+      <div class="screen-title">Content Brief</div>
+      <div class="screen-desc">Feed the AI a client brief once — it generates a full month of on-brand post ideas.</div>
+    </div>
+    <div class="frame">
+      <div class="frame-bar">
+        <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="frame-url">radix.synapseai-labs.com/brief</span>
+      </div>
+      <div class="frame-body">
+        <div class="grid g2-1">
+          <div>
+            <h3 class="section">Brief for <span style="color:var(--amber-400);">Client C — Medical Tech</span></h3>
+            <div class="card" style="margin-bottom:14px;">
+              <div class="label">Objective</div>
+              <div style="font-size:13px;">Build trust & highlight innovation in medical technology for a regional audience.</div>
+              <div class="label" style="margin-top:14px;">Content Pillars</div>
+              <span class="pill">Innovation</span><span class="pill">Patient stories</span>
+              <span class="pill">Behind the scenes</span><span class="pill">Education</span>
+              <div class="label" style="margin-top:14px;">Channels</div>
+              <span class="pill" style="background:rgba(56,189,248,0.1);border-color:rgba(56,189,248,0.3);color:#7dd3fc;">LinkedIn</span>
+              <span class="pill" style="background:rgba(244,114,182,0.1);border-color:rgba(244,114,182,0.3);color:var(--pink);">Instagram</span>
+            </div>
+          </div>
+          <div>
+            <h3 class="section">AI-generated ideas</h3>
+            <div class="idea-card">
+              <div class="it">"5 myths about medical imaging — debunked"</div>
+              <div class="ib">Educational carousel · LinkedIn · Innovation pillar</div>
+              <div class="idea-actions">
+                <span class="btn-sm btn-violet">↻ Regenerate</span>
+                <span class="btn-sm btn-ghost">✎ Edit</span>
+                <span class="btn-sm btn-ghost" style="color:#6ee7b7;border-color:rgba(16,185,129,0.3);">✓ Approve</span>
+              </div>
+            </div>
+            <div class="idea-card">
+              <div class="it">"A day in the life of our R&D lab"</div>
+              <div class="ib">Reel · Instagram · Behind the scenes pillar</div>
+              <div class="idea-actions">
+                <span class="btn-sm btn-violet">↻ Regenerate</span>
+                <span class="btn-sm btn-ghost">✎ Edit</span>
+                <span class="btn-sm btn-ghost" style="color:#6ee7b7;border-color:rgba(16,185,129,0.3);">✓ Approve</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="note">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20"/></svg>
+          <span><b>Self-evolving.</b> The AI pulls from the client's saved brand guidelines + every past approval, so each month's ideas get sharper. Each idea has its own <b>Regenerate / Edit / Approve</b> controls.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════ SCREEN 3 · CREATIVE TOOL ════════════════════════════════════ -->
+  <section class="screen" id="creative">
+    <div class="screen-head">
+      <div class="screen-title">Creative Tool</div>
+      <div class="screen-desc">The core — 4 generation modes, an AI prompt assistant, and live progress tracking.</div>
+    </div>
+    <div class="frame">
+      <div class="frame-bar">
+        <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="frame-url">radix.synapseai-labs.com/creative</span>
+      </div>
+      <div class="frame-body">
+        <!-- 4 modes -->
+        <div class="modes">
+          <div class="mode sel">
+            <div class="mode-ico">
+              <svg viewBox="0 0 24 24" fill="none" stroke="var(--amber-400)" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg>
+            </div>
+            <div class="mode-name">Text → Image</div>
+            <div class="mode-desc">Generate from a text prompt</div>
+          </div>
+          <div class="mode">
+            <div class="mode-ico">
+              <svg viewBox="0 0 24 24" fill="none" stroke="var(--zinc-400)" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>
+            </div>
+            <div class="mode-name">Image Edit</div>
+            <div class="mode-desc">Prompt-based edits</div>
+          </div>
+          <div class="mode">
+            <div class="mode-ico">
+              <svg viewBox="0 0 24 24" fill="none" stroke="var(--zinc-400)" stroke-width="2"><path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg>
+            </div>
+            <div class="mode-name">Text → Video</div>
+            <div class="mode-desc">Short video from text</div>
+          </div>
+          <div class="mode">
+            <div class="mode-ico">
+              <svg viewBox="0 0 24 24" fill="none" stroke="var(--zinc-400)" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2.18"/><path d="M7 2v20M17 2v20M2 12h20M2 7h5M2 17h5M17 17h5M17 7h5"/></svg>
+            </div>
+            <div class="mode-name">Image → Video</div>
+            <div class="mode-desc">Animate a still image</div>
+          </div>
+        </div>
+
+        <!-- prompt -->
+        <div class="label">Prompt</div>
+        <div class="prompt-box">
+          a cat playing with yarn
+          <div class="magic-pen">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>
+          </div>
+        </div>
+
+        <!-- improve-prompt preview banner (the fix shipped) -->
+        <div class="improve-banner">
+          <div class="ib-head">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><path d="M5 3v4M3 5h4M19 17v4M17 19h4M13 3l1.9 5.1L20 10l-5.1 1.9L13 17l-1.9-5.1L6 10l5.1-1.9L13 3z"/></svg>
+            AI-improved version — review before applying
+          </div>
+          <p>A ginger tabby kitten pounces playfully on a tangled heap of vibrant crimson wool, softly lit by warm golden-hour sunlight through a nearby window. Low, intimate eye-level perspective on rustic hardwood, blurred living-room background, crisp cinematic photographic style.</p>
+          <div class="ib-actions">
+            <span class="btn-sm btn-violet">✓ Use this version</span>
+            <span class="btn-sm btn-ghost">✕ Discard</span>
+            <span class="hint">your original prompt is untouched</span>
+          </div>
+        </div>
+
+        <!-- aspect ratio -->
+        <div class="chips">
+          <span class="chip sel">1:1</span>
+          <span class="chip">16:9</span>
+          <span class="chip">9:16</span>
+          <span class="chip">4:3</span>
+        </div>
+
+        <!-- generate + progress -->
+        <div class="gen-row">
+          <button class="btn-gen">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 3v4M3 5h4M19 17v4M17 19h4M13 3l1.9 5.1L20 10l-5.1 1.9L13 17l-1.9-5.1L6 10l5.1-1.9L13 3z"/></svg>
+            Generating... 64%
+          </button>
+          <span style="font-size:11px;color:var(--zinc-600);">Result auto-saves to client assets</span>
+        </div>
+        <div class="progress-track"><div class="progress-fill"></div></div>
+
+        <!-- recent generations (the fix shipped) -->
+        <div style="margin-top:18px;">
+          <div class="label">Recent generations</div>
+          <div class="recent-strip">
+            <div class="thumb img"></div>
+            <div class="thumb img"></div>
+            <div class="thumb">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg>
+            </div>
+            <div class="thumb img"></div>
+            <div class="thumb img"></div>
+          </div>
+        </div>
+
+        <div class="note">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20"/></svg>
+          <span><b>Three workflow upgrades shipped this week:</b> the <b>AI prompt assistant</b> previews its rewrite instead of overwriting yours · a <b>live % progress bar</b> so you can track generation · a <b>recent generations strip</b> so switching tabs never loses your work.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════ SCREEN 4 · CALENDAR ═════════════════════════════════════════ -->
+  <section class="screen" id="calendar">
+    <div class="screen-head">
+      <div class="screen-title">Content Calendar</div>
+      <div class="screen-desc">Schedule approved content across channels — with a Hijri calendar for regional planning.</div>
+    </div>
+    <div class="frame">
+      <div class="frame-bar">
+        <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="frame-url">radix.synapseai-labs.com/calendar</span>
+      </div>
+      <div class="frame-body">
+        <h3 class="section">May 2026 · <span style="color:var(--zinc-500);">Client C</span></h3>
+        <div class="cal-grid">
+          <div class="cal-cell"><span class="d">M</span></div>
+          <div class="cal-cell"><span class="d">T</span></div>
+          <div class="cal-cell"><span class="d">W</span></div>
+          <div class="cal-cell"><span class="d">T</span></div>
+          <div class="cal-cell"><span class="d">F</span></div>
+          <div class="cal-cell"><span class="d">S</span></div>
+          <div class="cal-cell"><span class="d">S</span></div>
+          <div class="cal-cell has ig"><span class="d">1</span></div>
+          <div class="cal-cell"><span class="d">2</span></div>
+          <div class="cal-cell has li"><span class="d">3</span></div>
+          <div class="cal-cell"><span class="d">4</span></div>
+          <div class="cal-cell has fb"><span class="d">5</span></div>
+          <div class="cal-cell hijri"><span class="d">6</span><div style="margin-top:3px;font-size:8.5px;">Eid prep</div></div>
+          <div class="cal-cell"><span class="d">7</span></div>
+          <div class="cal-cell has ig"><span class="d">8</span></div>
+          <div class="cal-cell has li"><span class="d">9</span></div>
+          <div class="cal-cell"><span class="d">10</span></div>
+          <div class="cal-cell has ig"><span class="d">11</span></div>
+          <div class="cal-cell"><span class="d">12</span></div>
+          <div class="cal-cell has fb"><span class="d">13</span></div>
+          <div class="cal-cell"><span class="d">14</span></div>
+        </div>
+        <div class="legend">
+          <span class="leg"><span class="sw" style="background:linear-gradient(90deg,#f472b6,#f59e0b);"></span> Instagram</span>
+          <span class="leg"><span class="sw" style="background:#38bdf8;"></span> LinkedIn</span>
+          <span class="leg"><span class="sw" style="background:#3b82f6;"></span> Facebook</span>
+          <span class="leg"><span class="sw" style="background:var(--emerald);"></span> Hijri / Islamic holiday</span>
+        </div>
+        <div class="note amber">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+          <span><b>Built for the region.</b> Each post shows its channel + approval status. The Hijri calendar overlay means content lands aligned to Islamic holidays — and social platforms connect for one-click publishing straight from here.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════ SCREEN 5 · THE FULL LOOP ════════════════════════════════════ -->
+  <section class="screen" id="flow">
+    <div class="screen-head">
+      <div class="screen-title">The Full Loop</div>
+      <div class="screen-desc">How the five pieces connect into one self-improving workflow.</div>
+    </div>
+    <div class="frame">
+      <div class="frame-bar">
+        <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="frame-url">radix.synapseai-labs.com</span>
+      </div>
+      <div class="frame-body">
+        <div class="flow">
+          <div class="flow-step">
+            <div class="fs-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg></div>
+            <h4>1 · Brief</h4>
+            <p>Feed in the client's objective, pillars & channels — once.</p>
+          </div>
+          <div class="flow-step">
+            <div class="fs-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3v4M3 5h4M13 3l1.9 5.1L20 10l-5.1 1.9L13 17l-1.9-5.1L6 10z"/></svg></div>
+            <h4>2 · Generate</h4>
+            <p>AI drafts a month of ideas, then images & video in the Creative Tool.</p>
+          </div>
+          <div class="flow-step">
+            <div class="fs-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></div>
+            <h4>3 · Review</h4>
+            <p>Regenerate, edit or approve each piece — humans stay in control.</p>
+          </div>
+          <div class="flow-step">
+            <div class="fs-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div>
+            <h4>4 · Schedule</h4>
+            <p>Drop approved content on the calendar, publish to every channel.</p>
+          </div>
+          <div class="flow-step">
+            <div class="fs-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.2-8.5"/><path d="M21 3v6h-6"/></svg></div>
+            <h4>5 · Learn</h4>
+            <p>Every approval + edit feeds the knowledge base. Next month is sharper.</p>
+          </div>
+        </div>
+        <div class="note amber">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.2-8.5"/><path d="M21 3v6h-6"/></svg>
+          <span><b>It's a loop, not a line.</b> The "Learn" step feeds back into "Brief" — Radix gets more accurate to each client's voice the more the team uses it. Multi-AI fallback keeps it running even when one provider has an outage.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Footer ─────────────────────────────────────────────────────── -->
+  <div class="footer">
+    <span>Radix AI Content Planner · interactive walkthrough mockup</span>
+    <span>Live: <a href="https://radix.synapseai-labs.com">radix.synapseai-labs.com</a></span>
+  </div>
+
+</div>
+
+<script>
+  // Simple tab switcher — no dependencies
+  const btns = document.querySelectorAll('.step-btn');
+  const screens = document.querySelectorAll('.screen');
+  btns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = btn.dataset.screen;
+      btns.forEach(b => b.classList.toggle('active', b === btn));
+      screens.forEach(s => s.classList.toggle('active', s.id === target));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  });
+  // Keyboard arrows to move between steps
+  document.addEventListener('keydown', e => {
+    const order = ['dash','brief','creative','calendar','flow'];
+    const current = [...screens].find(s => s.classList.contains('active')).id;
+    let idx = order.indexOf(current);
+    if (e.key === 'ArrowRight' && idx < order.length - 1) idx++;
+    else if (e.key === 'ArrowLeft' && idx > 0) idx--;
+    else return;
+    document.querySelector(`.step-btn[data-screen="${order[idx]}"]`).click();
+  });
+</script>
+</body>
+</html>
