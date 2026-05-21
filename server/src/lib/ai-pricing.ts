@@ -1,43 +1,97 @@
 // Per-million-token pricing for the providers in our fallback chain. Keep
-// this in sync with provider pricing pages — outdated prices skew the
-// per-org cost numbers we show on the admin dashboard. Last updated 2026-04-29.
+// this in sync with the providers' published pricing pages — outdated
+// prices skew the per-org cost numbers on the admin dashboard and bill
+// orgs either too much or too little.
 //
-// All prices are USD per 1M tokens. Image/video pricing is per-call (the
-// router doesn't get a token count back from those endpoints).
+// Last verified 2026-05-21 from:
+//   - ai.google.dev/gemini-api/docs/pricing
+//   - docs.x.ai/docs/models
+//   - platform.kimi.ai/docs/pricing/chat-k26.md
+//
+// TIERED MODELS — Gemini 3.x charges higher per-token rates above 200k
+// tokens of prompt. We use the ≤200k tier as the baseline for billing —
+// real chatbot turns are well under that. Long-context jobs are
+// under-attributed by ~2× but those are rare enough to not matter for
+// per-user cost reports. To bill exactly: add prompt-length awareness in
+// computeCostUsd (Phase 2).
+//
+// VIDEO — Veo + grok-imagine-video are billed per generated SECOND, not
+// per call. Pass `durationSeconds` to computeCostUsd so the row reflects
+// the real clip length. Without duration we fall back to a default 8s
+// assumption — better than zero, but flag in metadata so the admin view
+// can mark these as approximate.
 
 export interface PricePoint {
-  promptPerM: number;     // USD per 1M prompt tokens
-  completionPerM: number; // USD per 1M completion tokens
-  perCall?: number;       // for image/video — USD per generated artifact
+  promptPerM: number;       // USD per 1M prompt tokens
+  completionPerM: number;   // USD per 1M completion tokens
+  perCall?: number;         // USD per generated artifact (one image)
+  perSecond?: number;       // USD per second of generated video
 }
 
 export const AI_PRICING: Record<string, PricePoint> = {
   // ─── Gemini ─────────────────────────────────────────────────────
-  'gemini-3.1-pro-preview':            { promptPerM: 1.25, completionPerM: 10.00 },
-  'gemini-3.1-flash-lite-preview':     { promptPerM: 0.10, completionPerM: 0.40 },
-  'gemini-3.1-flash-image-preview':    { promptPerM: 0.30, completionPerM: 2.50, perCall: 0.039 },
+  // gemini-3.1-pro-preview: $2/$12 (≤200k) – $4/$18 (>200k). Baseline ≤200k.
+  'gemini-3.1-pro-preview':            { promptPerM: 2.00, completionPerM: 12.00 },
+  // gemini-3.1-flash-lite-preview: $0.25/$1.50 text. Audio prompt rate higher.
+  'gemini-3.1-flash-lite-preview':     { promptPerM: 0.25, completionPerM: 1.50 },
+  // gemini-3.1-flash-image-preview: $0.50 input / $60 output (output is
+  // priced per IMAGE not per-token in disguise). Effective ~$0.045/img
+  // at low-res, $0.151/img at high-res; perCall set to a 1024px midpoint.
+  'gemini-3.1-flash-image-preview':    { promptPerM: 0.50, completionPerM: 60.00, perCall: 0.10 },
+  // imagen-4.0-ultra: $0.06/image (unchanged).
   'imagen-4.0-ultra-generate-001':     { promptPerM: 0,    completionPerM: 0,    perCall: 0.06 },
-  'veo-3.1-generate-preview':          { promptPerM: 0,    completionPerM: 0,    perCall: 0.50 },
-  'veo-3.1-fast-generate-preview':     { promptPerM: 0,    completionPerM: 0,    perCall: 0.20 },
-  'gemini-embedding-2-preview':        { promptPerM: 0.15, completionPerM: 0 },
+  // veo-3.1-generate-preview: $0.40 (720p) – $0.60 (4k) per SECOND of video.
+  // Default to mid ($0.50/s); admin view should multiply by clip duration.
+  'veo-3.1-generate-preview':          { promptPerM: 0,    completionPerM: 0,    perSecond: 0.50 },
+  // veo-3.1-fast-generate-preview: $0.10 – $0.30 per second. Mid: $0.20/s.
+  'veo-3.1-fast-generate-preview':     { promptPerM: 0,    completionPerM: 0,    perSecond: 0.20 },
+  // veo-2.0-generate-001: legacy fallback, $0.05/sec (Google deprecated tier).
+  'veo-2.0-generate-001':              { promptPerM: 0,    completionPerM: 0,    perSecond: 0.05 },
+  // gemini-embedding-2-preview: $0.20/M for text; multimodal climbs higher.
+  'gemini-embedding-2-preview':        { promptPerM: 0.20, completionPerM: 0 },
 
   // ─── xAI Grok ───────────────────────────────────────────────────
-  'grok-4.20':                         { promptPerM: 5.00, completionPerM: 15.00 },
-  'grok-imagine-image':                { promptPerM: 0,    completionPerM: 0,    perCall: 0.07 },
-  'grok-imagine-video':                { promptPerM: 0,    completionPerM: 0,    perCall: 0.40 },
+  // grok-4.20 was $5/$15 a few months ago; xAI cut it sharply in 2026.
+  'grok-4.20':                         { promptPerM: 1.25, completionPerM: 2.50 },
+  // grok-imagine image: $0.02 per generated image (was $0.07).
+  'grok-imagine-image':                { promptPerM: 0,    completionPerM: 0,    perCall: 0.02 },
+  // grok-imagine video: $0.05 per SECOND of clip (was modeled as flat per-call).
+  'grok-imagine-video':                { promptPerM: 0,    completionPerM: 0,    perSecond: 0.05 },
+  'grok-imagine-video-fast':           { promptPerM: 0,    completionPerM: 0,    perSecond: 0.03 },
 
   // ─── Moonshot Kimi ──────────────────────────────────────────────
-  'kimi-k2.6':                         { promptPerM: 0.60, completionPerM: 2.40 },
+  // kimi-k2.6: $0.16 cache-hit / $0.95 cache-miss input, $4 output.
+  // We don't track cache state per call; use cache-miss rate (worst case)
+  // so cost reports never under-attribute. If cache-aware accounting is
+  // added later, swap to a weighted average.
+  'kimi-k2.6':                         { promptPerM: 0.95, completionPerM: 4.00 },
 };
 
 export function priceFor(model: string): PricePoint {
   return AI_PRICING[model] ?? { promptPerM: 0, completionPerM: 0 };
 }
 
-export function computeCostUsd(model: string, promptTokens?: number, completionTokens?: number, calls = 1): number {
+// Default assumed duration for video calls when the caller doesn't pass
+// one. Most Veo + grok-imagine clips default to 8s in our request shapes
+// (see services/providers/xai.provider.ts:142). Better than logging $0.
+const DEFAULT_VIDEO_DURATION_S = 8;
+
+export function computeCostUsd(
+  model: string,
+  promptTokens?: number,
+  completionTokens?: number,
+  calls = 1,
+  durationSeconds?: number,
+): number {
   const p = priceFor(model);
   const promptCost = ((promptTokens ?? 0) / 1_000_000) * p.promptPerM;
   const completionCost = ((completionTokens ?? 0) / 1_000_000) * p.completionPerM;
   const callCost = (p.perCall ?? 0) * calls;
-  return Number((promptCost + completionCost + callCost).toFixed(6));
+  // Per-second video pricing — falls back to the 8s default if caller didn't
+  // pass duration (so we still record some non-zero cost). When duration IS
+  // known the row is accurate to the second.
+  const secondsCost = p.perSecond
+    ? (durationSeconds ?? DEFAULT_VIDEO_DURATION_S) * p.perSecond * calls
+    : 0;
+  return Number((promptCost + completionCost + callCost + secondsCost).toFixed(6));
 }

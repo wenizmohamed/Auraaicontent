@@ -32,10 +32,17 @@ function usageKind(task: AiTask): string {
 // AI latency isn't blocked on DB writes; orgId is required, so calls
 // without it (legacy paths still being scoped) are skipped — they show
 // in the in-memory telemetry buffer but don't bill.
+//
+// durationSeconds is required for accurate video billing — Veo and
+// grok-imagine-video price per second, not per call. If the provider
+// doesn't return clip length, computeCostUsd falls back to the 8s
+// default (matches our default VideoRequest.durationSeconds).
 function persistUsage(meta: { orgId?: string; userId?: string; clientId?: string; jobId?: string },
-                       task: AiTask, model: string, tokens: { p?: number; c?: number; t?: number }) {
+                       task: AiTask, model: string,
+                       tokens: { p?: number; c?: number; t?: number },
+                       extras?: { durationSeconds?: number }) {
   if (!meta.orgId) return;
-  const cost = computeCostUsd(model, tokens.p, tokens.c, 1);
+  const cost = computeCostUsd(model, tokens.p, tokens.c, 1, extras?.durationSeconds);
   const kind = usageKind(task);
   void db.usageEvent.create({
     data: {
@@ -45,7 +52,12 @@ function persistUsage(meta: { orgId?: string; userId?: string; clientId?: string
       units: tokens.t ?? 0,
       costUsd: cost,
       ref: meta.jobId ?? meta.clientId ?? null,
-      metadata: { model, task, promptTokens: tokens.p, completionTokens: tokens.c },
+      metadata: {
+        model, task,
+        promptTokens: tokens.p,
+        completionTokens: tokens.c,
+        ...(extras?.durationSeconds ? { durationSeconds: extras.durationSeconds } : {}),
+      },
     },
   }).catch((err: any) => {
     // Don't crash on usage-write failures; cost reporting is best-effort.
@@ -111,6 +123,7 @@ async function routeCall<T>(
   fn: (provider: AiProvider) => Promise<ProviderResult<T>>,
   meta?: AiRouterMeta,
   req?: any,
+  extras?: { durationSeconds?: number },
 ): Promise<ProviderResult<T>> {
   // Spend gate: refuse the call if the org has hit its monthly AI budget.
   // No-op when meta.orgId is missing (legacy callers) or the org's budget
@@ -149,9 +162,13 @@ async function routeCall<T>(
         jobId: meta?.jobId, clientId: meta?.clientId,
         timestamp: new Date().toISOString(),
       });
-      persistUsage(meta ?? {}, task, result.model, {
-        p: result.promptTokens, c: result.completionTokens, t: result.totalTokens,
-      });
+      persistUsage(
+        meta ?? {},
+        task,
+        result.model,
+        { p: result.promptTokens, c: result.completionTokens, t: result.totalTokens },
+        extras,
+      );
       return result;
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
@@ -186,7 +203,11 @@ export const aiRouter = {
     // Image-to-video prefers Gemini (native imageBase64 support), but falls
     // back to xAI via the normal routeCall chain when Gemini is unavailable.
     // xAI receives the base64 as a data-URL in referenceImageUrls.
-    return routeCall('video', p => p.video(req), meta, req);
+    //
+    // durationSeconds is forwarded to persistUsage so per-second video billing
+    // (veo-3.1, grok-imagine-video) reflects the actual clip length. Defaults
+    // to 8s when the caller doesn't specify — matches the provider default.
+    return routeCall('video', p => p.video(req), meta, req, { durationSeconds: req.durationSeconds });
   },
 
   async analysis(req: AnalysisRequest, meta?: AiRouterMeta): Promise<ProviderResult<object>> {
