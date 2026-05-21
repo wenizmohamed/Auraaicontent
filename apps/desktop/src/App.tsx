@@ -12,7 +12,7 @@ import { readJson } from './lib/safe-storage';
 const isElectron = !!window.electron?.isDesktop;
 const Router = isElectron ? HashRouter : BrowserRouter;
 import { StoreProvider, useStore } from './lib/store';
-import { LayoutDashboard, Calendar, ImagePlus, Image as ImageIcon, Video, Search, UserCircle, ChevronLeft, ChevronRight, FileText, Palette, Layers, Wand2, FolderOpen, Radio, Building2, AlertCircle, Plug, History as HistoryIcon, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, Calendar, ImagePlus, Image as ImageIcon, Video, Search, UserCircle, ChevronLeft, ChevronRight, FileText, Palette, Layers, Wand2, FolderOpen, Radio, Building2, AlertCircle, Plug, History as HistoryIcon, ShieldCheck, PenLine } from 'lucide-react';
 
 // Phase 8.1 — every page lazy-loaded into its own chunk, prefetched on
 // hover later. Cuts the initial bundle from ~1MB to ~250KB gzipped.
@@ -29,6 +29,7 @@ const TopicDesk         = lazy(() => import('./pages/TopicDesk'));
 const DesignTextures    = lazy(() => import('./pages/DesignTextures'));
 const ContentPieces     = lazy(() => import('./pages/ContentPieces'));
 const Knowledge         = lazy(() => import('./pages/Knowledge'));
+const BrandKit          = lazy(() => import('./pages/BrandKit'));
 const AIDesignGenerator = lazy(() => import('./pages/AIDesignGenerator'));
 const VisualReferences  = lazy(() => import('./pages/VisualReferences'));
 const Gallery           = lazy(() => import('./pages/Gallery'));
@@ -36,6 +37,7 @@ const BriefInput        = lazy(() => import('./pages/BriefInput'));
 const ContentReview     = lazy(() => import('./pages/ContentReview'));
 const Clients           = lazy(() => import('./pages/Clients'));
 const CreativeTools     = lazy(() => import('./pages/CreativeTools'));
+const Copywriting       = lazy(() => import('./pages/Copywriting'));
 const Admin             = lazy(() => import('./pages/Admin'));
 const Billing           = lazy(() => import('./pages/Billing'));
 const Members           = lazy(() => import('./pages/Members'));
@@ -154,7 +156,9 @@ function Layout({ children }: { children: React.ReactNode }) {
     { name: t('nav.review'),    href: '/content-review',       icon: Layers,          prefetch: () => import('./pages/ContentReview') },
     { name: t('nav.calendar'),  href: '/calendar',             icon: Calendar,        prefetch: () => import('./pages/ContentCalendar') },
     { name: t('nav.creative'),  href: '/creative',             icon: Wand2,           prefetch: () => import('./pages/CreativeTools') },
+    { name: t('nav.copywriting'), href: '/copywriting',        icon: PenLine,         prefetch: () => import('./pages/Copywriting') },
     { name: t('nav.gallery'),   href: '/gallery',              icon: ImageIcon,       prefetch: () => import('./pages/Gallery') },
+    { name: 'Brand Kit',            href: '/brand-kit',            icon: Palette,         prefetch: () => import('./pages/BrandKit') },
     ...(showTeam ? [{ name: t('nav.members'), href: '/settings/members', icon: UserCircle, prefetch: () => import('./pages/Members') }] : []),
     ...(showStaff ? [{ name: 'Admin',          href: '/admin',                icon: ShieldCheck,     prefetch: () => import('./pages/Admin') }] : []),
     { name: t('nav.billing'),   href: '/settings/billing',     icon: UserCircle,      prefetch: () => import('./pages/Billing') },
@@ -470,6 +474,7 @@ export default function App() {
               <Route path="/textures" element={<DesignTextures />} />
               <Route path="/calendar" element={<ContentCalendar />} />
               <Route path="/creative" element={<CreativeTools />} />
+              <Route path="/copywriting" element={<Copywriting />} />
               {/* Legacy routes redirect to the unified Creative Studio */}
               <Route path="/image-gen" element={<Navigate to="/creative?tab=text-to-image" replace />} />
               <Route path="/image-edit" element={<Navigate to="/creative?tab=image-edit" replace />} />
@@ -477,6 +482,7 @@ export default function App() {
               <Route path="/image-to-video" element={<Navigate to="/creative?tab=image-to-video" replace />} />
               <Route path="/pieces" element={<ContentPieces />} />
               <Route path="/knowledge" element={<Knowledge />} />
+              <Route path="/brand-kit" element={<BrandKit />} />
               <Route path="/ai-design" element={<AIDesignGenerator />} />
               <Route path="/references" element={<VisualReferences />} />
               <Route path="/gallery" element={<Gallery />} />

@@ -301,6 +301,18 @@ export const calendarApi = {
   },
   updatePost: (postId: string, data: any) =>
     request<any>(`/api/calendar-posts/${postId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  // F2 scheduler — set scheduledAt + platformConnectionId on a post. Backend
+  // (server/src/routes/calendar.ts) auto-stamps status='scheduled' + clears
+  // any stale scheduleError when scheduledAt transitions from null → ISO.
+  // Worker (server/src/workers/scheduler.worker.ts) picks the row up on its
+  // next tick (60s lookahead, SETNX-locked per (postId, scheduledAt)).
+  // Pass scheduledAt=null to UNSCHEDULE — caller passes status separately
+  // (e.g. 'draft') if they want to revert from 'scheduled'.
+  schedulePost: (postId: string, scheduledAt: string | null, platformConnectionId: string | null) =>
+    request<any>(`/api/calendar-posts/${postId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ scheduledAt, platformConnectionId }),
+    }),
   deletePost: (postId: string) =>
     request<{ success: boolean; deletedId: string }>(`/api/calendar-posts/${postId}`, { method: 'DELETE' }),
   // Soft archive (reversible) — Manus-style history preservation.
@@ -478,6 +490,32 @@ export const creativeApi = {
       '/api/creative/prompt/improve',
       { method: 'POST', body: JSON.stringify({ prompt, mode }) },
       { timeoutMs: 60000 },
+    ),
+};
+
+// ─── AI Copywriting ──────────────────────────────────────────────
+
+export const copywritingApi = {
+  generate: (data: {
+    brief: string;
+    copyType?: 'headline' | 'description' | 'article' | 'cta';
+    language?: 'en' | 'ar' | 'fr';
+    tone?: string;
+    clientId?: string;
+    count?: number;
+  }) =>
+    request<{
+      variants: string[];
+      language: 'en' | 'ar' | 'fr';
+      copyType: 'headline' | 'description' | 'article' | 'cta';
+      groundingChunks: number;
+      provider: string;
+      model: string;
+      latencyMs: number;
+    }>(
+      '/api/copywriting/generate',
+      { method: 'POST', body: JSON.stringify(data) },
+      { timeoutMs: 90000 },
     ),
 };
 
@@ -1090,6 +1128,76 @@ export const agentApi = {
   getTemplate: (id: string) =>
     request<{ template: AgentTemplateSummary & { systemPrompt: string } }>(
       `/api/agent/templates/${encodeURIComponent(id)}`,
+    ),
+};
+
+// ─── BrandKit (F3, Wave 2.A) ─────────────────────────────────────
+
+export interface BrandKitVoiceSample { context?: string; sample?: string; }
+export interface BrandKitSampleImage {
+  url: string;
+  label?: string;
+  primary?: boolean;
+  mimeType?: string;
+}
+
+export interface BrandKitRecord {
+  id: string;
+  clientId: string;
+  orgId: string;
+  version: number;
+  primaryColor: string | null;
+  secondaryColor: string | null;
+  accentColor: string | null;
+  fontPrimary: string | null;
+  fontSecondary: string | null;
+  voiceSamples: BrandKitVoiceSample[];
+  voiceDoNot: { rules?: string[] } | Record<string, any> | null;
+  voicePerPlatform: Record<string, string> | null;
+  sampleImages: BrandKitSampleImage[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BrandKitVersionRecord {
+  id: string;
+  brandKitId: string;
+  version: number;
+  changedBy: string | null;
+  changedAt: string;
+  snapshot: Record<string, any>;
+}
+
+export interface BrandKitGetResponse {
+  brandKit: BrandKitRecord | null;
+  clientPrimaryColor: string | null;
+}
+
+export interface BrandKitUpsertPayload {
+  secondaryColor?: string | null;
+  accentColor?: string | null;
+  fontPrimary?: string | null;
+  fontSecondary?: string | null;
+  voiceSamples?: BrandKitVoiceSample[];
+  voiceDoNot?: { rules?: string[] } | Record<string, any> | null;
+  voicePerPlatform?: Record<string, string> | null;
+  sampleImages?: BrandKitSampleImage[];
+}
+
+export const brandKitApi = {
+  get: (clientId: string) =>
+    request<BrandKitGetResponse>(`/api/clients/${clientId}/brand-kit`),
+  upsert: (clientId: string, data: BrandKitUpsertPayload) =>
+    request<BrandKitRecord>(`/api/clients/${clientId}/brand-kit`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  listVersions: (clientId: string) =>
+    request<BrandKitVersionRecord[]>(`/api/clients/${clientId}/brand-kit/versions`),
+  delete: (clientId: string) =>
+    request<{ success: boolean; deletedId: string }>(
+      `/api/clients/${clientId}/brand-kit`,
+      { method: 'DELETE' },
     ),
 };
 

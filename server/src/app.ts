@@ -16,6 +16,7 @@ import { assetRoutes } from './routes/assets.js';
 import { knowledgeRoutes } from './routes/knowledge.js';
 import { exportRoutes } from './routes/exports.js';
 import { creativeRoutes } from './routes/creative.js';
+import { copywritingRoutes } from './routes/copywriting.js';
 import { researchRoutes } from './routes/research.js';
 import { assistantRoutes } from './routes/assistant.js';
 import { designRoutes } from './routes/design.js';
@@ -30,6 +31,7 @@ import { integrationsRoutes } from './routes/integrations.js';
 import { publishRoutes } from './routes/publish.js';
 import { historyRoutes } from './routes/history.js';
 import { productReferenceRoutes } from './routes/product-references.js';
+import { brandKitRoutes } from './routes/brand-kit.js';
 import { startTokenHealthWorker } from './workers/tokenHealth.worker.js';
 import { startSchedulerWorker } from './workers/scheduler.worker.js';
 import { initSentry } from './lib/sentry.js';
@@ -246,6 +248,7 @@ export async function buildApp() {
   await app.register(knowledgeRoutes, { prefix: '/api' });
   await app.register(exportRoutes, { prefix: '/api' });
   await app.register(creativeRoutes, { prefix: '/api' });
+  await app.register(copywritingRoutes, { prefix: '/api' });
   await app.register(researchRoutes, { prefix: '/api' });
   await app.register(assistantRoutes, { prefix: '/api' });
   await app.register(designRoutes, { prefix: '/api' });
@@ -261,6 +264,7 @@ export async function buildApp() {
   await app.register(publishRoutes, { prefix: '/api' });
   await app.register(historyRoutes, { prefix: '/api' });
   await app.register(productReferenceRoutes, { prefix: '/api' });
+  await app.register(brandKitRoutes, { prefix: '/api' });
 
   // Boot the token-health worker — runs hourly after a 60s warmup. Refreshes
   // platform connection tokens before they expire; flips status to
