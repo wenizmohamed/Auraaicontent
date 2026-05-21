@@ -16,6 +16,11 @@ export interface ToolContext {
   // orgId is required — every Prisma write inside a tool must scope to it.
   // Resolved at agent-spawn time from the requesting user's active org.
   orgId: string;
+  // userId of the human running this agent — threaded through to LLM call
+  // meta so chatText/chatStream can attribute UsageEvent rows correctly.
+  // Optional only because legacy agent invocations (system jobs) may not
+  // have a human owner; in practice the realtime/agent path always has it.
+  userId?: string | null;
   clientId?: string | null;
   prisma: PrismaDb;
   // Emit an event to the /agent Socket.IO room (persisted via emitAndPersist).

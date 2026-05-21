@@ -17,6 +17,7 @@ import { chatText, type ProviderName } from '../services/llm/chat.js';
 async function callAssistantLLM(
   system: string,
   messages: { role: 'user' | 'assistant'; content: string }[],
+  meta?: { orgId?: string; userId?: string; clientId?: string },
 ): Promise<{ text: string; provider: ProviderName; model: string; latencyMs: number; fallbackUsed: boolean }> {
   // 4096 budget: Gemini 3 / Kimi K2 are thinking models that may burn
   // 500-2K tokens on reasoning_content BEFORE emitting visible content.
@@ -25,7 +26,7 @@ async function callAssistantLLM(
   const r = await chatText({
     max_tokens: 4096,
     messages: [{ role: 'system', content: system }, ...messages],
-  }, { chainEnv: process.env.ASSISTANT_PROVIDER_CHAIN });
+  }, { chainEnv: process.env.ASSISTANT_PROVIDER_CHAIN, meta });
   console.log(`[assistant] ${r.provider}/${r.model} ${r.latencyMs}ms${r.fallbackUsed ? ' (fallback)' : ''}, ${r.text.length} chars`);
   return r;
 }
@@ -111,7 +112,7 @@ CRITICAL: When responding as plain text, do NOT wrap it in JSON. Just write natu
 
 // ─── Action Executor ─────────────────────────────────────────────
 
-async function executeAction(orgId: string, action: string, params: any, clientId: string | null): Promise<any> {
+async function executeAction(orgId: string, action: string, params: any, clientId: string | null, userId?: string): Promise<any> {
   switch (action) {
     case 'list_clients':
       return db.client.findMany({
@@ -224,6 +225,7 @@ async function executeAction(orgId: string, action: string, params: any, clientI
       const improved = await callAssistantLLM(
         'You are a creative director. Improve the given image/video generation prompt to be more vivid, specific, and visually compelling. Return ONLY the improved prompt, nothing else.',
         [{ role: 'user', content: prompt }],
+        { orgId, userId, clientId: clientId || undefined },
       );
       return { original: prompt, improved: improved.text.trim() };
     }
@@ -254,6 +256,7 @@ async function executeAction(orgId: string, action: string, params: any, clientI
       const researchResult = await callAssistantLLM(
         'You are a senior content strategist at a Dubai agency. Research the topic and provide 5-7 actionable content ideas with platform recommendations. Be specific to the UAE/GCC market when relevant. Return as structured text, not JSON.',
         [{ role: 'user', content: query }],
+        { orgId, userId, clientId: clientId || undefined },
       );
       return { query, insights: researchResult.text.trim() };
     }
@@ -331,7 +334,9 @@ export async function assistantRoutes(app: FastifyInstance) {
       const start = Date.now();
 
       // Pass 1: Get the assistant's response (might be an action JSON or plain text).
-      const pass1 = await callAssistantLLM(systemPrompt, grokMessages);
+      const userId = request.user?.userId;
+      const meta = { orgId, userId, clientId: clientId || undefined };
+      const pass1 = await callAssistantLLM(systemPrompt, grokMessages, meta);
       let responseText = pass1.text.trim();
       let actionTaken: AgentAction | undefined;
       let totalLatency = Date.now() - start;
@@ -353,12 +358,11 @@ export async function assistantRoutes(app: FastifyInstance) {
           const actionParams = parsed.params || {};
 
           // Execute the action
-          const actionResult = await executeAction(orgId, actionName, actionParams, clientId || null);
+          const actionResult = await executeAction(orgId, actionName, actionParams, clientId || null, userId);
 
           actionTaken = { type: actionName, params: actionParams, result: actionResult };
 
           // Audit log the action
-          const userId = request.user?.userId;
           auditService.log({
             orgId,
             userId,
@@ -373,7 +377,7 @@ export async function assistantRoutes(app: FastifyInstance) {
             ...grokMessages,
             { role: 'assistant', content: `[Executed "${actionName}" action]` },
             { role: 'user', content: `Action result:\n${JSON.stringify(actionResult, null, 2)}\n\nWrite a concise, friendly summary of what happened. Be specific about numbers and details. Don't repeat raw JSON — translate into natural language.` },
-          ]);
+          ], meta);
 
           responseText = pass2.text.trim();
           totalLatency = Date.now() - start;

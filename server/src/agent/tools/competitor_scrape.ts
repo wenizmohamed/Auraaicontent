@@ -155,7 +155,7 @@ async function inferPosts(
   platform: Platform,
   limit: number,
   signal: AbortSignal,
-  meta?: { orgId?: string; clientId?: string; sessionId?: string },
+  meta?: { orgId?: string; userId?: string; clientId?: string; sessionId?: string },
 ): Promise<RecentPost[]> {
   const prompt =
     `You are a social-media analyst. Describe the typical recent posting pattern for ` +
@@ -165,7 +165,7 @@ async function inferPosts(
   try {
     const res = await aiRouter.text(
       { prompt, json: true, temperature: 0.4 },
-      { orgId: meta?.orgId, clientId: meta?.clientId, jobId: meta?.sessionId },
+      { orgId: meta?.orgId, userId: meta?.userId, clientId: meta?.clientId, jobId: meta?.sessionId },
     );
     if (signal.aborted) return [];
     const out = res.output as { posts?: { caption?: string; engagement?: string }[] };
@@ -229,7 +229,7 @@ export const tool = defineTool<Args, Result>({
       let source: HandleResult['source'] = 'scrape';
       let note: string | undefined;
 
-      const inferMeta = { orgId: ctx.orgId, clientId: ctx.clientId ?? undefined, sessionId: ctx.sessionId };
+      const inferMeta = { orgId: ctx.orgId, userId: ctx.userId ?? undefined, clientId: ctx.clientId ?? undefined, sessionId: ctx.sessionId };
       if (posts.length === 0) {
         const inferred = await inferPosts(handle, args.platform, limit, ctx.signal, inferMeta);
         posts = inferred;

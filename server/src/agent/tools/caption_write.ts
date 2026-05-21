@@ -151,7 +151,10 @@ export const tool = defineTool<Args, Result>({
           { role: 'user', content: userPrompt },
         ],
       },
-      { signal: ctx.signal },
+      {
+        signal: ctx.signal,
+        meta: { orgId: ctx.orgId, userId: ctx.userId ?? undefined, clientId: ctx.clientId ?? undefined, jobId: ctx.sessionUid },
+      },
     );
 
     let caption = '';

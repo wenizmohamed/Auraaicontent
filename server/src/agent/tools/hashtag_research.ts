@@ -79,6 +79,7 @@ async function askLlm(
   count: number,
   seedTags: string[],
   signal: AbortSignal,
+  meta?: { orgId: string; userId?: string; clientId?: string; jobId?: string },
 ): Promise<AnthropicHashtag[]> {
   const seedHint = seedTags.length
     ? `Scraped hashtag seeds (may be noisy, filter and dedupe): ${seedTags.join(', ')}`
@@ -106,7 +107,7 @@ async function askLlm(
       { role: 'system', content: system },
       { role: 'user', content: user },
     ],
-  });
+  }, { meta });
 
   const text = resp.text.trim();
 
@@ -172,7 +173,12 @@ export const tool = defineTool<Args, Result>({
     });
 
     // Phase 2 — Anthropic enrich/propose.
-    const enriched = await askLlm(args.topic, args.platform, count, seedTags, ctx.signal);
+    const enriched = await askLlm(args.topic, args.platform, count, seedTags, ctx.signal, {
+      orgId: ctx.orgId,
+      userId: ctx.userId ?? undefined,
+      clientId: ctx.clientId ?? undefined,
+      jobId: ctx.sessionUid,
+    });
 
     // Dedupe by lowercased tag, keep first occurrence.
     const seen = new Set<string>();

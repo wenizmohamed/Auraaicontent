@@ -31,8 +31,39 @@ import type {
   ChatCompletion,
   ChatCompletionChunk,
 } from 'openai/resources/chat/completions';
+import { db } from '../../db/prisma.js';
+import { computeCostUsd } from '../../lib/ai-pricing.js';
 
 export type ProviderName = 'gemini' | 'xai' | 'moonshot';
+
+// Usage tracking — mirrors ai-router.persistUsage so the chatText/chatStream
+// path (assistant chatbot + agent loop + 4 agent tools) writes UsageEvent
+// rows just like ai-router does. Without this the per-user usage chart in
+// admin only ever shows generation jobs, not the chatbot which is the
+// most-used surface. Fire-and-forget — DB write failures must not break LLM
+// responses. orgId is required (no orgId = unscoped legacy caller = skip).
+export interface UsageMeta {
+  orgId?: string;
+  userId?: string;
+  clientId?: string;
+  jobId?: string;
+}
+function persistChatUsage(meta: UsageMeta | undefined, model: string, p?: number, c?: number, t?: number) {
+  if (!meta?.orgId) return;
+  void db.usageEvent.create({
+    data: {
+      orgId: meta.orgId,
+      userId: meta.userId ?? null,
+      kind: 'ai.text',
+      units: t ?? 0,
+      costUsd: computeCostUsd(model, p, c, 1),
+      ref: meta.jobId ?? meta.clientId ?? null,
+      metadata: { model, task: 'text', promptTokens: p, completionTokens: c, surface: 'chat' },
+    },
+  }).catch((err: any) => {
+    console.warn('[chat] usage persist failed:', err?.message || err);
+  });
+}
 
 export interface ProviderClient {
   client: OpenAI;
@@ -173,7 +204,7 @@ export interface ChatTextResult {
 
 export async function chatText(
   params: Omit<ChatCompletionCreateParamsNonStreaming, 'model' | 'stream'>,
-  options?: { chain?: ProviderName[]; chainEnv?: string },
+  options?: { chain?: ProviderName[]; chainEnv?: string; meta?: UsageMeta },
 ): Promise<ChatTextResult> {
   const start = Date.now();
   const out = await withFallback(async ({ client, model }) => {
@@ -185,6 +216,13 @@ export async function chatText(
     if (!text && choice?.reasoning_content) text = choice.reasoning_content;
     return { text, usage: r.usage };
   }, options);
+  persistChatUsage(
+    options?.meta,
+    out.model,
+    out.result.usage?.prompt_tokens,
+    out.result.usage?.completion_tokens,
+    out.result.usage?.total_tokens,
+  );
   return {
     text: out.result.text,
     provider: out.provider,
@@ -203,21 +241,57 @@ export async function chatText(
 // drop partial output + duplicate work). Caller iterates as usual.
 export async function chatStream(
   params: Omit<ChatCompletionCreateParamsStreaming, 'model' | 'stream'>,
-  options?: { chain?: ProviderName[]; chainEnv?: string; signal?: AbortSignal },
+  options?: { chain?: ProviderName[]; chainEnv?: string; signal?: AbortSignal; meta?: UsageMeta },
 ): Promise<{
   stream: AsyncIterable<ChatCompletionChunk>;
   provider: ProviderName;
   model: string;
   fallbackUsed: boolean;
 }> {
+  // stream_options.include_usage = true makes Gemini / xAI / Kimi emit one
+  // final chunk containing prompt+completion token counts. Without this,
+  // the streaming path can't be priced and every chatbot turn would be a
+  // 0-token UsageEvent. Caller-provided stream_options wins so anyone who
+  // already turned it off doesn't get overridden silently.
+  const paramsWithUsage: ChatCompletionCreateParamsStreaming = {
+    ...params,
+    stream: true,
+    stream_options: { include_usage: true, ...(params as any).stream_options },
+  } as ChatCompletionCreateParamsStreaming;
   const out = await withFallback(async ({ client, model }) => {
     const stream = await client.chat.completions.create(
-      { ...params, model, stream: true },
+      { ...paramsWithUsage, model },
       { signal: options?.signal },
     );
     return stream;
   }, { chain: options?.chain, chainEnv: options?.chainEnv });
-  return { stream: out.result, provider: out.provider, model: out.model, fallbackUsed: out.fallbackUsed };
+
+  // Wrap the stream so we tap into each chunk for usage, then re-yield to
+  // the caller. The final chunk (when include_usage works) carries `usage`.
+  // We fire-and-forget the UsageEvent insert when the iterator is exhausted.
+  // If the caller break/throws mid-stream we still persist whatever usage
+  // we saw — better partial data than none.
+  const upstream = out.result as AsyncIterable<ChatCompletionChunk>;
+  const wrapped: AsyncIterable<ChatCompletionChunk> = {
+    async *[Symbol.asyncIterator]() {
+      let usage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | undefined;
+      try {
+        for await (const chunk of upstream) {
+          if ((chunk as any).usage) usage = (chunk as any).usage;
+          yield chunk;
+        }
+      } finally {
+        persistChatUsage(
+          options?.meta,
+          out.model,
+          usage?.prompt_tokens,
+          usage?.completion_tokens,
+          usage?.total_tokens,
+        );
+      }
+    },
+  };
+  return { stream: wrapped, provider: out.provider, model: out.model, fallbackUsed: out.fallbackUsed };
 }
 
 // Diagnostic: which providers in the chain currently have credentials set.

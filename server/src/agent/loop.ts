@@ -136,7 +136,11 @@ export async function runAgentLoop({ input, ctx }: RunAgentArgs): Promise<RunAge
           messages,
           tools,
         },
-        { chainEnv: AGENT_CHAIN_ENV, signal: ctx.signal },
+        {
+          chainEnv: AGENT_CHAIN_ENV,
+          signal: ctx.signal,
+          meta: { orgId: ctx.orgId, userId: ctx.userId ?? undefined, clientId: ctx.clientId ?? undefined, jobId: ctx.sessionUid },
+        },
       );
       stream = opened.stream;
       providerUsed = opened.provider;

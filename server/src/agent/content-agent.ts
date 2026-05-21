@@ -70,6 +70,7 @@ export async function runContentAgent(args: RunContentAgentArgs): Promise<RunAge
     sessionUid,
     sessionId: session.id,
     orgId: session.orgId,
+    userId: userId ?? null,
     clientId: clientId ?? null,
     prisma,
     signal: controller.signal,

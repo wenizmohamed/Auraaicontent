@@ -154,6 +154,8 @@ export const tool = defineTool<Args, Result>({
         },
       ],
       response_format: { type: 'json_object' },
+    }, {
+      meta: { orgId: ctx.orgId, userId: ctx.userId ?? undefined, clientId: ctx.clientId ?? undefined, jobId: ctx.sessionUid },
     });
 
     if (ctx.signal.aborted) throw new Error('aborted');
