@@ -330,6 +330,8 @@ export const geminiProvider: AiProvider = {
       // of randomly extrapolating from a single starting still.
       const startB64 = req.startImageBase64 || req.imageBase64;
       const startMime = req.startMimeType || req.mimeType;
+      const hasStart = !!(startB64 && startMime);
+      const hasEnd = !!(req.endImageBase64 && req.endMimeType);
       let operation = await ai.models.generateVideos({
         model: entry.model,
         prompt: enrichBodyPrompt(req.prompt),
@@ -339,13 +341,31 @@ export const geminiProvider: AiProvider = {
           ...(process.env.GEMINI_VIDEO_PERSON_GENERATION
             ? { personGeneration: process.env.GEMINI_VIDEO_PERSON_GENERATION as any }
             : {}),
+          // End frame (workshop 2026-05-06 #3). lastFrame is a field of
+          // GenerateVideosConfig — NOT a top-level generateVideos param. The
+          // previous code spread it at the top level behind an `as any`, so the
+          // SDK silently dropped it: Veo only ever saw the start frame and
+          // free-ran to a random ending (Haneen: "doesn't end as the image I
+          // add", faces drifting, mushy motion). Two real anchors let Veo
+          // interpolate instead of extrapolate. lastFrame is image-to-video
+          // only, so it also requires a start frame.
+          ...(hasStart && hasEnd
+            ? { lastFrame: { imageBytes: req.endImageBase64, mimeType: req.endMimeType } }
+            : {}),
+          // Identity stability: when conditioning on real frames, steer Veo away
+          // from re-inventing the subject mid-clip ("changing people's faces ...
+          // things get mushy"). Set GEMINI_VIDEO_NEGATIVE="" to opt out.
+          ...(hasStart
+            ? {
+                negativePrompt:
+                  process.env.GEMINI_VIDEO_NEGATIVE ??
+                  'face morphing, identity change, distorted faces, warping, melting, extra fingers, blurry, low quality',
+              }
+            : {}),
         },
-        ...(startB64 && startMime ? {
+        ...(hasStart ? {
           image: { imageBytes: startB64, mimeType: startMime },
         } : {}),
-        ...(req.endImageBase64 && req.endMimeType ? {
-          lastFrame: { imageBytes: req.endImageBase64, mimeType: req.endMimeType },
-        } as any : {}),
       });
       // Symmetry with xAI: client-side 10-min deadline on the poll loop so a
       // hung getVideosOperation can't hold a slot forever. Veo's server-side
