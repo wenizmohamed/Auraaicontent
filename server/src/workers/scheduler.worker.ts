@@ -31,10 +31,16 @@
  */
 import IORedis from 'ioredis';
 import { Queue, Worker } from 'bullmq';
-import { db } from '../db/prisma.js';
+import { PrismaClient } from '@prisma/client';
 import { env } from '../config/env.js';
 import { dispatchPublish } from '../lib/publish-dispatch.js';
 import { auditService } from '../services/audit.service.js';
+
+// System-level client — no tenant-guard extension. The scheduler is a
+// cross-org background process; it legitimately needs to scan all orgs to
+// dispatch scheduled posts. Per-request routes must use the guarded `db`
+// singleton from ../db/prisma.js instead.
+const systemDb = new PrismaClient({ log: ['error'] });
 
 type Redis = InstanceType<typeof IORedis>;
 
@@ -124,7 +130,7 @@ async function runTick(): Promise<void> {
     // 20260512_add_post_scheduler migration; Prisma client regen catches up
     // on next deploy. Same pattern as the rest of the codebase
     // (server/src/lib/brand-kit-enricher.ts, etc).
-    candidates = await (db as any).calendarPost.findMany({
+    candidates = await (systemDb as any).calendarPost.findMany({
       where: {
         status: 'scheduled',
         scheduledAt: { lte: horizon, not: null },
@@ -179,7 +185,7 @@ async function processOne(post: {
 }): Promise<void> {
   // Resolve clientId via the parent CalendarMonth (CalendarPost has no
   // direct clientId — same pattern as routes/publish.ts).
-  const month = await db.calendarMonth.findUnique({
+  const month = await systemDb.calendarMonth.findUnique({
     where: { id: post.calendarMonthId },
     select: { clientId: true },
   });
@@ -192,18 +198,18 @@ async function processOne(post: {
   // for the platformConnection delegate.
   let conn: any = null;
   if (post.platformConnectionId) {
-    conn = await (db as any).platformConnection.findFirst({
+    conn = await (systemDb as any).platformConnection.findFirst({
       where: { id: post.platformConnectionId, orgId: post.orgId },
     });
   } else if (clientId) {
-    conn = await (db as any).platformConnection.findFirst({
+    conn = await (systemDb as any).platformConnection.findFirst({
       where: { orgId: post.orgId, clientId, platform: post.platform, status: 'connected' },
     });
   }
 
   if (!conn) {
     const msg = `No connected ${post.platform} account for this post`;
-    await db.calendarPost.update({
+    await systemDb.calendarPost.update({
       where: { id: post.id },
       data: { status: 'failed', scheduleError: msg } as any,
     });
@@ -219,14 +225,14 @@ async function processOne(post: {
   }
 
   // Resolve the first attached asset URL.
-  const assetLink = await db.calendarPostAsset.findFirst({
+  const assetLink = await systemDb.calendarPostAsset.findFirst({
     where: { postId: post.id },
     include: { asset: true },
   });
   const assetUrl = assetLink?.asset?.fileUrl;
   if (!assetUrl) {
     const msg = 'Post has no attached image asset';
-    await db.calendarPost.update({
+    await systemDb.calendarPost.update({
       where: { id: post.id },
       data: { status: 'failed', scheduleError: msg } as any,
     });
@@ -249,7 +255,7 @@ async function processOne(post: {
   if (result.success) {
     // dispatchPublish already set status='published' on success. Clear any
     // stale schedule error.
-    await db.calendarPost.update({
+    await systemDb.calendarPost.update({
       where: { id: post.id },
       data: { scheduleError: null } as any,
     });
@@ -267,7 +273,7 @@ async function processOne(post: {
       },
     });
   } else {
-    await db.calendarPost.update({
+    await systemDb.calendarPost.update({
       where: { id: post.id },
       data: { status: 'failed', scheduleError: result.error ?? 'unknown error' } as any,
     });
