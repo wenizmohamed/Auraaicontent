@@ -24,19 +24,21 @@ test_surface() {
   H=$(curl -sf "$BASE/api/health" | python3 -c "import sys,json; print(json.load(sys.stdin)['status'])" 2>/dev/null || echo "DOWN")
   [ "$H" = "ok" ] && pass "$LABEL health" || { fail "$LABEL health — backend DOWN"; return; }
 
-  # 2. Health details
-  curl -sf "$BASE/api/health/details" | python3 -c "
+  # 2. Auth — must run BEFORE health/details, which is auth-gated since the
+  # Task #78 security work (authGuard + staffGuard). Override creds with
+  # SMOKE_EMAIL / SMOKE_PASS env vars; the in-script defaults go stale.
+  TOKEN=$(curl -sf -X POST "$BASE/api/auth/login" -H "Content-Type: application/json" \
+    -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}" | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])" 2>/dev/null)
+  [ -n "$TOKEN" ] && pass "$LABEL auth" || { fail "$LABEL auth — bad creds, set SMOKE_PASS env"; return; }
+
+  # 3. Health details (auth-gated — pass the Bearer token)
+  curl -sf "$BASE/api/health/details" -H "Authorization: Bearer $TOKEN" | python3 -c "
 import sys,json; d=json.load(sys.stdin)
 print(f'  processStart: {d[\"processStart\"]}')
 print(f'  gemini_fp: {d[\"envFingerprints\"][\"GEMINI_API_KEY\"]}')
 print(f'  xai_fp: {d[\"envFingerprints\"][\"XAI_API_KEY\"]}')
 print(f'  routing: {d[\"routing\"][\"AI_TEXT_PRIMARY\"]}/{d[\"routing\"][\"AI_IMAGE_PRIMARY\"]}')
 " 2>/dev/null && pass "$LABEL health/details" || fail "$LABEL health/details"
-
-  # 3. Auth
-  TOKEN=$(curl -sf -X POST "$BASE/api/auth/login" -H "Content-Type: application/json" \
-    -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}" | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])" 2>/dev/null)
-  [ -n "$TOKEN" ] && pass "$LABEL auth" || { fail "$LABEL auth"; return; }
 
   # 4. Clients
   CLIENT=$(curl -sf "$BASE/api/clients" -H "Authorization: Bearer $TOKEN" | python3 -c "
