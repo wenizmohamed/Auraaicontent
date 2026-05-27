@@ -345,7 +345,7 @@ function Layout({ children }: { children: React.ReactNode }) {
                           title={isCollapsed ? item.name : undefined}
                         >
                           {isActive && (
-                            <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full ${isDark ? 'bg-amber-500' : 'bg-amber-500'}`} />
+                            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-[color:var(--color-accent)]" />
                           )}
                           <item.icon className={`${isCollapsed ? '' : 'mr-3'} h-[18px] w-[18px] transition-all duration-200 ${
                             isActive ? isDark ? 'text-amber-400' : 'text-amber-600' : isDark ? 'group-hover:text-zinc-300' : 'group-hover:text-slate-700'
@@ -414,7 +414,11 @@ function Layout({ children }: { children: React.ReactNode }) {
             </div>
           )}
           {error && (
-            <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm font-medium">
+            <div className="mb-6 p-4 rounded-xl text-sm font-medium" style={{
+              background: 'var(--color-danger-subtle)',
+              border: '1px solid var(--color-danger)',
+              color: 'var(--color-danger)',
+            }}>
               Error: {error}
             </div>
           )}
@@ -470,9 +474,9 @@ function DevBanner() {
   return (
     <div className="fixed bottom-0 left-0 right-0 z-debug bg-zinc-900/95 border-t border-zinc-800 px-4 py-1.5 flex items-center gap-4 text-[10px] font-mono text-zinc-500">
       <span className="text-violet-400 font-bold">{lane.toUpperCase()}</span>
-      <span className={serverOnline ? 'text-emerald-400' : 'text-red-400'}>{serverOnline ? 'API: ON' : 'API: OFF'}</span>
-      <span className={authenticated ? 'text-emerald-400' : 'text-red-400'}>{authenticated ? 'AUTH: OK' : 'AUTH: NO'}</span>
-      {authError && <span className="text-red-400">ERR: {authError.slice(0, 40)}</span>}
+      <span style={{ color: serverOnline ? 'var(--color-success)' : 'var(--color-danger)' }}>{serverOnline ? 'API: ON' : 'API: OFF'}</span>
+      <span style={{ color: authenticated ? 'var(--color-success)' : 'var(--color-danger)' }}>{authenticated ? 'AUTH: OK' : 'AUTH: NO'}</span>
+      {authError && <span style={{ color: 'var(--color-danger)' }}>ERR: {authError.slice(0, 40)}</span>}
       <span className="text-zinc-600">→ {API_URL}</span>
       <span className="text-zinc-600">client: {selectedClientId?.slice(0, 12) || 'none'}</span>
       <span className="text-zinc-600">route: {location.pathname}</span>

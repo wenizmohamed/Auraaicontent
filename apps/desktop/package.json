@@ -16,6 +16,8 @@
     "storybook:build": "storybook build",
     "chromatic": "chromatic --exit-zero-on-changes --build-script-name=storybook:build",
     "test": "echo \"no test framework configured — typecheck is the gate\" && tsc --noEmit",
+    "audit:colors": "node scripts/raw-color-audit.cjs",
+    "audit:colors:write": "node scripts/raw-color-audit.cjs --write",
     "electron:dev": "concurrently -k \"vite --port=3000\" \"wait-on http://localhost:3000 && electron .\"",
     "electron:build": "vite build && electron-builder --win --x64",
     "electron:pack": "vite build && electron-builder --dir"

@@ -335,11 +335,12 @@ export const calendarApi = {
   // Back-compat alias — some older callers still import deleteMonth.  Maps to archive.
   deleteMonth: (clientId: string, month: string) =>
     request<any>(`/api/clients/${clientId}/calendar/${encodeURIComponent(month)}`, { method: 'DELETE' }),
+  // PERF-8: route now returns { jobId } (202). Poll /api/jobs/:id for the result
+  // which mirrors the synchronous shape under `result`.
   backfillVisualRefs: (clientId: string, month: string, count = 6) =>
-    request<{ month: string; postsScanned: number; postsEligible: number; postsBackfilled: number; totalRefsAdded: number; failures: any[] }>(
+    request<{ jobId: string }>(
       `/api/clients/${clientId}/calendar/${encodeURIComponent(month)}/visual-refs/backfill`,
       { method: 'POST', body: JSON.stringify({ count }) },
-      { timeoutMs: 240000 },
     ),
 };
 

@@ -2,6 +2,8 @@ import { useState, useMemo, useEffect, useCallback } from 'react';
 import { t } from '../i18n';
 import { Calendar as CalendarIcon, X, ExternalLink, ChevronLeft, ChevronRight, Instagram, Linkedin, Twitter, Facebook, Video, Sparkles, FileText, ArrowRight, Share2, Loader2, Copy, Download, Edit3, Check, Save, Trash2, Building2, ChevronDown, ImagePlus, Archive, RotateCcw, History, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import * as RadixDialog from '@radix-ui/react-dialog';
+import { Dialog } from '../components/ui/Dialog';
 import { validateCaption } from '../lib/platform-limits';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { useClients } from '../lib/client-context';
@@ -343,13 +345,28 @@ export default function ContentCalendar() {
     if (!activeClientId || !backendMonth?.month || backfilling) return;
     setBackfilling(true);
     try {
-      const out = await calendarApi.backfillVisualRefs(activeClientId, backendMonth.month, 6);
-      const msg = out.totalRefsAdded > 0
-        ? `Added ${out.totalRefsAdded} visual refs across ${out.postsBackfilled}/${out.postsEligible} posts`
-        : `No posts needed backfill (${out.postsScanned} scanned)`;
-      showStatus(msg, 'ok');
-      // Re-fetch the month so the new refs render
-      fetchMonth();
+      // PERF-8: route returns 202 + jobId; worker does the search/insert loop.
+      const { jobId } = await calendarApi.backfillVisualRefs(activeClientId, backendMonth.month, 6);
+      showStatus('Backfilling visual references…', 'ok');
+      // Poll up to 2 minutes (visual search can be slow per post).
+      for (let attempt = 0; attempt < 60; attempt++) {
+        await new Promise(r => setTimeout(r, 2000));
+        const job = await jobsApi.get(jobId);
+        if (job.status === 'completed') {
+          const r = (job as any).result || {};
+          const msg = r.totalRefsAdded > 0
+            ? `Added ${r.totalRefsAdded} visual refs across ${r.postsBackfilled}/${r.postsEligible} posts`
+            : `No posts needed backfill (${r.postsScanned ?? 0} scanned)`;
+          showStatus(msg, 'ok');
+          fetchMonth();
+          return;
+        }
+        if (job.status === 'failed') {
+          showStatus('Backfill failed: ' + ((job as any).error || 'unknown'), 'error', 6000);
+          return;
+        }
+      }
+      showStatus('Backfill still running — check back in a moment.', 'ok', 6000);
     } catch (err: any) {
       showStatus('Backfill failed: ' + (err?.message || 'unknown'), 'error', 6000);
     } finally {
@@ -1037,38 +1054,31 @@ export default function ContentCalendar() {
         </>
       )}
 
-      {/* Previous Months drawer — Manus-style history panel */}
-      <AnimatePresence>
-        {historyOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-drawer bg-black/70 backdrop-blur-sm flex items-start justify-end p-0"
-            onClick={() => setHistoryOpen(false)}
+      {/* Previous Months — RadixDialog gives focus trap + Esc + return focus.
+          Custom right-side positioning instead of the centered helper. */}
+      <RadixDialog.Root open={historyOpen} onOpenChange={setHistoryOpen}>
+        <RadixDialog.Portal>
+          <RadixDialog.Overlay className="fixed inset-0 z-drawer bg-black/70 backdrop-blur-sm data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0" />
+          <RadixDialog.Content
+            className="fixed right-0 top-0 z-drawer h-full w-full max-w-md bg-[#0a0a0a] border-l border-white/10 flex flex-col outline-none data-[state=open]:animate-in data-[state=open]:slide-in-from-right data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right"
           >
-            <motion.div
-              initial={{ x: 400 }}
-              animate={{ x: 0 }}
-              exit={{ x: 400 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 32 }}
-              className="h-full w-full max-w-md bg-[#0a0a0a] border-l border-white/10 flex flex-col"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between p-5 border-b border-white/[0.06]">
-                <div className="flex items-center gap-2">
-                  <History className="w-5 h-5 text-amber-400" />
-                  <h2 className="text-base font-bold text-white">Previous Months</h2>
-                </div>
-                <button
-                  onClick={() => setHistoryOpen(false)}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-white hover:bg-white/[0.06] cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+            <div className="flex items-center justify-between p-5 border-b border-white/[0.06]">
+              <div className="flex items-center gap-2">
+                <History className="w-5 h-5 text-amber-400" aria-hidden="true" />
+                <RadixDialog.Title className="text-base font-bold text-white">Previous Months</RadixDialog.Title>
               </div>
+              <RadixDialog.Description className="sr-only">
+                Archived calendar months. Restore any month back to the active calendar, or permanently delete it.
+              </RadixDialog.Description>
+              <RadixDialog.Close
+                aria-label="Close previous months"
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-white hover:bg-white/[0.06] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+              >
+                <X className="w-4 h-4" />
+              </RadixDialog.Close>
+            </div>
 
-              <div className="flex-1 overflow-y-auto p-5 space-y-3">
+            <div className="flex-1 overflow-y-auto p-5 space-y-3">
                 {loadingArchived && (
                   <div className="space-y-2">
                     <SkeletonAnnouncer label="Loading archived months…" />
@@ -1138,91 +1148,54 @@ export default function ContentCalendar() {
                 })}
               </div>
 
-              <div className="p-4 border-t border-white/[0.06] bg-black/30">
-                <p className="text-[10px] text-zinc-600 leading-relaxed">
-                  Archived months stay safe until you delete them permanently. Hard delete removes the month + all posts and cannot be undone.
-                </p>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            <div className="p-4 border-t border-white/[0.06] bg-black/30">
+              <p className="text-[10px] text-zinc-600 leading-relaxed">
+                Archived months stay safe until you delete them permanently. Hard delete removes the month + all posts and cannot be undone.
+              </p>
+            </div>
+          </RadixDialog.Content>
+        </RadixDialog.Portal>
+      </RadixDialog.Root>
 
-      {/* Archive confirm modal — replaces native window.confirm with styled UI */}
-      <AnimatePresence>
+      {/* Archive confirm — Dialog primitive (focus trap, Esc, return-focus). */}
+      <Dialog.Root open={showArchiveConfirm && !!backendMonth} onOpenChange={setShowArchiveConfirm}>
         {showArchiveConfirm && backendMonth && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={motionInstant}
-            className="fixed inset-0 z-popover bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
-            onClick={() => setShowArchiveConfirm(false)}
+          <Dialog.Content
+            title={`Archive ${backendMonth.month}?`}
+            description={currentClient?.name || 'this client'}
+            width={480}
           >
-            <motion.div
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="archive-confirm-title"
-              initial={{ opacity: 0, scale: 0.96, y: 8 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 8 }}
-              transition={motionUI}
-              onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md rounded-2xl bg-[#0a0a0a] border border-white/10 shadow-2xl shadow-black/50 overflow-hidden"
-            >
-              <div className="flex items-start gap-3 p-5 border-b border-white/[0.06]">
-                <div className="shrink-0 w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center">
-                  <Archive className="w-4 h-4 text-amber-300" />
-                </div>
-                <div className="min-w-0">
-                  <h2 id="archive-confirm-title" className="text-base font-bold text-white">
-                    Archive {backendMonth.month}?
-                  </h2>
-                  <p className="text-xs text-zinc-400 mt-0.5">
-                    {currentClient?.name || 'this client'}
-                  </p>
-                </div>
+            <div className="space-y-3">
+              <p className="text-sm leading-relaxed" style={{ color: 'var(--color-fg)' }}>
+                This moves the month to <span className="text-amber-300 font-semibold">Previous Months</span>. Posts are preserved and can be restored anytime from the history drawer.
+              </p>
+              <p className="text-xs leading-relaxed" style={{ color: 'var(--color-fg-subtle)' }}>
+                To delete permanently, open Previous Months and use "Delete permanently" there.
+              </p>
+            </div>
+            <Dialog.Footer>
+              <Dialog.Close asChild>
+                {/* autoFocus on Cancel — never the destructive action (A11Y-5). */}
                 <button
                   type="button"
-                  onClick={() => setShowArchiveConfirm(false)}
-                  aria-label="Cancel"
-                  className="ml-auto w-8 h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-white hover:bg-white/[0.06] cursor-pointer focus:outline-none focus:ring-2 focus:ring-white/20"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="p-5 space-y-3">
-                <p className="text-sm text-zinc-300 leading-relaxed">
-                  This moves the month to <span className="text-amber-300 font-semibold">Previous Months</span>. Posts are preserved and can be restored anytime from the history drawer.
-                </p>
-                <p className="text-xs text-zinc-500 leading-relaxed">
-                  To delete permanently, open Previous Months and use "Delete permanently" there.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2 p-4 border-t border-white/[0.06] bg-black/30">
-                <button
-                  type="button"
-                  onClick={() => setShowArchiveConfirm(false)}
-                  className="flex-1 px-4 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] text-sm font-semibold text-zinc-300 hover:bg-white/[0.08] cursor-pointer focus:outline-none focus:ring-2 focus:ring-white/20"
+                  autoFocus
+                  className="px-4 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] text-sm font-semibold text-zinc-300 hover:bg-white/[0.08] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
                 >
                   Cancel
                 </button>
-                <button
-                  type="button"
-                  onClick={confirmArchive}
-                  autoFocus
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 text-black text-sm font-bold hover:bg-amber-400 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-300/60"
-                >
-                  <Archive className="w-4 h-4" />
-                  Archive
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
+              </Dialog.Close>
+              <button
+                type="button"
+                onClick={confirmArchive}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 text-black text-sm font-bold hover:bg-amber-400 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/60"
+              >
+                <Archive className="w-4 h-4" />
+                Archive
+              </button>
+            </Dialog.Footer>
+          </Dialog.Content>
         )}
-      </AnimatePresence>
+      </Dialog.Root>
     </div>
   );
 }

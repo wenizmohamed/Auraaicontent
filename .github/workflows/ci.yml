@@ -56,6 +56,12 @@ jobs:
         # to ~200 (covering only the legitimate jsx-a11y residue).
         run: cd apps/desktop && npm run lint:a11y -- --max-warnings 1300
 
+      - name: Frontend raw-color ratchet
+        # Independent from the eslint warn-budget above — this counts a broader
+        # pattern set (incl. ring/shadow/from/to/via) and ratchets on a
+        # baseline file (.raw-color-budget.json) that can only go DOWN.
+        run: cd apps/desktop && npm run audit:colors
+
       - name: Frontend npm audit
         run: cd apps/desktop && npm audit --production --audit-level=high
         continue-on-error: true

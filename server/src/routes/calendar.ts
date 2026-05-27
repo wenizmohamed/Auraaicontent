@@ -5,7 +5,7 @@ import { briefService } from '../services/brief.service.js';
 import { auditService } from '../services/audit.service.js';
 import { createJob, processJob, findInflightGenerateJob } from '../workers/queue.js';
 import { generateMonthWorker } from '../workers/generateMonth.worker.js';
-import { visualSearchService } from '../services/visual-search.service.js';
+import { visualRefsBackfillWorker } from '../workers/visualRefsBackfill.worker.js';
 import { assertClientInOrg, assertCalendarPostInOrg } from '../lib/tenant.js';
 
 export async function calendarRoutes(app: FastifyInstance) {
@@ -294,7 +294,9 @@ export async function calendarRoutes(app: FastifyInstance) {
     return { success: true, deletedId: postId };
   });
 
-  // POST /api/clients/:clientId/calendar/:month/visual-refs/backfill
+  // POST /api/clients/:clientId/calendar/:month/visual-refs/backfill → { jobId }
+  // PERF-8: was a 2-5min synchronous loop that nginx-504'd. Now enqueues the
+  // visualRefsBackfillWorker and returns 202 + jobId; client polls /api/jobs/:id.
   app.post('/clients/:clientId/calendar/:month/visual-refs/backfill', async (request, reply) => {
     const { clientId, month } = request.params as { clientId: string; month: string };
     const orgId = request.orgId!;
@@ -307,63 +309,19 @@ export async function calendarRoutes(app: FastifyInstance) {
     const { count } = (request.body as { count?: number }) || {};
     const perPost = Math.max(1, Math.min(12, count || 6));
 
-    const calMonth = await db.calendarMonth.findFirst({
-      where: { orgId, clientId, month: decodedMonth },
-      include: {
-        posts: {
-          select: {
-            id: true,
-            referenceQuery: true,
-            _count: { select: { visualRefs: true } },
-          },
-        },
-      },
+    const job = createJob('visual-refs-backfill', {
+      orgId, clientId, month: decodedMonth, perPost, userId: request.user?.userId,
     });
-    if (!calMonth) return reply.status(404).send({ error: 'Calendar month not found' });
+    processJob(job.id, visualRefsBackfillWorker);
 
-    const candidates = calMonth.posts.filter(
-      (p: any) => p._count.visualRefs === 0 && p.referenceQuery && p.referenceQuery.trim(),
-    );
+    auditService.log({
+      orgId, userId: request.user?.userId, clientId,
+      action: 'visual-refs.backfill',
+      entityType: 'CalendarMonth',
+      payload: { month: decodedMonth, perPost, jobId: job.id },
+    });
 
-    let totalRefsAdded = 0;
-    let postsBackfilled = 0;
-    const failures: { postId: string; error: string }[] = [];
-
-    for (const p of candidates) {
-      try {
-        const { results } = await visualSearchService.search(p.referenceQuery!, perPost, { orgId, userId: request.user?.userId, clientId });
-        let position = 0;
-        for (const r of results) {
-          await db.postVisualReference.create({
-            data: {
-              orgId,
-              postId: p.id,
-              thumbnailUrl: r.thumbnailUrl,
-              sourceUrl: r.sourceUrl,
-              sourceDomain: r.sourceDomain,
-              sourceType: r.sourceType,
-              title: r.title || null,
-              description: r.description || null,
-              pinId: r.pinId || null,
-              position: position++,
-            },
-          });
-          totalRefsAdded++;
-        }
-        postsBackfilled++;
-      } catch (err: any) {
-        failures.push({ postId: p.id, error: err?.message || 'unknown' });
-      }
-    }
-
-    return {
-      month: decodedMonth,
-      postsScanned: calMonth.posts.length,
-      postsEligible: candidates.length,
-      postsBackfilled,
-      totalRefsAdded,
-      failures,
-    };
+    return reply.status(202).send({ jobId: job.id });
   });
 
   // POST /api/calendar-posts/:postId/regenerate → { jobId } (stub)

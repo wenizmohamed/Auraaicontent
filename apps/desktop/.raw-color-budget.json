@@ -1,0 +1,46 @@
+{
+  "baseline": 2576,
+  "updated": "2026-05-27T13:48:28.343Z",
+  "topFiles": [
+    {
+      "file": "pages/Dashboard.tsx",
+      "count": 334
+    },
+    {
+      "file": "pages/ContentReview.tsx",
+      "count": 216
+    },
+    {
+      "file": "pages/ContentCalendar.tsx",
+      "count": 193
+    },
+    {
+      "file": "pages/TopicDesk.tsx",
+      "count": 193
+    },
+    {
+      "file": "pages/BriefInput.tsx",
+      "count": 144
+    },
+    {
+      "file": "pages/ContentPieces.tsx",
+      "count": 142
+    },
+    {
+      "file": "pages/CreativeTools.tsx",
+      "count": 132
+    },
+    {
+      "file": "pages/Studio.tsx",
+      "count": 128
+    },
+    {
+      "file": "pages/BrandKit.tsx",
+      "count": 92
+    },
+    {
+      "file": "App.tsx",
+      "count": 79
+    }
+  ]
+}
