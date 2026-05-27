@@ -91,12 +91,19 @@ export function isRetryableAiError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err);
   const status = (err as any)?.status || (err as any)?.statusCode;
 
-  // Explicit non-retryable check first
+  // Explicit non-retryable text check first (e.g. malformed payload).
   if (NON_RETRYABLE_PATTERNS.some(p => p.test(msg))) return false;
-  if (status && status >= 400 && status < 500 && status !== 429) return false;
 
-  // Then check retryable patterns
+  // Retryable-text check BEFORE the 4xx status shortcircuit. Some 4xx errors
+  // (notably 404 "model no longer available") are actually retryable across
+  // the inner model ladder because the next model id may still be valid —
+  // and that's the whole point of having the ladder. Without this ordering
+  // a deprecated preview model takes down the entire feature even though
+  // the next-rung working model would have answered.
   if (RETRYABLE_PATTERNS.some(p => p.test(msg))) return true;
+
+  // Now safe to shortcircuit on other 4xx (auth, validation, etc).
+  if (status && status >= 400 && status < 500 && status !== 429) return false;
   if (status === 429 || (status && status >= 500)) return true;
 
   // Default: don't fallback on unknown errors
