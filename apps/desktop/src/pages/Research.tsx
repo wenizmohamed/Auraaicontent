@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Loader2, Search as SearchIcon, ExternalLink, Sparkles, AlertCircle, FileSearch } from 'lucide-react';
+import { Loader2, Search as SearchIcon, ExternalLink, Sparkles, AlertCircle, FileSearch, Telescope, TrendingUp, Globe2 } from 'lucide-react';
 import { researchApi } from '../lib/backend-api';
 
 interface Source {
@@ -41,30 +41,86 @@ export default function Research() {
     }
   };
 
+  // Suggestion chips — anchor users new to Research with concrete starts.
+  const SUGGESTIONS = [
+    { label: 'Ramadan 2026 marketing trends UAE', icon: TrendingUp },
+    { label: 'GCC e-commerce post-conflict outlook', icon: Globe2 },
+    { label: 'Saudi short-form video benchmarks', icon: Sparkles },
+    { label: 'UAE Gen Z purchasing behavior', icon: TrendingUp },
+    { label: 'Dubai luxury market 2026 forecast', icon: Globe2 },
+  ];
+
   return (
     <div className="max-w-[900px] mx-auto space-y-6">
-      <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }}>
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
-            <FileSearch className="w-5 h-5 text-amber-400" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-black text-white tracking-tight">Research</h1>
-            <p className="text-sm text-zinc-500 mt-0.5">Topic research with summary, key points, and sources via the backend AI router.</p>
+      {/* Hero — explains what Research does + ladders into the search input */}
+      <motion.section
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="relative overflow-hidden rounded-2xl border"
+        style={{
+          background: 'linear-gradient(135deg, rgba(245,158,11,0.10) 0%, rgba(245,158,11,0.04) 50%, transparent 100%), var(--color-bg-elevated)',
+          borderColor: 'var(--color-border)',
+          boxShadow: '0 18px 50px -20px rgba(245,158,11,0.25), inset 0 1px 0 rgba(255,255,255,0.04)',
+        }}
+      >
+        <div aria-hidden="true"
+          className="pointer-events-none absolute -right-32 -top-32 h-80 w-80 rounded-full blur-3xl opacity-40"
+          style={{ background: 'radial-gradient(circle, rgba(245,158,11,0.5) 0%, transparent 70%)' }}
+        />
+        <div className="relative p-6 sm:p-8">
+          <div className="flex items-start gap-4">
+            <div
+              className="shrink-0 w-12 h-12 rounded-2xl flex items-center justify-center border"
+              style={{ background: 'var(--color-accent-subtle)', borderColor: 'rgba(245,158,11,0.30)' }}
+            >
+              <Telescope className="w-6 h-6" style={{ color: 'var(--color-accent)' }} aria-hidden="true" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: 'var(--color-fg-subtle)' }}>
+                Strategy · Research
+              </p>
+              <h1 className="mt-1 font-display text-2xl sm:text-3xl font-bold leading-tight" style={{ color: 'var(--color-fg)' }}>
+                Ask a topic, get the brief
+              </h1>
+              <p className="mt-2 text-sm leading-relaxed max-w-2xl" style={{ color: 'var(--color-fg-muted)' }}>
+                Summary · key points · sources, returned by the AI router. Quick mode = 3-5 sources in ~5s. Deep mode = 5-8 sources in ~20s.
+              </p>
+            </div>
           </div>
         </div>
-      </motion.div>
+      </motion.section>
 
       <div className="bg-[#0c0c0c] border border-white/[0.06] rounded-2xl p-5 space-y-4">
         <div>
-          <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Topic</label>
+          <label htmlFor="research-topic" className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Topic</label>
           <input
+            id="research-topic"
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleResearch()}
             placeholder="e.g. UAE remittance market trends 2026"
-            className="w-full mt-2 bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-amber-500/40"
+            className="w-full mt-2 bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-zinc-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/60"
           />
+          {/* Suggestion chips — visible only when input is empty, no loading, no results */}
+          {!query.trim() && !loading && !summary && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <span className="text-[10px] uppercase tracking-wider font-semibold mt-1" style={{ color: 'var(--color-fg-subtle)' }}>
+                Try
+              </span>
+              {SUGGESTIONS.map((s, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setQuery(s.label)}
+                  className="group inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-medium transition-colors hover:bg-[color:var(--color-surface-hover)]"
+                  style={{ borderColor: 'var(--color-border)', color: 'var(--color-fg-muted)' }}
+                >
+                  <s.icon className="w-3 h-3" style={{ color: 'var(--color-accent)' }} aria-hidden="true" />
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-3">

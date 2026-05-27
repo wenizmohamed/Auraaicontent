@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Palette, Loader2, Copy, AlertCircle, ArrowLeft, RefreshCw } from 'lucide-react';
+import { Sparkles, Palette, Loader2, Copy, AlertCircle, ArrowLeft, RefreshCw, Wand2, Layers, Brush, Square } from 'lucide-react';
 import { designApi } from '../lib/backend-api';
 import { useClients } from '../lib/client-context';
 
@@ -56,19 +56,81 @@ export default function AIDesignGenerator() {
     navigator.clipboard.writeText(text);
   };
 
+  // Style preset chips — seed the Mood field with a concrete starting point.
+  const STYLE_PRESETS = [
+    { name: 'Minimal', icon: Square, mood: 'Minimalist, generous whitespace, mono palette with one accent. Editorial typography.' },
+    { name: 'Editorial', icon: Layers, mood: 'Premium magazine feel. Serif headlines, modular grid, photo-led, large drop caps.' },
+    { name: 'Bold', icon: Brush, mood: 'High-contrast, oversized type, saturated brand accent, geometric shapes, no fluff.' },
+    { name: 'Glass', icon: Sparkles, mood: 'Soft glassmorphism, blurred gradients, low-key surfaces, glowing accent highlights.' },
+  ];
+
   return (
     <div className="max-w-[1100px] mx-auto space-y-6">
-      <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }}>
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
-            <Palette className="w-5 h-5 text-amber-400" />
+      {/* Hero — name the surface + offer 4 style starting points */}
+      <motion.section
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="relative overflow-hidden rounded-2xl border"
+        style={{
+          background: 'linear-gradient(135deg, rgba(139,92,246,0.12) 0%, rgba(245,158,11,0.06) 50%, transparent 100%), var(--color-bg-elevated)',
+          borderColor: 'var(--color-border)',
+          boxShadow: '0 18px 50px -20px rgba(139,92,246,0.3), inset 0 1px 0 rgba(255,255,255,0.04)',
+        }}
+      >
+        <div aria-hidden="true"
+          className="pointer-events-none absolute -right-32 -top-32 h-80 w-80 rounded-full blur-3xl opacity-40"
+          style={{ background: 'radial-gradient(circle, rgba(139,92,246,0.5) 0%, transparent 70%)' }}
+        />
+        <div className="relative p-6 sm:p-8">
+          <div className="flex items-start gap-4">
+            <div
+              className="shrink-0 w-12 h-12 rounded-2xl flex items-center justify-center border"
+              style={{ background: 'rgba(139,92,246,0.12)', borderColor: 'rgba(139,92,246,0.30)' }}
+            >
+              <Wand2 className="w-6 h-6" style={{ color: '#a78bfa' }} aria-hidden="true" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: 'var(--color-fg-subtle)' }}>
+                Create · AI Design
+              </p>
+              <h1 className="mt-1 font-display text-2xl sm:text-3xl font-bold leading-tight" style={{ color: 'var(--color-fg)' }}>
+                Brief in. Full design brief out.
+              </h1>
+              <p className="mt-2 text-sm leading-relaxed max-w-2xl" style={{ color: 'var(--color-fg-muted)' }}>
+                Visual direction, palette, typography, layout, copy, and image prompts — generated in one pass. Pick a starting style to seed the mood.
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-3xl font-black text-white tracking-tight">AI Design Generator</h1>
-            <p className="text-sm text-zinc-500 mt-0.5">Generate a structured design brief — visual direction, palette, typography, copy, prompts.</p>
-          </div>
+
+          {step === 1 && (
+            <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {STYLE_PRESETS.map(p => {
+                const active = mood === p.mood;
+                return (
+                  <button
+                    key={p.name}
+                    type="button"
+                    onClick={() => setMood(p.mood)}
+                    className="group flex flex-col items-start gap-2 rounded-xl border p-3 text-left transition-all hover:-translate-y-0.5 hover:bg-[color:var(--color-surface-hover)]"
+                    style={{
+                      borderColor: active ? 'rgba(139,92,246,0.6)' : 'var(--color-border)',
+                      background: active ? 'rgba(139,92,246,0.10)' : 'var(--color-surface)',
+                    }}
+                  >
+                    <p.icon className="w-4 h-4" style={{ color: active ? '#a78bfa' : 'var(--color-fg-muted)' }} aria-hidden="true" />
+                    <div>
+                      <p className="text-[12px] font-semibold" style={{ color: 'var(--color-fg)' }}>{p.name}</p>
+                      <p className="mt-0.5 text-[10px] leading-snug line-clamp-2" style={{ color: 'var(--color-fg-subtle)' }}>
+                        {p.mood.split('.')[0]}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
-      </motion.div>
+      </motion.section>
 
       <AnimatePresence mode="wait">
         {step === 1 && (

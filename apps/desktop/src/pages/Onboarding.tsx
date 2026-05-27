@@ -84,31 +84,77 @@ export default function Onboarding() {
     finally { setSubmitting(false); }
   };
 
+  const progressPct = Math.round(((step) / STEPS.length) * 100);
+
   return (
     <div className="min-h-[80vh] flex items-center justify-center p-6">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-lg">
 
-        {/* Progress */}
-        <div className="flex items-center justify-center gap-2 mb-8">
-          {STEPS.map((s, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
-                i < step ? 'bg-emerald-500 text-black' : i === step ? 'bg-amber-500 text-black' : 'bg-white/[0.06] text-zinc-600'
-              }`}>
-                {i < step ? <CheckCircle2 className="w-4 h-4" /> : i + 1}
-              </div>
-              {i < STEPS.length - 1 && <div className={`w-12 h-0.5 ${i < step ? 'bg-emerald-500' : 'bg-white/[0.06]'}`} />}
-            </div>
-          ))}
-        </div>
+        {/* Hero wrapper around the step indicator + header */}
+        <div
+          className="relative mb-6 overflow-hidden rounded-2xl border p-6"
+          style={{
+            background: 'linear-gradient(135deg, rgba(245,158,11,0.10) 0%, rgba(16,185,129,0.06) 50%, transparent 100%), var(--color-bg-elevated)',
+            borderColor: 'var(--color-border)',
+            boxShadow: '0 18px 50px -20px rgba(245,158,11,0.30), inset 0 1px 0 rgba(255,255,255,0.04)',
+          }}
+        >
+          <div aria-hidden="true"
+            className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full blur-3xl opacity-40"
+            style={{ background: 'radial-gradient(circle, rgba(245,158,11,0.45) 0%, transparent 70%)' }}
+          />
+          <div className="relative">
+            <p className="text-center text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: 'var(--color-fg-subtle)' }}>
+              Welcome to Radix — Step {step + 1} of {STEPS.length}
+            </p>
 
-        {/* Step header */}
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 mb-4 shadow-[0_0_40px_-10px_rgba(245,158,11,0.35)]">
-            {(() => { const Icon = STEPS[step].icon; return <Icon className="w-6 h-6 text-amber-400" />; })()}
+            {/* Progress arc + numbered dots */}
+            <div className="mt-4 flex items-center justify-center gap-2">
+              {STEPS.map((_s, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
+                    i < step
+                      ? 'shadow-[0_0_24px_-4px_rgba(16,185,129,0.6)]'
+                      : i === step
+                        ? 'shadow-[0_0_24px_-4px_rgba(245,158,11,0.7)] scale-110'
+                        : ''
+                  }`}
+                  style={{
+                    background: i < step ? 'var(--color-success)' : i === step ? 'var(--color-accent)' : 'var(--color-surface)',
+                    color: (i < step || i === step) ? 'var(--color-fg-on-accent)' : 'var(--color-fg-subtle)',
+                    border: '1px solid ' + (i <= step ? 'transparent' : 'var(--color-border)'),
+                  }}>
+                    {i < step ? <CheckCircle2 className="w-4 h-4" /> : i + 1}
+                  </div>
+                  {i < STEPS.length - 1 && (
+                    <div className="w-12 h-0.5 rounded-full overflow-hidden" style={{ background: 'var(--color-surface)' }}>
+                      <div className="h-full transition-all duration-500" style={{
+                        width: i < step ? '100%' : '0%',
+                        background: 'var(--color-success)',
+                      }} />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Step header */}
+            <div className="mt-6 text-center">
+              <div
+                className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-3 border"
+                style={{ background: 'var(--color-accent-subtle)', borderColor: 'rgba(245,158,11,0.30)', boxShadow: '0 0 40px -10px rgba(245,158,11,0.35)' }}
+              >
+                {(() => { const Icon = STEPS[step].icon; return <Icon className="w-6 h-6" style={{ color: 'var(--color-accent)' }} aria-hidden="true" />; })()}
+              </div>
+              <h2 className="font-display text-2xl font-bold tracking-tight" style={{ color: 'var(--color-fg)' }}>{STEPS[step].title}</h2>
+              <p className="text-sm mt-1" style={{ color: 'var(--color-fg-subtle)' }}>{STEPS[step].description}</p>
+            </div>
+
+            {/* Bottom progress bar */}
+            <div className="mt-5 h-1 w-full rounded-full overflow-hidden" style={{ background: 'var(--color-surface)' }}>
+              <div className="h-full transition-all duration-500" style={{ width: `${progressPct}%`, background: 'var(--color-accent)' }} />
+            </div>
           </div>
-          <h2 className="text-2xl font-bold text-white tracking-tight">{STEPS[step].title}</h2>
-          <p className="text-sm text-zinc-500 mt-1">{STEPS[step].description}</p>
         </div>
 
         {/* Step content */}

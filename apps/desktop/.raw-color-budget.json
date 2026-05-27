@@ -1,6 +1,6 @@
 {
-  "baseline": 2576,
-  "updated": "2026-05-27T13:48:28.343Z",
+  "baseline": 2559,
+  "updated": "2026-05-27T20:55:01.767Z",
   "topFiles": [
     {
       "file": "pages/Dashboard.tsx",
@@ -24,7 +24,7 @@
     },
     {
       "file": "pages/ContentPieces.tsx",
-      "count": 142
+      "count": 141
     },
     {
       "file": "pages/CreativeTools.tsx",

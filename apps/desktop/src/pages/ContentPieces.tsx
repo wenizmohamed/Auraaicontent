@@ -1105,21 +1105,83 @@ export default function ContentPieces() {
 
   // ─── Main Render ────────────────────────────────────────────────
 
+  // ─── Hero pipeline counts (computed from stats.byStatus) ─────────
+  const STATUS_COLORS: Record<string, { bg: string; fg: string; border: string }> = {
+    Draft:       { bg: 'rgba(113,113,122,0.12)', fg: '#a1a1aa', border: 'rgba(113,113,122,0.30)' },
+    'In Design': { bg: 'rgba(139,92,246,0.12)', fg: '#a78bfa', border: 'rgba(139,92,246,0.30)' },
+    'In Review': { bg: 'rgba(245,158,11,0.12)', fg: '#fbbf24', border: 'rgba(245,158,11,0.30)' },
+    Approved:    { bg: 'rgba(16,185,129,0.12)', fg: '#34d399', border: 'rgba(16,185,129,0.30)' },
+    Published:   { bg: 'rgba(59,130,246,0.12)', fg: '#60a5fa', border: 'rgba(59,130,246,0.30)' },
+  };
+  const blockedCount = stats.byStatus.find(s => s.status === 'In Review')?.count ?? 0;
+  const completionPct = stats.total === 0 ? 0 : Math.round((stats.byStatus.find(s => s.status === 'Published')!.count / stats.total) * 100);
+
   return (
     <div className="max-w-7xl mx-auto pb-20">
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
+      {/* Hero — pipeline-at-a-glance + blocking-items callout */}
+      <motion.section
+        initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="mb-8"
+        className="relative mb-6 overflow-hidden rounded-2xl border"
+        style={{
+          background: 'linear-gradient(135deg, rgba(245,158,11,0.08) 0%, rgba(59,130,246,0.04) 60%, transparent 100%), var(--color-bg-elevated)',
+          borderColor: 'var(--color-border)',
+          boxShadow: '0 18px 50px -20px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)',
+        }}
       >
-        <h1 className="text-4xl font-display font-bold text-white tracking-tight mb-2">
-          Content Pieces
-        </h1>
-        <p className="text-zinc-400 text-sm">
-          Production tracker for all content across stations. Manage status, assignments, and visual references.
-        </p>
-      </motion.div>
+        <div aria-hidden="true" className="pointer-events-none absolute -right-32 -top-32 h-80 w-80 rounded-full blur-3xl opacity-30"
+          style={{ background: 'radial-gradient(circle, rgba(245,158,11,0.5) 0%, transparent 70%)' }}
+        />
+        <div className="relative p-6 sm:p-8">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: 'var(--color-fg-subtle)' }}>
+                Create · Production
+              </p>
+              <h1 className="mt-1 font-display text-2xl sm:text-3xl font-bold leading-tight" style={{ color: 'var(--color-fg)' }}>
+                Content Pieces
+              </h1>
+              <p className="mt-2 text-sm leading-relaxed max-w-2xl" style={{ color: 'var(--color-fg-muted)' }}>
+                {stats.total} pieces · {completionPct}% published · {blockedCount} awaiting review
+              </p>
+            </div>
+            {blockedCount > 0 && (
+              <span
+                className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-[12px] font-semibold"
+                style={{ background: 'rgba(245,158,11,0.12)', borderColor: 'rgba(245,158,11,0.35)', color: '#fbbf24' }}
+              >
+                <Clock className="w-3.5 h-3.5" aria-hidden="true" />
+                {blockedCount} blocking review
+              </span>
+            )}
+          </div>
+
+          {/* Pipeline bento — one card per status */}
+          <div className="mt-6 grid grid-cols-2 sm:grid-cols-5 gap-3">
+            {stats.byStatus.map(({ status, count }) => {
+              const c = STATUS_COLORS[status] ?? STATUS_COLORS.Draft;
+              const pct = stats.total === 0 ? 0 : Math.round((count / stats.total) * 100);
+              return (
+                <div
+                  key={status}
+                  className="rounded-xl border p-4 transition-transform hover:-translate-y-0.5"
+                  style={{ background: c.bg, borderColor: c.border }}
+                >
+                  <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: c.fg }}>
+                    {status}
+                  </p>
+                  <p className="mt-2 font-display text-3xl font-bold" style={{ color: c.fg }}>
+                    {count}
+                  </p>
+                  <div className="mt-2 h-1 w-full rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.04)' }}>
+                    <div className="h-full transition-all duration-500" style={{ background: c.fg, width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </motion.section>
 
       {/* Status Dashboard */}
       {renderDashboard()}
