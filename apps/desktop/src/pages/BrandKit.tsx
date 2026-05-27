@@ -308,6 +308,21 @@ export default function BrandKit() {
         </div>
       )}
 
+      {/* ── Brand Identity Showcase — high-contrast live preview ─── */}
+      {selectedClientId && (
+        <BrandIdentityShowcase
+          clientName={currentClient?.name || 'Untitled client'}
+          primary={clientPrimaryColor || '#f59e0b'}
+          secondary={form.secondaryColor || '#27272a'}
+          accent={form.accentColor || '#f59e0b'}
+          fontPrimary={form.fontPrimary || 'Inter'}
+          fontSecondary={form.fontSecondary || 'Playfair Display'}
+          voiceSample={form.voiceSamples.find(v => v.sample?.trim())?.sample || ''}
+          sampleImages={form.sampleImages.filter(i => i.url?.trim()).slice(0, 5)}
+          version={kit?.version || 1}
+        />
+      )}
+
       {!selectedClientId ? (
         <div className="glass-card p-10 text-center">
           <p className="text-zinc-400 text-sm">Select a client to configure their brand kit.</p>
@@ -750,5 +765,228 @@ function SampleImageRow({ index, image, onChange }: SampleImageRowProps) {
         Primary
       </label>
     </motion.div>
+  );
+}
+
+// ── Brand Identity Showcase ──────────────────────────────────────────
+// High-end hero card that renders the actual saved brand kit as a live
+// preview: color palette, typography specimen, voice quote, anchor images.
+// Editing the form below updates this preview immediately (form state is
+// the source of truth — not a separate fetch).
+interface ShowcaseProps {
+  clientName: string;
+  primary: string;
+  secondary: string;
+  accent: string;
+  fontPrimary: string;
+  fontSecondary: string;
+  voiceSample: string;
+  sampleImages: BrandKitSampleImage[];
+  version: number;
+}
+
+function BrandIdentityShowcase({
+  clientName, primary, secondary, accent,
+  fontPrimary, fontSecondary, voiceSample, sampleImages, version,
+}: ShowcaseProps) {
+  const palette = [
+    { name: 'Primary', value: primary, locked: true },
+    { name: 'Secondary', value: secondary, locked: false },
+    { name: 'Accent', value: accent, locked: false },
+  ];
+
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={motionBase}
+      aria-labelledby="brand-showcase-title"
+      className="relative mb-6 overflow-hidden rounded-2xl border"
+      style={{
+        background: `linear-gradient(135deg, ${primary}14 0%, ${accent}0a 60%, transparent 100%), var(--color-bg-elevated)`,
+        borderColor: 'var(--color-border)',
+        boxShadow: `0 18px 50px -20px ${primary}30, inset 0 1px 0 rgba(255,255,255,0.04)`,
+      }}
+    >
+      {/* Soft gradient bloom in top-right corner */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -right-32 -top-32 h-80 w-80 rounded-full blur-3xl opacity-40"
+        style={{ background: `radial-gradient(circle, ${accent}80 0%, transparent 70%)` }}
+      />
+
+      <div className="relative p-6 sm:p-8">
+        {/* Top row: title + version chip */}
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: 'var(--color-fg-subtle)' }}>
+              Brand Identity
+            </p>
+            <h2
+              id="brand-showcase-title"
+              className="mt-1 font-display text-2xl sm:text-3xl font-bold leading-tight truncate"
+              style={{ color: 'var(--color-fg)' }}
+            >
+              {clientName}
+            </h2>
+          </div>
+          <span
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-wider"
+            style={{
+              background: `${accent}1a`,
+              borderColor: `${accent}40`,
+              color: accent,
+            }}
+          >
+            <Star className="h-3 w-3" aria-hidden="true" /> v{version}
+          </span>
+        </div>
+
+        {/* Showcase grid */}
+        <div className="mt-7 grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-6">
+          {/* Left: palette + typography */}
+          <div className="space-y-6">
+            {/* Palette row */}
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] mb-3" style={{ color: 'var(--color-fg-subtle)' }}>
+                Palette
+              </p>
+              <div className="grid grid-cols-3 gap-3">
+                {palette.map((c) => (
+                  <div
+                    key={c.name}
+                    className="group relative rounded-xl overflow-hidden border transition-transform hover:-translate-y-0.5"
+                    style={{ borderColor: 'var(--color-border-subtle)' }}
+                  >
+                    <div
+                      className="h-20 w-full"
+                      style={{ background: c.value || '#1c1c1f' }}
+                      aria-label={`${c.name} color swatch ${c.value}`}
+                    />
+                    <div className="px-3 py-2" style={{ background: 'var(--color-surface)' }}>
+                      <div className="flex items-center justify-between gap-1">
+                        <p className="text-[11px] font-semibold" style={{ color: 'var(--color-fg)' }}>{c.name}</p>
+                        {c.locked && <ShieldAlert className="h-3 w-3" style={{ color: 'var(--color-fg-subtle)' }} aria-label="Locked from Client" />}
+                      </div>
+                      <p className="text-[10px] font-mono mt-0.5" style={{ color: 'var(--color-fg-subtle)' }}>
+                        {c.value || '—'}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Typography specimen */}
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] mb-3" style={{ color: 'var(--color-fg-subtle)' }}>
+                Typography
+              </p>
+              <div className="rounded-xl border p-4" style={{ borderColor: 'var(--color-border-subtle)', background: 'var(--color-surface)' }}>
+                <p
+                  className="text-3xl leading-none truncate"
+                  style={{ fontFamily: fontPrimary, color: 'var(--color-fg)' }}
+                >
+                  Aa Bb Cc 123
+                </p>
+                <p className="mt-1 text-[10px] uppercase tracking-wider" style={{ color: 'var(--color-fg-subtle)' }}>
+                  Primary · {fontPrimary}
+                </p>
+                <div className="my-3 h-px" style={{ background: 'var(--color-border-subtle)' }} />
+                <p
+                  className="text-xl italic leading-tight truncate"
+                  style={{ fontFamily: fontSecondary, color: 'var(--color-fg-muted)' }}
+                >
+                  The brand voice speaks here.
+                </p>
+                <p className="mt-1 text-[10px] uppercase tracking-wider" style={{ color: 'var(--color-fg-subtle)' }}>
+                  Secondary · {fontSecondary}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Right: voice quote + image strip */}
+          <div className="space-y-6">
+            {/* Voice quote card */}
+            <div
+              className="rounded-xl border p-5 relative"
+              style={{ borderColor: 'var(--color-border-subtle)', background: 'var(--color-surface)' }}
+            >
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] mb-3" style={{ color: 'var(--color-fg-subtle)' }}>
+                Voice
+              </p>
+              <div
+                className="absolute left-5 top-12 text-6xl font-display leading-none select-none"
+                style={{ color: `${accent}22` }}
+                aria-hidden="true"
+              >“</div>
+              <blockquote
+                className="relative text-sm leading-relaxed pl-7 min-h-[3.5em] line-clamp-4"
+                style={{ color: 'var(--color-fg)' }}
+              >
+                {voiceSample || (
+                  <span style={{ color: 'var(--color-fg-subtle)' }}>
+                    Add a voice sample below to see how the brand speaks.
+                  </span>
+                )}
+              </blockquote>
+            </div>
+
+            {/* Anchor images strip */}
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] mb-3" style={{ color: 'var(--color-fg-subtle)' }}>
+                Anchor Imagery
+              </p>
+              {sampleImages.length > 0 ? (
+                <div className="grid grid-cols-5 gap-2">
+                  {sampleImages.map((img, i) => (
+                    <div
+                      key={i}
+                      className="relative aspect-square rounded-lg overflow-hidden border transition-transform hover:scale-[1.04]"
+                      style={{ borderColor: img.primary ? accent : 'var(--color-border-subtle)' }}
+                    >
+                      <img
+                        src={img.url}
+                        alt={img.label || `Anchor image ${i + 1}`}
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.opacity = '0.2'; }}
+                      />
+                      {img.primary && (
+                        <div
+                          className="absolute top-1 right-1 rounded-full p-0.5"
+                          style={{ background: accent }}
+                          aria-label="Primary anchor image"
+                        >
+                          <Star className="h-2.5 w-2.5" style={{ color: 'var(--color-fg-on-accent)' }} />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {Array.from({ length: Math.max(0, 5 - sampleImages.length) }).map((_, i) => (
+                    <div
+                      key={`empty-${i}`}
+                      className="aspect-square rounded-lg border-dashed border-2 flex items-center justify-center"
+                      style={{ borderColor: 'var(--color-border-subtle)' }}
+                      aria-hidden="true"
+                    >
+                      <ImageIcon className="h-4 w-4" style={{ color: 'var(--color-fg-subtle)', opacity: 0.4 }} />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div
+                  className="rounded-xl border border-dashed p-5 text-center text-xs"
+                  style={{ borderColor: 'var(--color-border-subtle)', color: 'var(--color-fg-subtle)' }}
+                >
+                  Add anchor images below to preview them here.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </motion.section>
   );
 }
