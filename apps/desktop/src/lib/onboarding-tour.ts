@@ -9,7 +9,9 @@
 import { driver } from 'driver.js';
 import 'driver.js/dist/driver.css';
 
-const STORAGE_KEY = 'radix.onboarding.completed';
+// .v2 bumped 2026-05-27 with the IA redesign (grouped sidebar +
+// Strategy/Create/Distribute split). Existing users re-see the tour once.
+const STORAGE_KEY = 'radix.onboarding.completed.v2';
 
 interface RunOpts {
   orgId: string;
@@ -51,35 +53,63 @@ export function runOnboardingTour({ orgId, force = false }: RunOpts) {
         element: 'a[href="/"]',
         popover: {
           title: 'Welcome to Radix',
-          description: 'Your bilingual AR/EN content calendar OS for Gulf-region agencies. Let\'s take a 30-second tour.',
+          description: 'Your bilingual AR/EN content calendar OS for Gulf-region agencies. 45-second tour — covers every part of the app.',
+        },
+      },
+      {
+        element: 'nav[aria-label="Primary"]',
+        popover: {
+          title: 'Sidebar — grouped',
+          description: 'Five groups: <b>Today</b> (dashboard + workspace), <b>Strategy</b> (clients, briefs, brand kit, knowledge, research), <b>Create</b> (calendar, all generation tools, gallery), <b>Distribute</b> (integrations + history), <b>Settings</b>. Click any group header to collapse.',
         },
       },
       {
         element: 'a[href="/clients"]',
         popover: {
-          title: '1. Add a brand',
-          description: 'Each client keeps its own brief, knowledge base, and asset library.',
+          title: 'Strategy → 1. Add a brand',
+          description: 'Each client keeps its own brief, knowledge base, brand kit, and asset library.',
+        },
+      },
+      {
+        element: 'a[href="/brand-kit"]',
+        popover: {
+          title: 'Strategy → 2. Brand Kit',
+          description: 'Logos, colors, fonts, voice rules — feeds every AI generation so output is on-brand by default.',
         },
       },
       {
         element: 'a[href="/brief"]',
         popover: {
-          title: '2. Write the brief',
-          description: 'Tell Radix the brand voice, channels, products, and approval flow. The richer the brief, the smarter every later generation.',
+          title: 'Strategy → 3. Write the brief',
+          description: 'Voice, channels, products, approvers. Richer brief = smarter generations.',
         },
       },
       {
         element: 'a[href="/calendar"]',
         popover: {
-          title: '3. Generate a calendar',
+          title: 'Create → 4. Generate a calendar',
           description: 'One click → a full month of posts across your channels. Hijri + Gregorian dual-display, GCC holidays auto-flagged.',
+        },
+      },
+      {
+        element: 'a[href="/creative"], a[href="/ai-design"]',
+        popover: {
+          title: 'Create → AI tools',
+          description: 'Creative Tools (image + video), AI Design (layouts), Copywriting, Visual References, Gallery — all in the Create group.',
+        },
+      },
+      {
+        element: 'a[href="/integrations"]',
+        popover: {
+          title: 'Distribute → Connect platforms',
+          description: 'Wire up Meta, TikTok, and LinkedIn so approved posts publish straight from Radix at their scheduled time.',
         },
       },
       {
         element: '[aria-label="Search or ask Radix…"], button[title*="Search"]',
         popover: {
           title: 'Pro tip — ⌘K everywhere',
-          description: 'Press ⌘K (Ctrl+K on Windows) anywhere to jump between surfaces, switch theme, or change locale. ? opens the keyboard shortcuts cheat sheet.',
+          description: 'Press <b>⌘K</b> (Ctrl+K) anywhere to jump between any of the 30+ surfaces, switch theme, change locale, or restart this tour. <b>?</b> shows all keyboard shortcuts.',
         },
       },
     ],

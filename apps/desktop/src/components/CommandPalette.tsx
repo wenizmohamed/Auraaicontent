@@ -6,7 +6,8 @@ import {
   LayoutDashboard, Calendar, FileText, Layers, Building2, Wand2,
   Image as ImageIcon, Video, Search, Palette, FolderOpen, Sparkles,
   UserCircle, CreditCard, ShieldCheck, Brain, Settings,
-  CalendarDays, Lightbulb, Compass, Sun, Moon
+  CalendarDays, Lightbulb, Compass, Sun, Moon,
+  Plug, History as HistoryIcon, Bot, Telescope, RotateCcw
 } from 'lucide-react';
 import { useTheme } from '../lib/theme-context';
 import { t, getLocale, setLocale } from '../i18n';
@@ -34,38 +35,64 @@ export function CommandPalette({ open, onOpenChange }: Props) {
   const items = useMemo<Item[]>(() => {
     const go = (path: string) => () => { navigate(path); onOpenChange(false); };
     return [
-      // ── Navigation ───────────────────────────────────────────────────
-      { id: 'nav-dashboard',  group: 'Workspace',  label: 'Dashboard',         hint: 'Overview + insights',          icon: LayoutDashboard, perform: go('/'),                  keywords: ['home','insights'] },
-      { id: 'nav-calendar',   group: 'Workspace',  label: 'Calendar',          hint: 'Plan + schedule posts',        icon: Calendar,        perform: go('/calendar'),          keywords: ['month','schedule','plan'] },
-      { id: 'nav-clients',    group: 'Workspace',  label: 'Clients',           hint: 'Brand list + management',      icon: Building2,       perform: go('/clients'),           keywords: ['brands','accounts'] },
-      { id: 'nav-brief',      group: 'Workspace',  label: 'Brief',             hint: 'Strategy + brand input',       icon: FileText,        perform: go('/brief'),             keywords: ['strategy','positioning'] },
-      { id: 'nav-knowledge',  group: 'Workspace',  label: 'Knowledge',         hint: 'Brand knowledge base',         icon: Brain,           perform: go('/knowledge'),         keywords: ['rag','docs','context'] },
-      { id: 'nav-review',     group: 'Workspace',  label: 'Content Review',    hint: 'Approve + reject posts',       icon: Layers,          perform: go('/content-review'),    keywords: ['approve','queue','moderate'] },
-      { id: 'nav-pieces',     group: 'Workspace',  label: 'Content Pieces',    hint: 'Drafted content library',      icon: FolderOpen,      perform: go('/pieces'),            keywords: ['drafts','library'] },
+      // ── Today ───────────────────────────────────────────────────────
+      { id: 'nav-dashboard',  group: 'Today',      label: 'Dashboard',         hint: 'Overview + insights',          icon: LayoutDashboard, perform: go('/'),                  keywords: ['home','insights'] },
+      { id: 'nav-workspace',  group: 'Today',      label: 'Workspace',         hint: '3-pane work surface',          icon: Layers,          perform: go('/workspace/content'), keywords: ['shell','panes','main'] },
 
-      // ── Studio / creative ───────────────────────────────────────────
-      { id: 'nav-creative',   group: 'Studio',     label: 'Creative Tools',    hint: 'Image + video generation',     icon: Wand2,           perform: go('/creative'),          keywords: ['ai','generate','art'] },
-      { id: 'nav-image-gen',  group: 'Studio',     label: 'Text → Image',      hint: 'Generate visuals from prompt', icon: ImageIcon,       perform: go('/image-gen'),         keywords: ['t2i','generate'] },
-      { id: 'nav-image-edit', group: 'Studio',     label: 'Image Editor',      hint: 'Edit + retouch existing',      icon: Palette,         perform: go('/image-edit'),        keywords: ['retouch','edit'] },
-      { id: 'nav-t2v',        group: 'Studio',     label: 'Text → Video',      hint: 'Generate video clips',         icon: Video,           perform: go('/text-to-video'),     keywords: ['t2v','grok','veo'] },
-      { id: 'nav-i2v',        group: 'Studio',     label: 'Image → Video',     hint: 'Animate stills',               icon: Video,           perform: go('/image-to-video'),    keywords: ['i2v','animate'] },
-      { id: 'nav-ai-design',  group: 'Studio',     label: 'AI Design',         hint: 'Generative layouts',           icon: Lightbulb,       perform: go('/ai-design'),         keywords: ['layouts'] },
-      { id: 'nav-textures',   group: 'Studio',     label: 'Textures',          hint: 'Background textures + grain',  icon: Palette,         perform: go('/textures') },
-      { id: 'nav-references', group: 'Studio',     label: 'Visual References', hint: 'Inspiration board',            icon: ImageIcon,       perform: go('/references'),        keywords: ['mood','inspiration'] },
-      { id: 'nav-gallery',    group: 'Studio',     label: 'Gallery',           hint: 'All generated visuals',        icon: ImageIcon,       perform: go('/gallery') },
-      { id: 'nav-video',      group: 'Studio',     label: 'Video Analysis',    hint: 'Analyze + caption clips',      icon: Video,           perform: go('/video') },
-      { id: 'nav-studio',     group: 'Studio',     label: 'Studio',            hint: 'Studio workspace',             icon: Sparkles,        perform: go('/studio') },
+      // ── Strategy ────────────────────────────────────────────────────
+      { id: 'nav-clients',    group: 'Strategy',   label: 'Clients',           hint: 'Brand list + management',      icon: Building2,       perform: go('/clients'),           keywords: ['brands','accounts'] },
+      { id: 'nav-brief',      group: 'Strategy',   label: 'Brief',             hint: 'Strategy + brand input',       icon: FileText,        perform: go('/brief'),             keywords: ['strategy','positioning'] },
+      { id: 'nav-brand-kit',  group: 'Strategy',   label: 'Brand Kit',         hint: 'Logos, colors, fonts, voice',  icon: Palette,         perform: go('/brand-kit'),         keywords: ['identity','tokens','style guide'] },
+      { id: 'nav-knowledge',  group: 'Strategy',   label: 'Knowledge',         hint: 'Brand knowledge base',         icon: Brain,           perform: go('/knowledge'),         keywords: ['rag','docs','context'] },
+      { id: 'nav-research',   group: 'Strategy',   label: 'Research',          hint: 'Web + market research',        icon: Telescope,       perform: go('/research'),          keywords: ['intel','web','sources'] },
+      { id: 'nav-topics',     group: 'Strategy',   label: 'Topic Desk',        hint: 'Trending topics + ideas',      icon: Compass,         perform: go('/topics'),            keywords: ['trends','ideation'] },
 
-      // ── Insights / research ─────────────────────────────────────────
-      { id: 'nav-research',   group: 'Insights',   label: 'Research',          hint: 'Web + market research',        icon: Search,          perform: go('/research') },
-      { id: 'nav-topics',     group: 'Insights',   label: 'Topic Desk',        hint: 'Trending topics + ideas',      icon: Compass,         perform: go('/topics') },
-      { id: 'nav-admin',      group: 'Insights',   label: 'Admin',             hint: 'Org + usage metrics',          icon: ShieldCheck,     perform: go('/admin') },
+      // ── Create ──────────────────────────────────────────────────────
+      { id: 'nav-calendar',   group: 'Create',     label: 'Calendar',          hint: 'Plan + schedule posts',        icon: Calendar,        perform: go('/calendar'),          keywords: ['month','schedule','plan'] },
+      { id: 'nav-review',     group: 'Create',     label: 'Content Review',    hint: 'Approve + reject posts',       icon: Layers,          perform: go('/content-review'),    keywords: ['approve','queue','moderate'] },
+      { id: 'nav-pieces',     group: 'Create',     label: 'Content Pieces',    hint: 'Drafted content library',      icon: FolderOpen,      perform: go('/pieces'),            keywords: ['drafts','library'] },
+
+      { id: 'nav-creative',   group: 'Create',     label: 'Creative Tools',    hint: 'Image + video generation',     icon: Wand2,           perform: go('/creative'),          keywords: ['ai','generate','art'] },
+      { id: 'nav-image-gen',  group: 'Create',     label: 'Text → Image',      hint: 'Generate visuals from prompt', icon: ImageIcon,       perform: go('/image-gen'),         keywords: ['t2i','generate'] },
+      { id: 'nav-image-edit', group: 'Create',     label: 'Image Editor',      hint: 'Edit + retouch existing',      icon: Palette,         perform: go('/image-edit'),        keywords: ['retouch','edit'] },
+      { id: 'nav-t2v',        group: 'Create',     label: 'Text → Video',      hint: 'Generate video clips',         icon: Video,           perform: go('/text-to-video'),     keywords: ['t2v','grok','veo'] },
+      { id: 'nav-i2v',        group: 'Create',     label: 'Image → Video',     hint: 'Animate stills',               icon: Video,           perform: go('/image-to-video'),    keywords: ['i2v','animate'] },
+      { id: 'nav-ai-design',  group: 'Create',     label: 'AI Design',         hint: 'Generative layouts',           icon: Lightbulb,       perform: go('/ai-design'),         keywords: ['layouts'] },
+      { id: 'nav-copywriting',group: 'Create',     label: 'Copywriting',       hint: 'Long-form text tools',         icon: FileText,        perform: go('/copywriting'),       keywords: ['caption','seo','copy'] },
+      { id: 'nav-textures',   group: 'Create',     label: 'Textures',          hint: 'Background textures + grain',  icon: Palette,         perform: go('/textures') },
+      { id: 'nav-references', group: 'Create',     label: 'Visual References', hint: 'Inspiration board',            icon: ImageIcon,       perform: go('/references'),        keywords: ['mood','inspiration'] },
+      { id: 'nav-gallery',    group: 'Create',     label: 'Gallery',           hint: 'All generated visuals',        icon: ImageIcon,       perform: go('/gallery') },
+      { id: 'nav-studio',     group: 'Create',     label: 'Studio',            hint: 'Studio workspace',             icon: Sparkles,        perform: go('/studio') },
+      { id: 'nav-video',      group: 'Create',     label: 'Video Analysis',    hint: 'Analyze + caption clips',      icon: Video,           perform: go('/video') },
+
+      // ── Distribute ──────────────────────────────────────────────────
+      { id: 'nav-integrations', group: 'Distribute', label: 'Integrations',    hint: 'Meta / TikTok / LinkedIn',     icon: Plug,            perform: go('/integrations'),      keywords: ['oauth','publish','connect'] },
+      { id: 'nav-history',      group: 'Distribute', label: 'History',         hint: 'All AI generations + cost',    icon: HistoryIcon,     perform: go('/history'),           keywords: ['log','usage','cost'] },
+      { id: 'nav-agent',        group: 'Distribute', label: 'Agent',           hint: 'Autonomous agent runs',        icon: Bot,             perform: go('/agent'),             keywords: ['automation','task'] },
 
       // ── Settings ────────────────────────────────────────────────────
       { id: 'nav-profile',    group: 'Settings',   label: 'Profile',           hint: 'Personal account',             icon: UserCircle,      perform: go('/profile') },
       { id: 'nav-members',    group: 'Settings',   label: 'Team',              hint: 'Invite + manage members',      icon: UserCircle,      perform: go('/settings/members'),  keywords: ['members','invite','team'] },
       { id: 'nav-billing',    group: 'Settings',   label: 'Billing',           hint: 'Plan + invoices',              icon: CreditCard,      perform: go('/settings/billing') },
+      { id: 'nav-admin',      group: 'Settings',   label: 'Admin',             hint: 'Org + usage metrics',          icon: ShieldCheck,     perform: go('/admin'),             keywords: ['staff','metrics'] },
       { id: 'nav-onboarding', group: 'Settings',   label: 'Onboarding',        hint: 'First-run wizard',             icon: CalendarDays,    perform: go('/onboarding') },
+      {
+        id: 'act-restart-tour', group: 'Settings', label: 'Restart product tour',
+        hint: 'Replay the welcome walkthrough', icon: RotateCcw,
+        perform: () => {
+          import('../lib/onboarding-tour').then(({ resetOnboardingTour, runOnboardingTour }) => {
+            resetOnboardingTour();
+            try {
+              const token = localStorage.getItem('radix.access_token');
+              const payload = token ? JSON.parse(atob(token.split('.')[1])) : null;
+              const orgId = payload?.orgId ?? 'anon';
+              runOnboardingTour({ orgId, force: true });
+            } catch { /* ignore */ }
+            onOpenChange(false);
+          }).catch(() => { /* lazy load failed; ignore */ });
+        },
+        keywords: ['tour','walkthrough','intro','help','onboarding','reset'],
+      },
 
       // ── Quick actions ───────────────────────────────────────────────
       {

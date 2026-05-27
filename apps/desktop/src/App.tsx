@@ -12,7 +12,7 @@ import { readJson } from './lib/safe-storage';
 const isElectron = !!window.electron?.isDesktop;
 const Router = isElectron ? HashRouter : BrowserRouter;
 import { StoreProvider, useStore } from './lib/store';
-import { LayoutDashboard, Calendar, ImagePlus, Image as ImageIcon, Video, Search, UserCircle, ChevronLeft, ChevronRight, FileText, Palette, Layers, Wand2, FolderOpen, Radio, Building2, AlertCircle, Plug, History as HistoryIcon, ShieldCheck, PenLine } from 'lucide-react';
+import { LayoutDashboard, Calendar, ImagePlus, Image as ImageIcon, Video, Search, UserCircle, ChevronLeft, ChevronRight, ChevronDown, FileText, Palette, Layers, Wand2, FolderOpen, Radio, Building2, AlertCircle, Plug, History as HistoryIcon, ShieldCheck, PenLine, Brain, Compass, Lightbulb, Telescope, CreditCard, Receipt } from 'lucide-react';
 
 // Phase 8.1 — every page lazy-loaded into its own chunk, prefetched on
 // hover later. Cuts the initial bundle from ~1MB to ~250KB gzipped.
@@ -147,23 +147,83 @@ function Layout({ children }: { children: React.ReactNode }) {
     onTrigger: () => toggleTheme(),
   });
 
-  const navigation: { name: string; href: string; icon: any; prefetch?: () => Promise<unknown> }[] = [
-    { name: t('nav.dashboard'),    href: '/',                     icon: LayoutDashboard, prefetch: () => import('./pages/Dashboard') },
-    { name: t('nav.workspace'),    href: '/workspace/content',    icon: Layers,          prefetch: () => import('./pages/Workspace') },
-    { name: 'Integrations',         href: '/integrations',         icon: Plug,            prefetch: () => import('./pages/Integrations') },
-    { name: 'History',              href: '/history',              icon: HistoryIcon,     prefetch: () => import('./pages/History') },
-    { name: t('nav.clients'),      href: '/clients',              icon: Building2,       prefetch: () => import('./pages/Clients') },
-    { name: t('nav.brief'),     href: '/brief',                icon: FileText,        prefetch: () => import('./pages/BriefInput') },
-    { name: t('nav.review'),    href: '/content-review',       icon: Layers,          prefetch: () => import('./pages/ContentReview') },
-    { name: t('nav.calendar'),  href: '/calendar',             icon: Calendar,        prefetch: () => import('./pages/ContentCalendar') },
-    { name: t('nav.creative'),  href: '/creative',             icon: Wand2,           prefetch: () => import('./pages/CreativeTools') },
-    { name: t('nav.copywriting'), href: '/copywriting',        icon: PenLine,         prefetch: () => import('./pages/Copywriting') },
-    { name: t('nav.gallery'),   href: '/gallery',              icon: ImageIcon,       prefetch: () => import('./pages/Gallery') },
-    { name: 'Brand Kit',            href: '/brand-kit',            icon: Palette,         prefetch: () => import('./pages/BrandKit') },
-    ...(showTeam ? [{ name: t('nav.members'), href: '/settings/members', icon: UserCircle, prefetch: () => import('./pages/Members') }] : []),
-    ...(showStaff ? [{ name: 'Admin',          href: '/admin',                icon: ShieldCheck,     prefetch: () => import('./pages/Admin') }] : []),
-    { name: t('nav.billing'),   href: '/settings/billing',     icon: UserCircle,      prefetch: () => import('./pages/Billing') },
+  type NavItem = { name: string; href: string; icon: any; prefetch?: () => Promise<unknown> };
+  type NavGroup = { id: string; label: string; items: NavItem[] };
+
+  // IA redesign: 5 user-journey groups expose all 33 surfaces (was 15 flat).
+  // Group ids must match localStorage keys (radix.nav.group.<id>).
+  const navGroups: NavGroup[] = [
+    {
+      id: 'today',
+      label: 'Today',
+      items: [
+        { name: t('nav.dashboard'), href: '/',                  icon: LayoutDashboard, prefetch: () => import('./pages/Dashboard') },
+        { name: t('nav.workspace'), href: '/workspace/content', icon: Layers,          prefetch: () => import('./pages/Workspace') },
+      ],
+    },
+    {
+      id: 'strategy',
+      label: 'Strategy',
+      items: [
+        { name: t('nav.clients'), href: '/clients',     icon: Building2, prefetch: () => import('./pages/Clients') },
+        { name: t('nav.brief'),   href: '/brief',       icon: FileText,  prefetch: () => import('./pages/BriefInput') },
+        { name: 'Brand Kit',      href: '/brand-kit',   icon: Palette,   prefetch: () => import('./pages/BrandKit') },
+        { name: 'Knowledge',      href: '/knowledge',   icon: Brain,     prefetch: () => import('./pages/Knowledge') },
+        { name: 'Research',       href: '/research',    icon: Telescope, prefetch: () => import('./pages/Research') },
+        { name: 'Topic Desk',     href: '/topics',      icon: Compass,   prefetch: () => import('./pages/TopicDesk') },
+      ],
+    },
+    {
+      id: 'create',
+      label: 'Create',
+      items: [
+        { name: t('nav.calendar'),    href: '/calendar',       icon: Calendar,    prefetch: () => import('./pages/ContentCalendar') },
+        { name: t('nav.review'),      href: '/content-review', icon: Layers,      prefetch: () => import('./pages/ContentReview') },
+        { name: 'Content Pieces',     href: '/pieces',         icon: FolderOpen,  prefetch: () => import('./pages/ContentPieces') },
+        { name: t('nav.creative'),    href: '/creative',       icon: Wand2,       prefetch: () => import('./pages/CreativeTools') },
+        { name: 'AI Design',          href: '/ai-design',      icon: Lightbulb,   prefetch: () => import('./pages/AIDesignGenerator') },
+        { name: t('nav.copywriting'), href: '/copywriting',    icon: PenLine,     prefetch: () => import('./pages/Copywriting') },
+        { name: 'Visual References',  href: '/references',     icon: ImagePlus,   prefetch: () => import('./pages/VisualReferences') },
+        { name: t('nav.gallery'),     href: '/gallery',        icon: ImageIcon,   prefetch: () => import('./pages/Gallery') },
+        { name: 'Studio',             href: '/studio',         icon: Sparkles,    prefetch: () => import('./pages/Studio') },
+        { name: 'Video Analysis',     href: '/video',          icon: Video,       prefetch: () => import('./pages/VideoAnalysis') },
+      ],
+    },
+    {
+      id: 'distribute',
+      label: 'Distribute',
+      items: [
+        { name: 'Integrations', href: '/integrations', icon: Plug,        prefetch: () => import('./pages/Integrations') },
+        { name: 'History',      href: '/history',      icon: HistoryIcon, prefetch: () => import('./pages/History') },
+      ],
+    },
+    {
+      id: 'settings',
+      label: 'Settings',
+      items: [
+        { name: 'Profile',                href: '/profile',          icon: UserCircle,  prefetch: () => import('./pages/Profile') },
+        ...(showTeam  ? [{ name: t('nav.members'), href: '/settings/members', icon: UserCircle, prefetch: () => import('./pages/Members') }] : []),
+        ...(showStaff ? [{ name: 'Admin',           href: '/admin',            icon: ShieldCheck, prefetch: () => import('./pages/Admin') }]   : []),
+        { name: t('nav.billing'),          href: '/settings/billing', icon: Receipt,     prefetch: () => import('./pages/Billing') },
+      ],
+    },
   ];
+
+  // Flat list for legacy MobileMenu (no group rendering yet).
+  const navigation: NavItem[] = navGroups.flatMap(g => g.items);
+
+  // Per-group expand/collapse, persisted. Default all open.
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
+    try {
+      const raw = localStorage.getItem('radix.nav.groups.v1');
+      if (raw) return JSON.parse(raw);
+    } catch { /* ignore */ }
+    return { today: true, strategy: true, create: true, distribute: true, settings: true };
+  });
+  useEffect(() => {
+    try { localStorage.setItem('radix.nav.groups.v1', JSON.stringify(openGroups)); } catch { /* ignore */ }
+  }, [openGroups]);
+  const toggleGroup = (id: string) => setOpenGroups(prev => ({ ...prev, [id]: !prev[id] }));
 
   // Studio is a dark high-contrast palette; treat it as "dark chrome" for layout ternaries.
   const isDark = theme !== 'light';
@@ -238,35 +298,65 @@ function Layout({ children }: { children: React.ReactNode }) {
           </button>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 px-3 py-3 space-y-1 overflow-y-auto">
-          {navigation.map((item) => {
-            const isActive = location.pathname === item.href;
+        {/* Navigation — grouped (Today / Strategy / Create / Distribute / Settings) */}
+        <nav className="flex-1 px-3 py-3 space-y-3 overflow-y-auto" aria-label="Primary">
+          {navGroups.map((group) => {
+            const isOpen = openGroups[group.id] !== false;
             return (
-              <Link
-                key={item.name}
-                to={item.href}
-                onMouseEnter={() => { item.prefetch?.().catch(() => {}); }}
-                onFocus={() => { item.prefetch?.().catch(() => {}); }}
-                className={`group flex items-center px-3 py-2.5 text-[13px] font-medium rounded-xl transition-all duration-200 relative cursor-pointer ${
-                  isActive
-                    ? isDark
-                      ? 'text-white bg-white/[0.08] shadow-[inset_0_0_20px_rgba(245,158,11,0.05)]'
-                      : 'text-slate-900 bg-amber-50 shadow-sm'
-                    : isDark
-                      ? 'text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.04]'
-                      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
-                } ${isCollapsed ? 'justify-center px-0' : ''}`}
-                title={isCollapsed ? item.name : undefined}
-              >
-                {isActive && (
-                  <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full ${isDark ? 'bg-amber-500' : 'bg-amber-500'}`} />
+              <div key={group.id}>
+                {/* Group header — hidden when sidebar collapsed (icons only); also acts as the collapsible toggle. */}
+                {!isCollapsed && (
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(group.id)}
+                    aria-expanded={isOpen}
+                    aria-controls={`nav-group-${group.id}`}
+                    className={`group/header flex items-center justify-between w-full px-3 mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] transition-colors ${
+                      isDark ? 'text-zinc-600 hover:text-zinc-400' : 'text-slate-400 hover:text-slate-600'
+                    }`}
+                  >
+                    <span>{group.label}</span>
+                    <ChevronDown
+                      size={12}
+                      className={`transition-transform duration-200 ${isOpen ? '' : '-rotate-90'} opacity-50 group-hover/header:opacity-100`}
+                    />
+                  </button>
                 )}
-                <item.icon className={`${isCollapsed ? '' : 'mr-3'} h-[18px] w-[18px] transition-all duration-200 ${
-                  isActive ? isDark ? 'text-amber-400' : 'text-amber-600' : isDark ? 'group-hover:text-zinc-300' : 'group-hover:text-slate-700'
-                }`} />
-                {!isCollapsed && <span className="flex-1">{item.name}</span>}
-              </Link>
+                {/* Group items */}
+                {(isOpen || isCollapsed) && (
+                  <div id={`nav-group-${group.id}`} className="space-y-1">
+                    {group.items.map((item) => {
+                      const isActive = location.pathname === item.href;
+                      return (
+                        <Link
+                          key={item.name}
+                          to={item.href}
+                          onMouseEnter={() => { item.prefetch?.().catch(() => {}); }}
+                          onFocus={() => { item.prefetch?.().catch(() => {}); }}
+                          className={`group flex items-center px-3 py-2 text-[13px] font-medium rounded-xl transition-all duration-200 relative cursor-pointer ${
+                            isActive
+                              ? isDark
+                                ? 'text-white bg-white/[0.08] shadow-[inset_0_0_20px_rgba(245,158,11,0.05)]'
+                                : 'text-slate-900 bg-amber-50 shadow-sm'
+                              : isDark
+                                ? 'text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.04]'
+                                : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
+                          } ${isCollapsed ? 'justify-center px-0' : ''}`}
+                          title={isCollapsed ? item.name : undefined}
+                        >
+                          {isActive && (
+                            <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full ${isDark ? 'bg-amber-500' : 'bg-amber-500'}`} />
+                          )}
+                          <item.icon className={`${isCollapsed ? '' : 'mr-3'} h-[18px] w-[18px] transition-all duration-200 ${
+                            isActive ? isDark ? 'text-amber-400' : 'text-amber-600' : isDark ? 'group-hover:text-zinc-300' : 'group-hover:text-slate-700'
+                          }`} />
+                          {!isCollapsed && <span className="flex-1">{item.name}</span>}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             );
           })}
         </nav>
