@@ -420,52 +420,126 @@ export default function Dashboard() {
       {/* ─── ROW 1: Hero CTA + Welcome ─── */}
       <div className="grid grid-cols-12 gap-5">
 
-        {/* Hero: New Brief CTA — Bento 2x1 */}
+        {/* ─── Editorial masthead — Dashboard front door ─────────────
+            Deliberate POV departure from the gradient-bloom hero template
+            used on Research/AIDesign/ContentPieces/BrandKit. Magazine
+            masthead vocabulary: Libre Bodoni headline with a scribed amber
+            rule, JetBrains Mono caption strip, asymmetric weight, hairline
+            geometry instead of rounded glass. Front-door surface earns the
+            distinctive treatment.
+            ──────────────────────────────────────────────────────────── */}
         <motion.div {...fadeUp(0)} className="col-span-12 lg:col-span-8">
           <Link
             to="/brief"
-            className={`group relative block overflow-hidden rounded-2xl p-8 lg:p-10 cursor-pointer transition-all duration-300 ${glass}`}
+            aria-label="Start a new brief"
+            className="group relative block overflow-hidden cursor-pointer"
+            style={{
+              background: 'var(--color-bg-elevated)',
+              borderTop: '1px solid var(--color-border)',
+              borderRight: '1px solid var(--color-border)',
+              borderBottom: '1px solid var(--color-border)',
+              borderLeft: '3px solid var(--color-accent)',
+            }}
           >
-            {/* Ambient glow */}
-            <div className={`absolute -top-40 -right-40 w-96 h-96 rounded-full blur-3xl transition-all duration-700 ${isDark ? 'bg-amber-500/[0.04] group-hover:bg-amber-500/[0.08]' : 'bg-amber-200/20 group-hover:bg-amber-200/40'}`} />
-            <div className={`absolute -bottom-24 -left-24 w-72 h-72 rounded-full blur-3xl ${isDark ? 'bg-blue-500/[0.03]' : 'bg-blue-100/30'}`} />
+            {/* Top caption strip — issue-number masthead vocabulary. Mono
+                + uppercase + wide tracking + thin hairline below. */}
+            <div
+              className="flex items-center justify-between gap-4 px-6 lg:px-10 py-3 border-b font-mono"
+              style={{ borderColor: 'var(--color-border-subtle)' }}
+            >
+              <span className="text-[10px] uppercase tracking-[0.28em]" style={{ color: 'var(--color-fg-subtle)' }}>
+                Radix · Vol. 02 · No. {String(Math.ceil((Date.now() - new Date(new Date().getFullYear(), 0, 1).getTime()) / 86400000)).padStart(3, '0')}
+              </span>
+              <span className="text-[10px] uppercase tracking-[0.28em] hidden sm:inline" style={{ color: 'var(--color-fg-subtle)' }}>
+                {currentDate}
+              </span>
+            </div>
 
-            <div className="relative z-10">
-              {/* Greeting strip — merged from former right-column card per Weni's
-                  ask 2026-04-27. Date + greeting + selected client all live
-                  inside the hero now so the eye lands on identity + intent
-                  in one read instead of two stacked cards. */}
-              <div className={`flex flex-wrap items-center gap-x-4 gap-y-1 mb-6 pb-6 border-b ${isDark ? 'border-white/[0.06]' : 'border-slate-200/80'}`}>
-                <p className={`text-[10px] font-semibold uppercase tracking-[0.2em] ${textMuted}`}>{currentDate}</p>
-                <span className={`text-[10px] ${textDim}`}>·</span>
-                <p className={`text-sm font-semibold ${textPrimary}`}>{heroGreeting}</p>
-                {currentClient?.name && (
-                  <>
-                    <span className={`text-[10px] ${textDim}`}>·</span>
-                    <p className={`text-sm ${textSecondary}`}>{currentClient.name}</p>
-                  </>
-                )}
+            {/* Body — asymmetric: headline + lede on the left, action
+                slug on the right, generous vertical breathing room. */}
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] items-end gap-6 px-6 lg:px-10 py-8 lg:py-12">
+              <div className="min-w-0">
+                <p className="font-mono text-[10px] uppercase tracking-[0.22em]" style={{ color: 'var(--color-fg-muted)' }}>
+                  {heroGreeting}{currentClient?.name ? ` · ${currentClient.name}` : ''}
+                </p>
+                <h1
+                  className="font-display mt-3 text-4xl sm:text-5xl lg:text-6xl font-semibold leading-[0.95] tracking-tight"
+                  style={{ color: 'var(--color-fg)' }}
+                >
+                  <span className="relative inline-block">
+                    Today
+                    {/* Hand-drawn-style underline — single SVG stroke,
+                        not a div bar. Skew + slight wobble gives it the
+                        scribed feel that breaks the AI-grid look. */}
+                    <svg
+                      aria-hidden="true"
+                      className="absolute -bottom-1 left-0 w-full"
+                      viewBox="0 0 200 8"
+                      preserveAspectRatio="none"
+                      style={{ height: '0.45em' }}
+                    >
+                      <path
+                        d="M2,5 Q50,1 100,4 T198,3"
+                        fill="none"
+                        stroke="var(--color-accent)"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  </span>{' '}
+                  on Radix.
+                </h1>
+                <p
+                  className="mt-5 max-w-lg text-[15px] leading-[1.55]"
+                  style={{ color: 'var(--color-fg-muted)', fontFamily: 'var(--font-display)', fontStyle: 'italic', fontWeight: 400 }}
+                >
+                  Brief in. Calendar out. Brand-true captions, visuals, and a
+                  publish-ready month — one prompt away.
+                </p>
               </div>
 
-              <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-[0.15em] mb-6 ${isDark ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-emerald-50 text-emerald-600 border border-emerald-200'}`}>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                AI Ready
-              </div>
-
-              <h1 className={`text-3xl md:text-4xl lg:text-5xl font-black tracking-tight leading-[1.1] mb-4 ${textPrimary}`}>
-                Create Content<br />
-                <span className={textSecondary}>From Brief</span>
-              </h1>
-
-              <p className={`text-base max-w-md leading-relaxed mb-8 ${textSecondary}`}>
-                Input your client brief. AI generates content pieces with captions, visuals, and hashtags — platform-optimized.
-              </p>
-
-              <div className={`inline-flex items-center gap-3 font-semibold text-sm group-hover:gap-4 transition-all duration-300 ${textPrimary}`}>
-                <span className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300 bg-amber-500 text-slate-950 group-hover:shadow-[0_0_20px_rgba(245,158,11,0.4)]`}>
-                  <ArrowRight className="w-5 h-5" />
+              {/* Right-rail action — a vertical slug, not a glowing pill.
+                  Number + label + arrow stacked editorially. On hover the
+                  arrow inks across instead of pulsing. */}
+              <div className="flex flex-col items-start lg:items-end gap-2 shrink-0">
+                <span className="font-mono text-[10px] uppercase tracking-[0.22em]" style={{ color: 'var(--color-fg-subtle)' }}>
+                  ↪ Section 01
                 </span>
-                Start New Brief
+                <span
+                  className="font-display text-2xl sm:text-3xl font-semibold leading-none"
+                  style={{ color: 'var(--color-fg)' }}
+                >
+                  Start a brief
+                </span>
+                <span className="inline-flex items-center gap-2 mt-1 font-mono text-[10px] uppercase tracking-[0.22em] transition-all group-hover:gap-3"
+                  style={{ color: 'var(--color-accent)' }}
+                >
+                  Compose
+                  <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
+                </span>
+              </div>
+            </div>
+
+            {/* Bottom hairline metrics strip — paper-of-record vibe */}
+            <div
+              className="grid grid-cols-3 sm:grid-cols-4 border-t font-mono text-[10px] uppercase tracking-[0.22em]"
+              style={{ borderColor: 'var(--color-border-subtle)', color: 'var(--color-fg-subtle)' }}
+            >
+              <div className="px-6 lg:px-10 py-3 border-r" style={{ borderColor: 'var(--color-border-subtle)' }}>
+                <span style={{ color: 'var(--color-fg-muted)' }}>Total</span>{' '}
+                <span style={{ color: 'var(--color-fg)' }} className="font-semibold tabular-nums">{loading ? '—' : totalPosts}</span>{' '}posts
+              </div>
+              <div className="px-6 lg:px-10 py-3 border-r" style={{ borderColor: 'var(--color-border-subtle)' }}>
+                <span style={{ color: 'var(--color-fg-muted)' }}>Approved</span>{' '}
+                <span style={{ color: 'var(--color-fg)' }} className="font-semibold tabular-nums">{approvalRate}%</span>
+              </div>
+              <div className="px-6 lg:px-10 py-3 sm:border-r" style={{ borderColor: 'var(--color-border-subtle)' }}>
+                <span style={{ color: 'var(--color-fg-muted)' }}>Clients</span>{' '}
+                <span style={{ color: 'var(--color-fg)' }} className="font-semibold tabular-nums">{loading ? '—' : (stats?.clients?.total ?? 0)}</span>
+              </div>
+              <div className="hidden sm:flex px-6 lg:px-10 py-3 items-center gap-2">
+                <span className="inline-flex w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: 'var(--color-success)' }} aria-hidden="true" />
+                <span style={{ color: 'var(--color-success)' }}>AI live</span>
               </div>
             </div>
           </Link>

@@ -1,10 +1,10 @@
 {
-  "baseline": 2522,
-  "updated": "2026-05-27T21:07:41.827Z",
+  "baseline": 2506,
+  "updated": "2026-05-27T22:30:24.616Z",
   "topFiles": [
     {
       "file": "pages/Dashboard.tsx",
-      "count": 334
+      "count": 318
     },
     {
       "file": "pages/ContentReview.tsx",
