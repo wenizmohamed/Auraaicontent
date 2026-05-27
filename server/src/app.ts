@@ -34,6 +34,7 @@ import { productReferenceRoutes } from './routes/product-references.js';
 import { brandKitRoutes } from './routes/brand-kit.js';
 import { startTokenHealthWorker } from './workers/tokenHealth.worker.js';
 import { startSchedulerWorker } from './workers/scheduler.worker.js';
+import { startGeminiModelValidator } from './services/providers/gemini-model-validator.js';
 import { initSentry } from './lib/sentry.js';
 import { registerRateLimiter } from './middleware/rate-limiter.js';
 import { kimiStatus } from './services/providers/kimi.provider.js';
@@ -275,6 +276,13 @@ export async function buildApp() {
   // CalendarPost rows with status='scheduled' AND scheduledAt <= now+60s,
   // SETNX-locked per (postId, scheduledAt). Kill switch: SCHEDULER_DISABLED=true.
   startSchedulerWorker();
+
+  // Validate every configured GEMINI_*_MODEL against Google's live
+  // ListModels response. Loud-warns on any dead model id so the next
+  // preview-deprecation surfaces in logs immediately instead of as a
+  // user-visible 500. Runs daily after a 5s warmup. (RES-2, after the
+  // gemini-3.1-flash-lite-preview deprecation incident.)
+  startGeminiModelValidator();
 
   return app;
 }

@@ -53,6 +53,17 @@ const RETRYABLE_PATTERNS = [
   /blocked/i,
   /content.?filter/i,
   /safety.?filter/i,
+  // Model-deprecation rot — when Google/xAI/Moonshot retire a preview model
+  // the call returns 404 with "no longer available" / "model not found" /
+  // "model.*not.*supported". Previously these landed in the 400-499 non-
+  // retryable bucket and killed the ladder before the next-rung working
+  // model got a chance (incident 2026-05-27: gemini-3.1-flash-lite-preview
+  // deprecated mid-quarter, Research page hard-failed). Treat as retryable
+  // so the inner ladder falls through to a stable model.
+  /no longer available/i,
+  /not.?found.*model|model.*not.?found/i,
+  /model.*not.?supported|unsupported model/i,
+  /deprecated/i,
 ];
 
 const NON_RETRYABLE_PATTERNS = [
