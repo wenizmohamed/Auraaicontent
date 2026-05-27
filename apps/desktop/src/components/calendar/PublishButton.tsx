@@ -99,7 +99,7 @@ export function PublishButton({
         target="_blank"
         rel="noopener noreferrer"
         title={tooltip}
-        className={`inline-flex items-center gap-1.5 rounded-lg ${compact ? 'h-7 w-7 justify-center' : 'px-2.5 py-1.5'} text-[11px] font-medium transition-colors`}
+        className={`inline-flex items-center gap-1.5 rounded-lg ${compact ? 'h-9 w-9 justify-center' : 'px-2.5 py-1.5'} text-[11px] font-medium transition-colors`}
         style={{
           background: 'var(--color-success-subtle, rgba(16,185,129,0.12))',
           color: 'var(--color-success, #34d399)',
@@ -119,7 +119,7 @@ export function PublishButton({
         disabled={disabled}
         title={tooltip}
         aria-label={tooltip}
-        className={`inline-flex items-center gap-1.5 rounded-lg ${compact ? 'h-7 w-7 justify-center' : 'px-2.5 py-1.5'} text-[11px] font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed`}
+        className={`inline-flex items-center gap-1.5 rounded-lg ${compact ? 'h-9 w-9 justify-center' : 'px-2.5 py-1.5'} text-[11px] font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed`}
         style={{
           background: lastError ? 'var(--color-danger-subtle, rgba(239,68,68,0.12))' : 'var(--color-accent)',
           color: lastError ? 'var(--color-danger, #f87171)' : 'var(--color-fg-on-accent)',

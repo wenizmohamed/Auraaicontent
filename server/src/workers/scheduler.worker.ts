@@ -120,10 +120,13 @@ async function runTick(): Promise<void> {
     platformConnectionId: string | null;
   }>;
   try {
-    // Cast: scheduledAt + platformConnectionId are added by the
-    // 20260512_add_post_scheduler migration; Prisma client regen catches up
-    // on next deploy. Same pattern as the rest of the codebase
-    // (server/src/lib/brand-kit-enricher.ts, etc).
+    // PERF-1: collapse the per-candidate N+1 (was: 1 findMany + per-row
+    // {calendarMonth.findUnique, platformConnection.findFirst,
+    // calendarPostAsset.findFirst, 1-2 updates} = ~6 sequential queries
+    // each × 50 candidates = ~300 queries inside a 60s tick) into ONE
+    // findMany with includes that pull the only fields the processOne
+    // happy path needs. Fallback connection lookup (legacy posts without
+    // platformConnectionId) still runs one extra query when triggered.
     candidates = await (systemDb as any).calendarPost.findMany({
       where: {
         status: 'scheduled',
@@ -138,8 +141,11 @@ async function runTick(): Promise<void> {
         hashtags: true,
         scheduledAt: true,
         platformConnectionId: true,
+        calendarMonth: { select: { clientId: true } },
+        platformConnection: true,
+        assets: { include: { asset: true }, take: 1 },
       },
-      take: 50,
+      take: 200, // raised from 50 — silent drop under burst load
     });
   } catch (err: any) {
     // Table/columns may not be migrated yet — log once, don't crash.
@@ -176,24 +182,18 @@ async function processOne(post: {
   hashtags: any;
   scheduledAt: Date;
   platformConnectionId: string | null;
+  // PERF-1: pre-joined by the candidate findMany so we skip 3 lookups.
+  calendarMonth?: { clientId: string } | null;
+  platformConnection?: any | null;
+  assets?: { asset: { fileUrl: string } | null }[];
 }): Promise<void> {
-  // Resolve clientId via the parent CalendarMonth (CalendarPost has no
-  // direct clientId — same pattern as routes/publish.ts).
-  const month = await systemDb.calendarMonth.findUnique({
-    where: { id: post.calendarMonthId },
-    select: { clientId: true },
-  });
-  const clientId = month?.clientId;
+  const clientId = post.calendarMonth?.clientId ?? null;
 
-  // Find the connection. Prefer the explicit FK; fall back to (clientId,
-  // platform, status='connected') so legacy rows without
-  // platformConnectionId still publish.
-  let conn = null;
-  if (post.platformConnectionId) {
-    conn = await systemDb.platformConnection.findFirst({
-      where: { id: post.platformConnectionId, orgId: post.orgId },
-    });
-  } else if (clientId) {
+  // Prefer the pre-loaded FK connection. Only fall back to a query when the
+  // post has no platformConnectionId AND we have a clientId — covers legacy
+  // posts created before the FK column existed.
+  let conn: any = post.platformConnection ?? null;
+  if (!conn && !post.platformConnectionId && clientId) {
     conn = await systemDb.platformConnection.findFirst({
       where: { orgId: post.orgId, clientId, platform: post.platform, status: 'connected' },
     });
@@ -216,12 +216,8 @@ async function processOne(post: {
     return;
   }
 
-  // Resolve the first attached asset URL.
-  const assetLink = await systemDb.calendarPostAsset.findFirst({
-    where: { postId: post.id },
-    include: { asset: true },
-  });
-  const assetUrl = assetLink?.asset?.fileUrl;
+  // Asset is pre-loaded from the candidate query (take: 1).
+  const assetUrl = post.assets?.[0]?.asset?.fileUrl;
   if (!assetUrl) {
     const msg = 'Post has no attached image asset';
     await systemDb.calendarPost.update({

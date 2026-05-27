@@ -63,6 +63,7 @@ import { useShortcut } from './lib/shortcuts';
 import { Toaster } from 'sonner';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './lib/query-client';
+import { MotionConfig } from 'framer-motion';
 
 // Email allowlist for the Team page + Admin (cross-org) page. Mirrors
 // server-side TEAM_ADMIN_EMAILS + STAFF_EMAILS env vars. Anyone not listed
@@ -449,6 +450,11 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   return (
+    // A11Y-12 WCAG 2.3.3 — reducedMotion="user" makes every framer-motion
+    // transition automatically honor prefers-reduced-motion. JS-driven
+    // animations now match the CSS rule in index.css that already zeroes
+    // animation-duration when the user requests reduced motion.
+    <MotionConfig reducedMotion="user">
     <QueryClientProvider client={queryClient}>
     <ThemeProvider>
     <TooltipProvider>
@@ -513,5 +519,6 @@ export default function App() {
     </TooltipProvider>
     </ThemeProvider>
     </QueryClientProvider>
+    </MotionConfig>
   );
 }

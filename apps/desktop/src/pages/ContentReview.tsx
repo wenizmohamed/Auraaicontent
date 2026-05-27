@@ -574,13 +574,15 @@ export default function ContentReview() {
         <div className="flex flex-col md:flex-row md:items-center gap-3">
           {/* Search */}
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" aria-hidden="true" />
             <input
-              type="text"
+              id="review-search"
+              type="search"
+              aria-label={t('page.review.ph_search')}
               placeholder={t('page.review.ph_search')}
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-zinc-900 border border-white/10 rounded-xl text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-amber-500/50 transition-colors"
+              className="w-full pl-10 pr-4 py-2.5 bg-zinc-900 border border-white/10 rounded-xl text-sm text-white placeholder:text-zinc-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/60 transition-colors"
             />
           </div>
 
@@ -651,7 +653,7 @@ export default function ContentReview() {
                 <select
                   value={platformFilter}
                   onChange={e => setPlatformFilter(e.target.value)}
-                  className="bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500/50"
+                  className="bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/60"
                 >
                   <option value="all">{t('page.review.all_platforms')}</option>
                   {platforms.map(p => (
@@ -663,7 +665,7 @@ export default function ContentReview() {
                 <select
                   value={statusFilter}
                   onChange={e => setStatusFilter(e.target.value)}
-                  className="bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500/50"
+                  className="bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/60"
                 >
                   <option value="all">{t('page.review.all_statuses')}</option>
                   {(Object.keys(STATUS_LABEL) as ContentStatus[]).map(s => (
@@ -676,7 +678,7 @@ export default function ContentReview() {
                   <select
                     value={campaignFilter}
                     onChange={e => setCampaignFilter(e.target.value)}
-                    className="bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500/50"
+                    className="bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/60"
                   >
                     <option value="all">{t('page.review.all_campaigns')}</option>
                     {campaigns.map(c => (
@@ -872,7 +874,7 @@ export default function ContentReview() {
                           value={editCaption}
                           onChange={e => setEditCaption(e.target.value)}
                           rows={4}
-                          className="w-full bg-zinc-900 border border-amber-500/30 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none resize-y mt-0.5"
+                          className="w-full bg-zinc-900 border border-amber-500/30 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/60 resize-y mt-0.5"
                         />
                       ) : (
                         <p className="text-sm text-zinc-300 leading-relaxed bg-white/[0.02] rounded-lg px-3 py-2 border border-white/5 whitespace-pre-wrap mt-0.5">
@@ -1161,7 +1163,7 @@ export default function ContentReview() {
                     value={editCreativeCopy}
                     onChange={e => setEditCreativeCopy(e.target.value)}
                     rows={3}
-                    className="w-full bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500/50 resize-y"
+                    className="w-full bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/60 resize-y"
                   />
                 </div>
 
@@ -1182,7 +1184,7 @@ export default function ContentReview() {
                     value={editCaption}
                     onChange={e => setEditCaption(e.target.value)}
                     rows={5}
-                    className="w-full bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500/50 resize-y"
+                    className="w-full bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/60 resize-y"
                   />
                 </div>
 

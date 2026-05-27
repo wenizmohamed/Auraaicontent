@@ -45,6 +45,12 @@ print(f'  routing: {d[\"routing\"][\"AI_TEXT_PRIMARY\"]}/{d[\"routing\"][\"AI_IM
 import sys,json; c=json.load(sys.stdin); print(c[0]['id'] if c else 'NONE')" 2>/dev/null)
   [ "$CLIENT" != "NONE" ] && [ -n "$CLIENT" ] && pass "$LABEL clients" || { fail "$LABEL clients"; return; }
 
+  # 4b. Integrations list — COV-8: post-OAuth shipping, smoke must touch this
+  # endpoint so a regression (route unmounted, auth misorder, tenant scoping)
+  # surfaces here instead of silently 4 hours later via customer support.
+  INTG_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/api/integrations?clientId=$CLIENT" -H "Authorization: Bearer $TOKEN" 2>/dev/null)
+  [ "$INTG_CODE" = "200" ] && pass "$LABEL integrations list (HTTP $INTG_CODE)" || fail "$LABEL integrations list (HTTP $INTG_CODE)"
+
   # 5. Brief
   curl -sf -X PUT "$BASE/api/clients/$CLIENT/brief" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
     -d '{"objective":"Smoke","audience":"QA","tone":"Pro","brandDo":"Y","brandDont":"N","products":["X"],"pillars":["Y"],"campaignMoments":[],"channels":["Instagram"],"approvers":[]}' >/dev/null 2>&1
@@ -72,6 +78,10 @@ import sys,json; r=json.load(sys.stdin).get('result',{})
 print(f'{r.get(\"provider\",\"?\")}/{r.get(\"model\",\"?\")} {r.get(\"latencyMs\",\"?\")}ms fb={r.get(\"fallbackUsed\",\"?\")}')
 " 2>/dev/null)
       pass "$LABEL generate ($META)"
+      # COV-8: a non-boolean fallbackUsed (missing) means provider router
+      # didn't tag the result — silent regression in the fallback chain.
+      FB=$(curl -sf "$BASE/api/jobs/$JOB" -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json; r=json.load(sys.stdin).get('result',{}); print(r.get('fallbackUsed','MISSING'))" 2>/dev/null)
+      [ "$FB" = "True" ] || [ "$FB" = "False" ] && pass "$LABEL fallback flag present ($FB)" || fail "$LABEL fallback flag MISSING — router not tagging"
       break
     elif [ "$S" = "failed" ]; then
       ERR=$(curl -sf "$BASE/api/jobs/$JOB" -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json; print(json.load(sys.stdin).get('error','?')[:60])" 2>/dev/null)

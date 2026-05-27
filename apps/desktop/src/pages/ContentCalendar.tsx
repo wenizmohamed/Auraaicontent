@@ -634,7 +634,7 @@ export default function ContentCalendar() {
                     onClick={() => setDensity(d)}
                     title={`${d[0].toUpperCase() + d.slice(1)} density`}
                     aria-pressed={density === d}
-                    className="px-2 py-1 text-[10px] font-medium uppercase tracking-wider transition-colors cursor-pointer first:rounded-l-lg last:rounded-r-lg"
+                    className="px-2.5 py-1.5 min-w-[28px] min-h-[28px] text-[10px] font-medium uppercase tracking-wider transition-colors cursor-pointer first:rounded-l-lg last:rounded-r-lg"
                     style={{
                       background: density === d ? 'var(--color-surface-active)' : 'transparent',
                       color: density === d ? 'var(--color-fg)' : 'var(--color-fg-subtle)',
@@ -857,94 +857,94 @@ export default function ContentCalendar() {
                             <div className="grid grid-cols-2 gap-3">
                               {/* Title */}
                               <div>
-                                <label className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Title</label>
-                                <input value={editDraft.title} onChange={e => updateDraftField('title', e.target.value)}
-                                  className="w-full bg-zinc-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-violet-500/40 mt-0.5" />
+                                <label htmlFor={`cal-edit-title-${piece.id}`} className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Title</label>
+                                <input id={`cal-edit-title-${piece.id}`} value={editDraft.title} onChange={e => updateDraftField('title', e.target.value)}
+                                  className="w-full bg-zinc-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60 mt-0.5" />
                               </div>
                               {/* Pillar */}
                               <div>
-                                <label className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Pillar</label>
-                                <input value={editDraft.pillar} onChange={e => updateDraftField('pillar', e.target.value)}
-                                  className="w-full bg-zinc-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-violet-500/40 mt-0.5" />
+                                <label htmlFor={`cal-edit-pillar-${piece.id}`} className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Pillar</label>
+                                <input id={`cal-edit-pillar-${piece.id}`} value={editDraft.pillar} onChange={e => updateDraftField('pillar', e.target.value)}
+                                  className="w-full bg-zinc-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60 mt-0.5" />
                               </div>
                               {/* Platform */}
                               <div>
-                                <label className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Platform</label>
-                                <select value={editDraft.platform} onChange={e => updateDraftField('platform', e.target.value)}
-                                  className="w-full bg-zinc-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-violet-500/40 mt-0.5">
+                                <label htmlFor={`cal-edit-platform-${piece.id}`} className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Platform</label>
+                                <select id={`cal-edit-platform-${piece.id}`} value={editDraft.platform} onChange={e => updateDraftField('platform', e.target.value)}
+                                  className="w-full bg-zinc-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60 mt-0.5">
                                   {['Instagram', 'TikTok', 'LinkedIn', 'X', 'Facebook'].map(p => <option key={p} value={p}>{p}</option>)}
                                 </select>
                               </div>
                               {/* Format */}
                               <div>
-                                <label className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Format</label>
-                                <input value={editDraft.format} onChange={e => updateDraftField('format', e.target.value)}
-                                  className="w-full bg-zinc-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-violet-500/40 mt-0.5" />
+                                <label htmlFor={`cal-edit-format-${piece.id}`} className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Format</label>
+                                <input id={`cal-edit-format-${piece.id}`} value={editDraft.format} onChange={e => updateDraftField('format', e.target.value)}
+                                  className="w-full bg-zinc-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60 mt-0.5" />
                               </div>
                               {/* Status */}
                               <div>
-                                <label className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Status</label>
-                                <select value={editDraft.status} onChange={e => updateDraftField('status', e.target.value)}
-                                  className="w-full bg-zinc-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-violet-500/40 mt-0.5">
+                                <label htmlFor={`cal-edit-status-${piece.id}`} className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Status</label>
+                                <select id={`cal-edit-status-${piece.id}`} value={editDraft.status} onChange={e => updateDraftField('status', e.target.value)}
+                                  className="w-full bg-zinc-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60 mt-0.5">
                                   {Object.keys(STATUS_LABEL).map(s => <option key={s} value={s}>{STATUS_LABEL[s as keyof typeof STATUS_LABEL]}</option>)}
                                 </select>
                               </div>
                               {/* Timing */}
                               <div>
-                                <label className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Timing</label>
-                                <input value={editDraft.timing} onChange={e => updateDraftField('timing', e.target.value)}
-                                  className="w-full bg-zinc-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-violet-500/40 mt-0.5" />
+                                <label htmlFor={`cal-edit-timing-${piece.id}`} className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Timing</label>
+                                <input id={`cal-edit-timing-${piece.id}`} value={editDraft.timing} onChange={e => updateDraftField('timing', e.target.value)}
+                                  className="w-full bg-zinc-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60 mt-0.5" />
                               </div>
                             </div>
 
                             {/* Hook */}
                             <div>
-                              <label className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Hook</label>
-                              <input value={editDraft.hook} onChange={e => updateDraftField('hook', e.target.value)}
-                                className="w-full bg-zinc-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-violet-500/40 mt-0.5" />
+                              <label htmlFor={`cal-edit-hook-${piece.id}`} className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Hook</label>
+                              <input id={`cal-edit-hook-${piece.id}`} value={editDraft.hook} onChange={e => updateDraftField('hook', e.target.value)}
+                                className="w-full bg-zinc-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60 mt-0.5" />
                             </div>
 
                             {/* Key Message */}
                             <div>
-                              <label className="text-[9px] text-amber-400/60 uppercase tracking-wider font-semibold">Key Message (on visual)</label>
-                              <textarea value={editDraft.keyMessage} onChange={e => updateDraftField('keyMessage', e.target.value)} rows={2}
-                                className="w-full bg-zinc-900 border border-amber-500/20 rounded-lg px-2.5 py-1.5 text-xs text-amber-200 outline-none focus:border-amber-500/40 resize-y mt-0.5" />
+                              <label htmlFor={`cal-edit-keyMessage-${piece.id}`} className="text-[9px] text-amber-400/60 uppercase tracking-wider font-semibold">Key Message (on visual)</label>
+                              <textarea id={`cal-edit-keyMessage-${piece.id}`} value={editDraft.keyMessage} onChange={e => updateDraftField('keyMessage', e.target.value)} rows={2}
+                                className="w-full bg-zinc-900 border border-amber-500/20 rounded-lg px-2.5 py-1.5 text-xs text-amber-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/60 resize-y mt-0.5" />
                             </div>
 
                             {/* Caption */}
                             <div>
-                              <label className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Caption</label>
-                              <textarea value={editDraft.caption} onChange={e => updateDraftField('caption', e.target.value)} rows={4}
-                                className="w-full bg-zinc-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-violet-500/40 resize-y mt-0.5" />
+                              <label htmlFor={`cal-edit-caption-${piece.id}`} className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Caption</label>
+                              <textarea id={`cal-edit-caption-${piece.id}`} value={editDraft.caption} onChange={e => updateDraftField('caption', e.target.value)} rows={4}
+                                className="w-full bg-zinc-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60 resize-y mt-0.5" />
                             </div>
 
                             {/* CTA */}
                             <div>
-                              <label className="text-[9px] text-emerald-400/60 uppercase tracking-wider font-semibold">CTA</label>
-                              <input value={editDraft.cta} onChange={e => updateDraftField('cta', e.target.value)}
-                                className="w-full bg-zinc-900 border border-emerald-500/20 rounded-lg px-2.5 py-1.5 text-xs text-emerald-200 outline-none focus:border-emerald-500/40 mt-0.5" />
+                              <label htmlFor={`cal-edit-cta-${piece.id}`} className="text-[9px] text-emerald-400/60 uppercase tracking-wider font-semibold">CTA</label>
+                              <input id={`cal-edit-cta-${piece.id}`} value={editDraft.cta} onChange={e => updateDraftField('cta', e.target.value)}
+                                className="w-full bg-zinc-900 border border-emerald-500/20 rounded-lg px-2.5 py-1.5 text-xs text-emerald-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60 mt-0.5" />
                             </div>
 
                             {/* Hashtags */}
                             <div>
-                              <label className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Hashtags (comma-separated)</label>
-                              <input value={editDraft.hashtags} onChange={e => updateDraftField('hashtags', e.target.value)}
-                                className="w-full bg-zinc-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-violet-300 outline-none focus:border-violet-500/40 mt-0.5"
+                              <label htmlFor={`cal-edit-hashtags-${piece.id}`} className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Hashtags (comma-separated)</label>
+                              <input id={`cal-edit-hashtags-${piece.id}`} value={editDraft.hashtags} onChange={e => updateDraftField('hashtags', e.target.value)}
+                                className="w-full bg-zinc-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-violet-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60 mt-0.5"
                                 placeholder="tag1, tag2, tag3" />
                             </div>
 
                             {/* Visual Direction */}
                             <div>
-                              <label className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Visual Direction</label>
-                              <textarea value={editDraft.visualDirection} onChange={e => updateDraftField('visualDirection', e.target.value)} rows={2}
-                                className="w-full bg-zinc-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-zinc-300 outline-none focus:border-violet-500/40 resize-y mt-0.5" />
+                              <label htmlFor={`cal-edit-visualDirection-${piece.id}`} className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Visual Direction</label>
+                              <textarea id={`cal-edit-visualDirection-${piece.id}`} value={editDraft.visualDirection} onChange={e => updateDraftField('visualDirection', e.target.value)} rows={2}
+                                className="w-full bg-zinc-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-zinc-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60 resize-y mt-0.5" />
                             </div>
 
                             {/* Reference Query */}
                             <div>
-                              <label className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Reference Query</label>
-                              <input value={editDraft.referenceQuery} onChange={e => updateDraftField('referenceQuery', e.target.value)}
-                                className="w-full bg-zinc-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-zinc-300 outline-none focus:border-violet-500/40 mt-0.5" />
+                              <label htmlFor={`cal-edit-referenceQuery-${piece.id}`} className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Reference Query</label>
+                              <input id={`cal-edit-referenceQuery-${piece.id}`} value={editDraft.referenceQuery} onChange={e => updateDraftField('referenceQuery', e.target.value)}
+                                className="w-full bg-zinc-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-zinc-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60 mt-0.5" />
                             </div>
                           </div>
                         ) : (
@@ -1120,7 +1120,7 @@ export default function ContentCalendar() {
                               : 'bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20'
                           }`}
                         >
-                          <span aria-live="assertive" aria-atomic="true" className="flex items-center gap-1.5">
+                          <span aria-live="polite" aria-atomic="true" className="flex items-center gap-1.5">
                             {isArmed ? (
                               <>
                                 <AlertTriangle className="w-3.5 h-3.5" /> Confirm delete

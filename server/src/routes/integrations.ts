@@ -92,7 +92,7 @@ export async function integrationsRoutes(app: FastifyInstance) {
         /* malformed → keep default */
       }
     }
-    const state = issueState({
+    const state = await issueState({
       orgId: request.orgId!,
       userId: request.user!.userId,
       clientId,
@@ -128,7 +128,7 @@ export async function integrationsRoutes(app: FastifyInstance) {
     }
     if (!code || !state) return reply.status(400).send({ error: 'code and state required' });
 
-    const ctx = consumeState(state);
+    const ctx = await consumeState(state);
     if (!ctx) return reply.status(400).send({ error: 'state invalid or expired (5-min TTL)' });
     if (ctx.platform !== platform) return reply.status(400).send({ error: 'state platform mismatch' });
 

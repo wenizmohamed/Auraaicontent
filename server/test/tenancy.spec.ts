@@ -226,4 +226,113 @@ describe('Cross-tenant isolation', () => {
       process.env.RADIX_TENANT_GUARD = prev;
     }
   });
+
+  // ── COV-11: Cross-tenant probes for newly-shipped surfaces ───────────────
+  // Routes added in the OAuth/history/usage work weren't covered by the
+  // original suite. Each probe asserts that org-B can't read or mutate
+  // org-A data on the new endpoint.
+
+  it('org-B cannot list org-A integrations (PlatformConnection)', async () => {
+    // Insert an org-A PlatformConnection row directly so even a no-connections
+    // org-B response can't masquerade as "isolated".
+    await db.platformConnection.create({
+      data: {
+        orgId: orgA.orgId,
+        clientId: orgA.clientId,
+        platform: 'meta_ig',
+        externalAccountId: `tnc_probe_${Date.now()}`,
+        externalAccountName: 'Probe IG',
+        accessTokenEnc: 'iv:ct:tag',
+        scopes: [],
+        status: 'connected',
+      },
+    });
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/integrations?clientId=${orgA.clientId}`,
+      headers: bearer(orgB.token),
+    });
+    // 200 (empty list scoped to B) or 404 (route resolves client first) both
+    // satisfy isolation; the row MUST NOT appear in the response.
+    if (res.statusCode === 200) {
+      const body = res.json();
+      expect(Array.isArray(body)).toBe(true);
+      expect(body.find((c: any) => c.orgId === orgA.orgId)).toBeUndefined();
+    } else {
+      expect([403, 404]).toContain(res.statusCode);
+    }
+  });
+
+  it('org-B cannot revoke an org-A platform connection', async () => {
+    const conn = await db.platformConnection.create({
+      data: {
+        orgId: orgA.orgId,
+        clientId: orgA.clientId,
+        platform: 'linkedin',
+        externalAccountId: `tnc_revoke_${Date.now()}`,
+        accessTokenEnc: 'iv:ct:tag',
+        scopes: [],
+        status: 'connected',
+      },
+    });
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/api/integrations/${conn.id}`,
+      headers: bearer(orgB.token),
+    });
+    expect(res.statusCode).toBe(404);
+    const after = await db.platformConnection.findFirst({ where: { id: conn.id, orgId: orgA.orgId } });
+    expect(after).not.toBeNull();
+  });
+
+  it('org-B history list excludes org-A generations', async () => {
+    await db.generation.create({
+      data: {
+        orgId: orgA.orgId,
+        userId: orgA.userId,
+        type: 'text',
+        provider: 'gemini',
+        model: 'gemini-3.1-pro-preview',
+        prompt: 'tenancy probe',
+        clientId: orgA.clientId,
+      },
+    });
+    const res = await app.inject({ method: 'GET', url: `/api/history`, headers: bearer(orgB.token) });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    const items = Array.isArray(body) ? body : body.items ?? body.generations ?? [];
+    expect(items.find((g: any) => g.orgId === orgA.orgId)).toBeUndefined();
+  });
+
+  it('org-B cannot delete an org-A Generation', async () => {
+    const gen = await db.generation.create({
+      data: {
+        orgId: orgA.orgId,
+        userId: orgA.userId,
+        type: 'text',
+        provider: 'gemini',
+        model: 'x',
+        prompt: 'gen-delete probe',
+        clientId: orgA.clientId,
+      },
+    });
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/api/history/${gen.id}`,
+      headers: bearer(orgB.token),
+    });
+    expect(res.statusCode).toBe(404);
+    const after = await db.generation.findFirst({ where: { id: gen.id, orgId: orgA.orgId } });
+    expect(after).not.toBeNull();
+  });
+
+  it('org-B cannot trigger publish on an org-A post', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/calendar-posts/${orgA.postId}/publish`,
+      headers: bearer(orgB.token),
+      payload: { platform: 'meta_ig' },
+    });
+    expect([403, 404]).toContain(res.statusCode);
+  });
 });
