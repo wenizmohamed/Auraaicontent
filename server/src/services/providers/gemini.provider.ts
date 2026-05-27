@@ -315,6 +315,12 @@ export const geminiProvider: AiProvider = {
       : ['veo-3.1-generate-preview', 'veo-3.1-fast-generate-preview', 'veo-2.0-generate-001'];
     const ladder = readLadder('GEMINI_VIDEO_LADDER', defaultLadder);
     const start = Date.now();
+    // Shared poll budget across the entire ladder. Per-rung 10min meant
+    // 3 models × 10min = 30min worst case while one job pinned a worker
+    // slot + heap (compounds the queue.ts eviction issue, PERF-5).
+    // Override via GEMINI_VIDEO_TOTAL_BUDGET_MS.
+    const totalBudgetMs = Number(process.env.GEMINI_VIDEO_TOTAL_BUDGET_MS ?? 8 * 60 * 1000);
+    const ladderDeadline = start + totalBudgetMs;
 
     const ladderResult = await runModelLadder('gemini', 'video', ladder, async (entry) => {
       // personGeneration field is intentionally omitted: Google's accepted
@@ -367,15 +373,17 @@ export const geminiProvider: AiProvider = {
           image: { imageBytes: startB64, mimeType: startMime },
         } : {}),
       });
-      // Symmetry with xAI: client-side 10-min deadline on the poll loop so a
-      // hung getVideosOperation can't hold a slot forever. Veo's server-side
-      // deadline is ~10min anyway; this just bounds the failure mode.
-      const deadline = Date.now() + 10 * 60 * 1000;
+      // Shared ladder deadline (declared above the runModelLadder call) +
+      // graduated backoff: 5s → 10s → 20s, capped at 30s. Halves polling
+      // pressure on Veo's metadata endpoint relative to flat 10s.
+      let pollDelayMs = 5000;
       while (!operation.done) {
-        if (Date.now() > deadline) {
-          throw new AiProviderError('gemini', 'video', 'poll deadline exceeded after 10min');
+        const remaining = ladderDeadline - Date.now();
+        if (remaining <= 0) {
+          throw new AiProviderError('gemini', 'video', `ladder budget exhausted (${Math.round(totalBudgetMs/1000)}s)`);
         }
-        await new Promise(r => setTimeout(r, 10000));
+        await new Promise(r => setTimeout(r, Math.min(pollDelayMs, remaining)));
+        pollDelayMs = Math.min(pollDelayMs * 2, 30000);
         operation = await ai.operations.getVideosOperation({ operation });
       }
       return operation;

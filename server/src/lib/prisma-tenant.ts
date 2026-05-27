@@ -32,6 +32,8 @@ const TENANT_MODELS = new Set([
   'AgentMessage',
   'AgentEvent',
   'UsageEvent',
+  'PlatformConnection',
+  'Generation',
 ]);
 
 const READ_OPS = new Set([

@@ -201,7 +201,7 @@ export async function integrationsRoutes(app: FastifyInstance) {
     const { id } = request.params as { id: string };
     const conn = await db.platformConnection.findFirst({ where: { id, orgId: request.orgId! } });
     if (!conn) return reply.status(404).send({ error: 'Connection not found' });
-    await db.platformConnection.delete({ where: { id } });
+    await db.platformConnection.deleteMany({ where: { id, orgId: request.orgId! } });
     auditService.log({
       orgId: request.orgId!,
       userId: request.user?.userId,

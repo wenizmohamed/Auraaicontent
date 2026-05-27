@@ -170,6 +170,8 @@ function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className={`min-h-screen flex font-sans ${isDark ? 'bg-[#050508]' : 'bg-slate-100'}`}>
+      {/* WCAG 2.4.1 Bypass Blocks — keyboard users skip ~35 nav controls */}
+      <a href="#main" className="skip-link">Skip to main content</a>
       {/* Mobile drawer — hamburger + slide-in nav, hidden on lg+ */}
       <MobileMenu navigation={navigation} isDark={isDark} toggleTheme={toggleTheme} />
 
@@ -311,7 +313,7 @@ function Layout({ children }: { children: React.ReactNode }) {
       
       {/* Main content */}
       <div className={`flex-1 flex flex-col overflow-hidden relative ${isDark ? 'bg-[#08080c]' : 'bg-slate-50'}`}>
-        <main className="flex-1 overflow-y-auto p-8 relative">
+        <main id="main" tabIndex={-1} className="flex-1 overflow-y-auto p-8 relative outline-none">
           {isLoading && (
             <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#0a0a0a]/80 backdrop-blur-sm">
               <div className="flex flex-col items-center gap-4">

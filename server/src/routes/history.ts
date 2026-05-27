@@ -95,7 +95,7 @@ export async function historyRoutes(app: FastifyInstance) {
     const { id } = request.params as { id: string };
     const row = await db.generation.findFirst({ where: { id, orgId }, select: { id: true } });
     if (!row) return reply.status(404).send({ error: 'Generation not found' });
-    await db.generation.delete({ where: { id } });
+    await db.generation.deleteMany({ where: { id, orgId } });
     return { ok: true };
   });
 

@@ -3,6 +3,15 @@
 
 const JOB_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes max per job (was 10; bumped for visual ref auto-populate headroom)
 
+// PERF-5 eviction: completed/failed jobs older than this are deleted on
+// every sweep, capping memory at roughly EVICTION_AGE_MS / job_rate. With
+// PM2 --max-old-space-size=512, the unbounded map was a plausible cause
+// of the 80-restart loop noted in MEMORY.md (especially when each job
+// payload included base64 image data).
+const EVICTION_AGE_MS = 60 * 60 * 1000; // keep completed/failed for 1h
+const EVICTION_TICK_MS = 5 * 60 * 1000;
+const HARD_SIZE_CAP = 5000; // emergency cap if eviction can't keep up
+
 export interface Job {
   id: string;
   type: string;
@@ -16,6 +25,33 @@ export interface Job {
 }
 
 const jobs = new Map<string, Job>();
+
+function sweep(): void {
+  const cutoff = Date.now() - EVICTION_AGE_MS;
+  let evicted = 0;
+  for (const [id, job] of jobs) {
+    if (job.status !== 'completed' && job.status !== 'failed') continue;
+    if (new Date(job.updatedAt).getTime() < cutoff) {
+      jobs.delete(id);
+      evicted++;
+    }
+  }
+  // Emergency cap: if still bloated after age-based eviction, drop the
+  // oldest terminal jobs first regardless of age.
+  if (jobs.size > HARD_SIZE_CAP) {
+    const terminals = [...jobs.values()]
+      .filter(j => j.status === 'completed' || j.status === 'failed')
+      .sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
+    while (jobs.size > HARD_SIZE_CAP && terminals.length) {
+      const victim = terminals.shift()!;
+      jobs.delete(victim.id);
+      evicted++;
+    }
+  }
+  if (evicted > 0) console.log(`[queue] swept ${evicted} terminal job(s); ${jobs.size} remain`);
+}
+
+setInterval(sweep, EVICTION_TICK_MS).unref();
 
 export function createJob(type: string, data: any): Job {
   const job: Job = {

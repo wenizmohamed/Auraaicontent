@@ -36,12 +36,6 @@ export interface DispatchPostInput {
   assetUrl: string;
 }
 
-/**
- * Structural shape of a PlatformConnection row that dispatchPublish needs.
- * Declared inline rather than imported from @prisma/client so we don't
- * couple to the generated client at compile time — the same stale-client
- * workaround used elsewhere in the codebase (db as any).platformConnection.
- */
 export interface PlatformConnectionLike {
   id: string;
   orgId: string;
@@ -83,8 +77,8 @@ export async function dispatchPublish(
       accessToken = fresh.accessToken;
       refreshToken = fresh.refreshToken ?? refreshToken;
       const expiresAt = fresh.expiresInSec ? new Date(Date.now() + fresh.expiresInSec * 1000) : null;
-      await (db as any).platformConnection.update({
-        where: { id: conn.id },
+      await db.platformConnection.updateMany({
+        where: { id: conn.id, orgId: conn.orgId },
         data: {
           accessTokenEnc: encrypt(accessToken),
           refreshTokenEnc: encryptOpt(refreshToken),
@@ -95,12 +89,12 @@ export async function dispatchPublish(
       });
     } catch (err: any) {
       const msg = err?.message?.slice(0, 500) || 'token refresh failed';
-      await (db as any).platformConnection.update({
-        where: { id: conn.id },
+      await db.platformConnection.updateMany({
+        where: { id: conn.id, orgId: conn.orgId },
         data: { status: 'needs_reauth', lastError: msg },
       });
       const wrapped = `Token refresh failed — please reconnect ${conn.platform}: ${msg}`;
-      await recordError(post.id, conn.platform, wrapped);
+      await recordError(post.id, conn.orgId, conn.platform, wrapped);
       return { success: false, error: wrapped };
     }
   }
@@ -119,23 +113,24 @@ export async function dispatchPublish(
     });
   } catch (err: any) {
     const msg = err?.message?.slice(0, 500) || 'publish failed';
-    await recordError(post.id, conn.platform, msg);
+    await recordError(post.id, conn.orgId, conn.platform, msg);
     return { success: false, error: msg };
   }
 
   // ── Success ─────────────────────────────────────────────────────────
   onProgress(90);
-  await recordSuccess(post.id, conn.platform, result);
+  await recordSuccess(post.id, conn.orgId, conn.platform, result);
   return { success: true, externalId: result.externalId, url: result.url };
 }
 
 async function recordSuccess(
   postId: string,
+  orgId: string,
   platform: string,
   result: { externalId: string; url?: string },
 ): Promise<void> {
-  const existing = await (db as any).calendarPost.findUnique({
-    where: { id: postId },
+  const existing = await db.calendarPost.findFirst({
+    where: { id: postId, orgId },
     select: { platformPublishStatus: true },
   });
   const next = { ...((existing?.platformPublishStatus as any) || {}) };
@@ -145,8 +140,8 @@ async function recordSuccess(
     url: result.url,
     publishedAt: new Date().toISOString(),
   };
-  await (db as any).calendarPost.update({
-    where: { id: postId },
+  await db.calendarPost.updateMany({
+    where: { id: postId, orgId },
     data: {
       platformPublishStatus: next,
       status: 'published',
@@ -154,9 +149,9 @@ async function recordSuccess(
   });
 }
 
-async function recordError(postId: string, platform: string, error: string): Promise<void> {
-  const existing = await (db as any).calendarPost.findUnique({
-    where: { id: postId },
+async function recordError(postId: string, orgId: string, platform: string, error: string): Promise<void> {
+  const existing = await db.calendarPost.findFirst({
+    where: { id: postId, orgId },
     select: { platformPublishStatus: true },
   });
   const next = { ...((existing?.platformPublishStatus as any) || {}) };
@@ -165,8 +160,8 @@ async function recordError(postId: string, platform: string, error: string): Pro
     error,
     attemptedAt: new Date().toISOString(),
   };
-  await (db as any).calendarPost.update({
-    where: { id: postId },
+  await db.calendarPost.updateMany({
+    where: { id: postId, orgId },
     data: { platformPublishStatus: next },
   });
 }

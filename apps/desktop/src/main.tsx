@@ -4,6 +4,10 @@ import * as ReactDOM from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+// i18n self-initializes from localStorage and sets <html lang/dir>. Imported
+// here (before <App />) so React mounts with the correct direction already
+// applied. Pre-paint sync also lives in index.html for first-frame correctness.
+import './i18n';
 
 // Phase 7.1 — runtime a11y audit in dev only. axe-core attaches to React's
 // reconciler and logs WCAG violations to the browser console as you click

@@ -19,8 +19,7 @@ export async function publishWorker(job: Job): Promise<{ externalId: string; url
   };
 
   updateJob(job.id, { progress: 10 });
-  // (db as any) — stale Prisma client; routes/publish.ts uses the same delegate.
-  const conn = await (db as any).platformConnection.findFirst({ where: { id: connectionId, orgId } });
+  const conn = await db.platformConnection.findFirst({ where: { id: connectionId, orgId } });
   if (!conn) throw new Error('Connection not found');
   // Sanity check — platform on the job payload should match the connection.
   if (conn.platform !== platform) {

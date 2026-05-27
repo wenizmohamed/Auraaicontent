@@ -31,16 +31,10 @@
  */
 import IORedis from 'ioredis';
 import { Queue, Worker } from 'bullmq';
-import { PrismaClient } from '@prisma/client';
 import { env } from '../config/env.js';
+import { systemDb } from '../db/prisma.js';
 import { dispatchPublish } from '../lib/publish-dispatch.js';
 import { auditService } from '../services/audit.service.js';
-
-// System-level client — no tenant-guard extension. The scheduler is a
-// cross-org background process; it legitimately needs to scan all orgs to
-// dispatch scheduled posts. Per-request routes must use the guarded `db`
-// singleton from ../db/prisma.js instead.
-const systemDb = new PrismaClient({ log: ['error'] });
 
 type Redis = InstanceType<typeof IORedis>;
 
@@ -194,15 +188,13 @@ async function processOne(post: {
   // Find the connection. Prefer the explicit FK; fall back to (clientId,
   // platform, status='connected') so legacy rows without
   // platformConnectionId still publish.
-  // (db as any) — same stale-Prisma-client workaround as routes/publish.ts
-  // for the platformConnection delegate.
-  let conn: any = null;
+  let conn = null;
   if (post.platformConnectionId) {
-    conn = await (systemDb as any).platformConnection.findFirst({
+    conn = await systemDb.platformConnection.findFirst({
       where: { id: post.platformConnectionId, orgId: post.orgId },
     });
   } else if (clientId) {
-    conn = await (systemDb as any).platformConnection.findFirst({
+    conn = await systemDb.platformConnection.findFirst({
       where: { orgId: post.orgId, clientId, platform: post.platform, status: 'connected' },
     });
   }

@@ -5,6 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>RADIX — AI Content Planner</title>
     <link rel="icon" href="./radix-logo.jpg" />
+    <script>
+      // Pre-React lang/dir sync (A11Y WCAG 3.1.1). Runs before main.tsx so
+      // first paint already reflects the user's chosen locale instead of
+      // briefly flashing English LTR for Arabic users.
+      try {
+        var l = localStorage.getItem('radix.locale');
+        if (l === 'ar' || l === 'en') {
+          document.documentElement.lang = l;
+          document.documentElement.dir = l === 'ar' ? 'rtl' : 'ltr';
+        }
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

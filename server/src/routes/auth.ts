@@ -243,8 +243,10 @@ export async function authRoutes(app: FastifyInstance) {
 
     // Compute whether the email belongs to a whitelisted auto-join domain.
     // Done BEFORE the prod gate so domain-employees bypass the 404.
+    // AUTO_ORG_DOMAINS must be set explicitly — empty default means no
+    // implicit prod-org enrolment in dev/staging/CI.
     const domainAllowed = (() => {
-      const raw = process.env.AUTO_ORG_DOMAINS || 'radixmediamena.com:org_radix_media:EDITOR';
+      const raw = process.env.AUTO_ORG_DOMAINS || '';
       const domain = email?.split('@')[1]?.toLowerCase();
       if (!domain) return false;
       return raw.split(',').map(s => s.trim()).filter(Boolean).some(entry => {
@@ -282,7 +284,7 @@ export async function authRoutes(app: FastifyInstance) {
     // When the new user's email matches a configured domain, skip personal-org
     // creation and add them straight to the existing tenant.
     function lookupDomainOrg(addr: string): { orgId: string; role: string } | null {
-      const raw = process.env.AUTO_ORG_DOMAINS || 'radixmediamena.com:org_radix_media:EDITOR';
+      const raw = process.env.AUTO_ORG_DOMAINS || '';
       const domain = addr.split('@')[1]?.toLowerCase();
       if (!domain) return null;
       for (const entry of raw.split(',').map(s => s.trim()).filter(Boolean)) {

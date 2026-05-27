@@ -6,7 +6,9 @@
  * failure, mark 'needs_reauth' so the UI shows a Reconnect button before
  * the user hits a publish failure.
  */
-import { db } from '../db/prisma.js';
+// systemDb (unguarded) — this worker is a cross-org background sweep, same
+// pattern as scheduler.worker.ts. Per-request code must use guarded `db`.
+import { systemDb } from '../db/prisma.js';
 import { decrypt, decryptOpt, encrypt, encryptOpt } from '../lib/secrets.js';
 import { getPlatformModule } from '../integrations/registry.js';
 
@@ -28,7 +30,7 @@ export async function runOnce(): Promise<void> {
   const horizon = new Date(Date.now() + HORIZON_MS);
   let conns;
   try {
-    conns = await db.platformConnection.findMany({
+    conns = await systemDb.platformConnection.findMany({
       where: { status: 'connected', expiresAt: { lte: horizon } },
     });
   } catch (err: any) {
@@ -47,7 +49,7 @@ export async function runOnce(): Promise<void> {
         accessToken: decrypt(conn.accessTokenEnc),
       });
       const expiresAt = fresh.expiresInSec ? new Date(Date.now() + fresh.expiresInSec * 1000) : null;
-      await db.platformConnection.update({
+      await systemDb.platformConnection.update({
         where: { id: conn.id },
         data: {
           accessTokenEnc: encrypt(fresh.accessToken),
@@ -59,7 +61,7 @@ export async function runOnce(): Promise<void> {
       });
       ok++;
     } catch (err: any) {
-      await db.platformConnection.update({
+      await systemDb.platformConnection.update({
         where: { id: conn.id },
         data: { status: 'needs_reauth', lastError: err.message?.slice(0, 500) },
       });
