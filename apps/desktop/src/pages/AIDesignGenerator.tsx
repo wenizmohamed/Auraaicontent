@@ -111,7 +111,8 @@ export default function AIDesignGenerator() {
                     key={p.name}
                     type="button"
                     onClick={() => setMood(p.mood)}
-                    className="group flex flex-col items-start gap-2 rounded-xl border p-3 text-left transition-all hover:-translate-y-0.5 hover:bg-[color:var(--color-surface-hover)]"
+                    aria-pressed={active}
+                    className="group flex flex-col items-start gap-2 rounded-xl border p-3 text-left transition-all cursor-pointer hover:-translate-y-0.5 hover:bg-[color:var(--color-surface-hover)]"
                     style={{
                       borderColor: active ? 'rgba(139,92,246,0.6)' : 'var(--color-border)',
                       background: active ? 'rgba(139,92,246,0.10)' : 'var(--color-surface)',

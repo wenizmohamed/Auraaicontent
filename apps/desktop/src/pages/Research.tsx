@@ -112,7 +112,7 @@ export default function Research() {
                   key={i}
                   type="button"
                   onClick={() => setQuery(s.label)}
-                  className="group inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-medium transition-colors hover:bg-[color:var(--color-surface-hover)]"
+                  className="group inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-medium transition-colors cursor-pointer hover:bg-[color:var(--color-surface-hover)]"
                   style={{ borderColor: 'var(--color-border)', color: 'var(--color-fg-muted)' }}
                 >
                   <s.icon className="w-3 h-3" style={{ color: 'var(--color-accent)' }} aria-hidden="true" />

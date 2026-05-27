@@ -109,7 +109,7 @@ export default function MobileMenu({ navGroups, onSearch }: MobileMenuProps) {
           aria-label="Open navigation menu"
           aria-expanded={open}
           aria-controls="mobile-nav-drawer"
-          className="w-10 h-10 rounded-xl flex items-center justify-center transition-colors hover:bg-[color:var(--color-surface-hover)]"
+          className="w-10 h-10 rounded-xl flex items-center justify-center transition-colors cursor-pointer hover:bg-[color:var(--color-surface-hover)]"
           style={{ color: 'var(--color-fg)' }}
         >
           <Menu className="w-5 h-5" />
@@ -127,7 +127,7 @@ export default function MobileMenu({ navGroups, onSearch }: MobileMenuProps) {
             type="button"
             onClick={onSearch}
             aria-label="Search or run a command"
-            className="w-10 h-10 rounded-xl flex items-center justify-center transition-colors hover:bg-[color:var(--color-surface-hover)]"
+            className="w-10 h-10 rounded-xl flex items-center justify-center transition-colors cursor-pointer hover:bg-[color:var(--color-surface-hover)]"
             style={{ color: 'var(--color-fg-muted)' }}
           >
             <Search className="w-4 h-4" />
@@ -139,7 +139,7 @@ export default function MobileMenu({ navGroups, onSearch }: MobileMenuProps) {
           onClick={toggleTheme}
           aria-label={`Cycle theme. Current: ${themeLabel}`}
           title={themeLabel}
-          className="w-10 h-10 rounded-xl flex items-center justify-center transition-colors hover:bg-[color:var(--color-surface-hover)]"
+          className="w-10 h-10 rounded-xl flex items-center justify-center transition-colors cursor-pointer hover:bg-[color:var(--color-surface-hover)]"
           style={{ color: 'var(--color-fg-muted)' }}
         >
           <ThemeIcon className="w-4 h-4" />
@@ -258,7 +258,7 @@ export default function MobileMenu({ navGroups, onSearch }: MobileMenuProps) {
                   type="button"
                   onClick={toggleLocale}
                   aria-label={`Switch to ${locale === 'en' ? 'Arabic' : 'English'}`}
-                  className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl transition-colors hover:bg-[color:var(--color-surface-hover)]"
+                  className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl transition-colors cursor-pointer hover:bg-[color:var(--color-surface-hover)]"
                   style={{ color: 'var(--color-fg-muted)' }}
                 >
                   <Languages className="w-4 h-4" />
@@ -269,7 +269,7 @@ export default function MobileMenu({ navGroups, onSearch }: MobileMenuProps) {
                   type="button"
                   onClick={toggleTheme}
                   aria-label={`Cycle theme. Current: ${themeLabel}`}
-                  className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl transition-colors hover:bg-[color:var(--color-surface-hover)]"
+                  className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl transition-colors cursor-pointer hover:bg-[color:var(--color-surface-hover)]"
                   style={{ color: 'var(--color-fg-muted)' }}
                 >
                   <ThemeIcon className="w-4 h-4" style={{ color: theme === 'auto' ? 'var(--color-accent)' : undefined }} />
