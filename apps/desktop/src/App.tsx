@@ -53,7 +53,7 @@ import LocaleToggle from './components/LocaleToggle';
 import { ThemeProvider, useTheme } from './lib/theme-context';
 import { ToastProvider } from './lib/toast-context';
 import { t } from './i18n';
-import { Sun, Moon, Sparkles } from 'lucide-react';
+import { Sun, Moon, Sparkles, Monitor } from 'lucide-react';
 import { CommandPalette } from './components/CommandPalette';
 import { RouteSkeleton, ShellSkeleton } from './components/RouteSkeleton';
 import { ShortcutCheatSheet } from './components/ShortcutCheatSheet';
@@ -97,7 +97,7 @@ function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { generatedImages, isLoading, error } = useStore();
-  const { theme, toggleTheme } = useTheme();
+  const { theme, effectiveTheme, toggleTheme } = useTheme();
   const showTeam = isTeamAdmin();
   const showStaff = isStaff();
   const [cmdkOpen, setCmdkOpen] = useState(false);
@@ -209,8 +209,7 @@ function Layout({ children }: { children: React.ReactNode }) {
     },
   ];
 
-  // Flat list for legacy MobileMenu (no group rendering yet).
-  const navigation: NavItem[] = navGroups.flatMap(g => g.items);
+  // navGroups is now the canonical structure — MobileMenu also takes it.
 
   // Per-group expand/collapse, persisted. Default all open.
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
@@ -226,15 +225,20 @@ function Layout({ children }: { children: React.ReactNode }) {
   const toggleGroup = (id: string) => setOpenGroups(prev => ({ ...prev, [id]: !prev[id] }));
 
   // Studio is a dark high-contrast palette; treat it as "dark chrome" for layout ternaries.
-  const isDark = theme !== 'light';
-  const themeLabel = theme === 'dark' ? 'Dark' : theme === 'light' ? 'Light' : 'Studio';
+  // isDark drives layout chrome — read from the EFFECTIVE theme so auto-mode
+  // gets the right colors at first paint instead of flashing the wrong skin.
+  const isDark = effectiveTheme !== 'light';
+  const themeLabel =
+    theme === 'auto' ? `Auto (${effectiveTheme === 'light' ? 'Light' : effectiveTheme === 'studio' ? 'Studio' : 'Dark'})` :
+    theme === 'dark' ? 'Dark' :
+    theme === 'light' ? 'Light' : 'Studio';
 
   return (
     <div className={`min-h-screen flex font-sans ${isDark ? 'bg-[#050508]' : 'bg-slate-100'}`}>
       {/* WCAG 2.4.1 Bypass Blocks — keyboard users skip ~35 nav controls */}
       <a href="#main" className="skip-link">Skip to main content</a>
       {/* Mobile drawer — hamburger + slide-in nav, hidden on lg+ */}
-      <MobileMenu navigation={navigation} isDark={isDark} toggleTheme={toggleTheme} />
+      <MobileMenu navGroups={navGroups} onSearch={() => setCmdkOpen(true)} />
 
       {/* Sidebar — Glassmorphic, desktop only (lg+) */}
       <div
@@ -374,9 +378,38 @@ function Layout({ children }: { children: React.ReactNode }) {
               isDark ? 'hover:bg-white/[0.04] text-zinc-500 hover:text-zinc-300' : 'hover:bg-slate-100 text-slate-500 hover:text-slate-700'
             }`}
           >
-            <div className={`relative w-12 h-5 rounded-full transition-colors duration-300 ${theme === 'dark' ? 'bg-zinc-800' : theme === 'studio' ? 'bg-white/10' : 'bg-amber-100'}`}>
-              <div className={`absolute top-0.5 w-4 h-4 rounded-full transition-all duration-300 flex items-center justify-center ${theme === 'dark' ? 'left-0.5 bg-zinc-600' : theme === 'studio' ? 'left-[14px] bg-white' : 'left-[28px] bg-amber-500'}`}>
-                {theme === 'dark' ? <Moon size={10} className="text-zinc-300" /> : theme === 'studio' ? <Sparkles size={10} className="text-black" /> : <Sun size={10} className="text-white" />}
+            {/* 4-stop pill: auto · dark · light · studio. Auto-mode shows
+                the resolved theme inside the thumb so users see what
+                they're actually viewing. */}
+            <div
+              className="relative w-14 h-5 rounded-full transition-colors duration-300"
+              style={{
+                background:
+                  theme === 'auto'    ? 'var(--color-surface-active)' :
+                  theme === 'dark'    ? '#27272a' :
+                  theme === 'studio'  ? 'rgba(255,255,255,0.10)' :
+                                        'rgba(245,158,11,0.20)',
+              }}
+            >
+              <div
+                className="absolute top-0.5 w-4 h-4 rounded-full transition-all duration-300 flex items-center justify-center"
+                style={{
+                  left:
+                    theme === 'auto'    ? '2px' :
+                    theme === 'dark'    ? '14px' :
+                    theme === 'studio'  ? '26px' :
+                                          '38px',
+                  background:
+                    theme === 'auto'    ? 'var(--color-accent)' :
+                    theme === 'dark'    ? '#52525b' :
+                    theme === 'studio'  ? '#ffffff' :
+                                          'var(--color-accent)',
+                }}
+              >
+                {theme === 'auto'   ? <Monitor size={9} style={{ color: 'var(--color-fg-on-accent)' }} /> :
+                 theme === 'dark'   ? <Moon    size={10} className="text-zinc-300" /> :
+                 theme === 'studio' ? <Sparkles size={10} className="text-black" /> :
+                                      <Sun     size={10} className="text-white" />}
               </div>
             </div>
             {!isCollapsed && <span className="text-[13px]">{themeLabel}</span>}
@@ -440,7 +473,7 @@ function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Sonner toasts — token-aware */}
       <Toaster
-        theme={theme === 'light' ? 'light' : 'dark'}
+        theme={effectiveTheme === 'light' ? 'light' : 'dark'}
         position="top-right"
         closeButton
         richColors

@@ -16,6 +16,25 @@
           document.documentElement.dir = l === 'ar' ? 'rtl' : 'ltr';
         }
       } catch (e) {}
+      // Pre-React theme sync — eliminates the dark/light flash by setting
+      // the right class on <html> BEFORE the React app mounts. Mirrors the
+      // resolution logic in lib/theme-context.tsx (must stay in sync).
+      try {
+        var t = localStorage.getItem('radix_theme') || 'auto';
+        var resolved = t;
+        if (t === 'auto') {
+          if (window.matchMedia) {
+            var mq = window.matchMedia('(prefers-color-scheme: dark)');
+            if (mq.media !== 'not all') resolved = mq.matches ? 'dark' : 'light';
+            else { var h = new Date().getHours(); resolved = (h >= 6 && h < 18) ? 'light' : 'dark'; }
+          } else resolved = 'dark';
+        }
+        var root = document.documentElement;
+        if (resolved === 'dark')   root.classList.add('dark');
+        if (resolved === 'light')  root.classList.add('light');
+        if (resolved === 'studio') root.classList.add('theme-studio');
+        root.dataset.themeMode = t;
+      } catch (e) {}
     </script>
   </head>
   <body>
