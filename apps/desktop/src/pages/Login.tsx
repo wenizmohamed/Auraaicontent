@@ -255,6 +255,42 @@ export default function Login() {
             </p>
           </motion.div>
 
+          {/* Proof rail — fills the dead space between headline and marquee
+              with three hairline-divided stats. Bodoni numerals, mono labels. */}
+          <motion.div
+            className="mt-10 grid grid-cols-3"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ ...motionBase, delay: 0.55 }}
+          >
+            {[
+              { value: '30d', label: 'Plan in minutes' },
+              { value: 'AR · EN', label: 'Native bilingual' },
+              { value: '3×', label: 'Faster to ship' },
+            ].map((stat, i) => (
+              <div
+                key={stat.label}
+                className="px-3 py-1"
+                style={{
+                  borderLeft: i === 0 ? 'none' : '1px solid var(--color-border)',
+                }}
+              >
+                <div
+                  className="font-display text-[24px] font-bold leading-none"
+                  style={{ color: 'var(--color-fg)' }}
+                >
+                  {stat.value}
+                </div>
+                <div
+                  className="mt-1.5 font-mono text-[9px] uppercase tracking-[0.16em]"
+                  style={{ color: 'var(--color-fg-subtle)' }}
+                >
+                  {stat.label}
+                </div>
+              </div>
+            ))}
+          </motion.div>
+
           <motion.div
             className="mt-12"
             initial={{ opacity: 0 }}
