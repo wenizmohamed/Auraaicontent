@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { db } from '../db/prisma.js';
 import { authGuard } from '../middleware/auth.js';
 import { getAiTelemetry } from '../services/providers/ai-router.js';
+import { getCircuitSnapshot } from '../services/providers/circuit-breaker.js';
 
 export async function dashboardRoutes(app: FastifyInstance) {
 
@@ -256,6 +257,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
         avgLatencyMs: t.calls > 0 ? Math.round(t.totalLatency / t.calls) : 0,
         totalTokens: t.totalTokens,
       })),
+      circuits: getCircuitSnapshot(),
       recent: entries.slice(-20).reverse(),
     };
     } catch (err) {

@@ -1,6 +1,7 @@
 import { xaiProvider } from './xai.provider.js';
 import { geminiProvider } from './gemini.provider.js';
 import { isRetryableAiError, AllProvidersFailedError, type ProviderFailure } from './errors.js';
+import { filterAvailable, recordSuccess, recordFailure, getCircuitSnapshot } from './circuit-breaker.js';
 import type { AiProvider, AiProviderName, AiTask, AiTelemetryEntry, AnalysisRequest, ImageRequest, ProviderResult, TextRequest, VideoRequest } from './types.js';
 import { db } from '../../db/prisma.js';
 import { computeCostUsd } from '../../lib/ai-pricing.js';
@@ -143,7 +144,10 @@ async function routeCall<T>(
     });
   }
 
-  const providers = orderedProviders(task);
+  // Circuit breaker: drop providers whose breaker is open so an ongoing outage
+  // doesn't tax every request with a full timeout before falling through.
+  // filterAvailable guarantees ≥1 provider even if every breaker is open.
+  const providers = filterAvailable(orderedProviders(task));
   const failures: ProviderFailure[] = [];
   let fallbackUsed = false;
 
@@ -153,6 +157,7 @@ async function routeCall<T>(
     try {
       const result = await fn(provider);
       result.fallbackUsed = fallbackUsed;
+      recordSuccess(provider.name);
       logTelemetry({
         provider: result.provider, model: result.model, task,
         latencyMs: result.latencyMs, fallbackUsed,
@@ -173,6 +178,9 @@ async function routeCall<T>(
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
       const retryable = isRetryableAiError(err);
+      // Only retryable failures (outage/timeout/5xx) count toward tripping the
+      // breaker. A 400/401 is a bad request, not the provider being down.
+      if (retryable) recordFailure(provider.name, errMsg);
       failures.push({ provider: provider.name, message: errMsg.slice(0, 200), retryable });
       logTelemetry({
         provider: provider.name, model: 'unknown', task,
