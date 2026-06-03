@@ -41,7 +41,7 @@ export const tool: Tool<Input, Output> = {
     const { results, provider } = await visualSearchService.search(
       input.query,
       input.count ?? 8,
-      { orgId: ctx.orgId, clientId: ctx.clientId ?? undefined },
+      { orgId: ctx.orgId, userId: ctx.userId ?? undefined, clientId: ctx.clientId ?? undefined },
     );
     return {
       results: results.map(r => ({

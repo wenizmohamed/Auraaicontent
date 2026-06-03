@@ -188,6 +188,9 @@ export default function CreativeTools() {
   const promptRef = useRef<HTMLTextAreaElement | null>(null);
   const [aspectRatio, setAspectRatio] = useState('1:1');
   const [duration, setDuration] = useState(5);
+  // Video cost tier (design 2026-06-03). Default 'draft' (cheap, Grok);
+  // 'hd' opts into veo-3.1-fast. Sent to the backend as `tier`.
+  const [tier, setTier] = useState<'draft' | 'hd'>('draft');
   const [sourceBase64, setSourceBase64] = useState('');
   const [sourceMime, setSourceMime] = useState('image/png');
   const [sourcePreview, setSourcePreview] = useState('');
@@ -369,6 +372,7 @@ export default function CreativeTools() {
           prompt: prompt.trim(),
           aspectRatio,
           durationSeconds: duration,
+          tier,
           clientId: selectedClientId || undefined,
           // Only attach the image when in image-to-video mode
           ...(mode === 'image-to-video' ? {
@@ -899,6 +903,42 @@ export default function CreativeTools() {
                   </button>
                 ))}
               </div>
+            </div>
+          )}
+
+          {isVideoMode && (
+            <div>
+              {/* Semantic tokens (not raw amber/zinc) so the raw-color audit
+                  stays flat; --color-accent === amber-500 so it matches the
+                  Aspect/Duration controls visually. */}
+              <label className="text-[10px] uppercase tracking-wider font-bold" style={{ color: 'var(--color-fg-muted)' }}>Quality</label>
+              <div className="flex items-center gap-2 mt-2">
+                {([
+                  { value: 'draft' as const, label: 'Draft' },
+                  { value: 'hd' as const, label: 'HD' },
+                ]).map(opt => {
+                  const active = tier === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      onClick={() => setTier(opt.value)}
+                      className="px-3 py-1.5 rounded-lg text-xs font-medium border transition-all"
+                      style={{
+                        background: active ? 'var(--color-accent-subtle)' : 'var(--color-surface-hover)',
+                        color: active ? 'var(--color-accent)' : 'var(--color-fg-muted)',
+                        borderColor: active ? 'var(--color-accent)' : 'var(--color-border)',
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {/* Cost preview — draft $0.03/s (Grok), HD $0.20/s (veo-3.1-fast). */}
+              <p className="text-[10px] mt-2" style={{ color: 'var(--color-fg-muted)' }}>
+                ≈ ${((tier === 'hd' ? 0.2 : 0.03) * duration).toFixed(2)} for this {duration}s clip
+                <span> · {tier === 'hd' ? 'HD ($0.20/s)' : 'Draft ($0.03/s)'}</span>
+              </p>
             </div>
           )}
         </div>

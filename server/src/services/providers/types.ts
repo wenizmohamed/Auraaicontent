@@ -29,6 +29,10 @@ export interface VideoRequest {
   mimeType?: string;
   referenceImageUrls?: string[];
   fast?: boolean;  // fast → veo-3.1-fast for quicker gen
+  // Cost tier (Part A): 'draft' routes to Grok ($0.05/s) first, 'hd' keeps the
+  // Veo-primary env order. Set by the creative route from the FE toggle; default
+  // (undefined) is treated as HD-order to preserve legacy behavior.
+  tier?: 'draft' | 'hd';
   // Workshop 2026-05-06 #3 (Haneen): explicit start + end frames so the
   // video bookends are controlled, not random. Either or both can be
   // omitted — Veo will treat missing endFrame as "free interpolation"
@@ -78,5 +82,9 @@ export interface AiTelemetryEntry {
   errorType?: string;
   jobId?: string;
   clientId?: string;
+  // Video cost tier ('draft' → Grok, 'hd' → Veo). Only set for video calls so
+  // draft-vs-hd routing is visible in ai-stats (esp. when a tripped Grok breaker
+  // silently lands drafts on veo-fast). Undefined for non-video tasks.
+  tier?: 'draft' | 'hd';
   timestamp: string;
 }

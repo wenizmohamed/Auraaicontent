@@ -310,6 +310,26 @@ export async function adminRoutes(app: FastifyInstance) {
         GROUP BY u."userId", u.kind
       `;
 
+      // Per-(user,model) breakdown (design 2026-06-03 C3). Model lives in the
+      // metadata JSON path, so this is a sibling raw query grouped by
+      // (userId, metadata->>'model'); attached per user as `byModel`.
+      const modelBreakdown = await db.$queryRaw<Array<{
+        userId: string | null; model: string | null;
+        calls: bigint; units: bigint; costUsd: any;
+      }>>`
+        SELECT u."userId"             AS "userId",
+               (u.metadata->>'model') AS model,
+               COUNT(*)::bigint                   AS calls,
+               COALESCE(SUM(u.units), 0)::bigint  AS units,
+               COALESCE(SUM(u."costUsd"), 0)      AS "costUsd"
+        FROM "UsageEvent" u
+        WHERE u."orgId" = ${orgId}
+          AND u."createdAt" >= ${from}
+          AND u."createdAt" <= ${to}
+          AND u.metadata ? 'model'
+        GROUP BY u."userId", (u.metadata->>'model')
+      `;
+
       const bdMap = new Map<string, Record<string, { calls: number; units: number; costUsd: number }>>();
       for (const row of breakdown) {
         const key = row.userId ?? '__null__';
@@ -322,6 +342,19 @@ export async function adminRoutes(app: FastifyInstance) {
         bdMap.set(key, inner);
       }
 
+      const modelMap = new Map<string, Record<string, { calls: number; units: number; costUsd: number }>>();
+      for (const row of modelBreakdown) {
+        if (!row.model) continue;
+        const key = row.userId ?? '__null__';
+        const inner = modelMap.get(key) ?? {};
+        inner[row.model] = {
+          calls: Number(row.calls),
+          units: Number(row.units),
+          costUsd: Number(row.costUsd ?? 0),
+        };
+        modelMap.set(key, inner);
+      }
+
       return totals.map((r) => ({
         userId: r.userId,
         userEmail: r.userEmail,
@@ -330,6 +363,7 @@ export async function adminRoutes(app: FastifyInstance) {
         units: Number(r.units),
         costUsd: Number(r.costUsd ?? 0),
         breakdown: bdMap.get(r.userId ?? '__null__') ?? {},
+        byModel: modelMap.get(r.userId ?? '__null__') ?? {},
       }));
     },
   );

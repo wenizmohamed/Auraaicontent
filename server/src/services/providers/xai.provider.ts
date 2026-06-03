@@ -127,6 +127,16 @@ export const xaiProvider: AiProvider = {
       'grok-imagine-video-fast',
       'grok-imagine-video-2',
     ]);
+    // Honor req.fast (drafts): pull grok-imagine-video-fast ($0.03/s) ahead of
+    // the standard model so the cheap/fast variant runs first. Keeps the rest of
+    // the ladder order intact as fallbacks. Default (fast falsy) is unchanged.
+    if (req.fast) {
+      ladder.sort((a, b) => {
+        const fa = a.model.includes('-fast') ? 0 : 1;
+        const fb = b.model.includes('-fast') ? 0 : 1;
+        return fa - fb;
+      });
+    }
     const start = Date.now();
     // Build reference images: explicit URLs first, then fall back to imageBase64
     // so image-to-video requests from Gemini fallback still carry the source frame.

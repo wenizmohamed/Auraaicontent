@@ -1,6 +1,6 @@
 import { xaiProvider } from './xai.provider.js';
 import { geminiProvider } from './gemini.provider.js';
-import { isRetryableAiError, AllProvidersFailedError, type ProviderFailure } from './errors.js';
+import { isRetryableAiError, isSafetyBlock, AllProvidersFailedError, type ProviderFailure } from './errors.js';
 import { filterAvailable, recordSuccess, recordFailure, getCircuitSnapshot } from './circuit-breaker.js';
 import type { AiProvider, AiProviderName, AiTask, AiTelemetryEntry, AnalysisRequest, ImageRequest, ProviderResult, TextRequest, VideoRequest } from './types.js';
 import { db } from '../../db/prisma.js';
@@ -42,7 +42,13 @@ function persistUsage(meta: { orgId?: string; userId?: string; clientId?: string
                        task: AiTask, model: string,
                        tokens: { p?: number; c?: number; t?: number },
                        extras?: { durationSeconds?: number }) {
-  if (!meta.orgId) return;
+  if (!meta.orgId) {
+    // B5: surface untracked usage so future regressions (a route that forgets to
+    // thread orgId) are visible instead of silently un-billed. Keep the early
+    // return — we still can't write a UsageEvent without an org.
+    console.warn(`[ai-router] usage NOT tracked — missing orgId for task=${task}`, model);
+    return;
+  }
   const cost = computeCostUsd(model, tokens.p, tokens.c, 1, extras?.durationSeconds);
   const kind = usageKind(task);
   void db.usageEvent.create({
@@ -85,9 +91,12 @@ const PROVIDERS: Record<AiProviderName, AiProvider> = {
   gemini: geminiProvider,
 };
 
-function orderedProviders(task: string): AiProvider[] {
+// preferredPrimary forces a per-call primary (e.g. draft video → 'xai' so cheap
+// Grok runs first), overriding the env default for THIS call only. When omitted,
+// the env PRIMARY map decides — text/image/analysis behavior is unchanged.
+function orderedProviders(task: string, preferredPrimary?: AiProviderName): AiProvider[] {
   const normalizedTask = task === 'image_edit' ? 'image' : task;
-  const primary = PRIMARY[normalizedTask] || 'gemini';
+  const primary = preferredPrimary || PRIMARY[normalizedTask] || 'gemini';
   const fallback = primary === 'gemini' ? 'xai' : 'gemini';
   return FALLBACK_ENABLED ? [PROVIDERS[primary], PROVIDERS[fallback]] : [PROVIDERS[primary]];
 }
@@ -144,10 +153,16 @@ async function routeCall<T>(
     });
   }
 
+  // Per-call provider-order override (Part A): a draft video forces Grok (xai)
+  // first since it's ~10× cheaper than Veo. HD / undefined tier keeps the env
+  // default order. Only applies to video — text/image/analysis pass undefined.
+  const preferredPrimary: AiProviderName | undefined =
+    task === 'video' && req?.tier === 'draft' ? 'xai' : undefined;
+
   // Circuit breaker: drop providers whose breaker is open so an ongoing outage
   // doesn't tax every request with a full timeout before falling through.
   // filterAvailable guarantees ≥1 provider even if every breaker is open.
-  const providers = filterAvailable(orderedProviders(task));
+  const providers = filterAvailable(orderedProviders(task, preferredPrimary), task);
   const failures: ProviderFailure[] = [];
   let fallbackUsed = false;
 
@@ -157,7 +172,7 @@ async function routeCall<T>(
     try {
       const result = await fn(provider);
       result.fallbackUsed = fallbackUsed;
-      recordSuccess(provider.name);
+      recordSuccess(provider.name, task);
       logTelemetry({
         provider: result.provider, model: result.model, task,
         latencyMs: result.latencyMs, fallbackUsed,
@@ -165,6 +180,8 @@ async function routeCall<T>(
         completionTokens: result.completionTokens,
         totalTokens: result.totalTokens,
         jobId: meta?.jobId, clientId: meta?.clientId,
+        // Surface draft-vs-hd routing in ai-stats (video only).
+        ...(task === 'video' && req?.tier ? { tier: req.tier } : {}),
         timestamp: new Date().toISOString(),
       });
       persistUsage(
@@ -179,14 +196,19 @@ async function routeCall<T>(
       const errMsg = err instanceof Error ? err.message : String(err);
       const retryable = isRetryableAiError(err);
       // Only retryable failures (outage/timeout/5xx) count toward tripping the
-      // breaker. A 400/401 is a bad request, not the provider being down.
-      if (retryable) recordFailure(provider.name, errMsg);
+      // breaker. A 400/401 is a bad request, not the provider being down — and
+      // a safety/content block is a property of the PROMPT, not provider health
+      // (it's retryable so the request still falls through to a provider with a
+      // different policy, but it must never trip the breaker). The breaker is
+      // now keyed per (provider, task) so a flaky video task can't stall text.
+      if (retryable && !isSafetyBlock(errMsg)) recordFailure(provider.name, task, errMsg);
       failures.push({ provider: provider.name, message: errMsg.slice(0, 200), retryable });
       logTelemetry({
         provider: provider.name, model: 'unknown', task,
         latencyMs: 0, fallbackUsed,
         errorType: errMsg.slice(0, 80),
         jobId: meta?.jobId, clientId: meta?.clientId,
+        ...(task === 'video' && req?.tier ? { tier: req.tier } : {}),
         timestamp: new Date().toISOString(),
       });
 

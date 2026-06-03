@@ -165,7 +165,12 @@ export async function researchRoutes(app: FastifyInstance) {
           { role: 'user', content: prompt },
         ],
         max_tokens: 8192,
-      }, { chain: ['moonshot', 'gemini', 'xai'] });
+      }, {
+        chain: ['moonshot', 'gemini', 'xai'],
+        // Without meta these long-context Kimi calls were fully untracked
+        // (design 2026-06-03 B2). orgId/userId from authGuard.
+        meta: { orgId: request.orgId, userId: request.user?.userId, clientId },
+      });
       const stripped = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
       let parsed: any = null;
       try { parsed = JSON.parse(stripped); } catch {

@@ -353,6 +353,37 @@ export default function Admin() {
           </table>
         </div>
 
+        {/* Sub-section 4: Per model breakdown (cost attribution by model) */}
+        <div className="border-t" style={{ borderColor: 'var(--color-border)' }}>
+          <div className={`px-5 py-2.5 flex items-center gap-2`}>
+            <BarChart3 size={14} className={sub} />
+            <h3 className={`text-xs font-semibold uppercase tracking-wider ${text}`}>By model</h3>
+          </div>
+          {/* Semantic tokens (not raw zinc/slate) so the raw-color audit stays
+              flat; tokens auto-switch on theme, so no isDark ternary needed. */}
+          <table className={`w-full text-sm ${text}`}>
+            <thead className="text-[11px] uppercase tracking-wider" style={{ background: 'var(--color-surface-hover)', color: 'var(--color-fg-muted)' }}>
+              <tr>
+                <th className="text-left px-5 py-2.5">Model</th>
+                <th className="text-right px-3 py-2.5">Calls</th>
+                <th className="text-right px-5 py-2.5">Cost (USD)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(!usageTotals || usageTotals.topModels.length === 0) && (
+                <tr><td colSpan={3} className={`px-5 py-6 text-center ${sub}`}>{usageLoading ? '…' : 'No model usage in range.'}</td></tr>
+              )}
+              {usageTotals?.topModels.map((m) => (
+                <tr key={m.model} className="border-t" style={{ borderColor: 'var(--color-border)' }}>
+                  <td className="px-5 py-2.5 font-medium">{m.model}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">{m.calls}</td>
+                  <td className={`px-5 py-2.5 text-right tabular-nums ${numeric}`}>{fmtUsdPrecise(m.costUsd)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
         {/* Sub-section 5: Activity feed (audit log) */}
         <div className={`border-t ${isDark ? 'border-white/[0.06]' : 'border-slate-200'}`}>
           <div className={`px-5 py-2.5 flex items-center gap-2`}>

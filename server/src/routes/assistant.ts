@@ -175,7 +175,7 @@ async function executeAction(orgId: string, action: string, params: any, clientI
     case 'search_visual_refs': {
       const query = params?.query || '';
       if (!query) return { error: 'search query is required' };
-      const { results, provider } = await visualSearchService.search(query, params?.limit || 8, { orgId, clientId: clientId || undefined });
+      const { results, provider } = await visualSearchService.search(query, params?.limit || 8, { orgId, userId, clientId: clientId || undefined });
       return {
         count: results.length,
         provider,

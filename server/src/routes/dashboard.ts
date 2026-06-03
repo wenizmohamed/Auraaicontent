@@ -265,4 +265,78 @@ export async function dashboardRoutes(app: FastifyInstance) {
       return reply.status(500).send({ error: 'Failed to fetch AI stats' });
     }
   });
+
+  // GET /api/dashboard/usage — org-scoped month-to-date usage meter
+  // (design 2026-06-03 part C). Org-scoped, NOT staff-only: every owner sees
+  // their own org's spend. monthToDate goes through Prisma aggregate (tenant
+  // guard enforces orgId). byModel/byUser use $queryRaw because the model lives
+  // in a JSON path (metadata->>'model') and byUser LEFT JOINs User — both
+  // impossible via Prisma groupBy. CRITICAL: $queryRaw bypasses the tenant
+  // guard, so orgId in WHERE is load-bearing for tenant isolation here.
+  app.get('/dashboard/usage', async (request, reply) => {
+    const orgId = request.orgId!;
+    try {
+      const monthStart = new Date(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1);
+
+      const totalsAgg = await db.usageEvent.aggregate({
+        where: { orgId, createdAt: { gte: monthStart } },
+        _sum: { costUsd: true, units: true },
+        _count: { _all: true },
+      });
+
+      const modelRows = await db.$queryRaw<Array<{
+        model: string | null; calls: bigint; costUsd: any;
+      }>>`
+        SELECT (u.metadata->>'model') AS model,
+               COUNT(*)::bigint        AS calls,
+               COALESCE(SUM(u."costUsd"), 0) AS "costUsd"
+        FROM "UsageEvent" u
+        WHERE u."orgId" = ${orgId}
+          AND u."createdAt" >= ${monthStart}
+          AND u.metadata ? 'model'
+        GROUP BY (u.metadata->>'model')
+        ORDER BY "costUsd" DESC
+      `;
+
+      const userRows = await db.$queryRaw<Array<{
+        userId: string | null; userEmail: string | null;
+        calls: bigint; costUsd: any;
+      }>>`
+        SELECT u."userId"                   AS "userId",
+               usr.email                     AS "userEmail",
+               COUNT(*)::bigint              AS calls,
+               COALESCE(SUM(u."costUsd"), 0) AS "costUsd"
+        FROM "UsageEvent" u
+        LEFT JOIN "User" usr ON usr.id = u."userId"
+        WHERE u."orgId" = ${orgId}
+          AND u."createdAt" >= ${monthStart}
+        GROUP BY u."userId", usr.email
+        ORDER BY "costUsd" DESC
+      `;
+
+      return {
+        monthToDate: {
+          calls: totalsAgg._count._all,
+          costUsd: Number(totalsAgg._sum.costUsd ?? 0),
+          units: Number(totalsAgg._sum.units ?? 0),
+        },
+        byModel: modelRows
+          .filter((r) => r.model)
+          .map((r) => ({
+            model: r.model as string,
+            calls: Number(r.calls),
+            costUsd: Number(r.costUsd ?? 0),
+          })),
+        byUser: userRows.map((r) => ({
+          userId: r.userId,
+          userEmail: r.userEmail,
+          calls: Number(r.calls),
+          costUsd: Number(r.costUsd ?? 0),
+        })),
+      };
+    } catch (err) {
+      app.log.error(err, 'dashboard usage failed');
+      return reply.status(500).send({ error: 'Failed to fetch usage' });
+    }
+  });
 }

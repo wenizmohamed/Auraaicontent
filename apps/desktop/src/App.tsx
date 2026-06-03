@@ -49,6 +49,7 @@ const History           = lazy(() => import('./pages/History'));
 
 import MobileMenu from './components/MobileMenu';
 import OrgSwitcher from './components/OrgSwitcher';
+import UsageMeter from './components/UsageMeter';
 import LocaleToggle from './components/LocaleToggle';
 import { ThemeProvider, useTheme } from './lib/theme-context';
 import { ToastProvider } from './lib/toast-context';
@@ -368,6 +369,7 @@ function Layout({ children }: { children: React.ReactNode }) {
         {/* Bottom: Org switcher + Locale + Theme + Profile */}
         <div className={`p-3 border-t space-y-1 ${isDark ? 'border-white/[0.06]' : 'border-slate-200/60'}`}>
           <OrgSwitcher collapsed={isCollapsed} />
+          <UsageMeter collapsed={isCollapsed} />
           <LocaleToggle collapsed={isCollapsed} />
           {/* Theme Toggle — Pill Switch */}
           <Tooltip content={`Cycle theme · current: ${themeLabel}`} shortcut="⌘⇧L" side="right" enabled={isCollapsed}>

@@ -133,6 +133,9 @@ export async function creativeRoutes(app: FastifyInstance) {
       imageBase64, mimeType,
       // Workshop 2026-05-06 #3 (Haneen): explicit start + end frame controls
       startImageBase64, startMimeType, endImageBase64, endMimeType,
+      // Cost tiering (design 2026-06-03): draft → Grok ($0.05/s), hd → veo-3.1-fast
+      // ($0.20/s). Default draft (cheap). Full Veo is never selected in v1.
+      tier,
     } = request.body as any;
     if (!prompt) return reply.status(400).send({ error: 'prompt is required' });
 
@@ -152,6 +155,7 @@ export async function creativeRoutes(app: FastifyInstance) {
       prompt, aspectRatio, durationSeconds, resolution, clientId,
       imageBase64, mimeType,
       startImageBase64, startMimeType, endImageBase64, endMimeType,
+      tier: tier === 'hd' ? 'hd' : 'draft',
     });
     processJob(job.id, async (j: Job) => {
       // Bump progress every 3 seconds while the long Gemini Veo call runs.
@@ -175,6 +179,10 @@ export async function creativeRoutes(app: FastifyInstance) {
             startMimeType: j.data.startMimeType,
             endImageBase64: j.data.endImageBase64,
             endMimeType: j.data.endMimeType,
+            // Cost tiering: tier drives provider order in ai-router; fast is
+            // ALWAYS true in v1 (draft → grok-fast fallback, hd → veo-3.1-fast).
+            tier: j.data.tier,
+            fast: true,
           },
           { orgId, userId, jobId: j.id, clientId: j.data.clientId },
         );

@@ -474,6 +474,9 @@ export const creativeApi = {
     aspectRatio?: string;
     durationSeconds?: number;
     resolution?: string;
+    // Video cost tiering (design 2026-06-03): draft → Grok ($0.03/s),
+    // hd → veo-3.1-fast ($0.20/s). Default 'draft' on the server.
+    tier?: 'draft' | 'hd';
     clientId?: string;
     imageBase64?: string;
     mimeType?: string;
@@ -755,6 +758,19 @@ export const dashboardApi = {
   aiStats: () => request<AiStats>('/api/dashboard/ai-stats'),
   insights: () => request<DashboardInsights>('/api/dashboard/insights'),
   activity: () => request<ActivityEntry[]>('/api/dashboard/activity'),
+};
+
+// ─── Org-scoped usage (live meter + per-model view) ──────────────
+// Org-wide month-to-date AI spend from UsageEvent. Powers the always-on
+// sidebar UsageMeter and the per-model admin breakdown. Org-scoped (every
+// owner sees their own org), not staff-only.
+export interface OrgUsage {
+  monthToDate: { calls: number; costUsd: number; units: number };
+  byModel: Array<{ model: string; calls: number; costUsd: number }>;
+  byUser: Array<{ userId: string | null; userEmail: string | null; calls: number; costUsd: number }>;
+}
+export const usageApi = {
+  currentOrg: () => request<OrgUsage>('/api/dashboard/usage'),
 };
 
 export interface GalleryAsset {
