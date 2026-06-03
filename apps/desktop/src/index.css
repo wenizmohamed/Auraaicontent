@@ -3,6 +3,7 @@
    takes the dashboard from generic-SaaS-tier to magazine/editorial-tier.
    Self-hosting via Google Fonts; subset to wghts actually used. */
 @import url('https://fonts.googleapis.com/css2?family=Libre+Bodoni:ital,wght@0,500;0,600;0,700;0,800;0,900;1,400;1,500&family=Public+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,500&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=ADLaM+Display&display=swap');
 @import "tailwindcss";
 
 /* ════════════════════════════════════════════════════════════════════════════
@@ -19,8 +20,10 @@
 
 @theme {
   /* ── Typography ─────────────────────────────────────────────────────── */
+  /* 2026-06-03: ADLaM Display for HEADINGS only (--font-display); body stays the
+     readable Public Sans, mono stays JetBrains. (Kept from the tweakcn experiment.) */
   --font-sans: "Public Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Libre Bodoni", "Public Sans", ui-serif, Georgia, serif;
+  --font-display: "ADLaM Display", "Libre Bodoni", ui-serif, Georgia, serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
   --text-xs:   0.75rem;   /* 12px */ --text-xs--line-height:   1rem;        /* 16 */
