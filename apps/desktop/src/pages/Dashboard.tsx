@@ -729,37 +729,36 @@ export default function Dashboard() {
             return tiles.map((stat, i) => {
               const inner = (
                 <>
-                  <div className="flex items-center justify-between mb-3">
-                    <div className={`w-9 h-9 rounded-xl ${stat.bg} flex items-center justify-center`}>
-                      <stat.icon className={`w-4 h-4 ${stat.color}`} />
+                  <div className="p-5 pb-3">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className={`w-9 h-9 rounded-xl ${stat.bg} flex items-center justify-center`}>
+                        <stat.icon className={`w-4 h-4 ${stat.color}`} />
+                      </div>
+                      {stat.sub && (
+                        <span className={`text-[10px] font-semibold ${stat.color} ${stat.bg} px-2 py-0.5 rounded-full`}>{stat.sub}</span>
+                      )}
                     </div>
-                    {stat.sub && (
-                      <span className={`text-[10px] font-medium ${stat.color} ${stat.bg} px-2 py-0.5 rounded-full`}>{stat.sub}</span>
+                    {/* M1: Knowledge zero-state inline CTA in place of the big "0" */}
+                    {stat.zeroCta ? (
+                      <>
+                        <Link to="/knowledge" className="text-sm font-semibold text-amber-400 hover:text-amber-300">+ Add knowledge</Link>
+                        <p className={`text-xs mt-1 ${textMuted}`}>{t('page.dashboard.upload_briefs')}</p>
+                      </>
+                    ) : (
+                      <>
+                        {/* eyebrow label → hero number: stronger visual hierarchy */}
+                        <p className={`text-[11px] uppercase tracking-[0.14em] font-semibold ${textMuted}`}>{stat.label}</p>
+                        <div className={`mt-1 text-[34px] leading-none font-black tabular-nums ${stat.alert ? 'text-red-400' : textPrimary}`}>
+                          {typeof stat.value === 'number' ? <AnimatedNumber value={stat.value} /> : (stat.value ?? '—')}
+                        </div>
+                      </>
                     )}
                   </div>
-                  {/* M1: Knowledge zero-state inline CTA in place of the big "0" */}
-                  {stat.zeroCta ? (
-                    <>
-                      <Link to="/knowledge" className="text-xs text-amber-400 hover:text-amber-300">+ Add knowledge</Link>
-                      <p className={`text-xs mt-1 ${textMuted}`}>{t('page.dashboard.upload_briefs')}</p>
-                    </>
-                  ) : (
-                    <>
-                      <div className={`text-2xl font-black tabular-nums ${stat.alert ? 'text-red-400' : textPrimary}`}>
-                        {typeof stat.value === 'number' ? <AnimatedNumber value={stat.value} /> : (stat.value ?? '—')}
-                      </div>
-                      <p className={`text-xs mt-1 ${textMuted}`}>{stat.label}</p>
-                      {/* Sparkline — synth trend until backend ships per-stat series. */}
-                      {typeof stat.value === 'number' && stat.value > 0 && (
-                        <div className="mt-2 -mx-1">
-                          <Sparkline
-                            data={trendSeries(stat.value)}
-                            color={stat.alert ? '#ef4444' : '#10b981'}
-                            height={28}
-                          />
-                        </div>
-                      )}
-                    </>
+                  {/* Full-bleed graph footer — the "premium metric card" signature. */}
+                  {typeof stat.value === 'number' && stat.value > 0 && !stat.zeroCta && (
+                    <div className="h-10">
+                      <Sparkline data={trendSeries(stat.value)} color={stat.alert ? '#ef4444' : '#10b981'} height={40} />
+                    </div>
                   )}
                 </>
               );
@@ -767,14 +766,14 @@ export default function Dashboard() {
               if (stat.href) {
                 return (
                   <motion.div key={stat.key} {...fadeUp(0.15 + i * 0.05)}>
-                    <Link to={stat.href} className={`block rounded-2xl p-5 ${glassStatic}`}>
+                    <Link to={stat.href} className={`block rounded-2xl overflow-hidden ${glassStatic}`}>
                       {inner}
                     </Link>
                   </motion.div>
                 );
               }
               return (
-                <motion.div key={stat.key} {...fadeUp(0.15 + i * 0.05)} className={`rounded-2xl p-5 ${glassStatic}`}>
+                <motion.div key={stat.key} {...fadeUp(0.15 + i * 0.05)} className={`rounded-2xl overflow-hidden ${glassStatic}`}>
                   {inner}
                 </motion.div>
               );

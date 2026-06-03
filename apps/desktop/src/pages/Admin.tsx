@@ -239,7 +239,8 @@ export default function Admin() {
                     <button
                       onClick={() => handleDeleteOrg(o)}
                       title={`Delete workspace "${o.name}"`}
-                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors cursor-pointer ${isDark ? 'text-red-400 hover:bg-red-500/10' : 'text-red-600 hover:bg-red-50'}`}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors cursor-pointer hover:bg-[color:var(--color-danger-subtle)]"
+                      style={{ color: 'var(--color-danger)' }}
                     >
                       <Trash2 size={13} /> Delete
                     </button>
