@@ -8,8 +8,13 @@ export default defineConfig(({mode, command}) => {
   const env = { ...loadEnv(mode, path.resolve(__dirname, '../..'), ''), ...loadEnv(mode, '.', '') };
   const comfyUrl = env.COMFYUI_API_URL || 'http://127.0.0.1:8000';
   return {
-    // Electron loads the built app via file://, so production assets must be relative.
-    base: command === 'build' ? './' : '/',
+    // Electron loads the built app via file://, so its production assets must be
+    // RELATIVE ('./'). The WEB build (served by nginx at the domain root) must use
+    // ABSOLUTE ('/') — otherwise a cold load of any 2-segment route (e.g.
+    // /invite/:token, /settings/billing) resolves assets against /invite/ →
+    // /invite/assets/*.js → 404 → SPA fallback returns index.html → MIME error →
+    // blank white page. Key off the ELECTRON build flag, NOT `command`.
+    base: command === 'build' && process.env.ELECTRON === 'true' ? './' : '/',
     plugins: [react(), tailwindcss()],
     build: {
       // Code-split heavy deps so the main entry stays slim.  Without this the
