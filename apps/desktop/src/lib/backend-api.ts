@@ -931,6 +931,8 @@ function buildUsageQs(params: { orgId?: string; from?: string; to?: string; user
 export const adminApi = {
   metrics: () => request<AdminMetrics>('/api/admin/metrics'),
   orgs: () => request<AdminOrg[]>('/api/admin/orgs'),
+  deleteOrg: (orgId: string) =>
+    request<{ ok: boolean; deleted: { id: string; name: string } }>(`/api/admin/orgs/${orgId}`, { method: 'DELETE' }),
   orgUsage: (orgId: string) =>
     request<{ kind: string; calls: number; units: number; costUsd: number }[]>(
       `/api/admin/orgs/${orgId}/usage`,

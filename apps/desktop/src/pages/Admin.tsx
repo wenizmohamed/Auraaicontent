@@ -14,7 +14,7 @@ import {
 } from '../lib/backend-api';
 import { useTheme } from '../lib/theme-context';
 import { t } from '../i18n';
-import { Building2, DollarSign, TrendingUp, AlertCircle, Users, Boxes, Calendar as CalendarIcon, Download, Activity, BarChart3, FileText } from 'lucide-react';
+import { Building2, DollarSign, TrendingUp, AlertCircle, Users, Boxes, Calendar as CalendarIcon, Download, Activity, BarChart3, FileText, Trash2 } from 'lucide-react';
 
 function fmtUsd(n: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
@@ -82,6 +82,24 @@ export default function Admin() {
   useEffect(() => {
     if (!usageOrgId && orgs.length > 0) setUsageOrgId(orgs[0].id);
   }, [orgs, usageOrgId]);
+
+  // Delete a workspace (org). Destructive + cascading — confirm hard. The backend
+  // also blocks the primary org and the currently-signed-in org as a backstop.
+  async function handleDeleteOrg(o: AdminOrg) {
+    const ok = window.confirm(
+      `Delete the workspace "${o.name}"?\n\n` +
+      `This permanently removes it and ALL its data: ${o.clients} client(s), ` +
+      `${o.calendars} calendar(s), ${o.seats} member(s), and every post/asset/usage record.\n\n` +
+      `This cannot be undone.`,
+    );
+    if (!ok) return;
+    try {
+      await adminApi.deleteOrg(o.id);
+      setOrgs((prev) => prev.filter((x) => x.id !== o.id));
+    } catch (err: any) {
+      alert(err?.message || 'Failed to delete workspace');
+    }
+  }
 
   // Refetch all 4 endpoints whenever org/from/to changes (300ms debounce
   // so dragging the date input doesn't fire a request per keystroke).
@@ -194,11 +212,12 @@ export default function Admin() {
               <th className="text-right px-3 py-2.5">Clients</th>
               <th className="text-right px-3 py-2.5"><CalendarIcon size={12} className="inline" /> Months</th>
               <th className="text-left px-5 py-2.5">Created</th>
+              <th className="text-right px-5 py-2.5">Actions</th>
             </tr>
           </thead>
           <tbody>
             {orgs.length === 0 && (
-              <tr><td colSpan={8} className={`px-5 py-8 text-center ${sub}`}>No orgs yet.</td></tr>
+              <tr><td colSpan={9} className={`px-5 py-8 text-center ${sub}`}>No orgs yet.</td></tr>
             )}
             {orgs.map((o) => (
               <tr key={o.id} className={isDark ? 'border-t border-white/[0.04]' : 'border-t border-slate-100'}>
@@ -213,6 +232,19 @@ export default function Admin() {
                 <td className="px-3 py-3 text-right tabular-nums">{o.clients}</td>
                 <td className="px-3 py-3 text-right tabular-nums">{o.calendars}</td>
                 <td className={`px-5 py-3 text-[12px] ${sub}`}>{new Date(o.createdAt).toLocaleDateString()}</td>
+                <td className="px-5 py-3 text-right">
+                  {o.slug === 'radix-media' ? (
+                    <span className={`text-[11px] ${sub}`}>primary</span>
+                  ) : (
+                    <button
+                      onClick={() => handleDeleteOrg(o)}
+                      title={`Delete workspace "${o.name}"`}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors cursor-pointer ${isDark ? 'text-red-400 hover:bg-red-500/10' : 'text-red-600 hover:bg-red-50'}`}
+                    >
+                      <Trash2 size={13} /> Delete
+                    </button>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>

@@ -31,6 +31,9 @@ const PLAN_PRICES: Record<string, number> = {
   free: 0,
 };
 
+// Workspaces that can NEVER be deleted via the admin panel (the primary org).
+const PROTECTED_ORG_IDS = new Set<string>(['org_radix_media']);
+
 export async function adminRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authGuard);
   app.addHook('preHandler', staffGuard);
@@ -56,6 +59,25 @@ export async function adminRoutes(app: FastifyInstance) {
       calendars: o._count.calendarMonths,
       mrr: PLAN_PRICES[o.plan] ?? 0,
     }));
+  });
+
+  // DELETE /api/admin/orgs/:orgId — staff-only. Permanently deletes a workspace (org)
+  // and ALL its data. Safe because every Organization relation is onDelete:Cascade
+  // (memberships, clients, calendars, posts, usage, etc. go with it). Guarded so you
+  // cannot nuke the primary org or the one you're currently signed into.
+  app.delete<{ Params: { orgId: string } }>('/orgs/:orgId', async (request, reply) => {
+    const { orgId } = request.params;
+    if (PROTECTED_ORG_IDS.has(orgId)) {
+      return reply.status(400).send({ error: 'This is the primary Radix Media workspace — it cannot be deleted.' });
+    }
+    if (orgId === request.orgId) {
+      return reply.status(400).send({ error: "You can't delete the workspace you're currently signed into. Switch workspaces first, then delete." });
+    }
+    const org = await db.organization.findUnique({ where: { id: orgId }, select: { id: true, name: true } });
+    if (!org) return reply.status(404).send({ error: 'Workspace not found' });
+    await db.organization.delete({ where: { id: orgId } });   // cascades to all org data
+    console.warn(`[admin] workspace DELETED: "${org.name}" (${orgId}) by ${request.user?.email}`);
+    return { ok: true, deleted: org };
   });
 
   // GET /api/admin/metrics — top-line numbers for the investor screenshot
