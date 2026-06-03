@@ -47,11 +47,21 @@
   --radius-full: 9999px;
 
   /* ── Shadows (5 layered elevations) ────────────────────────────────── */
-  --shadow-1: 0 1px 0 rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
-  --shadow-2: 0 1px 0 rgba(0,0,0,0.05), 0 2px 6px rgba(0,0,0,0.08);
-  --shadow-3: 0 1px 0 rgba(0,0,0,0.06), 0 8px 18px rgba(0,0,0,0.10);
-  --shadow-4: 0 1px 0 rgba(0,0,0,0.06), 0 16px 32px rgba(0,0,0,0.14);
-  --shadow-5: 0 1px 0 rgba(0,0,0,0.08), 0 28px 60px rgba(0,0,0,0.22);
+  /* Polished 2026-06-03: softer, more diffuse, slate-tinted (not pure black) for a
+     premium "float". Applied app-wide via the shadow-* utilities + card overrides. */
+  --shadow-1: 0 1px 2px rgba(15,23,42,0.05);
+  --shadow-2: 0 1px 2px rgba(15,23,42,0.05), 0 4px 12px -2px rgba(15,23,42,0.08);
+  --shadow-3: 0 2px 4px rgba(15,23,42,0.05), 0 10px 24px -4px rgba(15,23,42,0.12);
+  --shadow-4: 0 4px 8px rgba(15,23,42,0.06), 0 20px 40px -8px rgba(15,23,42,0.16);
+  --shadow-5: 0 8px 16px rgba(15,23,42,0.08), 0 32px 64px -12px rgba(15,23,42,0.24);
+
+  /* Polished 2026-06-03: override Tailwind's DEFAULT shadow utilities (shadow-sm/md/lg/xl)
+     so the many cards using them lift premium-ly. shadow-sm kept restrained so small
+     elements (buttons/inputs) don't over-shadow; md/lg/xl get the diffuse float. */
+  --shadow-sm: 0 1px 2px rgba(15,23,42,0.06);
+  --shadow-md: 0 2px 4px rgba(15,23,42,0.05), 0 8px 20px -6px rgba(15,23,42,0.12);
+  --shadow-lg: 0 4px 8px rgba(15,23,42,0.06), 0 16px 36px -8px rgba(15,23,42,0.16);
+  --shadow-xl: 0 8px 16px rgba(15,23,42,0.07), 0 28px 56px -12px rgba(15,23,42,0.20);
 
   /* ── Motion (durations + easings) ──────────────────────────────────── */
   --dur-instant: 80ms;
@@ -164,7 +174,15 @@ html.light {
   --color-info:            #2563eb;
   --color-info-strong:     #1d4ed8;
 }
-html.light body { background: var(--color-bg-sunken); color: var(--color-fg); }
+/* Polished 2026-06-03: subtle depth — a faint warm accent glow top-right over a soft
+   vertical gradient, so white cards lift off the page instead of floating on flat gray. */
+html.light body {
+  background:
+    radial-gradient(1100px 560px at 78% -12%, rgba(245,158,11,0.07), transparent 58%),
+    linear-gradient(180deg, #f7f9fc 0%, #eef2f7 100%);
+  background-attachment: fixed;
+  color: var(--color-fg);
+}
 
 /* ── STUDIO (high-contrast monochrome — designer's view) ──────────────── */
 html.theme-studio {
@@ -234,7 +252,7 @@ html.light .bg-white\/\[0\.04\],
 html.light .bg-white\/\[0\.05\],
 html.light .bg-white\/\[0\.06\],
 html.light .bg-white\/\[0\.08\],
-html.light .bg-white\/\[0\.1\] { background: #ffffff !important; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04); }
+html.light .bg-white\/\[0\.1\] { background: #ffffff !important; box-shadow: 0 2px 4px rgba(15,23,42,0.06), 0 16px 40px -12px rgba(15,23,42,0.20) !important; border: 1px solid rgba(15,23,42,0.06); }
 html.light .bg-white\/5 { background: #f8fafc !important; }
 html.light .bg-white\/10 { background: #f1f5f9 !important; }
 
@@ -642,4 +660,52 @@ body.locale-flipping {
 }
 @media (prefers-reduced-motion: reduce) {
   body.locale-flipping { animation: none; }
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   "MORE COLOR + LIFE" PASS (2026-06-03) — app-wide accent injection.
+   Keeps the editorial base; adds warmth so the UI feels alive, not sterile.
+   All token-driven; cascades to every page.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* Primary / accent buttons → subtle accent gradient + soft glow (every CTA, both themes) */
+.bg-accent,
+.bg-\[color\:var\(--color-accent\)\] {
+  background-color: var(--color-accent) !important;
+  background-image: linear-gradient(135deg, var(--color-accent-hover), var(--color-accent)) !important;
+  box-shadow: 0 6px 18px -6px var(--color-accent-subtle);
+}
+.bg-accent:hover,
+.bg-\[color\:var\(--color-accent\)\]:hover {
+  background-image: linear-gradient(135deg, var(--color-accent), var(--color-accent-pressed)) !important;
+}
+
+/* Glass cards (light) → faint warm wash at the top edge so white cards feel alive.
+   background-color stays white (from the override above); we only add the overlay. */
+html.light .bg-white\/\[0\.01\],
+html.light .bg-white\/\[0\.02\],
+html.light .bg-white\/\[0\.03\],
+html.light .bg-white\/\[0\.04\],
+html.light .bg-white\/\[0\.05\],
+html.light .bg-white\/\[0\.06\],
+html.light .bg-white\/\[0\.08\],
+html.light .bg-white\/\[0\.1\] {
+  background-color: #ffffff !important;
+  background-image: linear-gradient(180deg, rgba(245,158,11,0.055) 0%, rgba(255,255,255,0) 46%) !important;
+}
+
+/* Dark glass cards → matching faint accent wash for parity */
+html:not(.light):not(.theme-studio) .bg-white\/\[0\.02\],
+html:not(.light):not(.theme-studio) .bg-white\/\[0\.03\],
+html:not(.light):not(.theme-studio) .bg-white\/\[0\.04\],
+html:not(.light):not(.theme-studio) .bg-white\/\[0\.06\] {
+  background-image: linear-gradient(180deg, rgba(245,158,11,0.06) 0%, rgba(255,255,255,0) 42%);
+}
+
+/* Richer status chips — a touch more saturation so colored pills read as intentional color */
+:root {
+  --color-accent-subtle:  rgba(245, 158, 11, 0.16);
+  --color-success-subtle: rgba(16, 185, 129, 0.16);
+  --color-info-subtle:    rgba(59, 130, 246, 0.16);
+  --color-danger-subtle:  rgba(239, 68, 68, 0.15);
 }

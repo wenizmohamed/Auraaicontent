@@ -437,8 +437,16 @@ function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </div>
       
-      {/* Main content */}
-      <div className={`flex-1 flex flex-col overflow-hidden relative ${isDark ? 'bg-[#08080c]' : 'bg-slate-50'}`}>
+      {/* Main content — gradient canvas (2026-06-03 polish): subtle brand glow over a
+          soft vertical gradient so elevated cards float instead of sitting on flat gray. */}
+      <div
+        className="flex-1 flex flex-col overflow-hidden relative"
+        style={{
+          background: isDark
+            ? 'radial-gradient(900px 480px at 85% -12%, rgba(245,158,11,0.05), transparent 55%), linear-gradient(180deg, #0b0b0e 0%, #070709 100%)'
+            : 'radial-gradient(900px 480px at 85% -12%, rgba(245,158,11,0.06), transparent 55%), linear-gradient(180deg, #f6f8fc 0%, #e8ecf3 100%)',
+        }}
+      >
         <main id="main" tabIndex={-1} className="flex-1 overflow-y-auto p-8 relative outline-none">
           {isLoading && (
             <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#0a0a0a]/80 backdrop-blur-sm">
