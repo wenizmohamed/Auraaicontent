@@ -540,9 +540,10 @@ export interface ChatMessage {
 }
 
 export const assistantApi = {
-  chat: (messages: ChatMessage[], clientId?: string) =>
+  // `signal` lets the caller abort an in-flight agent run (Stop button).
+  chat: (messages: ChatMessage[], clientId?: string, signal?: AbortSignal) =>
     request<{ message: ChatMessage; action?: { type: string; params: Record<string, any>; result: any }; provider: string; latencyMs: number }>(
-      '/api/assistant/chat', { method: 'POST', body: JSON.stringify({ messages, clientId }) }, { timeoutMs: 120000 }
+      '/api/assistant/chat', { method: 'POST', body: JSON.stringify({ messages, clientId }), signal }, { timeoutMs: 120000 }
     ),
 };
 

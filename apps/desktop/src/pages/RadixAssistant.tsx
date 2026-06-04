@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bot, Send, X, Loader2, Trash2, MessageSquare, AlertCircle, Zap, Search, FileText, Calendar, Image as ImageIcon, ExternalLink, Copy, RefreshCw, Check, Sparkles, Quote, Brain, ChevronDown, Palette, Database, Lightbulb, Languages, Scissors, Shuffle } from 'lucide-react';
+import { Bot, Send, X, Loader2, Trash2, MessageSquare, AlertCircle, Zap, Search, FileText, Calendar, Image as ImageIcon, ExternalLink, Copy, RefreshCw, Check, Sparkles, Quote, Brain, ChevronDown, Palette, Database, Lightbulb, Languages, Scissors, Shuffle, Maximize2, Minimize2, Plus, StopCircle } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import { toast } from 'sonner';
 import { assistantApi, agentApi, type ChatMessage, type AgentTemplateSummary } from '../lib/backend-api';
 import { useClients } from '../lib/client-context';
@@ -53,15 +54,29 @@ export default function RadixAssistant() {
   const navigate = useNavigate();
   const { selectedClientId, currentClient, fetchClients, setSelectedClientId } = useClients();
   const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false); // focus mode — larger panel for agent runs
   const [messages, setMessages] = useState<EnrichedMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null); // aborts the in-flight run (Stop)
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, loading]);
+
+  // ⌘J / Ctrl+J toggles the assistant from anywhere (⌘K is the command palette).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'j') {
+        e.preventDefault();
+        setOpen((o) => !o);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const handleSend = async (overrideInput?: string) => {
     const content = (overrideInput || input).trim();
@@ -74,8 +89,10 @@ export default function RadixAssistant() {
     setLoading(true);
     setError('');
 
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
-      const out = await assistantApi.chat(chatMessages, selectedClientId || undefined);
+      const out = await assistantApi.chat(chatMessages, selectedClientId || undefined, controller.signal);
       const action = (out as any).action as ActionResult | undefined;
       // The backend may surface RAG citations + reasoning trace on the response;
       // both are optional, both render only when present.
@@ -104,13 +121,25 @@ export default function RadixAssistant() {
         await fetchClients();
       }
     } catch (err: any) {
-      setError(err?.message || 'Chat failed');
+      // A user-initiated abort is not an error — swallow it quietly.
+      if (err?.name === 'AbortError' || controller.signal.aborted) {
+        setError('');
+      } else {
+        setError(err?.message || 'Chat failed');
+      }
     } finally {
       setLoading(false);
+      abortRef.current = null;
     }
   };
 
-  const handleClear = () => { setMessages([]); setError(''); };
+  const handleStop = () => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setLoading(false);
+  };
+
+  const handleClear = () => { setMessages([]); setError(''); abortRef.current?.abort(); };
 
   // Agent templates — fetched once, rendered alongside the static quick actions.
   const [templates, setTemplates] = useState<AgentTemplateSummary[]>([]);
@@ -266,32 +295,44 @@ export default function RadixAssistant() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             style={{ zIndex: Z.widgetOpen }}
-            className="fixed bottom-24 right-6 w-[400px] max-w-[calc(100vw-3rem)] h-[600px] max-h-[calc(100vh-8rem)] bg-[#0c0c0c] border border-white/[0.08] rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+            className={`fixed bg-[#0c0c0c] border border-white/[0.08] rounded-2xl shadow-2xl flex flex-col overflow-hidden ${
+              expanded
+                ? 'bottom-6 right-6 w-[min(760px,calc(100vw-3rem))] h-[calc(100vh-3rem)]'
+                : 'bottom-24 right-6 w-[400px] max-w-[calc(100vw-3rem)] h-[600px] max-h-[calc(100vh-8rem)]'
+            }`}
           >
             {/* Header */}
             <div className="px-4 py-3 border-b border-white/[0.06] flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg overflow-hidden border border-amber-500/30">
+              <div className="relative w-8 h-8 rounded-lg overflow-hidden border border-amber-500/30 shrink-0">
                 <img src="./radix-dna.jpg" alt="Radix" className="w-full h-full object-cover" />
+                {/* Live status dot — pulses while a run is in flight. */}
+                <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2"
+                  style={{ background: loading ? 'var(--color-warning)' : 'var(--color-success)', borderColor: '#0c0c0c' }} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-white">Radix</p>
-                <p className="text-[10px] text-zinc-500">
-                  {currentClient ? `${currentClient.name} · Agent mode` : 'Agent mode'}
+                <p className="text-sm font-bold text-white flex items-center gap-1.5">
+                  Radix
+                  <span className="text-[9px] font-bold uppercase tracking-wider rounded px-1 py-0.5"
+                    style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>Agent</span>
+                </p>
+                <p className="text-[10px] text-zinc-500 truncate">
+                  {loading ? 'Working…' : currentClient ? `${currentClient.name} · ready` : 'ready'}
                 </p>
               </div>
-              <button
-                onClick={() => navigate('/agent')}
-                title="Open session history"
-                className="p-1.5 transition-colors cursor-pointer"
-                style={{ color: 'var(--color-fg-subtle)' }}
-              >
-                <MessageSquare className="w-4 h-4" />
-              </button>
               {messages.length > 0 && (
-                <button onClick={handleClear} className="p-1.5 text-zinc-600 hover:text-red-400 transition-colors cursor-pointer" title="Clear chat">
-                  <Trash2 className="w-4 h-4" />
+                <button onClick={handleClear} title="New chat"
+                  className="p-1.5 transition-colors cursor-pointer" style={{ color: 'var(--color-fg-subtle)' }}>
+                  <Plus className="w-4 h-4" />
                 </button>
               )}
+              <button onClick={() => navigate('/agent')} title="Session history"
+                className="p-1.5 transition-colors cursor-pointer" style={{ color: 'var(--color-fg-subtle)' }}>
+                <MessageSquare className="w-4 h-4" />
+              </button>
+              <button onClick={() => setExpanded((e) => !e)} title={expanded ? 'Collapse' : 'Expand to focus mode'}
+                className="p-1.5 transition-colors cursor-pointer" style={{ color: 'var(--color-fg-subtle)' }}>
+                {expanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+              </button>
             </div>
 
             {/* Grounding strip — surfaces the context every reply is grounded in
@@ -413,8 +454,13 @@ export default function RadixAssistant() {
               )}
 
               {loading && (
-                <div className="flex justify-start">
+                <div className="flex items-center gap-2">
                   <ThinkingIndicator />
+                  <button type="button" onClick={handleStop} title="Stop generating"
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold rounded-full px-2.5 py-1 transition-colors cursor-pointer"
+                    style={{ color: 'var(--color-fg-muted)', border: '1px solid var(--color-border)' }}>
+                    <StopCircle className="w-3 h-3" /> Stop
+                  </button>
                 </div>
               )}
 
@@ -532,6 +578,39 @@ function PromptBox({ value, onChange, onSend, loading, maxChars }: PromptBoxProp
 // copy/retry on assistant messages. Action cards render unchanged below
 // the bubble via the existing renderActionCard prop.
 
+// Compact markdown renderer for assistant replies — token-styled so lists,
+// emphasis, links, and code render properly instead of as raw asterisks.
+function Markdown({ text }: { text: string }) {
+  return (
+    <div className="space-y-2">
+      <ReactMarkdown
+        components={{
+          p: ({ children }) => <p className="leading-relaxed">{children}</p>,
+          ul: ({ children }) => <ul className="list-disc pl-4 space-y-1">{children}</ul>,
+          ol: ({ children }) => <ol className="list-decimal pl-4 space-y-1">{children}</ol>,
+          li: ({ children }) => <li className="leading-snug">{children}</li>,
+          strong: ({ children }) => <strong className="font-bold" style={{ color: 'var(--color-fg)' }}>{children}</strong>,
+          em: ({ children }) => <em className="italic">{children}</em>,
+          a: ({ children, href }) => (
+            <a href={href} target="_blank" rel="noopener noreferrer" className="underline" style={{ color: 'var(--color-accent)' }}>{children}</a>
+          ),
+          code: ({ children }) => (
+            <code className="rounded px-1 py-0.5 font-mono text-[12px]" style={{ background: 'var(--color-bg-sunken)', color: 'var(--color-fg)' }}>{children}</code>
+          ),
+          pre: ({ children }) => (
+            <pre className="rounded-lg p-2.5 overflow-x-auto text-[12px] font-mono" style={{ background: 'var(--color-bg-sunken)', border: '1px solid var(--color-border-subtle)' }}>{children}</pre>
+          ),
+          h1: ({ children }) => <p className="font-bold text-[15px]" style={{ color: 'var(--color-fg)' }}>{children}</p>,
+          h2: ({ children }) => <p className="font-bold text-[14px]" style={{ color: 'var(--color-fg)' }}>{children}</p>,
+          h3: ({ children }) => <p className="font-semibold text-[13px]" style={{ color: 'var(--color-fg)' }}>{children}</p>,
+        }}
+      >
+        {text}
+      </ReactMarkdown>
+    </div>
+  );
+}
+
 interface MessageRowProps {
   message: EnrichedMessage;
   isLast: boolean;
@@ -562,8 +641,8 @@ function MessageRow({ message, isLast, onRetry, renderAction }: MessageRowProps)
     >
       <div className="group max-w-[88%]">
         <div
-          className={`rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap leading-relaxed ${
-            isUser ? 'rounded-br-sm' : 'rounded-bl-sm border'
+          className={`rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${
+            isUser ? 'rounded-br-sm whitespace-pre-wrap' : 'rounded-bl-sm border'
           }`}
           style={
             isUser
@@ -571,7 +650,7 @@ function MessageRow({ message, isLast, onRetry, renderAction }: MessageRowProps)
               : { background: 'var(--color-surface)', borderColor: 'var(--color-border-subtle)', color: 'var(--color-fg)' }
           }
         >
-          {message.content}
+          {isUser ? message.content : <Markdown text={message.content} />}
         </div>
 
         {/* Trust strip + hover actions */}
