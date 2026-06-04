@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bot, Send, X, Loader2, Trash2, MessageSquare, AlertCircle, Zap, Search, FileText, Calendar, Image as ImageIcon, ExternalLink, Copy, RefreshCw, Check, Sparkles, Quote, Brain, ChevronDown } from 'lucide-react';
+import { Bot, Send, X, Loader2, Trash2, MessageSquare, AlertCircle, Zap, Search, FileText, Calendar, Image as ImageIcon, ExternalLink, Copy, RefreshCw, Check, Sparkles, Quote, Brain, ChevronDown, Palette, Database, Lightbulb, Languages, Scissors, Shuffle } from 'lucide-react';
 import { toast } from 'sonner';
 import { assistantApi, agentApi, type ChatMessage, type AgentTemplateSummary } from '../lib/backend-api';
 import { useClients } from '../lib/client-context';
@@ -294,6 +294,29 @@ export default function RadixAssistant() {
               )}
             </div>
 
+            {/* Grounding strip — surfaces the context every reply is grounded in
+                (Brand Kit + Knowledge + Learnings are auto-injected by the AI
+                router). Reassures the user the assistant uses THEIR data. */}
+            <div className="px-4 py-1.5 border-b flex items-center gap-1.5 flex-wrap" style={{ borderColor: 'var(--color-border-subtle)' }}>
+              <span className="text-[9px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-fg-subtle)' }}>Grounded in</span>
+              {currentClient && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold rounded px-1.5 py-0.5"
+                  style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>
+                  {currentClient.name}
+                </span>
+              )}
+              {[
+                { icon: Palette, label: 'Brand Kit' },
+                { icon: Database, label: 'Knowledge' },
+                { icon: Lightbulb, label: 'Learnings' },
+              ].map((g) => (
+                <span key={g.label} className="inline-flex items-center gap-1 text-[10px] rounded px-1.5 py-0.5"
+                  style={{ color: 'var(--color-fg-subtle)', border: '1px solid var(--color-border-subtle)' }}>
+                  <g.icon className="w-2.5 h-2.5" /> {g.label}
+                </span>
+              ))}
+            </div>
+
             {/* Messages */}
             <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
               {messages.length === 0 && !loading && (
@@ -367,6 +390,27 @@ export default function RadixAssistant() {
                   renderAction={renderActionCard}
                 />
               ))}
+
+              {/* Suggested follow-ups — appear under the latest assistant reply
+                  (Jasper-style). Bilingual "Translate to Arabic" is first-class
+                  for Gulf agencies. Tapping sends the refinement immediately. */}
+              {!loading && messages.length > 0 && messages[messages.length - 1].role === 'assistant' && (
+                <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={motionUI}
+                  className="flex flex-wrap gap-1.5 pt-1">
+                  {[
+                    { icon: Scissors, label: 'Make it shorter', prompt: 'Make that shorter and punchier.' },
+                    { icon: Shuffle, label: '3 variations', prompt: 'Give me 3 different variations of that.' },
+                    { icon: Languages, label: 'Translate to Arabic', prompt: 'Translate that into natural Gulf Arabic.' },
+                    { icon: Palette, label: 'Apply brand voice', prompt: 'Rewrite that in our brand voice.' },
+                  ].map((s) => (
+                    <button key={s.label} type="button" onClick={() => handleSend(s.prompt)}
+                      className="inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2.5 py-1 transition-colors cursor-pointer"
+                      style={{ color: 'var(--color-fg-muted)', border: '1px solid var(--color-border)' }}>
+                      <s.icon className="w-3 h-3" style={{ color: 'var(--color-accent)' }} /> {s.label}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
 
               {loading && (
                 <div className="flex justify-start">
