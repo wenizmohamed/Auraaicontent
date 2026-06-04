@@ -265,8 +265,15 @@ function Layout({ children }: { children: React.ReactNode }) {
     theme === 'dark' ? 'Dark' :
     theme === 'light' ? 'Light' : 'Studio';
 
+  // Ambient premium backdrop — base colour + subtle radial accent/info glows for
+  // depth (Linear/Vercel-tier), theme-aware. Set on the root so the transparent
+  // main area shows it; sidebar glass layers over it.
+  const shellBg = isDark
+    ? 'radial-gradient(48rem 32rem at 10% -6%, color-mix(in srgb, var(--color-accent) 11%, transparent), transparent 58%), radial-gradient(42rem 30rem at 102% 2%, color-mix(in srgb, var(--color-info) 8%, transparent), transparent 55%), #050508'
+    : 'radial-gradient(48rem 32rem at 10% -6%, color-mix(in srgb, var(--color-accent) 9%, transparent), transparent 58%), radial-gradient(42rem 30rem at 102% 2%, color-mix(in srgb, var(--color-info) 6%, transparent), transparent 55%), #f1f5f9';
+
   return (
-    <div className={`min-h-screen flex font-sans ${isDark ? 'bg-[#050508]' : 'bg-slate-100'}`}>
+    <div className="relative min-h-screen flex font-sans" style={{ background: shellBg }}>
       {/* WCAG 2.4.1 Bypass Blocks — keyboard users skip ~35 nav controls */}
       <a href="#main" className="skip-link">Skip to main content</a>
       {/* Mobile drawer — hamburger + slide-in nav, hidden on lg+ */}
@@ -371,13 +378,15 @@ function Layout({ children }: { children: React.ReactNode }) {
                           onFocus={() => { item.prefetch?.().catch(() => {}); }}
                           className={`group flex items-center px-3 py-2 text-[13px] font-medium rounded-xl transition-all duration-200 relative cursor-pointer ${
                             isActive
-                              ? isDark
-                                ? 'text-white bg-white/[0.08] shadow-[inset_0_0_20px_rgba(245,158,11,0.05)]'
-                                : 'text-slate-900 bg-amber-50 shadow-sm'
+                              ? isDark ? 'text-white' : 'text-slate-900'
                               : isDark
                                 ? 'text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.04]'
                                 : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
                           } ${isCollapsed ? 'justify-center px-0' : ''}`}
+                          style={isActive ? {
+                            background: 'var(--color-accent-subtle)',
+                            boxShadow: '0 0 0 1px color-mix(in srgb, var(--color-accent) 28%, transparent), 0 6px 18px -6px color-mix(in srgb, var(--color-accent) 35%, transparent)',
+                          } : undefined}
                           title={isCollapsed ? item.name : undefined}
                         >
                           {isActive && (
