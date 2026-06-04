@@ -91,9 +91,9 @@ export default function Studio() {
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case 'high': return 'text-red-400 bg-red-500/10 border-red-500/20';
-      case 'medium': return 'text-amber-400 bg-amber-500/10 border-amber-500/20';
-      case 'low': return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+      case 'high': return 'text-[color:var(--color-danger)] bg-[color:var(--color-danger-subtle)] border-[color:var(--color-danger)]/20';
+      case 'medium': return 'text-[color:var(--color-accent)] bg-[color:var(--color-accent-subtle)] border-[color:var(--color-accent)]/20';
+      case 'low': return 'text-[color:var(--color-success)] bg-[color:var(--color-success-subtle)] border-[color:var(--color-success)]/20';
       default: return 'text-zinc-400 bg-zinc-500/10 border-zinc-500/20';
     }
   };
@@ -234,7 +234,7 @@ export default function Studio() {
           <h3 className="text-lg font-display font-bold text-white">Pending Approvals</h3>
           {inReviewItems.length === 0 ? (
             <div className="bg-white/5 rounded-3xl p-8 border border-white/10 text-center">
-              <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto mb-4 opacity-50" />
+              <CheckCircle2 className="w-12 h-12 text-[color:var(--color-success)] mx-auto mb-4 opacity-50" />
               <p className="text-zinc-400">All caught up! No items pending approval.</p>
             </div>
           ) : (
@@ -277,7 +277,7 @@ export default function Studio() {
                           updateItemStatus(item.id, 'needs-revision');
                           setApprovalComment('');
                         }}
-                        className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl text-sm font-medium transition-colors border border-red-500/20"
+                        className="px-4 py-2 bg-[color:var(--color-danger-subtle)] hover:bg-[color:var(--color-danger-subtle)] text-[color:var(--color-danger)] rounded-xl text-sm font-medium transition-colors border border-[color:var(--color-danger)]/20"
                       >
                         Needs Revision
                       </button>
@@ -287,7 +287,7 @@ export default function Studio() {
                           updateItemStatus(item.id, 'approved');
                           setApprovalComment('');
                         }}
-                        className="px-4 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-xl text-sm font-medium transition-colors border border-emerald-500/20"
+                        className="px-4 py-2 bg-[color:var(--color-success-subtle)] hover:bg-[color:var(--color-success-subtle)] text-[color:var(--color-success)] rounded-xl text-sm font-medium transition-colors border border-[color:var(--color-success)]/20"
                       >
                         Approve Content
                       </button>
@@ -306,7 +306,7 @@ export default function Studio() {
               {historyLog.map((log) => (
                 <div key={log.id} className="relative flex items-start gap-4">
                   <div className={`flex items-center justify-center w-10 h-10 rounded-full border-4 border-[#0a0a0a] bg-white/5 shrink-0 z-10 ${
-                    log.action === 'approved' ? 'text-emerald-400' : 'text-red-400'
+                    log.action === 'approved' ? 'text-[color:var(--color-success)]' : 'text-[color:var(--color-danger)]'
                   }`}>
                     {log.action === 'approved' ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
                   </div>
@@ -316,7 +316,7 @@ export default function Studio() {
                       <span className="text-xs text-zinc-500">{new Date(log.date).toLocaleDateString()}</span>
                     </div>
                     <p className="text-xs text-zinc-400 mb-2">
-                      <span className={log.action === 'approved' ? 'text-emerald-400' : 'text-red-400'}>
+                      <span className={log.action === 'approved' ? 'text-[color:var(--color-success)]' : 'text-[color:var(--color-danger)]'}>
                         {log.action === 'approved' ? 'Approved' : 'Rejected'}
                       </span> by {log.author}
                     </p>
@@ -388,7 +388,7 @@ export default function Studio() {
             className="bg-white/5 rounded-2xl p-6 border border-white/10 relative overflow-hidden group"
           >
             <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-white/5 to-transparent rounded-bl-full -z-10 opacity-50 group-hover:opacity-100 transition-opacity" />
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center mb-4">
+            <div className="w-10 h-10 rounded-xl bg-[color:var(--color-info-subtle)] text-[color:var(--color-info)] flex items-center justify-center mb-4">
               <LayoutDashboard className="w-5 h-5" />
             </div>
             <p className="text-sm text-zinc-400 font-medium mb-1">Total Pipeline Items</p>
@@ -402,7 +402,7 @@ export default function Studio() {
             className="bg-white/5 rounded-2xl p-6 border border-white/10 relative overflow-hidden group"
           >
             <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-white/5 to-transparent rounded-bl-full -z-10 opacity-50 group-hover:opacity-100 transition-opacity" />
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center mb-4">
+            <div className="w-10 h-10 rounded-xl bg-[color:var(--color-success-subtle)] text-[color:var(--color-success)] flex items-center justify-center mb-4">
               <CheckCircle2 className="w-5 h-5" />
             </div>
             <p className="text-sm text-zinc-400 font-medium mb-1">Approval Rate</p>
@@ -416,7 +416,7 @@ export default function Studio() {
             className="bg-white/5 rounded-2xl p-6 border border-white/10 relative overflow-hidden group"
           >
             <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-white/5 to-transparent rounded-bl-full -z-10 opacity-50 group-hover:opacity-100 transition-opacity" />
-            <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center mb-4">
+            <div className="w-10 h-10 rounded-xl bg-[color:var(--color-accent-subtle)] text-[color:var(--color-accent)] flex items-center justify-center mb-4">
               <Clock className="w-5 h-5" />
             </div>
             <p className="text-sm text-zinc-400 font-medium mb-1">In Review</p>
@@ -517,7 +517,10 @@ export default function Studio() {
             <LayoutDashboard className="h-8 w-8" />
           </div>
           <div>
-            <h1 className="text-3xl font-extrabold text-white tracking-tight mb-2">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] mb-1" style={{ color: 'var(--color-fg-subtle)' }}>
+              Make · Studio
+            </p>
+            <h1 className="font-display text-3xl sm:text-4xl font-bold text-white tracking-tight mb-2">
               Content Studio
             </h1>
             <p className="text-slate-300 text-lg">

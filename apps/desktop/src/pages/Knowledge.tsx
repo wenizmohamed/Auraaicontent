@@ -162,8 +162,9 @@ export default function Knowledge() {
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-2xl font-black text-white tracking-tight flex items-center gap-3">
-            <Database className="w-6 h-6 text-amber-400" />
+          <p className="text-[11px] uppercase tracking-[0.14em] font-semibold" style={{ color: 'var(--color-fg-subtle)' }}>Knowledge</p>
+          <h1 className="font-display text-2xl font-black text-white tracking-tight flex items-center gap-3">
+            <Database className="w-6 h-6" style={{ color: 'var(--color-accent)' }} />
             Knowledge Base
             <span className="text-sm font-medium text-zinc-500">· {currentClient?.name || 'client'}</span>
           </h1>
@@ -187,7 +188,8 @@ export default function Knowledge() {
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
-            className="flex items-center gap-2 bg-amber-500 text-black px-4 py-2 rounded-xl text-sm font-bold hover:bg-amber-400 disabled:opacity-50 transition-colors cursor-pointer"
+            className="flex items-center gap-2 text-black px-4 py-2 rounded-xl text-sm font-bold disabled:opacity-50 transition-colors cursor-pointer"
+            style={{ background: 'var(--color-accent)' }}
           >
             {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
             {uploading ? 'Uploading…' : 'Upload File'}
@@ -275,9 +277,10 @@ export default function Knowledge() {
                 animate={{ opacity: 1, y: 0 }}
                 className={`relative rounded-2xl border p-4 group transition-colors ${
                   ms.isSelected(item.id)
-                    ? 'bg-amber-500/[0.06] border-amber-500/40'
+                    ? ''
                     : 'bg-white/[0.03] border-white/[0.06] hover:border-white/[0.12]'
                 }`}
+                style={ms.isSelected(item.id) ? { background: 'var(--color-accent-subtle)', borderColor: 'var(--color-accent)' } : undefined}
               >
                 {/* Multi-select checkbox — visible on hover or when any row is selected */}
                 <button
@@ -302,7 +305,7 @@ export default function Knowledge() {
                     </div>
                   </div>
                   {item.metadata?.embedded ? (
-                    <span title="Embedded" className="shrink-0 flex items-center gap-1 text-[9px] uppercase tracking-wider text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded px-1.5 py-0.5">
+                    <span title="Embedded" className="shrink-0 flex items-center gap-1 text-[9px] uppercase tracking-wider rounded px-1.5 py-0.5" style={{ color: 'var(--color-success)', background: 'var(--color-success-subtle)', border: '1px solid var(--color-success)' }}>
                       <CheckCircle2 className="w-2.5 h-2.5" /> embedded
                     </span>
                   ) : (
@@ -332,10 +335,13 @@ export default function Knowledge() {
                     aria-pressed={isArmed}
                     aria-label={isArmed ? `Confirm: click again within 6s to delete ${item.title}` : `Delete ${item.title}`}
                     className={`flex items-center justify-center gap-1 text-xs font-semibold px-2 py-1.5 rounded-lg cursor-pointer border transition-colors ${
-                      isArmed
-                        ? 'bg-red-500/30 border-red-500/50 text-red-200 animate-pulse'
-                        : 'bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20'
+                      isArmed ? 'animate-pulse' : ''
                     }`}
+                    style={
+                      isArmed
+                        ? { background: 'var(--color-danger)', borderColor: 'var(--color-danger-strong)', color: 'var(--color-fg-on-accent)' }
+                        : { background: 'var(--color-danger-subtle)', borderColor: 'var(--color-danger)', color: 'var(--color-danger)' }
+                    }
                   >
                     {isArmed ? <X className="w-3 h-3" /> : <Trash2 className="w-3 h-3" />}
                     {isArmed ? 'Confirm' : ''}

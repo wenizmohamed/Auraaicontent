@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, Search as SearchIcon, ExternalLink, Sparkles, AlertCircle, FileSearch, Telescope, TrendingUp, Globe2 } from 'lucide-react';
 import { researchApi } from '../lib/backend-api';
+import { Skeleton, SkeletonText, SkeletonAnnouncer } from '../components/ui/Skeleton';
 
 interface Source {
   title: string;
@@ -99,7 +100,7 @@ export default function Research() {
             onChange={e => setQuery(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleResearch()}
             placeholder="e.g. UAE remittance market trends 2026"
-            className="w-full mt-2 bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-zinc-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/60"
+            className="w-full mt-2 bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-zinc-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]/60"
           />
           {/* Suggestion chips — visible only when input is empty, no loading, no results */}
           {!query.trim() && !loading && !summary && (
@@ -129,7 +130,7 @@ export default function Research() {
               onClick={() => setDepth('quick')}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
                 depth === 'quick'
-                  ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                  ? 'bg-[color:var(--color-accent-subtle)] text-[color:var(--color-accent)] border-[color:var(--color-accent)]/30'
                   : 'bg-white/[0.03] text-zinc-500 border-white/[0.06]'
               }`}
             >Quick</button>
@@ -137,7 +138,7 @@ export default function Research() {
               onClick={() => setDepth('deep')}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
                 depth === 'deep'
-                  ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                  ? 'bg-[color:var(--color-accent-subtle)] text-[color:var(--color-accent)] border-[color:var(--color-accent)]/30'
                   : 'bg-white/[0.03] text-zinc-500 border-white/[0.06]'
               }`}
             >Deep</button>
@@ -156,19 +157,56 @@ export default function Research() {
       <AnimatePresence>
         {error && (
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-            className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 flex items-start gap-3">
-            <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-            <p className="text-sm text-red-400">{error}</p>
+            className="rounded-xl px-4 py-3 flex items-start gap-3 bg-[color:var(--color-danger-subtle)] border border-[color:var(--color-danger)]/20">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-[color:var(--color-danger)]" />
+            <p className="text-sm text-[color:var(--color-danger)]">{error}</p>
           </motion.div>
         )}
       </AnimatePresence>
 
+      {/* Loading skeleton — mirrors the Summary / Key Points / Sources result layout */}
+      {loading && !summary && keyPoints.length === 0 && sources.length === 0 && (
+        <div className="space-y-5">
+          <SkeletonAnnouncer label="Researching — building summary, key points and sources…" />
+          {/* Summary card */}
+          <div className="bg-[#0c0c0c] border border-white/[0.06] rounded-2xl p-5 shadow-sm">
+            <Skeleton width="30%" height={10} radius="sm" />
+            <div className="mt-3">
+              <SkeletonText lines={3} lineHeight={12} />
+            </div>
+          </div>
+          {/* Key Points card */}
+          <div className="bg-[#0c0c0c] border border-white/[0.06] rounded-2xl p-5 shadow-sm">
+            <Skeleton width="24%" height={10} radius="sm" />
+            <div className="mt-3 space-y-2.5">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} width={`${85 - i * 8}%`} height={12} radius="sm" delay={i * 60} />
+              ))}
+            </div>
+          </div>
+          {/* Sources card */}
+          <div className="bg-[#0c0c0c] border border-white/[0.06] rounded-2xl p-5 shadow-sm">
+            <Skeleton width="20%" height={10} radius="sm" />
+            <div className="mt-3 space-y-2">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="rounded-xl bg-white/[0.02] border border-white/[0.05] px-4 py-3">
+                  <Skeleton width="55%" height={13} radius="sm" delay={i * 70} />
+                  <div className="mt-2">
+                    <Skeleton width="80%" height={10} radius="sm" delay={i * 70 + 40} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {(summary || keyPoints.length > 0 || sources.length > 0) && (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
           {summary && (
-            <div className="bg-[#0c0c0c] border border-white/[0.06] rounded-2xl p-5">
+            <div className="bg-[#0c0c0c] border border-white/[0.06] rounded-2xl p-5 shadow-sm">
               <div className="flex items-center gap-2 mb-2">
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <Sparkles className="w-3.5 h-3.5 text-[color:var(--color-accent)]" />
                 <h3 className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Summary</h3>
                 {provider && <span className="ml-auto text-[10px] text-zinc-700">via {provider}</span>}
               </div>
@@ -177,12 +215,12 @@ export default function Research() {
           )}
 
           {keyPoints.length > 0 && (
-            <div className="bg-[#0c0c0c] border border-white/[0.06] rounded-2xl p-5">
+            <div className="bg-[#0c0c0c] border border-white/[0.06] rounded-2xl p-5 shadow-sm">
               <h3 className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold mb-3">Key Points</h3>
               <ul className="space-y-2">
                 {keyPoints.map((kp, i) => (
                   <li key={i} className="flex gap-2 text-sm text-zinc-300">
-                    <span className="text-amber-400 shrink-0">•</span>
+                    <span className="text-[color:var(--color-accent)] shrink-0">•</span>
                     <span>{kp}</span>
                   </li>
                 ))}
@@ -191,7 +229,7 @@ export default function Research() {
           )}
 
           {sources.length > 0 && (
-            <div className="bg-[#0c0c0c] border border-white/[0.06] rounded-2xl p-5">
+            <div className="bg-[#0c0c0c] border border-white/[0.06] rounded-2xl p-5 shadow-sm">
               <h3 className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold mb-3">Sources</h3>
               <div className="space-y-2">
                 {sources.map((src, i) => (
@@ -200,13 +238,13 @@ export default function Research() {
                     href={src.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block rounded-xl bg-white/[0.02] border border-white/[0.05] px-4 py-3 hover:border-amber-500/30 hover:bg-white/[0.04] transition-all"
+                    className="block rounded-xl bg-white/[0.02] border border-white/[0.05] px-4 py-3 hover:border-[color:var(--color-accent)]/30 hover:bg-white/[0.04] transition-all"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-white truncate">{src.title}</p>
                         {src.snippet && <p className="text-[11px] text-zinc-500 mt-1 line-clamp-2">{src.snippet}</p>}
-                        <p className="text-[10px] text-amber-400/70 mt-1 truncate">{src.url}</p>
+                        <p className="text-[10px] text-[color:var(--color-accent)]/70 mt-1 truncate">{src.url}</p>
                       </div>
                       <ExternalLink className="w-4 h-4 text-zinc-600 shrink-0 mt-0.5" />
                     </div>

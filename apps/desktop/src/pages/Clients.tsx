@@ -130,7 +130,8 @@ export default function Clients() {
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-black text-white tracking-tight">{t('page.clients.title')}</h1>
+            <p className="text-[11px] uppercase tracking-[0.14em] font-semibold" style={{ color: 'var(--color-fg-subtle)' }}>All Clients</p>
+            <h1 className="font-display text-3xl font-black text-white tracking-tight">{t('page.clients.title')}</h1>
             <p className="text-sm text-zinc-500 mt-1">
               {clients.length} client{clients.length !== 1 ? 's' : ''} {serverOnline ? '(synced with server)' : '(local mode)'}
             </p>
@@ -181,7 +182,7 @@ export default function Clients() {
       </AnimatePresence>
 
       {authError && (
-        <div className="rounded-2xl bg-red-500/10 border border-red-500/20 p-4 text-sm text-red-400">
+        <div className="rounded-2xl p-4 text-sm" style={{ background: 'var(--color-danger-subtle)', border: '1px solid var(--color-danger)', color: 'var(--color-danger)' }}>
           {authError}
         </div>
       )}
@@ -195,7 +196,7 @@ export default function Clients() {
         </div>
       ) : !authenticated ? (
         <div className="rounded-2xl bg-[#0c0c0c] border border-white/[0.06] py-16 text-center">
-          <Building2 className="w-10 h-10 text-red-800 mx-auto mb-3" />
+          <Building2 className="w-10 h-10 mx-auto mb-3" style={{ color: 'var(--color-danger)' }} />
           <p className="text-zinc-400">{t('page.clients.auth_failed')}</p>
           <p className="text-zinc-600 text-sm mt-1">Start the server: npm run dev:server</p>
         </div>
@@ -233,8 +234,8 @@ export default function Clients() {
                   <p className="text-[11px] text-zinc-600">{client.industry || 'No industry'} {client.website ? `· ${client.website}` : ''}</p>
                 </div>
                 {selectedClientId === client.id && (
-                  <div className="shrink-0 w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  <div className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center" style={{ background: 'var(--color-success-subtle)' }}>
+                    <Check className="w-3.5 h-3.5" style={{ color: 'var(--color-success)' }} />
                   </div>
                 )}
               </button>
@@ -249,7 +250,8 @@ export default function Clients() {
                 onClick={(e) => handleDelete(e, client.id, client.name)}
                 disabled={deletingId === client.id}
                 title="Delete client"
-                className="shrink-0 p-2 rounded-xl border border-red-500/20 bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:border-red-500/30 transition-all disabled:opacity-50 cursor-pointer"
+                className="shrink-0 p-2 rounded-xl border transition-all disabled:opacity-50 cursor-pointer"
+                style={{ borderColor: 'var(--color-danger)', background: 'var(--color-danger-subtle)', color: 'var(--color-danger)' }}
               >
                 {deletingId === client.id
                   ? <Loader2 className="w-4 h-4 animate-spin" />

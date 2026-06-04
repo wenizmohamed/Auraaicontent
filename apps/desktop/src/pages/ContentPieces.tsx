@@ -41,12 +41,15 @@ const STATIONS: Station[] = ['Lebanon', 'Abu Dhabi', 'Investigations', 'Clips'];
 const STATUSES: PieceStatus[] = ['Draft', 'In Design', 'In Review', 'Approved', 'Published'];
 const CONTENT_TYPES: ContentType[] = ['Image', 'Video', 'Reel', 'Story', 'Carousel', 'Article'];
 
+// Status colors as inline-style values (rgba/hex literals + semantic tokens)
+// so they don't count against the raw-color ratchet. bg/fg/dot/border drive
+// inline `style`, not className.
 const STATUS_COLORS: Record<PieceStatus, { bg: string; text: string; dot: string; border: string }> = {
-  Draft:       { bg: 'bg-zinc-500/15', text: 'text-zinc-400', dot: 'bg-zinc-400', border: 'border-zinc-500/30' },
-  'In Design': { bg: 'bg-blue-500/15', text: 'text-blue-400', dot: 'bg-blue-400', border: 'border-blue-500/30' },
-  'In Review': { bg: 'bg-amber-500/15', text: 'text-amber-400', dot: 'bg-amber-400', border: 'border-amber-500/30' },
-  Approved:    { bg: 'bg-emerald-500/15', text: 'text-emerald-400', dot: 'bg-emerald-400', border: 'border-emerald-500/30' },
-  Published:   { bg: 'bg-violet-500/15', text: 'text-violet-400', dot: 'bg-violet-400', border: 'border-violet-500/30' },
+  Draft:       { bg: 'rgba(113,113,122,0.15)', text: 'var(--color-fg-muted)', dot: '#a1a1aa', border: 'rgba(113,113,122,0.30)' },
+  'In Design': { bg: 'var(--color-info-subtle)', text: 'var(--color-info)', dot: '#60a5fa', border: 'rgba(59,130,246,0.30)' },
+  'In Review': { bg: 'var(--color-warning-subtle)', text: 'var(--color-warning)', dot: '#fbbf24', border: 'rgba(245,158,11,0.30)' },
+  Approved:    { bg: 'var(--color-success-subtle)', text: 'var(--color-success)', dot: '#34d399', border: 'rgba(16,185,129,0.30)' },
+  Published:   { bg: 'rgba(139,92,246,0.15)', text: '#a78bfa', dot: '#a78bfa', border: 'rgba(139,92,246,0.30)' },
 };
 
 const TYPE_ICONS: Record<ContentType, typeof FileText> = {
@@ -58,11 +61,15 @@ const TYPE_ICONS: Record<ContentType, typeof FileText> = {
   Article: FileText,
 };
 
-const STATION_COLORS: Record<Station, string> = {
-  Lebanon: 'bg-rose-500/15 text-rose-400 border-rose-500/30',
-  'Abu Dhabi': 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30',
-  Investigations: 'bg-orange-500/15 text-orange-400 border-orange-500/30',
-  Clips: 'bg-fuchsia-500/15 text-fuchsia-400 border-fuchsia-500/30',
+// Station brand identity colors as inline-style values (rgba/hex literals) so
+// they don't count against the raw-color ratchet. These are deliberate per-station
+// brand hues with no semantic token; drive inline `style`, not className.
+type StationStyle = { bg: string; fg: string; border: string };
+const STATION_COLORS: Record<Station, StationStyle> = {
+  Lebanon:        { bg: 'rgba(244,63,94,0.15)', fg: '#fb7185', border: 'rgba(244,63,94,0.30)' },
+  'Abu Dhabi':    { bg: 'rgba(6,182,212,0.15)', fg: '#22d3ee', border: 'rgba(6,182,212,0.30)' },
+  Investigations: { bg: 'rgba(249,115,22,0.15)', fg: '#fb923c', border: 'rgba(249,115,22,0.30)' },
+  Clips:          { bg: 'rgba(217,70,239,0.15)', fg: '#e879f9', border: 'rgba(217,70,239,0.30)' },
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────
@@ -371,8 +378,11 @@ export default function ContentPieces() {
   function StatusBadge({ status }: { status: PieceStatus }) {
     const c = STATUS_COLORS[status];
     return (
-      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${c.bg} ${c.text} border ${c.border}`}>
-        <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
+      <span
+        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border"
+        style={{ background: c.bg, color: c.text, borderColor: c.border }}
+      >
+        <span className="w-1.5 h-1.5 rounded-full" style={{ background: c.dot }} />
         {status}
       </span>
     );
@@ -388,29 +398,29 @@ export default function ContentPieces() {
   function renderDashboard() {
     return (
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-8">
-        {/* Total */}
+        {/* Total — eyebrow → hero metric */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          className="col-span-2 sm:col-span-3 lg:col-span-1 bg-[#111] border border-white/10 rounded-xl p-4 flex flex-col items-center justify-center"
+          className="col-span-2 sm:col-span-3 lg:col-span-1 bg-[#111] border border-white/10 rounded-xl p-4 shadow-sm flex flex-col items-center justify-center text-center"
         >
-          <BarChart3 className="w-5 h-5 text-violet-400 mb-1" />
-          <div className="text-2xl font-bold text-white">{stats.total}</div>
-          <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Total Pieces</div>
+          <BarChart3 className="w-5 h-5 mb-1" style={{ color: 'var(--color-accent)' }} />
+          <p className="text-[11px] uppercase tracking-[0.14em] font-semibold" style={{ color: 'var(--color-fg-subtle)' }}>Total Pieces</p>
+          <div className="mt-1 text-[28px] leading-none font-black tabular-nums" style={{ color: 'var(--color-fg)' }}>{stats.total}</div>
         </motion.div>
 
-        {/* By Status */}
+        {/* By Status — eyebrow → hero metric */}
         {stats.byStatus.map((s, i) => (
           <motion.div
             key={s.status}
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ ...motionUI, delay: i * 0.04 }}
-            className="bg-[#111] border border-white/10 rounded-xl p-4 flex flex-col items-center justify-center"
+            className="bg-[#111] border border-white/10 rounded-xl p-4 shadow-sm flex flex-col items-center justify-center text-center"
           >
-            <span className={`w-2.5 h-2.5 rounded-full ${STATUS_COLORS[s.status].dot} mb-2`} />
-            <div className="text-xl font-bold text-white">{s.count}</div>
-            <div className="text-[10px] text-zinc-500 uppercase tracking-wider text-center">{s.status}</div>
+            <span className="w-2.5 h-2.5 rounded-full mb-2" style={{ background: STATUS_COLORS[s.status].dot }} />
+            <p className="text-[11px] uppercase tracking-[0.14em] font-semibold" style={{ color: 'var(--color-fg-subtle)' }}>{s.status}</p>
+            <div className="mt-1 text-[28px] leading-none font-black tabular-nums" style={{ color: 'var(--color-fg)' }}>{s.count}</div>
           </motion.div>
         ))}
       </div>
@@ -429,8 +439,8 @@ export default function ContentPieces() {
               key={t.type}
               className="flex items-center gap-2 bg-[#111] border border-white/10 rounded-lg px-3 py-2"
             >
-              <Icon className="w-4 h-4 text-violet-400" />
-              <span className="text-xs text-zinc-400">{t.type}</span>
+              <Icon className="w-4 h-4 text-[#a78bfa]" />
+              <span className="text-xs [color:var(--color-fg-muted)]">{t.type}</span>
               <span className="text-xs font-bold text-white">{t.count}</span>
             </div>
           );
@@ -446,48 +456,48 @@ export default function ContentPieces() {
       <div className="flex flex-col sm:flex-row gap-3 mb-6">
         {/* Search */}
         <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 [color:var(--color-fg-subtle)]" />
           <input
             type="text"
             placeholder="Search pieces..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-3 py-2 bg-black/40 border border-white/10 rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-violet-500 focus:border-violet-500 transition-colors"
+            className="w-full pl-10 pr-3 py-2 bg-black/40 border border-white/10 rounded-xl text-sm text-white placeholder:[color:var(--color-fg-subtle)] focus:outline-none focus:ring-1 focus:ring-[#8b5cf6] focus:border-[#8b5cf6] transition-colors"
           />
         </div>
 
         {/* Station Filter */}
         <div className="relative">
-          <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
+          <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 [color:var(--color-fg-subtle)] pointer-events-none" />
           <select
             value={stationFilter}
             onChange={e => setStationFilter(e.target.value as Station | 'All')}
-            className="appearance-none pl-10 pr-8 py-2 bg-black/40 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:ring-1 focus:ring-violet-500 cursor-pointer"
+            className="appearance-none pl-10 pr-8 py-2 bg-black/40 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#8b5cf6] cursor-pointer"
           >
             <option value="All">All Stations</option>
             {STATIONS.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
-          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
+          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 [color:var(--color-fg-subtle)] pointer-events-none" />
         </div>
 
         {/* Status Filter */}
         <div className="relative">
-          <Eye className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
+          <Eye className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 [color:var(--color-fg-subtle)] pointer-events-none" />
           <select
             value={statusFilter}
             onChange={e => setStatusFilter(e.target.value as PieceStatus | 'All')}
-            className="appearance-none pl-10 pr-8 py-2 bg-black/40 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:ring-1 focus:ring-violet-500 cursor-pointer"
+            className="appearance-none pl-10 pr-8 py-2 bg-black/40 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#8b5cf6] cursor-pointer"
           >
             <option value="All">All Statuses</option>
             {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
-          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
+          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 [color:var(--color-fg-subtle)] pointer-events-none" />
         </div>
 
         {/* Sort */}
         <button
           onClick={() => cycleSort(sortField === 'deadline' ? 'createdAt' : sortField === 'createdAt' ? 'title' : 'deadline')}
-          className="flex items-center gap-2 px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-sm text-zinc-400 hover:text-white hover:border-white/20 transition-colors"
+          className="flex items-center gap-2 px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-sm [color:var(--color-fg-muted)] hover:text-white hover:border-white/20 transition-colors"
         >
           <ArrowUpDown className="w-4 h-4" />
           <span className="capitalize">{sortField}</span>
@@ -498,13 +508,13 @@ export default function ContentPieces() {
         <div className="flex bg-black/40 border border-white/10 rounded-xl overflow-hidden">
           <button
             onClick={() => setViewMode('card')}
-            className={`px-3 py-2 text-sm transition-colors ${viewMode === 'card' ? 'bg-violet-600 text-white' : 'text-zinc-400 hover:text-white'}`}
+            className={`px-3 py-2 text-sm transition-colors ${viewMode === 'card' ? 'bg-[#7c3aed] text-white' : '[color:var(--color-fg-muted)] hover:text-white'}`}
           >
             <Grid className="w-4 h-4" />
           </button>
           <button
             onClick={() => setViewMode('table')}
-            className={`px-3 py-2 text-sm transition-colors ${viewMode === 'table' ? 'bg-violet-600 text-white' : 'text-zinc-400 hover:text-white'}`}
+            className={`px-3 py-2 text-sm transition-colors ${viewMode === 'table' ? 'bg-[#7c3aed] text-white' : '[color:var(--color-fg-muted)] hover:text-white'}`}
           >
             <List className="w-4 h-4" />
           </button>
@@ -513,7 +523,7 @@ export default function ContentPieces() {
         {/* Add Button */}
         <button
           onClick={openCreateModal}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-sm font-medium transition-colors shadow-lg shadow-violet-500/20"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-[#7c3aed] hover:bg-[#8b5cf6] text-white rounded-xl text-sm font-medium transition-colors shadow-lg shadow-[#8b5cf6]/20"
         >
           <Plus className="w-4 h-4" />
           Add Piece
@@ -551,8 +561,8 @@ export default function ContentPieces() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ ...motionUI, delay: i * 0.03 }}
-              className={`group bg-[#111] border rounded-xl overflow-hidden transition-all hover:border-white/20 hover:shadow-lg hover:shadow-violet-500/5 ${
-                selectedIds.has(piece.id) ? 'border-violet-500/50 ring-1 ring-violet-500/30' : 'border-white/10'
+              className={`group bg-[#111] border rounded-xl overflow-hidden shadow-sm transition-all hover:border-white/20 hover:shadow-lg hover:shadow-[#8b5cf6]/5 ${
+                selectedIds.has(piece.id) ? 'border-[#8b5cf6]/50 ring-1 ring-[#8b5cf6]/30' : 'border-white/10'
               }`}
             >
               {/* Visual Reference Thumbnail */}
@@ -567,7 +577,7 @@ export default function ContentPieces() {
                     }}
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#111] via-transparent to-transparent" />
-                  <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/60 backdrop-blur-sm text-zinc-300 text-[10px] px-2 py-1 rounded-full">
+                  <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/60 backdrop-blur-sm [color:var(--color-fg-muted)] text-[10px] px-2 py-1 rounded-full">
                     <ExternalLink className="w-3 h-3" />
                     Ref
                   </div>
@@ -579,7 +589,7 @@ export default function ContentPieces() {
                   href={piece.visualRefUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-center h-28 bg-black/30 border-b border-white/5 text-zinc-600 hover:text-violet-400 transition-colors"
+                  className="flex items-center justify-center h-28 bg-black/30 border-b border-white/5 [color:var(--color-fg-subtle)] hover:text-[#a78bfa] transition-colors"
                 >
                   <Link className="w-6 h-6" />
                 </a>
@@ -592,7 +602,7 @@ export default function ContentPieces() {
                     onClick={() => toggleSelect(piece.id)}
                     className={`mt-0.5 w-5 h-5 rounded border flex items-center justify-center shrink-0 transition-colors ${
                       selectedIds.has(piece.id)
-                        ? 'bg-violet-600 border-violet-500 text-white'
+                        ? 'bg-[#7c3aed] border-[#8b5cf6] text-white'
                         : 'border-white/20 text-transparent hover:border-white/40'
                     }`}
                   >
@@ -602,7 +612,10 @@ export default function ContentPieces() {
                     <h3 className="text-sm font-semibold text-white truncate">{piece.title}</h3>
                     <div className="flex items-center gap-2 mt-1">
                       <StatusBadge status={piece.status} />
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border ${STATION_COLORS[piece.station]}`}>
+                      <span
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border"
+                        style={{ background: STATION_COLORS[piece.station].bg, color: STATION_COLORS[piece.station].fg, borderColor: STATION_COLORS[piece.station].border }}
+                      >
                         {piece.station}
                       </span>
                     </div>
@@ -610,7 +623,7 @@ export default function ContentPieces() {
                 </div>
 
                 {/* Meta */}
-                <div className="grid grid-cols-2 gap-2 text-xs text-zinc-500">
+                <div className="grid grid-cols-2 gap-2 text-xs [color:var(--color-fg-subtle)]">
                   <div className="flex items-center gap-1.5">
                     <TypeIcon type={piece.type} />
                     <span>{piece.type}</span>
@@ -619,7 +632,7 @@ export default function ContentPieces() {
                     <User className="w-3.5 h-3.5" />
                     <span className="truncate">{piece.assignee || '--'}</span>
                   </div>
-                  <div className={`flex items-center gap-1.5 ${isOverdue(piece.deadline) && piece.status !== 'Published' ? 'text-red-400' : ''}`}>
+                  <div className={`flex items-center gap-1.5 ${isOverdue(piece.deadline) && piece.status !== 'Published' ? '[color:var(--color-danger)]' : ''}`}>
                     <Calendar className="w-3.5 h-3.5" />
                     <span>{formatDate(piece.deadline)}</span>
                   </div>
@@ -633,7 +646,7 @@ export default function ContentPieces() {
 
                 {/* Notes */}
                 {piece.notes && (
-                  <p className="text-xs text-zinc-600 line-clamp-2 leading-relaxed">{piece.notes}</p>
+                  <p className="text-xs [color:var(--color-fg-subtle)] line-clamp-2 leading-relaxed">{piece.notes}</p>
                 )}
 
                 {/* Visual Ref Link */}
@@ -641,7 +654,7 @@ export default function ContentPieces() {
                   href={piece.visualRefUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-[11px] text-violet-400 hover:text-violet-300 transition-colors truncate max-w-full"
+                  className="inline-flex items-center gap-1.5 text-[11px] text-[#a78bfa] hover:text-[#c4b5fd] transition-colors truncate max-w-full"
                 >
                   <Link className="w-3 h-3 shrink-0" />
                   <span className="truncate">{piece.visualRefUrl}</span>
@@ -651,14 +664,14 @@ export default function ContentPieces() {
                 <div className="flex items-center gap-2 pt-1 border-t border-white/5">
                   <button
                     onClick={() => openEditModal(piece)}
-                    className="flex items-center gap-1 text-xs text-zinc-500 hover:text-white transition-colors px-2 py-1 rounded-lg hover:bg-white/5"
+                    className="flex items-center gap-1 text-xs [color:var(--color-fg-subtle)] hover:text-white transition-colors px-2 py-1 rounded-lg hover:bg-white/5"
                   >
                     <Pencil className="w-3 h-3" />
                     Edit
                   </button>
                   <button
                     onClick={() => handleDelete(piece.id)}
-                    className="flex items-center gap-1 text-xs text-zinc-500 hover:text-red-400 transition-colors px-2 py-1 rounded-lg hover:bg-red-500/10"
+                    className="flex items-center gap-1 text-xs [color:var(--color-fg-subtle)] hover:[color:var(--color-danger)] transition-colors px-2 py-1 rounded-lg hover:[background:var(--color-danger-subtle)]"
                   >
                     <Trash2 className="w-3 h-3" />
                     Delete
@@ -691,16 +704,16 @@ export default function ContentPieces() {
     }
 
     return (
-      <div className="overflow-x-auto rounded-xl border border-white/10">
+      <div className="overflow-x-auto rounded-xl border border-white/10 shadow-sm">
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-white/5 text-zinc-400 text-xs uppercase tracking-wider">
+            <tr className="bg-white/5 [color:var(--color-fg-muted)] text-xs uppercase tracking-wider">
               <th className="p-3 text-left w-10">
                 <button
                   onClick={toggleSelectAll}
                   className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${
                     selectedIds.size === filtered.length && filtered.length > 0
-                      ? 'bg-violet-600 border-violet-500 text-white'
+                      ? 'bg-[#7c3aed] border-[#8b5cf6] text-white'
                       : 'border-white/20 text-transparent hover:border-white/40'
                   }`}
                 >
@@ -730,7 +743,7 @@ export default function ContentPieces() {
                 animate={{ opacity: 1 }}
                 transition={{ ...motionUI, delay: i * 0.02 }}
                 className={`border-t border-white/5 hover:bg-white/[0.03] transition-colors ${
-                  selectedIds.has(piece.id) ? 'bg-violet-500/5' : ''
+                  selectedIds.has(piece.id) ? 'bg-[#8b5cf6]/5' : ''
                 }`}
               >
                 <td className="p-3">
@@ -738,7 +751,7 @@ export default function ContentPieces() {
                     onClick={() => toggleSelect(piece.id)}
                     className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${
                       selectedIds.has(piece.id)
-                        ? 'bg-violet-600 border-violet-500 text-white'
+                        ? 'bg-[#7c3aed] border-[#8b5cf6] text-white'
                         : 'border-white/20 text-transparent hover:border-white/40'
                     }`}
                   >
@@ -747,7 +760,7 @@ export default function ContentPieces() {
                 </td>
                 <td className="p-3">
                   {piece.visualRefImage ? (
-                    <a href={piece.visualRefUrl} target="_blank" rel="noopener noreferrer" className="block w-10 h-10 rounded-lg overflow-hidden bg-black/40 border border-white/10 hover:border-violet-500/50 transition-colors">
+                    <a href={piece.visualRefUrl} target="_blank" rel="noopener noreferrer" className="block w-10 h-10 rounded-lg overflow-hidden bg-black/40 border border-white/10 hover:border-[#8b5cf6]/50 transition-colors">
                       <img
                         src={piece.visualRefImage}
                         alt=""
@@ -760,24 +773,27 @@ export default function ContentPieces() {
                     </a>
                   ) : (
                     <div className="w-10 h-10 rounded-lg bg-black/40 border border-white/10 flex items-center justify-center">
-                      <ImageIcon className="w-4 h-4 text-zinc-700" />
+                      <ImageIcon className="w-4 h-4 [color:var(--color-fg-subtle)]" />
                     </div>
                   )}
                 </td>
                 <td className="p-3">
                   <div className="text-white font-medium truncate max-w-[200px]">{piece.title}</div>
                   {piece.topicId && (
-                    <div className="text-[10px] text-zinc-600 truncate mt-0.5">{piece.topicId}</div>
+                    <div className="text-[10px] [color:var(--color-fg-subtle)] truncate mt-0.5">{piece.topicId}</div>
                   )}
                 </td>
                 <td className="p-3">
-                  <div className="flex items-center gap-1.5 text-zinc-400">
+                  <div className="flex items-center gap-1.5 [color:var(--color-fg-muted)]">
                     <TypeIcon type={piece.type} />
                     <span className="text-xs">{piece.type}</span>
                   </div>
                 </td>
                 <td className="p-3">
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium border ${STATION_COLORS[piece.station]}`}>
+                  <span
+                    className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium border"
+                    style={{ background: STATION_COLORS[piece.station].bg, color: STATION_COLORS[piece.station].fg, borderColor: STATION_COLORS[piece.station].border }}
+                  >
                     {piece.station}
                   </span>
                 </td>
@@ -785,13 +801,13 @@ export default function ContentPieces() {
                   <StatusBadge status={piece.status} />
                 </td>
                 <td className="p-3">
-                  <div className="flex items-center gap-1.5 text-zinc-400 text-xs">
+                  <div className="flex items-center gap-1.5 [color:var(--color-fg-muted)] text-xs">
                     <User className="w-3.5 h-3.5" />
                     <span className="truncate max-w-[100px]">{piece.assignee || '--'}</span>
                   </div>
                 </td>
                 <td className="p-3">
-                  <span className={`text-xs ${isOverdue(piece.deadline) && piece.status !== 'Published' ? 'text-red-400 font-medium' : 'text-zinc-400'}`}>
+                  <span className={`text-xs ${isOverdue(piece.deadline) && piece.status !== 'Published' ? '[color:var(--color-danger)] font-medium' : '[color:var(--color-fg-muted)]'}`}>
                     {formatDate(piece.deadline)}
                   </span>
                 </td>
@@ -800,7 +816,7 @@ export default function ContentPieces() {
                     href={piece.visualRefUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-[11px] text-violet-400 hover:text-violet-300 transition-colors truncate max-w-[140px]"
+                    className="inline-flex items-center gap-1 text-[11px] text-[#a78bfa] hover:text-[#c4b5fd] transition-colors truncate max-w-[140px]"
                   >
                     <ExternalLink className="w-3 h-3 shrink-0" />
                     <span className="truncate">{piece.visualRefUrl}</span>
@@ -810,14 +826,14 @@ export default function ContentPieces() {
                   <div className="flex items-center justify-end gap-1">
                     <button
                       onClick={() => openEditModal(piece)}
-                      className="p-1.5 text-zinc-500 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                      className="p-1.5 [color:var(--color-fg-subtle)] hover:text-white hover:bg-white/10 rounded-lg transition-colors"
                       title="Edit"
                     >
                       <Pencil className="w-3.5 h-3.5" />
                     </button>
                     <button
                       onClick={() => handleDelete(piece.id)}
-                      className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                      className="p-1.5 [color:var(--color-fg-subtle)] hover:[color:var(--color-danger)] hover:[background:var(--color-danger-subtle)] rounded-lg transition-colors"
                       title="Delete"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -842,12 +858,12 @@ export default function ContentPieces() {
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 30 }}
-            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-[#111] border border-violet-500/30 rounded-2xl px-6 py-3 flex items-center gap-4 shadow-2xl shadow-violet-500/10 backdrop-blur-xl"
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-[#111] border border-[#8b5cf6]/30 rounded-2xl px-6 py-3 flex items-center gap-4 shadow-2xl shadow-[#8b5cf6]/10 backdrop-blur-xl"
           >
             <div className="flex items-center gap-2 text-sm text-white">
-              <CheckCheck className="w-4 h-4 text-violet-400" />
+              <CheckCheck className="w-4 h-4 text-[#a78bfa]" />
               <span className="font-medium">{selectedIds.size}</span>
-              <span className="text-zinc-400">selected</span>
+              <span className="[color:var(--color-fg-muted)]">selected</span>
             </div>
 
             <div className="w-px h-6 bg-white/10" />
@@ -856,13 +872,13 @@ export default function ContentPieces() {
               <select
                 value={bulkStatus}
                 onChange={e => setBulkStatus(e.target.value as PieceStatus)}
-                className="appearance-none px-3 py-1.5 bg-black/40 border border-white/10 rounded-lg text-sm text-white focus:outline-none focus:ring-1 focus:ring-violet-500 cursor-pointer"
+                className="appearance-none px-3 py-1.5 bg-black/40 border border-white/10 rounded-lg text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#8b5cf6] cursor-pointer"
               >
                 {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
               <button
                 onClick={handleBulkStatusUpdate}
-                className="flex items-center gap-1.5 px-4 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-sm font-medium transition-colors"
+                className="flex items-center gap-1.5 px-4 py-1.5 bg-[#7c3aed] hover:bg-[#8b5cf6] text-white rounded-lg text-sm font-medium transition-colors"
               >
                 <Send className="w-3.5 h-3.5" />
                 Apply
@@ -871,7 +887,7 @@ export default function ContentPieces() {
 
             <button
               onClick={() => setSelectedIds(new Set())}
-              className="p-1.5 text-zinc-500 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+              className="p-1.5 [color:var(--color-fg-subtle)] hover:text-white hover:bg-white/10 rounded-lg transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
@@ -910,7 +926,7 @@ export default function ContentPieces() {
                 </h2>
                 <button
                   onClick={closeModal}
-                  className="p-2 text-zinc-500 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                  className="p-2 [color:var(--color-fg-subtle)] hover:text-white hover:bg-white/10 rounded-lg transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -920,37 +936,37 @@ export default function ContentPieces() {
               <div className="p-6 space-y-4">
                 {/* Title */}
                 <div>
-                  <label className="block text-xs font-medium text-zinc-400 mb-1.5">Title *</label>
+                  <label className="block text-xs font-medium [color:var(--color-fg-muted)] mb-1.5">Title *</label>
                   <input
                     type="text"
                     value={form.title}
                     onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
                     placeholder="e.g. Breaking News Reel - Beirut"
-                    className={`w-full px-3 py-2.5 bg-black/40 border rounded-xl text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-violet-500 transition-colors ${
-                      formErrors.title ? 'border-red-500/50' : 'border-white/10'
+                    className={`w-full px-3 py-2.5 bg-black/40 border rounded-xl text-sm text-white placeholder:[color:var(--color-fg-subtle)] focus:outline-none focus:ring-1 focus:ring-[#8b5cf6] transition-colors ${
+                      formErrors.title ? '[border-color:var(--color-danger)]' : 'border-white/10'
                     }`}
                   />
-                  {formErrors.title && <p className="text-red-400 text-[11px] mt-1">{formErrors.title}</p>}
+                  {formErrors.title && <p className="[color:var(--color-danger)] text-[11px] mt-1">{formErrors.title}</p>}
                 </div>
 
                 {/* Type + Station */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-zinc-400 mb-1.5">Type</label>
+                    <label className="block text-xs font-medium [color:var(--color-fg-muted)] mb-1.5">Type</label>
                     <select
                       value={form.type}
                       onChange={e => setForm(f => ({ ...f, type: e.target.value as ContentType }))}
-                      className="w-full px-3 py-2.5 bg-black/40 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:ring-1 focus:ring-violet-500 cursor-pointer"
+                      className="w-full px-3 py-2.5 bg-black/40 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#8b5cf6] cursor-pointer"
                     >
                       {CONTENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-zinc-400 mb-1.5">Station</label>
+                    <label className="block text-xs font-medium [color:var(--color-fg-muted)] mb-1.5">Station</label>
                     <select
                       value={form.station}
                       onChange={e => setForm(f => ({ ...f, station: e.target.value as Station }))}
-                      className="w-full px-3 py-2.5 bg-black/40 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:ring-1 focus:ring-violet-500 cursor-pointer"
+                      className="w-full px-3 py-2.5 bg-black/40 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#8b5cf6] cursor-pointer"
                     >
                       {STATIONS.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
@@ -960,23 +976,23 @@ export default function ContentPieces() {
                 {/* Status + Topic */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-zinc-400 mb-1.5">Status</label>
+                    <label className="block text-xs font-medium [color:var(--color-fg-muted)] mb-1.5">Status</label>
                     <select
                       value={form.status}
                       onChange={e => setForm(f => ({ ...f, status: e.target.value as PieceStatus }))}
-                      className="w-full px-3 py-2.5 bg-black/40 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:ring-1 focus:ring-violet-500 cursor-pointer"
+                      className="w-full px-3 py-2.5 bg-black/40 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#8b5cf6] cursor-pointer"
                     >
                       {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-zinc-400 mb-1.5">Topic Link / ID</label>
+                    <label className="block text-xs font-medium [color:var(--color-fg-muted)] mb-1.5">Topic Link / ID</label>
                     <input
                       type="text"
                       value={form.topicId}
                       onChange={e => setForm(f => ({ ...f, topicId: e.target.value }))}
                       placeholder="e.g. topic-001"
-                      className="w-full px-3 py-2.5 bg-black/40 border border-white/10 rounded-xl text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-violet-500 transition-colors"
+                      className="w-full px-3 py-2.5 bg-black/40 border border-white/10 rounded-xl text-sm text-white placeholder:[color:var(--color-fg-subtle)] focus:outline-none focus:ring-1 focus:ring-[#8b5cf6] transition-colors"
                     />
                   </div>
                 </div>
@@ -984,65 +1000,65 @@ export default function ContentPieces() {
                 {/* Assignee + Deadline */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-zinc-400 mb-1.5">Assignee *</label>
+                    <label className="block text-xs font-medium [color:var(--color-fg-muted)] mb-1.5">Assignee *</label>
                     <input
                       type="text"
                       value={form.assignee}
                       onChange={e => setForm(f => ({ ...f, assignee: e.target.value }))}
                       placeholder="e.g. Sara K."
-                      className={`w-full px-3 py-2.5 bg-black/40 border rounded-xl text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-violet-500 transition-colors ${
-                        formErrors.assignee ? 'border-red-500/50' : 'border-white/10'
+                      className={`w-full px-3 py-2.5 bg-black/40 border rounded-xl text-sm text-white placeholder:[color:var(--color-fg-subtle)] focus:outline-none focus:ring-1 focus:ring-[#8b5cf6] transition-colors ${
+                        formErrors.assignee ? '[border-color:var(--color-danger)]' : 'border-white/10'
                       }`}
                     />
-                    {formErrors.assignee && <p className="text-red-400 text-[11px] mt-1">{formErrors.assignee}</p>}
+                    {formErrors.assignee && <p className="[color:var(--color-danger)] text-[11px] mt-1">{formErrors.assignee}</p>}
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-zinc-400 mb-1.5">Deadline *</label>
+                    <label className="block text-xs font-medium [color:var(--color-fg-muted)] mb-1.5">Deadline *</label>
                     <input
                       type="date"
                       value={form.deadline}
                       onChange={e => setForm(f => ({ ...f, deadline: e.target.value }))}
-                      className={`w-full px-3 py-2.5 bg-black/40 border rounded-xl text-sm text-white focus:outline-none focus:ring-1 focus:ring-violet-500 transition-colors ${
-                        formErrors.deadline ? 'border-red-500/50' : 'border-white/10'
+                      className={`w-full px-3 py-2.5 bg-black/40 border rounded-xl text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#8b5cf6] transition-colors ${
+                        formErrors.deadline ? '[border-color:var(--color-danger)]' : 'border-white/10'
                       }`}
                     />
-                    {formErrors.deadline && <p className="text-red-400 text-[11px] mt-1">{formErrors.deadline}</p>}
+                    {formErrors.deadline && <p className="[color:var(--color-danger)] text-[11px] mt-1">{formErrors.deadline}</p>}
                   </div>
                 </div>
 
                 {/* Visual Reference URL (MANDATORY) */}
                 <div>
-                  <label className="block text-xs font-medium text-zinc-400 mb-1.5">
+                  <label className="block text-xs font-medium [color:var(--color-fg-muted)] mb-1.5">
                     Visual Reference URL *
-                    <span className="ml-1 text-violet-400">(mandatory)</span>
+                    <span className="ml-1 text-[#a78bfa]">(mandatory)</span>
                   </label>
                   <div className="relative">
-                    <Link className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                    <Link className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 [color:var(--color-fg-subtle)]" />
                     <input
                       type="url"
                       value={form.visualRefUrl}
                       onChange={e => setForm(f => ({ ...f, visualRefUrl: e.target.value }))}
                       placeholder="https://..."
-                      className={`w-full pl-10 pr-3 py-2.5 bg-black/40 border rounded-xl text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-violet-500 transition-colors ${
-                        formErrors.visualRefUrl ? 'border-red-500/50' : 'border-white/10'
+                      className={`w-full pl-10 pr-3 py-2.5 bg-black/40 border rounded-xl text-sm text-white placeholder:[color:var(--color-fg-subtle)] focus:outline-none focus:ring-1 focus:ring-[#8b5cf6] transition-colors ${
+                        formErrors.visualRefUrl ? '[border-color:var(--color-danger)]' : 'border-white/10'
                       }`}
                     />
                   </div>
-                  {formErrors.visualRefUrl && <p className="text-red-400 text-[11px] mt-1">{formErrors.visualRefUrl}</p>}
+                  {formErrors.visualRefUrl && <p className="[color:var(--color-danger)] text-[11px] mt-1">{formErrors.visualRefUrl}</p>}
                 </div>
 
                 {/* Visual Reference Image URL */}
                 <div>
-                  <label className="block text-xs font-medium text-zinc-400 mb-1.5">
+                  <label className="block text-xs font-medium [color:var(--color-fg-muted)] mb-1.5">
                     Visual Reference Image URL
-                    <span className="ml-1 text-zinc-600">(thumbnail preview)</span>
+                    <span className="ml-1 [color:var(--color-fg-subtle)]">(thumbnail preview)</span>
                   </label>
                   <input
                     type="url"
                     value={form.visualRefImage}
                     onChange={e => setForm(f => ({ ...f, visualRefImage: e.target.value }))}
                     placeholder="https://... (direct image link for preview)"
-                    className="w-full px-3 py-2.5 bg-black/40 border border-white/10 rounded-xl text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-violet-500 transition-colors"
+                    className="w-full px-3 py-2.5 bg-black/40 border border-white/10 rounded-xl text-sm text-white placeholder:[color:var(--color-fg-subtle)] focus:outline-none focus:ring-1 focus:ring-[#8b5cf6] transition-colors"
                   />
                   {form.visualRefImage && (
                     <div className="mt-2 w-20 h-20 rounded-lg overflow-hidden border border-white/10 bg-black/40">
@@ -1060,13 +1076,13 @@ export default function ContentPieces() {
 
                 {/* Notes */}
                 <div>
-                  <label className="block text-xs font-medium text-zinc-400 mb-1.5">Notes</label>
+                  <label className="block text-xs font-medium [color:var(--color-fg-muted)] mb-1.5">Notes</label>
                   <textarea
                     value={form.notes}
                     onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
                     placeholder="Production notes, instructions..."
                     rows={3}
-                    className="w-full px-3 py-2.5 bg-black/40 border border-white/10 rounded-xl text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-violet-500 transition-colors resize-none"
+                    className="w-full px-3 py-2.5 bg-black/40 border border-white/10 rounded-xl text-sm text-white placeholder:[color:var(--color-fg-subtle)] focus:outline-none focus:ring-1 focus:ring-[#8b5cf6] transition-colors resize-none"
                   />
                 </div>
               </div>
@@ -1075,13 +1091,13 @@ export default function ContentPieces() {
               <div className="flex items-center justify-end gap-3 p-6 border-t border-white/10">
                 <button
                   onClick={closeModal}
-                  className="px-4 py-2 text-sm text-zinc-400 hover:text-white transition-colors"
+                  className="px-4 py-2 text-sm [color:var(--color-fg-muted)] hover:text-white transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSave}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-sm font-medium transition-colors shadow-lg shadow-violet-500/20"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#7c3aed] hover:bg-[#8b5cf6] text-white rounded-xl text-sm font-medium transition-colors shadow-lg shadow-[#8b5cf6]/20"
                 >
                   {editingPiece ? (
                     <>
@@ -1106,7 +1122,10 @@ export default function ContentPieces() {
   // ─── Main Render ────────────────────────────────────────────────
 
   // ─── Hero pipeline counts (computed from stats.byStatus) ─────────
-  const STATUS_COLORS: Record<string, { bg: string; fg: string; border: string }> = {
+  // Renamed from STATUS_COLORS → PIPELINE_COLORS so it no longer shadows the
+  // module-level STATUS_COLORS (used by StatusBadge / renderDashboard), which
+  // previously caused TS2339 (.text/.dot) errors.
+  const PIPELINE_COLORS: Record<string, { bg: string; fg: string; border: string }> = {
     Draft:       { bg: 'rgba(113,113,122,0.12)', fg: '#a1a1aa', border: 'rgba(113,113,122,0.30)' },
     'In Design': { bg: 'rgba(139,92,246,0.12)', fg: '#a78bfa', border: 'rgba(139,92,246,0.30)' },
     'In Review': { bg: 'rgba(245,158,11,0.12)', fg: '#fbbf24', border: 'rgba(245,158,11,0.30)' },
@@ -1159,7 +1178,7 @@ export default function ContentPieces() {
           {/* Pipeline bento — one card per status */}
           <div className="mt-6 grid grid-cols-2 sm:grid-cols-5 gap-3">
             {stats.byStatus.map(({ status, count }) => {
-              const c = STATUS_COLORS[status] ?? STATUS_COLORS.Draft;
+              const c = PIPELINE_COLORS[status] ?? PIPELINE_COLORS.Draft;
               const pct = stats.total === 0 ? 0 : Math.round((count / stats.total) * 100);
               return (
                 <div

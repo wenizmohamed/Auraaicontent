@@ -507,10 +507,11 @@ export default function CreativeTools() {
             <Wand2 className="w-6 h-6 text-black" />
           </div>
           <div>
-            <h1 className="text-4xl font-black text-white tracking-tight">{t('page.creative.title')}</h1>
+            <p className="text-[11px] uppercase tracking-[0.14em] font-semibold" style={{ color: 'var(--color-fg-subtle)' }}>Create</p>
+            <h1 className="font-display text-3xl sm:text-4xl font-bold tracking-tight" style={{ color: 'var(--color-fg)' }}>{t('page.creative.title')}</h1>
             <p className="text-sm text-zinc-500 mt-0.5">
               The four primary creative modes.
-              {currentClient && <span className="ml-1 text-amber-400/80">Current client: {currentClient.name}</span>}
+              {currentClient && <span className="ml-1" style={{ color: 'var(--color-accent)' }}>Current client: {currentClient.name}</span>}
             </p>
           </div>
         </div>
@@ -529,17 +530,18 @@ export default function CreativeTools() {
               className={`group relative rounded-2xl p-5 text-left transition-all border ${
                 active
                   ? 'bg-gradient-to-br from-amber-500/15 to-amber-500/5 border-amber-500/40 shadow-lg shadow-amber-500/10'
-                  : 'bg-[#0c0c0c] border-white/[0.06] hover:border-white/[0.12] hover:bg-[#101010]'
+                  : 'bg-[#0c0c0c] border-white/[0.06] shadow-sm hover:border-white/[0.12] hover:bg-[#101010]'
               }`}
             >
               <div className="flex items-start justify-between mb-3">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                  active ? 'bg-amber-500/20 border border-amber-500/30' : 'bg-white/[0.04] border border-white/[0.06]'
-                }`}>
-                  <Icon className={`w-5 h-5 ${active ? 'text-amber-400' : 'text-zinc-500 group-hover:text-zinc-300'}`} />
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${active ? '' : 'bg-white/[0.04] border-white/[0.06]'}`}
+                  style={active ? { background: 'var(--color-accent-subtle)', borderColor: 'var(--color-accent)' } : undefined}>
+                  <Icon className={`w-5 h-5 ${active ? '' : 'text-zinc-500 group-hover:text-zinc-300'}`}
+                    style={active ? { color: 'var(--color-accent)' } : undefined} />
                 </div>
                 {active && (
-                  <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                  <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border"
+                    style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' }}>
                     Active
                   </span>
                 )}
@@ -562,8 +564,8 @@ export default function CreativeTools() {
         {/* Studio sub-header */}
         <div className="flex items-center justify-between border-b border-white/[0.04] pb-4">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
-              <modeDef.icon className="w-4 h-4 text-amber-400" />
+            <div className="w-9 h-9 rounded-xl border flex items-center justify-center" style={{ background: 'var(--color-accent-subtle)', borderColor: 'var(--color-accent)' }}>
+              <modeDef.icon className="w-4 h-4" style={{ color: 'var(--color-accent)' }} />
             </div>
             <div>
               <h2 className="text-base font-bold text-white">{modeDef.label}</h2>
@@ -584,7 +586,7 @@ export default function CreativeTools() {
               {!sourcePreview ? (
                 <button
                   onClick={() => fileRef.current?.click()}
-                  className="mt-2 w-full rounded-xl border-2 border-dashed border-white/[0.08] bg-white/[0.01] px-6 py-10 flex flex-col items-center gap-2 hover:border-amber-500/30 transition-colors"
+                  className="mt-2 w-full rounded-xl border-2 border-dashed border-white/[0.08] bg-white/[0.01] px-6 py-10 flex flex-col items-center gap-2 hover:border-[color:var(--color-accent)] transition-colors"
                 >
                   <Upload className="w-7 h-7 text-zinc-600" />
                   <p className="text-sm text-zinc-500">Click to upload an image</p>
@@ -617,7 +619,7 @@ export default function CreativeTools() {
                 {!endPreview ? (
                   <button
                     onClick={() => endFileRef.current?.click()}
-                    className="mt-2 w-full rounded-xl border-2 border-dashed border-white/[0.08] bg-white/[0.01] px-6 py-10 flex flex-col items-center gap-2 hover:border-amber-500/30 transition-colors"
+                    className="mt-2 w-full rounded-xl border-2 border-dashed border-white/[0.08] bg-white/[0.01] px-6 py-10 flex flex-col items-center gap-2 hover:border-[color:var(--color-accent)] transition-colors"
                   >
                     <Upload className="w-7 h-7 text-zinc-600" />
                     <p className="text-sm text-zinc-500">Click to upload end frame</p>
@@ -652,7 +654,8 @@ export default function CreativeTools() {
               onClick={handleImprovePrompt}
               disabled={!prompt.trim() || improving || loading}
               title="Improve this prompt with AI (Gemini primary, Grok fallback)"
-              className="flex items-center gap-1.5 rounded-lg border border-violet-500/30 bg-violet-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-violet-300 hover:bg-violet-500/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              className="flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider hover:bg-[color:var(--color-info-subtle)] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              style={{ borderColor: 'var(--color-info)', background: 'var(--color-info-subtle)', color: 'var(--color-info)' }}
             >
               {improving
                 ? <Loader2 className="w-3 h-3 animate-spin" />
@@ -688,14 +691,15 @@ export default function CreativeTools() {
                                             'Animate this image with a slow zoom and parallax...'
               }
               rows={4}
-              className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 pr-12 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-amber-500/40 resize-y"
+              className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 pr-12 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-[color:var(--color-accent)] resize-y"
             />
             <button
               type="button"
               onClick={handleImprovePrompt}
               disabled={!prompt.trim() || improving || loading}
               title="Magic pen — improve prompt"
-              className="absolute bottom-2 right-2 w-8 h-8 rounded-lg bg-violet-500/15 border border-violet-500/30 text-violet-300 hover:bg-violet-500/25 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex items-center justify-center"
+              className="absolute bottom-2 right-2 w-8 h-8 rounded-lg border hover:bg-[color:var(--color-info-subtle)] disabled:opacity-30 disabled:cursor-not-allowed transition-all flex items-center justify-center"
+              style={{ background: 'var(--color-info-subtle)', borderColor: 'var(--color-info)', color: 'var(--color-info)' }}
             >
               {improving
                 ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -713,8 +717,8 @@ export default function CreativeTools() {
               exit={{ opacity: 0, height: 0 }}
               className="overflow-hidden"
             >
-              <div className="rounded-xl border border-violet-500/30 bg-gradient-to-br from-violet-500/[0.07] to-fuchsia-500/[0.04] p-4">
-                <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-violet-300 font-bold mb-2">
+              <div className="rounded-xl border bg-gradient-to-br from-violet-500/[0.07] to-fuchsia-500/[0.04] p-4" style={{ borderColor: 'var(--color-info)' }}>
+                <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider font-bold mb-2" style={{ color: 'var(--color-info)' }}>
                   <Sparkles className="w-3 h-3" />
                   AI-improved version — review before applying
                 </div>
@@ -723,7 +727,8 @@ export default function CreativeTools() {
                   <button
                     type="button"
                     onClick={acceptImprovedPrompt}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-violet-500/20 border border-violet-500/40 px-3 py-1.5 text-xs font-semibold text-violet-200 hover:bg-violet-500/30 transition-all"
+                    className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold hover:bg-[color:var(--color-info-subtle)] transition-all"
+                    style={{ background: 'var(--color-info-subtle)', borderColor: 'var(--color-info)', color: 'var(--color-info)' }}
                   >
                     <CheckCircle2 className="w-3.5 h-3.5" /> Use this version
                   </button>
@@ -746,7 +751,8 @@ export default function CreativeTools() {
           <button
             type="button"
             onClick={undoImprovedPrompt}
-            className="inline-flex items-center gap-1.5 text-[11px] text-violet-300/70 hover:text-violet-300 transition-colors"
+            className="inline-flex items-center gap-1.5 text-[11px] transition-colors hover:opacity-100 opacity-70"
+            style={{ color: 'var(--color-info)' }}
           >
             <ChevronUp className="w-3 h-3 rotate-180" />
             Undo improve — restore original prompt
@@ -787,7 +793,7 @@ export default function CreativeTools() {
                             saveHistory(next);
                             setPromptHistory(next);
                           }}
-                          className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-zinc-600 hover:text-red-400 transition-all"
+                          className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-zinc-600 hover:text-[color:var(--color-danger)] transition-all"
                           title="Remove"
                         >
                           <X className="w-3 h-3" />
@@ -798,7 +804,7 @@ export default function CreativeTools() {
                   <button
                     type="button"
                     onClick={() => { saveHistory([]); setPromptHistory([]); }}
-                    className="mt-1.5 text-[10px] text-zinc-600 hover:text-red-400 transition-colors"
+                    className="mt-1.5 text-[10px] text-zinc-600 hover:text-[color:var(--color-danger)] transition-colors"
                   >
                     Clear all
                   </button>
@@ -824,7 +830,7 @@ export default function CreativeTools() {
                   try { localStorage.removeItem(RECENT_ASSETS_KEY); } catch {}
                   setRecentAssets([]);
                 }}
-                className="text-[10px] text-zinc-600 hover:text-red-400 transition-colors"
+                className="text-[10px] text-zinc-600 hover:text-[color:var(--color-danger)] transition-colors"
               >
                 Clear
               </button>
@@ -844,12 +850,12 @@ export default function CreativeTools() {
                     setProvider('');
                     setError('');
                   }}
-                  className="group relative shrink-0 rounded-lg overflow-hidden border border-white/10 hover:border-amber-500/50 transition-all"
+                  className="group relative shrink-0 rounded-lg overflow-hidden border border-white/10 hover:border-[color:var(--color-accent)] transition-all"
                   title={asset.prompt}
                 >
                   {asset.outputType === 'video' ? (
                     <div className="w-20 h-20 bg-zinc-900 flex items-center justify-center">
-                      <Video className="w-5 h-5 text-zinc-500 group-hover:text-amber-400 transition-colors" />
+                      <Video className="w-5 h-5 text-zinc-500 group-hover:text-[color:var(--color-accent)] transition-colors" />
                     </div>
                   ) : (
                     <img src={asset.url} alt="" className="w-20 h-20 object-cover" loading="lazy" />
@@ -875,9 +881,12 @@ export default function CreativeTools() {
                   onClick={() => setAspectRatio(ar.value)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
                     aspectRatio === ar.value
-                      ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                      ? ''
                       : 'bg-white/[0.03] text-zinc-500 border-white/[0.06] hover:border-white/[0.1]'
                   }`}
+                  style={aspectRatio === ar.value
+                    ? { background: 'var(--color-accent-subtle)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' }
+                    : undefined}
                 >
                   {ar.label}
                 </button>
@@ -895,9 +904,12 @@ export default function CreativeTools() {
                     onClick={() => setDuration(d.value)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
                       duration === d.value
-                        ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                        ? ''
                         : 'bg-white/[0.03] text-zinc-500 border-white/[0.06] hover:border-white/[0.1]'
                     }`}
+                    style={duration === d.value
+                      ? { background: 'var(--color-accent-subtle)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' }
+                      : undefined}
                   >
                     {d.label}
                   </button>
@@ -960,7 +972,8 @@ export default function CreativeTools() {
           {loading && (
             <button
               onClick={handleCancel}
-              className="flex items-center gap-2 bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-xl text-sm font-medium hover:bg-red-500/20"
+              className="flex items-center gap-2 border px-4 py-3 rounded-xl text-sm font-medium hover:bg-[color:var(--color-danger-subtle)]"
+              style={{ background: 'var(--color-danger-subtle)', borderColor: 'var(--color-danger)', color: 'var(--color-danger)' }}
             >
               <X className="w-4 h-4" /> Cancel
             </button>
@@ -987,16 +1000,18 @@ export default function CreativeTools() {
           {error && (() => {
             const isRateLimit = errorCode === 429 || /rate.?limit/i.test(error);
             const isUnavailable = errorCode === 503 || /unavailable|gemini/i.test(error);
-            const bg = isRateLimit ? 'bg-amber-500/10 border-amber-500/20' : isUnavailable ? 'bg-zinc-500/10 border-zinc-500/20' : 'bg-red-500/10 border-red-500/20';
-            const text = isRateLimit ? 'text-amber-400' : isUnavailable ? 'text-zinc-400' : 'text-red-400';
+            const tone = isRateLimit ? 'warning' : isUnavailable ? 'muted' : 'danger';
+            const toneColor = tone === 'warning' ? 'var(--color-warning)' : tone === 'muted' ? 'var(--color-fg-muted)' : 'var(--color-danger)';
+            const toneBg = tone === 'warning' ? 'var(--color-warning-subtle)' : tone === 'muted' ? 'var(--color-surface-hover)' : 'var(--color-danger-subtle)';
             const label = isRateLimit ? 'Rate limited' : isUnavailable ? 'Provider unavailable' : 'Error';
             return (
               <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                className={`rounded-xl ${bg} px-4 py-3 flex items-start gap-3`}>
-                <AlertCircle className={`w-4 h-4 ${text} shrink-0 mt-0.5`} />
+                className="rounded-xl border px-4 py-3 flex items-start gap-3"
+                style={{ background: toneBg, borderColor: toneColor }}>
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" style={{ color: toneColor }} />
                 <div>
-                  <p className={`text-xs font-bold uppercase tracking-wider ${text} mb-0.5`}>{label}</p>
-                  <p className={`text-sm ${text}`}>{error}</p>
+                  <p className="text-xs font-bold uppercase tracking-wider mb-0.5" style={{ color: toneColor }}>{label}</p>
+                  <p className="text-sm" style={{ color: toneColor }}>{error}</p>
                 </div>
               </motion.div>
             );
@@ -1011,7 +1026,7 @@ export default function CreativeTools() {
               <h3 className="text-sm font-bold text-white">Result</h3>
               <div className="flex items-center gap-2">
                 {savedAssetId && (
-                  <span className="flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-md px-2 py-0.5">
+                  <span className="flex items-center gap-1 text-[10px] border rounded-md px-2 py-0.5" style={{ color: 'var(--color-success)', background: 'var(--color-success-subtle)', borderColor: 'var(--color-success)' }}>
                     <CheckCircle2 className="w-3 h-3" /> Saved to assets
                   </span>
                 )}
@@ -1021,7 +1036,8 @@ export default function CreativeTools() {
                   download
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-[10px] text-amber-400 hover:text-amber-300"
+                  className="flex items-center gap-1 text-[10px] hover:opacity-80"
+                  style={{ color: 'var(--color-accent)' }}
                 >
                   <Download className="w-3 h-3" /> Download
                 </a>
@@ -1029,7 +1045,8 @@ export default function CreativeTools() {
                   <button
                     type="button"
                     onClick={() => setAttachModalOpen(true)}
-                    className="flex items-center gap-1 text-[10px] text-sky-400 hover:text-sky-300 bg-sky-500/10 border border-sky-500/20 rounded-md px-2 py-0.5"
+                    className="flex items-center gap-1 text-[10px] hover:opacity-80 border rounded-md px-2 py-0.5"
+                    style={{ color: 'var(--color-info)', background: 'var(--color-info-subtle)', borderColor: 'var(--color-info)' }}
                   >
                     <Link2 className="w-3 h-3" /> Attach to Post
                   </button>
@@ -1069,7 +1086,7 @@ export default function CreativeTools() {
                 {/* Copyable asset ID badge */}
                 <div className="flex items-center gap-2 bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-2">
                   <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold shrink-0">Asset ID</span>
-                  <code className="text-xs text-emerald-400 truncate flex-1">{savedAssetId}</code>
+                  <code className="text-xs truncate flex-1" style={{ color: 'var(--color-success)' }}>{savedAssetId}</code>
                   <button
                     type="button"
                     onClick={() => {
@@ -1080,7 +1097,7 @@ export default function CreativeTools() {
                     className="p-1 rounded hover:bg-white/10 text-zinc-500 hover:text-white transition-colors"
                     title="Copy asset ID"
                   >
-                    {copiedAssetId ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copiedAssetId ? <CheckCircle2 className="w-3.5 h-3.5" style={{ color: 'var(--color-success)' }} /> : <Copy className="w-3.5 h-3.5" />}
                   </button>
                 </div>
 
@@ -1093,7 +1110,7 @@ export default function CreativeTools() {
                       value={attachPostId}
                       onChange={e => setAttachPostId(e.target.value)}
                       placeholder="Paste calendar post ID..."
-                      className="flex-1 bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-amber-500/40"
+                      className="flex-1 bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-[color:var(--color-accent)]"
                     />
                     <button
                       type="button"
@@ -1110,7 +1127,8 @@ export default function CreativeTools() {
                           alert(`Link failed: ${err?.message || 'unknown error'}`);
                         }
                       }}
-                      className="flex items-center gap-1.5 bg-sky-500/20 border border-sky-500/30 text-sky-300 px-4 py-2 rounded-lg text-sm font-medium hover:bg-sky-500/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      className="flex items-center gap-1.5 border px-4 py-2 rounded-lg text-sm font-medium hover:bg-[color:var(--color-info-subtle)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      style={{ background: 'var(--color-info-subtle)', borderColor: 'var(--color-info)', color: 'var(--color-info)' }}
                     >
                       <Link2 className="w-3.5 h-3.5" /> Link
                     </button>

@@ -597,13 +597,21 @@ export default function ContentCalendar() {
         )}
       </motion.div>
 
-      {/* Empty state */}
+      {/* Empty state — no months generated for this client yet */}
       {totalPieces === 0 && (
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ ...motionBase, delay: 0.1 }}
-          className="rounded-3xl bg-[#0c0c0c] border border-white/[0.06] p-12 text-center">
-          <CalendarIcon className="w-12 h-12 text-zinc-800 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-zinc-400 mb-2">No content scheduled</h2>
-          <p className="text-zinc-600 text-sm mb-6">Create a content brief to populate your calendar</p>
+          className="rounded-3xl border p-12 text-center shadow-sm"
+          style={{ background: 'var(--color-bg-elevated)', borderColor: 'var(--color-border-subtle)' }}>
+          <div
+            className="w-16 h-16 rounded-2xl mx-auto mb-5 flex items-center justify-center border"
+            style={{ background: 'var(--color-accent-subtle)', borderColor: 'var(--color-border-subtle)' }}
+          >
+            <CalendarIcon className="w-7 h-7" style={{ color: 'var(--color-accent)' }} aria-hidden="true" />
+          </div>
+          <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--color-fg)' }}>No months generated</h2>
+          <p className="text-sm mb-6 max-w-sm mx-auto leading-relaxed" style={{ color: 'var(--color-fg-muted)' }}>
+            Create a content brief to generate this client's first month of scheduled posts.
+          </p>
           <Link to="/brief"
             className="inline-flex items-center gap-2 bg-white text-black px-6 py-3 rounded-xl text-sm font-bold hover:bg-zinc-200 transition-colors">
             <FileText className="w-4 h-4" /> Create Brief

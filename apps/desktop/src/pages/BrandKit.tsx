@@ -253,7 +253,7 @@ export default function BrandKit() {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="w-7 h-7 animate-spin text-amber-400" />
+          <Loader2 className="w-7 h-7 animate-spin text-[color:var(--color-accent)]" />
           <p className="text-sm text-zinc-500">Loading brand kit…</p>
         </div>
       </div>
@@ -270,8 +270,11 @@ export default function BrandKit() {
         className="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4"
       >
         <div>
-          <h1 className="text-2xl sm:text-3xl font-display font-semibold text-white flex items-center gap-2.5">
-            <Palette className="w-6 h-6 text-amber-400" />
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] mb-1" style={{ color: 'var(--color-fg-subtle)' }}>
+            Manage · Brand
+          </p>
+          <h1 className="text-3xl sm:text-4xl font-display font-bold text-white flex items-center gap-2.5">
+            <Palette className="w-6 h-6 text-[color:var(--color-accent)]" />
             Brand Kit
           </h1>
           <p className="text-sm text-zinc-400 mt-1.5 max-w-xl">
@@ -287,14 +290,14 @@ export default function BrandKit() {
               id="bk-client"
               value={selectedClientId || ''}
               onChange={e => setSelectedClientId(e.target.value)}
-              className="cursor-pointer rounded-lg bg-white/[0.04] border border-white/[0.08] px-3 py-2 text-sm text-white focus:border-amber-500/50 focus:outline-none min-w-[200px]"
+              className="cursor-pointer rounded-lg bg-white/[0.04] border border-white/[0.08] px-3 py-2 text-sm text-white focus:border-[color:var(--color-accent)]/50 focus:outline-none min-w-[200px]"
             >
               {clients.length === 0 && <option value="">No clients</option>}
               {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
           {kit && (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-lg bg-amber-500/15 text-amber-400 border border-amber-500/30 text-xs font-medium">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-lg bg-[color:var(--color-accent-subtle)] text-[color:var(--color-accent)] border border-[color:var(--color-accent)]/30 text-xs font-medium">
               v{kit.version}
             </span>
           )}
@@ -302,7 +305,7 @@ export default function BrandKit() {
       </motion.header>
 
       {loadError && (
-        <div className="mb-5 p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-sm text-red-300 flex items-center gap-2">
+        <div className="mb-5 p-3.5 rounded-xl bg-[color:var(--color-danger-subtle)] border border-[color:var(--color-danger)]/20 text-sm text-[color:var(--color-danger)] flex items-center gap-2">
           <AlertCircle className="w-4 h-4 shrink-0" />
           {loadError}
         </div>
@@ -336,11 +339,11 @@ export default function BrandKit() {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={motionBase}
-              className="glass-card p-6"
+              className="glass-card p-6 shadow-sm"
               aria-labelledby="bk-visual"
             >
               <h2 id="bk-visual" className="text-base font-display font-semibold text-white flex items-center gap-2">
-                <Palette className="w-4 h-4 text-amber-400" />
+                <Palette className="w-4 h-4 text-[color:var(--color-accent)]" />
                 Visual identity
               </h2>
               <p className="text-xs text-zinc-500 mt-1">Primary color is locked from Client settings.</p>
@@ -396,11 +399,11 @@ export default function BrandKit() {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ ...motionBase, delay: 0.05 }}
-              className="glass-card p-6"
+              className="glass-card p-6 shadow-sm"
               aria-labelledby="bk-voice"
             >
               <h2 id="bk-voice" className="text-base font-display font-semibold text-white flex items-center gap-2">
-                <MessageSquare className="w-4 h-4 text-amber-400" />
+                <MessageSquare className="w-4 h-4 text-[color:var(--color-accent)]" />
                 Voice
               </h2>
               <p className="text-xs text-zinc-500 mt-1">Voice training needs volume — 5+ samples per platform yields the best calibration.</p>
@@ -417,7 +420,7 @@ export default function BrandKit() {
                       value={form.voicePerPlatform[p] || ''}
                       onChange={e => updatePlatformVoice(p, e.target.value)}
                       placeholder={p === 'linkedin' ? 'professional, considered' : p === 'tiktok' ? 'punchy, lowercase' : 'casual, friendly'}
-                      className="w-full rounded-lg bg-white/[0.04] border border-white/[0.08] px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-amber-500/50 focus:outline-none transition-colors"
+                      className="w-full rounded-lg bg-white/[0.04] border border-white/[0.08] px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-[color:var(--color-accent)]/50 focus:outline-none transition-colors"
                     />
                   </div>
                 ))}
@@ -429,7 +432,7 @@ export default function BrandKit() {
                 <button
                   type="button"
                   onClick={addVoiceSample}
-                  className="cursor-pointer inline-flex items-center gap-1 text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors"
+                  className="cursor-pointer inline-flex items-center gap-1 text-xs font-medium text-[color:var(--color-accent)] hover:text-[color:var(--color-accent-hover)] transition-colors"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   Add sample
@@ -441,7 +444,7 @@ export default function BrandKit() {
                     <select
                       value={s.context || 'general'}
                       onChange={e => updateVoiceSample(i, { context: e.target.value })}
-                      className="cursor-pointer rounded-lg bg-white/[0.04] border border-white/[0.08] px-2.5 py-2 text-xs text-zinc-300 focus:border-amber-500/50 focus:outline-none min-w-[110px]"
+                      className="cursor-pointer rounded-lg bg-white/[0.04] border border-white/[0.08] px-2.5 py-2 text-xs text-zinc-300 focus:border-[color:var(--color-accent)]/50 focus:outline-none min-w-[110px]"
                     >
                       {PLATFORMS.map(p => <option key={p} value={p}>{p}</option>)}
                     </select>
@@ -450,14 +453,14 @@ export default function BrandKit() {
                       onChange={e => updateVoiceSample(i, { sample: e.target.value })}
                       placeholder="Paste a real on-brand caption / paragraph…"
                       rows={2}
-                      className="flex-1 rounded-lg bg-white/[0.04] border border-white/[0.08] px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-amber-500/50 focus:outline-none transition-colors resize-y min-h-[60px]"
+                      className="flex-1 rounded-lg bg-white/[0.04] border border-white/[0.08] px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-[color:var(--color-accent)]/50 focus:outline-none transition-colors resize-y min-h-[60px]"
                     />
                     {form.voiceSamples.length > 1 && (
                       <button
                         type="button"
                         onClick={() => removeVoiceSample(i)}
                         aria-label="Remove sample"
-                        className="cursor-pointer p-2 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                        className="cursor-pointer p-2 rounded-lg text-zinc-500 hover:text-[color:var(--color-danger)] hover:bg-[color:var(--color-danger-subtle)] transition-colors"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -475,7 +478,7 @@ export default function BrandKit() {
                 <button
                   type="button"
                   onClick={addDoNotRule}
-                  className="cursor-pointer inline-flex items-center gap-1 text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors"
+                  className="cursor-pointer inline-flex items-center gap-1 text-xs font-medium text-[color:var(--color-accent)] hover:text-[color:var(--color-accent-hover)] transition-colors"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   Add rule
@@ -492,13 +495,13 @@ export default function BrandKit() {
                       value={r}
                       onChange={e => updateDoNotRule(i, e.target.value)}
                       placeholder="e.g. Never use gradients in product shots"
-                      className="flex-1 rounded-lg bg-white/[0.04] border border-white/[0.08] px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-amber-500/50 focus:outline-none transition-colors"
+                      className="flex-1 rounded-lg bg-white/[0.04] border border-white/[0.08] px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-[color:var(--color-accent)]/50 focus:outline-none transition-colors"
                     />
                     <button
                       type="button"
                       onClick={() => removeDoNotRule(i)}
                       aria-label="Remove rule"
-                      className="cursor-pointer p-2 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                      className="cursor-pointer p-2 rounded-lg text-zinc-500 hover:text-[color:var(--color-danger)] hover:bg-[color:var(--color-danger-subtle)] transition-colors"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -512,11 +515,11 @@ export default function BrandKit() {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ ...motionBase, delay: 0.1 }}
-              className="glass-card p-6"
+              className="glass-card p-6 shadow-sm"
               aria-labelledby="bk-anchors"
             >
               <h2 id="bk-anchors" className="text-base font-display font-semibold text-white flex items-center gap-2">
-                <ImageIcon className="w-4 h-4 text-amber-400" />
+                <ImageIcon className="w-4 h-4 text-[color:var(--color-accent)]" />
                 Visual anchors
               </h2>
               <p className="text-xs text-zinc-500 mt-1">5 reference images that exemplify the brand. One is "primary" (used as cover thumbnail).</p>
@@ -540,7 +543,7 @@ export default function BrandKit() {
                   type="button"
                   onClick={save}
                   disabled={saving || formInvalid}
-                  className="cursor-pointer inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-amber-500 text-zinc-900 text-sm font-medium hover:bg-amber-400 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="cursor-pointer inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[color:var(--color-accent)] text-zinc-900 text-sm font-medium hover:bg-[color:var(--color-accent-hover)] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                   {kit ? 'Save changes' : 'Create brand kit'}
@@ -555,8 +558,8 @@ export default function BrandKit() {
                   onClick={handleDelete}
                   className={`cursor-pointer text-xs font-medium px-3 py-2 rounded-lg transition-colors ${
                     deleteArmed
-                      ? 'bg-red-500/20 text-red-300 border border-red-500/40 hover:bg-red-500/30'
-                      : 'bg-white/[0.04] hover:bg-red-500/10 text-zinc-500 hover:text-red-400 border border-transparent'
+                      ? 'bg-[color:var(--color-danger-subtle)] text-[color:var(--color-danger)] border border-[color:var(--color-danger)]/40 hover:bg-[color:var(--color-danger-subtle)]'
+                      : 'bg-white/[0.04] hover:bg-[color:var(--color-danger-subtle)] text-zinc-500 hover:text-[color:var(--color-danger)] border border-transparent'
                   }`}
                 >
                   {deleteArmed ? 'Click again to confirm delete' : 'Delete brand kit'}
@@ -572,9 +575,9 @@ export default function BrandKit() {
             transition={{ ...motionBase, delay: 0.15 }}
             className="lg:sticky lg:top-4 self-start"
           >
-            <div className="glass-card p-5">
+            <div className="glass-card p-5 shadow-sm">
               <h2 className="text-sm font-display font-semibold text-white flex items-center gap-2">
-                <HistoryIcon className="w-4 h-4 text-amber-400" />
+                <HistoryIcon className="w-4 h-4 text-[color:var(--color-accent)]" />
                 Version history
               </h2>
               <p className="text-xs text-zinc-500 mt-1">Last 5 snapshots</p>
@@ -625,8 +628,8 @@ export default function BrandKit() {
             transition={motionInstant}
             className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl shadow-2xl border text-sm flex items-center gap-2 ${
               toast.kind === 'success'
-                ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
-                : 'bg-red-500/15 border-red-500/30 text-red-300'
+                ? 'bg-[color:var(--color-success-subtle)] border-[color:var(--color-success)]/30 text-[color:var(--color-success)]'
+                : 'bg-[color:var(--color-danger-subtle)] border-[color:var(--color-danger)]/30 text-[color:var(--color-danger)]'
             }`}
           >
             {toast.kind === 'success' ? <Check className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
@@ -674,13 +677,13 @@ function ColorSwatchField({ id, label, value, onChange, readOnly, helper, error 
           placeholder="#F59E0B"
           className={`flex-1 rounded-lg bg-white/[0.04] border px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none transition-colors font-mono ${
             error
-              ? 'border-red-500/40 focus:border-red-500/60'
-              : 'border-white/[0.08] focus:border-amber-500/50'
+              ? 'border-[color:var(--color-danger)]/40 focus:border-[color:var(--color-danger)]/60'
+              : 'border-white/[0.08] focus:border-[color:var(--color-accent)]/50'
           } ${readOnly ? 'opacity-70 cursor-not-allowed' : ''}`}
         />
       </div>
       {helper && !error && <p className="mt-1 text-[10px] text-zinc-600">{helper}</p>}
-      {error && <p className="mt-1 text-[10px] text-red-400">{error}</p>}
+      {error && <p className="mt-1 text-[10px] text-[color:var(--color-danger)]">{error}</p>}
     </div>
   );
 }
@@ -702,7 +705,7 @@ function TextField({ id, label, value, placeholder, onChange }: TextFieldProps) 
         value={value}
         placeholder={placeholder}
         onChange={e => onChange(e.target.value)}
-        className="w-full rounded-lg bg-white/[0.04] border border-white/[0.08] px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-amber-500/50 focus:outline-none transition-colors"
+        className="w-full rounded-lg bg-white/[0.04] border border-white/[0.08] px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-[color:var(--color-accent)]/50 focus:outline-none transition-colors"
       />
     </div>
   );
@@ -740,19 +743,19 @@ function SampleImageRow({ index, image, onChange }: SampleImageRowProps) {
           value={image.url}
           onChange={e => onChange({ url: e.target.value })}
           placeholder={`Image URL #${index + 1} (CDN — no base64)`}
-          className="rounded-lg bg-white/[0.04] border border-white/[0.08] px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-amber-500/50 focus:outline-none transition-colors"
+          className="rounded-lg bg-white/[0.04] border border-white/[0.08] px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-[color:var(--color-accent)]/50 focus:outline-none transition-colors"
         />
         <input
           type="text"
           value={image.label || ''}
           onChange={e => onChange({ label: e.target.value })}
           placeholder="Label (optional)"
-          className="rounded-lg bg-white/[0.04] border border-white/[0.08] px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-amber-500/50 focus:outline-none transition-colors"
+          className="rounded-lg bg-white/[0.04] border border-white/[0.08] px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-[color:var(--color-accent)]/50 focus:outline-none transition-colors"
         />
       </div>
       <label className={`cursor-pointer flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
         image.primary
-          ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+          ? 'bg-[color:var(--color-accent-subtle)] text-[color:var(--color-accent)] border border-[color:var(--color-accent)]/30'
           : 'bg-white/[0.03] text-zinc-500 hover:text-zinc-300 border border-white/[0.06]'
       }`}>
         <input
@@ -761,7 +764,7 @@ function SampleImageRow({ index, image, onChange }: SampleImageRowProps) {
           onChange={e => onChange({ primary: e.target.checked })}
           className="sr-only"
         />
-        <Star className={`w-3.5 h-3.5 ${image.primary ? 'fill-amber-400 text-amber-400' : ''}`} />
+        <Star className={`w-3.5 h-3.5 ${image.primary ? 'fill-[color:var(--color-accent)] text-[color:var(--color-accent)]' : ''}`} />
         Primary
       </label>
     </motion.div>

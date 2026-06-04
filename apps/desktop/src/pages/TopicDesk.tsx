@@ -948,7 +948,10 @@ export default function TopicDesk() {
             <FileText className="h-8 w-8" />
           </div>
           <div className="flex-1">
-            <h1 className="text-3xl font-display font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-400 tracking-tight mb-1">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] mb-1" style={{ color: 'var(--color-fg-subtle)' }}>
+              Make · Topics
+            </p>
+            <h1 className="font-display text-3xl sm:text-4xl font-bold tracking-tight mb-1" style={{ color: 'var(--color-fg)' }}>
               Topic Desk
             </h1>
             <p className="text-zinc-400 text-base">

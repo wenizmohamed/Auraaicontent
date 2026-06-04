@@ -416,7 +416,8 @@ export default function BriefInput() {
               </div>
               <button
                 onClick={handleCancel}
-                className="mt-2 flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-6 py-2.5 text-sm font-medium text-red-400 transition-all hover:bg-red-500/20 hover:text-red-300 cursor-pointer"
+                className="mt-2 flex items-center gap-2 rounded-xl border px-6 py-2.5 text-sm font-medium transition-all cursor-pointer"
+                style={{ borderColor: 'var(--color-danger)', background: 'var(--color-danger-subtle)', color: 'var(--color-danger)' }}
               >
                 Stop Generation
               </button>
@@ -441,8 +442,8 @@ export default function BriefInput() {
               className="w-full max-w-md rounded-2xl border border-white/10 bg-[#111] p-8 shadow-2xl"
             >
               <div className="mb-6 text-center">
-                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/10">
-                  <CalendarHeart className="h-6 w-6 text-amber-400" />
+                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full" style={{ background: 'var(--color-accent-subtle)' }}>
+                  <CalendarHeart className="h-6 w-6" style={{ color: 'var(--color-accent)' }} />
                 </div>
                 <h3 className="text-lg font-bold text-white">{conflict.month} already exists</h3>
                 <p className="mt-2 text-sm text-zinc-400">
@@ -467,7 +468,8 @@ export default function BriefInput() {
                   </button>
                   <button
                     onClick={handleDeleteAndRegenerate}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-medium text-red-300 transition hover:bg-red-500/20"
+                    className="flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-medium transition"
+                    style={{ borderColor: 'var(--color-danger)', background: 'var(--color-danger-subtle)', color: 'var(--color-danger)' }}
                   >
                     <Sparkles className="h-4 w-4" /> Delete and Regenerate
                   </button>
@@ -495,9 +497,12 @@ export default function BriefInput() {
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500">
               <FileText className="h-5 w-5 text-white" />
             </div>
-            <h1 className="bg-gradient-to-r from-violet-400 via-fuchsia-400 to-pink-400 bg-clip-text text-3xl font-bold tracking-tight text-transparent sm:text-4xl">
-              Create Content Brief
-            </h1>
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.14em] font-semibold" style={{ color: 'var(--color-fg-subtle)' }}>New Brief</p>
+              <h1 className="font-display text-3xl sm:text-4xl font-bold tracking-tight" style={{ color: 'var(--color-fg)' }}>
+                Create Content Brief
+              </h1>
+            </div>
           </div>
           <div className="mt-2 pl-[52px] flex items-center gap-3">
             <p className="text-sm text-zinc-500">
@@ -509,7 +514,7 @@ export default function BriefInput() {
                 {currentClient.name}
               </span>
             ) : (
-              <span className="text-sm text-amber-400">no client selected — pick one on /clients first</span>
+              <span className="text-sm" style={{ color: 'var(--color-accent)' }}>no client selected — pick one on /clients first</span>
             )}
           </div>
         </motion.div>
@@ -603,7 +608,7 @@ export default function BriefInput() {
                     {campaigns.length > 1 && (
                       <button
                         onClick={() => removeCampaign(idx)}
-                        className="absolute right-3 top-3 rounded-md p-1 text-zinc-600 opacity-0 transition hover:bg-red-500/10 hover:text-red-400 group-hover:opacity-100"
+                        className="absolute right-3 top-3 rounded-md p-1 text-zinc-600 opacity-0 transition hover:bg-white/5 hover:text-white group-hover:opacity-100"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
@@ -926,12 +931,12 @@ export default function BriefInput() {
 
             {/* Validation hints */}
             {selectedPlatforms.length === 0 && (
-              <p className="mt-2 text-center text-xs text-red-400/70">
+              <p className="mt-2 text-center text-xs" style={{ color: 'var(--color-danger)' }}>
                 Select at least one platform
               </p>
             )}
             {campaigns.filter(c => c.name.trim()).length === 0 && (
-              <p className="mt-2 text-center text-xs text-red-400/70">
+              <p className="mt-2 text-center text-xs" style={{ color: 'var(--color-danger)' }}>
                 Add at least one campaign with a name
               </p>
             )}

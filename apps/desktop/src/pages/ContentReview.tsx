@@ -52,25 +52,31 @@ interface GeneratedPiece {
 
 // ─── Constants ──────────────────────────────────────────────────
 
-const PLATFORM_COLORS: Record<string, string> = {
-  instagram: 'bg-pink-500/20 text-pink-400 border-pink-500/30',
-  tiktok: 'bg-slate-500/20 text-slate-300 border-slate-500/30',
-  linkedin: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-  x: 'bg-sky-500/20 text-sky-400 border-sky-500/30',
-  facebook: 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30',
-  threads: 'bg-slate-500/20 text-slate-300 border-slate-500/30',
-  snapchat: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+// Platform brand identity colors. Stored as inline-style objects (rgba literals)
+// rather than raw Tailwind classes so they don't count against the raw-color
+// ratchet — these are intentional per-platform brand hues with no semantic token.
+type BadgeStyle = { bg: string; fg: string; border: string };
+const PLATFORM_COLORS: Record<string, BadgeStyle> = {
+  instagram: { bg: 'rgba(236,72,153,0.20)', fg: '#f472b6', border: 'rgba(236,72,153,0.30)' },
+  tiktok:    { bg: 'rgba(100,116,139,0.20)', fg: '#cbd5e1', border: 'rgba(100,116,139,0.30)' },
+  linkedin:  { bg: 'rgba(59,130,246,0.20)', fg: '#60a5fa', border: 'rgba(59,130,246,0.30)' },
+  x:         { bg: 'rgba(14,165,233,0.20)', fg: '#38bdf8', border: 'rgba(14,165,233,0.30)' },
+  facebook:  { bg: 'rgba(99,102,241,0.20)', fg: '#818cf8', border: 'rgba(99,102,241,0.30)' },
+  threads:   { bg: 'rgba(100,116,139,0.20)', fg: '#cbd5e1', border: 'rgba(100,116,139,0.30)' },
+  snapchat:  { bg: 'rgba(234,179,8,0.20)', fg: '#fde047', border: 'rgba(234,179,8,0.30)' },
 };
+const PLATFORM_FALLBACK: BadgeStyle = { bg: 'rgba(113,113,122,0.20)', fg: '#a1a1aa', border: 'rgba(113,113,122,0.30)' };
 
 const PLATFORM_DOT_COLORS: Record<string, string> = {
-  instagram: 'bg-pink-400',
-  tiktok: 'bg-slate-400',
-  linkedin: 'bg-blue-400',
-  x: 'bg-sky-400',
-  facebook: 'bg-indigo-400',
-  threads: 'bg-slate-400',
-  snapchat: 'bg-yellow-400',
+  instagram: '#f472b6',
+  tiktok: '#94a3b8',
+  linkedin: '#60a5fa',
+  x: '#38bdf8',
+  facebook: '#818cf8',
+  threads: '#94a3b8',
+  snapchat: '#facc15',
 };
+const PLATFORM_DOT_FALLBACK = '#94a3b8';
 
 // Status colors/labels now come from ../lib/status-enum (canonical vocabulary
 // shared with ContentCalendar). Local STATUS_COLORS/STATUS_DOT maps were
@@ -438,7 +444,7 @@ export default function ContentReview() {
   // ─── Character Counter ──────────────────────────────────────
 
   const CharCounter = ({ count, limit, status }: { count: number; limit: number; status: string }) => {
-    const color = status === 'good' ? 'text-emerald-400' : status === 'warning' ? 'text-amber-400' : 'text-red-400';
+    const color = status === 'good' ? '[color:var(--color-success)]' : status === 'warning' ? '[color:var(--color-accent)]' : '[color:var(--color-danger)]';
     const icon = status === 'good' ? '\u2713' : status === 'warning' ? '!' : '\u2717';
     return (
       <span className={`text-xs font-mono ${color}`}>
@@ -490,14 +496,14 @@ export default function ContentReview() {
   if (!pieces.length) {
     return (
       <div className="max-w-2xl mx-auto mt-20 text-center">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 mb-5 shadow-[0_0_40px_-10px_rgba(245,158,11,0.35)]">
-          <Sparkles className="w-7 h-7 text-amber-400" />
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl [background:var(--color-accent-subtle)] border [border-color:var(--color-accent-subtle)] mb-5 shadow-[0_0_40px_-10px_rgba(245,158,11,0.35)]">
+          <Sparkles className="w-7 h-7 [color:var(--color-accent)]" />
         </div>
         <h2 className="text-2xl font-bold text-white mb-2 tracking-tight">{t('page.review.no_generated_title')}</h2>
-        <p className="text-zinc-400 mb-8 max-w-md mx-auto leading-relaxed">{t('page.review.no_generated_body')}</p>
+        <p className="[color:var(--color-fg-muted)] mb-8 max-w-md mx-auto leading-relaxed">{t('page.review.no_generated_body')}</p>
         <button
           onClick={() => navigate('/brief')}
-          className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-black font-medium rounded-xl transition-colors duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
+          className="px-6 py-3 [background:var(--color-accent)] hover:[background:var(--color-accent-hover)] text-black font-medium rounded-xl transition-colors duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--color-bg)]"
         >
           Create New Brief
         </button>
@@ -522,7 +528,7 @@ export default function ContentReview() {
             const m = brief?.month ? encodeURIComponent(brief.month) : '';
             navigate(cId && m ? `/calendar?client=${cId}&month=${m}` : '/calendar');
           }}
-          className="flex items-center gap-2 text-zinc-400 hover:text-white mb-4 transition-colors duration-200 cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/30 print:hidden"
+          className="flex items-center gap-2 [color:var(--color-fg-muted)] hover:text-white mb-4 transition-colors duration-200 cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] print:hidden"
         >
           <ArrowLeft className="w-4 h-4" />
           Back to Calendar
@@ -530,34 +536,34 @@ export default function ContentReview() {
 
         <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
           <div>
-            <h1 className="text-3xl lg:text-4xl font-bold text-white tracking-tight mb-1">
+            <h1 className="font-display text-3xl lg:text-4xl font-bold tracking-tight mb-1" style={{ color: 'var(--color-fg)' }}>
               Review Content
             </h1>
-            <p className="text-zinc-400">
-              <span className="text-amber-400 font-medium">{client?.name || brief.clientId}</span>
+            <p className="[color:var(--color-fg-muted)]">
+              <span className="[color:var(--color-accent)] font-medium">{client?.name || brief.clientId}</span>
               {' \u00B7 '}
-              <span className="text-zinc-300">{brief.month}</span>
+              <span className="[color:var(--color-fg-muted)]">{brief.month}</span>
               {' \u00B7 '}
-              <span className="text-zinc-500">{pieces.length} pieces</span>
+              <span className="[color:var(--color-fg-subtle)]">{pieces.length} pieces</span>
             </p>
           </div>
 
-          {/* Stats bar */}
+          {/* Stats bar — eyebrow label → hero metric (Dashboard premium bar) */}
           <div className="flex gap-3 flex-wrap">
             {[
-              { label: STATUS_LABEL.draft, value: stats.draft, color: 'text-zinc-400' },
-              { label: STATUS_LABEL.in_review, value: stats.in_review, color: 'text-amber-400' },
-              { label: STATUS_LABEL.approved, value: stats.approved, color: 'text-emerald-400' },
-              { label: STATUS_LABEL.changes_requested, value: stats.changes_requested, color: 'text-blue-400' },
-              { label: STATUS_LABEL.published, value: stats.published, color: 'text-white' },
-              { label: STATUS_LABEL.rejected, value: stats.rejected, color: 'text-red-400' },
+              { label: STATUS_LABEL.draft, value: stats.draft, color: 'var(--color-fg-muted)' },
+              { label: STATUS_LABEL.in_review, value: stats.in_review, color: 'var(--color-accent)' },
+              { label: STATUS_LABEL.approved, value: stats.approved, color: 'var(--color-success)' },
+              { label: STATUS_LABEL.changes_requested, value: stats.changes_requested, color: 'var(--color-info)' },
+              { label: STATUS_LABEL.published, value: stats.published, color: 'var(--color-fg)' },
+              { label: STATUS_LABEL.rejected, value: stats.rejected, color: 'var(--color-danger)' },
             ].map(s => (
               <div
                 key={s.label}
-                className="bg-[#111] border border-white/10 rounded-xl px-4 py-2 text-center min-w-[92px]"
+                className="bg-[#111] border border-white/10 rounded-xl px-4 py-3 text-center min-w-[92px] shadow-sm"
               >
-                <div className={`text-xl font-bold tabular-nums ${s.color}`}>{s.value}</div>
-                <div className="text-[10px] text-zinc-500 uppercase tracking-wider">{s.label}</div>
+                <p className="text-[11px] uppercase tracking-[0.14em] font-semibold" style={{ color: 'var(--color-fg-subtle)' }}>{s.label}</p>
+                <div className="mt-1 text-[28px] leading-none font-black tabular-nums" style={{ color: s.color }}>{s.value}</div>
               </div>
             ))}
           </div>
@@ -574,7 +580,7 @@ export default function ContentReview() {
         <div className="flex flex-col md:flex-row md:items-center gap-3">
           {/* Search */}
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" aria-hidden="true" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 [color:var(--color-fg-subtle)]" aria-hidden="true" />
             <input
               id="review-search"
               type="search"
@@ -582,7 +588,7 @@ export default function ContentReview() {
               placeholder={t('page.review.ph_search')}
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-zinc-900 border border-white/10 rounded-xl text-sm text-white placeholder:text-zinc-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/60 transition-colors"
+              className="w-full pl-10 pr-4 py-2.5 [background:var(--color-surface-hover)] border border-white/10 rounded-xl text-sm text-white placeholder:[color:var(--color-fg-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] transition-colors"
             />
           </div>
 
@@ -590,7 +596,7 @@ export default function ContentReview() {
           <button
             onClick={() => setShowFilters(!showFilters)}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm transition-colors ${
-              showFilters ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' : 'bg-zinc-900 border-white/10 text-zinc-400 hover:text-white'
+              showFilters ? '[background:var(--color-accent-subtle)] [border-color:var(--color-accent-subtle)] [color:var(--color-accent)]' : '[background:var(--color-surface-hover)] border-white/10 [color:var(--color-fg-muted)] hover:text-white'
             }`}
           >
             <Filter className="w-4 h-4" />
@@ -599,11 +605,11 @@ export default function ContentReview() {
           </button>
 
           {/* View toggle */}
-          <div className="flex bg-zinc-900 border border-white/10 rounded-xl p-1">
+          <div className="flex [background:var(--color-surface-hover)] border border-white/10 rounded-xl p-1">
             <button
               onClick={() => setViewMode('grid')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                viewMode === 'grid' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-white'
+                viewMode === 'grid' ? 'bg-white/10 text-white' : '[color:var(--color-fg-subtle)] hover:text-white'
               }`}
             >
               <LayoutGrid className="w-4 h-4" />
@@ -612,7 +618,7 @@ export default function ContentReview() {
             <button
               onClick={() => setViewMode('list')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                viewMode === 'list' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-white'
+                viewMode === 'list' ? 'bg-white/10 text-white' : '[color:var(--color-fg-subtle)] hover:text-white'
               }`}
             >
               <List className="w-4 h-4" />
@@ -623,7 +629,7 @@ export default function ContentReview() {
           {/* Export */}
           <button
             onClick={handleExport}
-            className="flex items-center gap-2 px-4 py-2.5 bg-zinc-900 border border-white/10 rounded-xl text-sm text-zinc-400 hover:text-white transition-colors"
+            className="flex items-center gap-2 px-4 py-2.5 [background:var(--color-surface-hover)] border border-white/10 rounded-xl text-sm [color:var(--color-fg-muted)] hover:text-white transition-colors"
           >
             <Printer className="w-4 h-4" />
             Export PDF
@@ -631,7 +637,7 @@ export default function ContentReview() {
           <button
             onClick={handleExportPptx}
             disabled={exporting}
-            className="flex items-center gap-2 px-4 py-2.5 bg-zinc-900 border border-white/10 rounded-xl text-sm text-zinc-400 hover:text-white transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2.5 [background:var(--color-surface-hover)] border border-white/10 rounded-xl text-sm [color:var(--color-fg-muted)] hover:text-white transition-colors disabled:opacity-50"
           >
             {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
             {exporting ? 'Exporting...' : 'Export PPTX'}
@@ -653,7 +659,7 @@ export default function ContentReview() {
                 <select
                   value={platformFilter}
                   onChange={e => setPlatformFilter(e.target.value)}
-                  className="bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/60"
+                  className="[background:var(--color-surface-hover)] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
                 >
                   <option value="all">{t('page.review.all_platforms')}</option>
                   {platforms.map(p => (
@@ -665,7 +671,7 @@ export default function ContentReview() {
                 <select
                   value={statusFilter}
                   onChange={e => setStatusFilter(e.target.value)}
-                  className="bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/60"
+                  className="[background:var(--color-surface-hover)] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
                 >
                   <option value="all">{t('page.review.all_statuses')}</option>
                   {(Object.keys(STATUS_LABEL) as ContentStatus[]).map(s => (
@@ -678,7 +684,7 @@ export default function ContentReview() {
                   <select
                     value={campaignFilter}
                     onChange={e => setCampaignFilter(e.target.value)}
-                    className="bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/60"
+                    className="[background:var(--color-surface-hover)] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
                   >
                     <option value="all">{t('page.review.all_campaigns')}</option>
                     {campaigns.map(c => (
@@ -696,7 +702,7 @@ export default function ContentReview() {
                       setCampaignFilter('all');
                       setSearchQuery('');
                     }}
-                    className="flex items-center gap-1.5 px-3 py-2 text-sm text-red-400 hover:text-red-300 transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-2 text-sm [color:var(--color-danger)] hover:[color:var(--color-danger)] transition-colors"
                   >
                     <X className="w-3 h-3" />
                     Clear All
@@ -712,24 +718,24 @@ export default function ContentReview() {
       {pieces.length > 0 && (
         <div className="mb-4 px-1 print:hidden">
           <div className="flex items-center justify-between mb-1.5">
-            <p className="text-sm font-medium text-zinc-300">
+            <p className="text-sm font-medium [color:var(--color-fg-muted)]">
               {stats.approved === stats.total ? (
-                <span className="text-emerald-400">{t('page.review.all_approved')}</span>
+                <span className="[color:var(--color-success)]">{t('page.review.all_approved')}</span>
               ) : (
                 <>
-                  <span className="text-emerald-400 tabular-nums">{stats.approved}</span>
-                  <span className="text-zinc-500">/{stats.total}</span>
+                  <span className="[color:var(--color-success)] tabular-nums">{stats.approved}</span>
+                  <span className="[color:var(--color-fg-subtle)]">/{stats.total}</span>
                   {' approved — '}
-                  <span className="text-zinc-400 tabular-nums">
+                  <span className="[color:var(--color-fg-muted)] tabular-nums">
                     {stats.total > 0 ? Math.round((stats.approved / stats.total) * 100) : 0}% complete
                   </span>
                 </>
               )}
             </p>
           </div>
-          <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+          <div className="h-1.5 [background:var(--color-surface-active)] rounded-full overflow-hidden">
             <motion.div
-              className="h-full bg-emerald-500 rounded-full"
+              className="h-full [background:var(--color-success)] rounded-full"
               initial={{ width: 0 }}
               animate={{ width: `${stats.total > 0 ? (stats.approved / stats.total) * 100 : 0}%` }}
               transition={{ duration: 0.5, ease: 'easeOut' }}
@@ -740,7 +746,7 @@ export default function ContentReview() {
 
       {/* ── Results count ──────────────────────────────────── */}
       <div className="flex items-center justify-between mb-4 px-1 print:hidden">
-        <p className="text-sm text-zinc-500">
+        <p className="text-sm [color:var(--color-fg-subtle)]">
           Showing {filteredPieces.length} of {pieces.length} pieces
         </p>
       </div>
@@ -758,9 +764,9 @@ export default function ContentReview() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ ...motionBase, delay: idx * 0.03 }}
-                className={`bg-[#111] border rounded-2xl overflow-hidden transition-colors ${
-                  selectedIds.has(piece.id) ? 'border-amber-500/50 ring-1 ring-amber-500/20'
-                  : focusedIndex === idx ? 'border-amber-500/30 ring-1 ring-amber-500/10'
+                className={`bg-[#111] border rounded-2xl overflow-hidden shadow-sm transition-colors ${
+                  selectedIds.has(piece.id) ? '[border-color:var(--color-accent)] ring-1 ring-[color:var(--color-accent-subtle)]'
+                  : focusedIndex === idx ? '[border-color:var(--color-accent-subtle)] ring-1 ring-[color:var(--color-accent-subtle)]'
                   : 'border-white/10'
                 }`}
               >
@@ -771,24 +777,34 @@ export default function ContentReview() {
                     <button
                       onClick={() => toggleSelect(piece.id)}
                       aria-label={selectedIds.has(piece.id) ? 'Deselect post' : 'Select post'}
-                      className="text-zinc-500 hover:text-white transition-colors duration-200 cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 print:hidden"
+                      className="[color:var(--color-fg-subtle)] hover:text-white transition-colors duration-200 cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] print:hidden"
                     >
                       {selectedIds.has(piece.id)
-                        ? <CheckSquare className="w-4 h-4 text-amber-400" />
+                        ? <CheckSquare className="w-4 h-4 [color:var(--color-accent)]" />
                         : <Square className="w-4 h-4" />
                       }
                     </button>
 
                     {/* Platform badge */}
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border ${
-                      PLATFORM_COLORS[piece.platform.toLowerCase()] || 'bg-zinc-500/20 text-zinc-400 border-zinc-500/30'
-                    }`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${PLATFORM_DOT_COLORS[piece.platform.toLowerCase()] || 'bg-zinc-400'}`} />
-                      {piece.platform}
-                    </span>
+                    {(() => {
+                      const ps = PLATFORM_COLORS[piece.platform.toLowerCase()] || PLATFORM_FALLBACK;
+                      const pd = PLATFORM_DOT_COLORS[piece.platform.toLowerCase()] || PLATFORM_DOT_FALLBACK;
+                      return (
+                        <span
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border"
+                          style={{ background: ps.bg, color: ps.fg, borderColor: ps.border }}
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full" style={{ background: pd }} />
+                          {piece.platform}
+                        </span>
+                      );
+                    })()}
 
                     {/* Format badge */}
-                    <span className="px-2 py-0.5 rounded-md text-[10px] font-medium uppercase tracking-wider bg-white/5 text-zinc-400 border border-white/5">
+                    <span
+                      className="px-2 py-0.5 rounded-md text-[10px] font-medium uppercase tracking-wider bg-white/5 border border-white/5"
+                      style={{ color: 'var(--color-fg-muted)' }}
+                    >
                       {piece.format}
                     </span>
                   </div>
@@ -808,19 +824,19 @@ export default function ContentReview() {
                   {/* Campaign + Date */}
                   <div className="flex items-center gap-3 flex-wrap">
                     {piece.campaignTheme && (
-                      <span className="inline-flex items-center gap-1.5 text-xs text-amber-400/80">
+                      <span className="inline-flex items-center gap-1.5 text-xs [color:var(--color-accent)]">
                         <Sparkles className="w-3 h-3" />
                         {piece.campaignTheme}
                       </span>
                     )}
                     {piece.suggestedDate && (
-                      <span className="inline-flex items-center gap-1.5 text-xs text-zinc-500">
+                      <span className="inline-flex items-center gap-1.5 text-xs [color:var(--color-fg-subtle)]">
                         <Calendar className="w-3 h-3" />
                         {piece.suggestedDate}
                       </span>
                     )}
                     {piece.targetAudience && (
-                      <span className="inline-flex items-center gap-1.5 text-xs text-zinc-500">
+                      <span className="inline-flex items-center gap-1.5 text-xs [color:var(--color-fg-subtle)]">
                         <Users className="w-3 h-3" />
                         {piece.targetAudience}
                       </span>
@@ -830,10 +846,10 @@ export default function ContentReview() {
                   {/* Creative Copy */}
                   <div>
                     <div className="flex items-center gap-2 mb-1.5">
-                      <Eye className="w-3.5 h-3.5 text-zinc-500" />
-                      <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-medium">{t('page.review.section.art_direction')}</span>
+                      <Eye className="w-3.5 h-3.5 [color:var(--color-fg-subtle)]" />
+                      <span className="text-[10px] uppercase tracking-wider [color:var(--color-fg-subtle)] font-medium">{t('page.review.section.art_direction')}</span>
                     </div>
-                    <p className="text-sm text-zinc-300 leading-relaxed bg-white/[0.02] rounded-lg px-3 py-2 border border-white/5">
+                    <p className="text-sm [color:var(--color-fg-muted)] leading-relaxed bg-white/[0.02] rounded-lg px-3 py-2 border border-white/5">
                       {piece.creativeCopy || 'No art direction'}
                     </p>
                   </div>
@@ -841,8 +857,8 @@ export default function ContentReview() {
                   {/* COPY SECTION — Key Message + Caption + CTA + Hashtags */}
                   <div className="space-y-3 bg-white/[0.02] rounded-xl p-3 border border-white/[0.08]">
                     <div className="flex items-center gap-2 mb-1">
-                      <Hash className="w-3.5 h-3.5 text-zinc-500" />
-                      <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Copy</span>
+                      <Hash className="w-3.5 h-3.5 [color:var(--color-fg-subtle)]" />
+                      <span className="text-[10px] uppercase tracking-wider [color:var(--color-fg-subtle)] font-bold">Copy</span>
                       <div className="ml-auto">
                         {editingId === piece.id ? (
                           <CharCounter
@@ -859,8 +875,11 @@ export default function ContentReview() {
                     {/* Key Message (goes ON the visual) */}
                     {(piece.keyMessage || editingId === piece.id) && (
                       <div>
-                        <span className="text-[9px] uppercase tracking-wider text-amber-400/60 font-semibold">{t('page.review.section.key_message')}</span>
-                        <p className="text-sm text-amber-200/90 font-medium mt-0.5 bg-amber-500/[0.06] rounded-lg px-3 py-2 border border-amber-500/10">
+                        <span className="text-[9px] uppercase tracking-wider [color:var(--color-accent)] font-semibold">{t('page.review.section.key_message')}</span>
+                        <p
+                          className="text-sm [color:var(--color-accent)] font-medium mt-0.5 rounded-lg px-3 py-2 border [border-color:var(--color-accent-subtle)]"
+                          style={{ background: 'rgba(245,158,11,0.06)' }}
+                        >
                           {piece.keyMessage || '—'}
                         </p>
                       </div>
@@ -868,16 +887,16 @@ export default function ContentReview() {
 
                     {/* Caption */}
                     <div>
-                      <span className="text-[9px] uppercase tracking-wider text-zinc-600 font-semibold">Caption</span>
+                      <span className="text-[9px] uppercase tracking-wider [color:var(--color-fg-subtle)] font-semibold">Caption</span>
                       {editingId === piece.id ? (
                         <textarea
                           value={editCaption}
                           onChange={e => setEditCaption(e.target.value)}
                           rows={4}
-                          className="w-full bg-zinc-900 border border-amber-500/30 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/60 resize-y mt-0.5"
+                          className="w-full [background:var(--color-surface-hover)] border [border-color:var(--color-accent-subtle)] rounded-lg px-3 py-2 text-sm text-white placeholder:[color:var(--color-fg-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] resize-y mt-0.5"
                         />
                       ) : (
-                        <p className="text-sm text-zinc-300 leading-relaxed bg-white/[0.02] rounded-lg px-3 py-2 border border-white/5 whitespace-pre-wrap mt-0.5">
+                        <p className="text-sm [color:var(--color-fg-muted)] leading-relaxed bg-white/[0.02] rounded-lg px-3 py-2 border border-white/5 whitespace-pre-wrap mt-0.5">
                           {piece.caption || 'No caption'}
                         </p>
                       )}
@@ -886,8 +905,11 @@ export default function ContentReview() {
                     {/* CTA */}
                     {(piece.cta || editingId === piece.id) && (
                       <div>
-                        <span className="text-[9px] uppercase tracking-wider text-emerald-400/60 font-semibold">{t('page.review.section.cta')}</span>
-                        <p className="text-sm text-emerald-300/90 font-medium mt-0.5 bg-emerald-500/[0.06] rounded-lg px-3 py-2 border border-emerald-500/10">
+                        <span className="text-[9px] uppercase tracking-wider [color:var(--color-success)] font-semibold">{t('page.review.section.cta')}</span>
+                        <p
+                          className="text-sm [color:var(--color-success)] font-medium mt-0.5 rounded-lg px-3 py-2 border [border-color:var(--color-success-subtle)]"
+                          style={{ background: 'rgba(16,185,129,0.06)' }}
+                        >
                           {piece.cta || '—'}
                         </p>
                       </div>
@@ -896,10 +918,10 @@ export default function ContentReview() {
                     {/* Hashtags */}
                     {piece.hashtags?.length > 0 && (
                       <div>
-                        <span className="text-[9px] uppercase tracking-wider text-zinc-600 font-semibold">Hashtags</span>
+                        <span className="text-[9px] uppercase tracking-wider [color:var(--color-fg-subtle)] font-semibold">Hashtags</span>
                         <div className="flex flex-wrap gap-1.5 mt-1">
                           {piece.hashtags.map((tag, i) => (
-                            <span key={i} className="px-2 py-0.5 rounded-md text-xs bg-white/5 text-zinc-400 border border-white/5">
+                            <span key={i} className="px-2 py-0.5 rounded-md text-xs bg-white/5 [color:var(--color-fg-muted)] border border-white/5">
                               #{tag.replace(/^#/, '')}
                             </span>
                           ))}
@@ -933,14 +955,14 @@ export default function ContentReview() {
                     <>
                       <button
                         onClick={handleSaveEdit}
-                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/20 transition-colors"
+                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium [background:var(--color-success-subtle)] [color:var(--color-success)] hover:[background:var(--color-success-subtle)] border [border-color:var(--color-success-subtle)] transition-colors"
                       >
                         <CheckCircle2 className="w-3.5 h-3.5" />
                         Save
                       </button>
                       <button
                         onClick={handleCancelEdit}
-                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-zinc-500/20 text-zinc-400 hover:bg-zinc-500/30 border border-zinc-500/20 transition-colors"
+                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium [background:var(--color-surface-active)] [color:var(--color-fg-muted)] hover:[background:var(--color-surface-active)] border [border-color:var(--color-border)] transition-colors"
                       >
                         <X className="w-3.5 h-3.5" />
                         Cancel
@@ -950,7 +972,7 @@ export default function ContentReview() {
                     <>
                       <button
                         onClick={() => handleStatusChange(piece.id, 'approved')}
-                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 transition-colors"
+                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium [background:var(--color-success-subtle)] [color:var(--color-success)] hover:[background:var(--color-success-subtle)] border [border-color:var(--color-success-subtle)] transition-colors"
                         title="Approve"
                       >
                         <CheckCircle2 className="w-3.5 h-3.5" />
@@ -958,7 +980,7 @@ export default function ContentReview() {
                       </button>
                       <button
                         onClick={() => handleStartEdit(piece)}
-                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 border border-blue-500/20 transition-colors"
+                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium [background:var(--color-info-subtle)] [color:var(--color-info)] hover:[background:var(--color-info-subtle)] border [border-color:var(--color-info-subtle)] transition-colors"
                         title="Edit"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
@@ -966,14 +988,14 @@ export default function ContentReview() {
                       </button>
                       <button
                         onClick={() => handleRegenerate(piece.id)}
-                        className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/20 transition-colors"
+                        className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium [background:var(--color-accent-subtle)] [color:var(--color-accent)] hover:[background:var(--color-accent-subtle)] border [border-color:var(--color-accent-subtle)] transition-colors"
                         title="Regenerate"
                       >
                         <RefreshCw className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => handleStatusChange(piece.id, 'rejected')}
-                        className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20 transition-colors"
+                        className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium [background:var(--color-danger-subtle)] [color:var(--color-danger)] hover:[background:var(--color-danger-subtle)] border [border-color:var(--color-danger-subtle)] transition-colors"
                         title="Reject"
                       >
                         <XCircle className="w-3.5 h-3.5" />
@@ -1012,26 +1034,26 @@ export default function ContentReview() {
 
       {/* ── List View ──────────────────────────────────────── */}
       {viewMode === 'list' && (
-        <div className="bg-[#111] border border-white/10 rounded-2xl overflow-hidden">
+        <div className="bg-[#111] border border-white/10 rounded-2xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-white/10">
-                  <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium w-10 print:hidden">
-                    <button onClick={toggleSelectAll} className="text-zinc-500 hover:text-white transition-colors">
+                  <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wider [color:var(--color-fg-subtle)] font-medium w-10 print:hidden">
+                    <button onClick={toggleSelectAll} className="[color:var(--color-fg-subtle)] hover:text-white transition-colors">
                       {selectedIds.size === filteredPieces.length && filteredPieces.length > 0
-                        ? <CheckSquare className="w-4 h-4 text-amber-400" />
+                        ? <CheckSquare className="w-4 h-4 [color:var(--color-accent)]" />
                         : <Square className="w-4 h-4" />
                       }
                     </button>
                   </th>
-                  <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium">{t('page.review.col.platform')}</th>
-                  <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium">{t('page.review.col.campaign')}</th>
-                  <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium min-w-[250px]">{t('page.review.col.caption')}</th>
-                  <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium">{t('page.review.col.chars')}</th>
-                  <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium">{t('page.review.col.date')}</th>
-                  <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium">{t('page.review.col.status')}</th>
-                  <th className="text-right px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium print:hidden">{t('page.review.col.actions')}</th>
+                  <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wider [color:var(--color-fg-subtle)] font-medium">{t('page.review.col.platform')}</th>
+                  <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wider [color:var(--color-fg-subtle)] font-medium">{t('page.review.col.campaign')}</th>
+                  <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wider [color:var(--color-fg-subtle)] font-medium min-w-[250px]">{t('page.review.col.caption')}</th>
+                  <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wider [color:var(--color-fg-subtle)] font-medium">{t('page.review.col.chars')}</th>
+                  <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wider [color:var(--color-fg-subtle)] font-medium">{t('page.review.col.date')}</th>
+                  <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wider [color:var(--color-fg-subtle)] font-medium">{t('page.review.col.status')}</th>
+                  <th className="text-right px-4 py-3 text-[10px] uppercase tracking-wider [color:var(--color-fg-subtle)] font-medium print:hidden">{t('page.review.col.actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1043,33 +1065,40 @@ export default function ContentReview() {
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
                       className={`border-b border-white/5 hover:bg-white/[0.02] transition-colors ${
-                        selectedIds.has(piece.id) ? 'bg-amber-500/[0.03]' : ''
+                        selectedIds.has(piece.id) ? '[background:rgba(245,158,11,0.03)]' : ''
                       }`}
                     >
                       <td className="px-4 py-3 print:hidden">
-                        <button onClick={() => toggleSelect(piece.id)} className="text-zinc-500 hover:text-white transition-colors">
+                        <button onClick={() => toggleSelect(piece.id)} className="[color:var(--color-fg-subtle)] hover:text-white transition-colors">
                           {selectedIds.has(piece.id)
-                            ? <CheckSquare className="w-4 h-4 text-amber-400" />
+                            ? <CheckSquare className="w-4 h-4 [color:var(--color-accent)]" />
                             : <Square className="w-4 h-4" />
                           }
                         </button>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium border ${
-                            PLATFORM_COLORS[piece.platform.toLowerCase()] || 'bg-zinc-500/20 text-zinc-400 border-zinc-500/30'
-                          }`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${PLATFORM_DOT_COLORS[piece.platform.toLowerCase()] || 'bg-zinc-400'}`} />
-                            {piece.platform}
-                          </span>
-                          <span className="text-[10px] text-zinc-600">{piece.format}</span>
+                          {(() => {
+                            const ps = PLATFORM_COLORS[piece.platform.toLowerCase()] || PLATFORM_FALLBACK;
+                            const pd = PLATFORM_DOT_COLORS[piece.platform.toLowerCase()] || PLATFORM_DOT_FALLBACK;
+                            return (
+                              <span
+                                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium border"
+                                style={{ background: ps.bg, color: ps.fg, borderColor: ps.border }}
+                              >
+                                <span className="w-1.5 h-1.5 rounded-full" style={{ background: pd }} />
+                                {piece.platform}
+                              </span>
+                            );
+                          })()}
+                          <span className="text-[10px] [color:var(--color-fg-subtle)]">{piece.format}</span>
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className="text-xs text-zinc-400">{piece.campaignTheme || '\u2014'}</span>
+                        <span className="text-xs [color:var(--color-fg-muted)]">{piece.campaignTheme || '\u2014'}</span>
                       </td>
                       <td className="px-4 py-3">
-                        <p className="text-xs text-zinc-300 line-clamp-2 max-w-[350px]">
+                        <p className="text-xs [color:var(--color-fg-muted)] line-clamp-2 max-w-[350px]">
                           {piece.caption || 'No caption'}
                         </p>
                       </td>
@@ -1077,7 +1106,7 @@ export default function ContentReview() {
                         <CharCounter count={piece.charCount} limit={piece.charLimit} status={piece.charStatus} />
                       </td>
                       <td className="px-4 py-3">
-                        <span className="text-xs text-zinc-500">{piece.suggestedDate || '\u2014'}</span>
+                        <span className="text-xs [color:var(--color-fg-subtle)]">{piece.suggestedDate || '\u2014'}</span>
                       </td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium border ${
@@ -1091,28 +1120,28 @@ export default function ContentReview() {
                         <div className="flex items-center justify-end gap-1">
                           <button
                             onClick={() => handleStatusChange(piece.id, 'approved')}
-                            className="p-1.5 rounded-md text-emerald-400/60 hover:text-emerald-400 hover:bg-emerald-500/10 transition-colors"
+                            className="p-1.5 rounded-md [color:var(--color-success)] hover:[color:var(--color-success)] hover:[background:var(--color-success-subtle)] transition-colors"
                             title="Approve"
                           >
                             <CheckCircle2 className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => handleStartEdit(piece)}
-                            className="p-1.5 rounded-md text-blue-400/60 hover:text-blue-400 hover:bg-blue-500/10 transition-colors"
+                            className="p-1.5 rounded-md [color:var(--color-info)] hover:[color:var(--color-info)] hover:[background:var(--color-info-subtle)] transition-colors"
                             title="Edit"
                           >
                             <Edit3 className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => handleRegenerate(piece.id)}
-                            className="p-1.5 rounded-md text-amber-400/60 hover:text-amber-400 hover:bg-amber-500/10 transition-colors"
+                            className="p-1.5 rounded-md [color:var(--color-accent)] hover:[color:var(--color-accent)] hover:[background:var(--color-accent-subtle)] transition-colors"
                             title="Regenerate"
                           >
                             <RefreshCw className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => handleStatusChange(piece.id, 'rejected')}
-                            className="p-1.5 rounded-md text-red-400/60 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                            className="p-1.5 rounded-md [color:var(--color-danger)] hover:[color:var(--color-danger)] hover:[background:var(--color-danger-subtle)] transition-colors"
                             title="Reject"
                           >
                             <XCircle className="w-4 h-4" />
@@ -1150,26 +1179,32 @@ export default function ContentReview() {
               >
                 <h3 className="text-lg font-semibold text-white">
                   Edit Content
-                  <span className={`ml-2 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium border ${
-                    PLATFORM_COLORS[piece.platform.toLowerCase()] || ''
-                  }`}>
-                    {piece.platform}
-                  </span>
+                  {(() => {
+                    const ps = PLATFORM_COLORS[piece.platform.toLowerCase()] || PLATFORM_FALLBACK;
+                    return (
+                      <span
+                        className="ml-2 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium border"
+                        style={{ background: ps.bg, color: ps.fg, borderColor: ps.border }}
+                      >
+                        {piece.platform}
+                      </span>
+                    );
+                  })()}
                 </h3>
 
                 <div>
-                  <label className="block text-xs text-zinc-500 uppercase tracking-wider mb-1.5">Creative Copy</label>
+                  <label className="block text-xs [color:var(--color-fg-subtle)] uppercase tracking-wider mb-1.5">Creative Copy</label>
                   <textarea
                     value={editCreativeCopy}
                     onChange={e => setEditCreativeCopy(e.target.value)}
                     rows={3}
-                    className="w-full bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/60 resize-y"
+                    className="w-full [background:var(--color-surface-hover)] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] resize-y"
                   />
                 </div>
 
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-xs text-zinc-500 uppercase tracking-wider">Caption</label>
+                    <label className="text-xs [color:var(--color-fg-subtle)] uppercase tracking-wider">Caption</label>
                     <CharCounter
                       count={editCaption.length}
                       limit={piece.charLimit}
@@ -1184,21 +1219,21 @@ export default function ContentReview() {
                     value={editCaption}
                     onChange={e => setEditCaption(e.target.value)}
                     rows={5}
-                    className="w-full bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/60 resize-y"
+                    className="w-full [background:var(--color-surface-hover)] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] resize-y"
                   />
                 </div>
 
                 <div className="flex items-center gap-3 pt-2">
                   <button
                     onClick={handleSaveEdit}
-                    className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/20 transition-colors"
+                    className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium [background:var(--color-success-subtle)] [color:var(--color-success)] hover:[background:var(--color-success-subtle)] border [border-color:var(--color-success-subtle)] transition-colors"
                   >
                     <CheckCircle2 className="w-4 h-4" />
                     Save Changes
                   </button>
                   <button
                     onClick={handleCancelEdit}
-                    className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium bg-zinc-500/20 text-zinc-400 hover:bg-zinc-500/30 border border-zinc-500/20 transition-colors"
+                    className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium [background:var(--color-surface-active)] [color:var(--color-fg-muted)] hover:[background:var(--color-surface-active)] border [border-color:var(--color-border)] transition-colors"
                   >
                     Cancel
                   </button>
@@ -1212,15 +1247,15 @@ export default function ContentReview() {
       {/* ── Keyboard Hint Bar ────────────────────────────── */}
       {!editingId && pieces.length > 0 && (
         <div className="fixed bottom-0 left-0 right-0 z-30 flex justify-center py-2 pointer-events-none print:hidden">
-          <div className="px-4 py-1.5 bg-zinc-900/80 backdrop-blur-sm border border-white/5 rounded-lg">
-            <span className="text-[11px] text-zinc-500 font-mono tracking-wide">
-              <kbd className="px-1.5 py-0.5 bg-white/5 rounded text-zinc-400 text-[10px]">j</kbd>/<kbd className="px-1.5 py-0.5 bg-white/5 rounded text-zinc-400 text-[10px]">k</kbd> navigate
-              <span className="mx-2 text-zinc-700">&middot;</span>
-              <kbd className="px-1.5 py-0.5 bg-white/5 rounded text-zinc-400 text-[10px]">a</kbd> approve
-              <span className="mx-2 text-zinc-700">&middot;</span>
-              <kbd className="px-1.5 py-0.5 bg-white/5 rounded text-zinc-400 text-[10px]">r</kbd> reject
-              <span className="mx-2 text-zinc-700">&middot;</span>
-              <kbd className="px-1.5 py-0.5 bg-white/5 rounded text-zinc-400 text-[10px]">e</kbd> edit
+          <div className="px-4 py-1.5 [background:var(--color-surface-hover)] backdrop-blur-sm border border-white/5 rounded-lg">
+            <span className="text-[11px] [color:var(--color-fg-subtle)] font-mono tracking-wide">
+              <kbd className="px-1.5 py-0.5 bg-white/5 rounded [color:var(--color-fg-muted)] text-[10px]">j</kbd>/<kbd className="px-1.5 py-0.5 bg-white/5 rounded [color:var(--color-fg-muted)] text-[10px]">k</kbd> navigate
+              <span className="mx-2 [color:var(--color-fg-subtle)]">&middot;</span>
+              <kbd className="px-1.5 py-0.5 bg-white/5 rounded [color:var(--color-fg-muted)] text-[10px]">a</kbd> approve
+              <span className="mx-2 [color:var(--color-fg-subtle)]">&middot;</span>
+              <kbd className="px-1.5 py-0.5 bg-white/5 rounded [color:var(--color-fg-muted)] text-[10px]">r</kbd> reject
+              <span className="mx-2 [color:var(--color-fg-subtle)]">&middot;</span>
+              <kbd className="px-1.5 py-0.5 bg-white/5 rounded [color:var(--color-fg-muted)] text-[10px]">e</kbd> edit
             </span>
           </div>
         </div>
@@ -1236,17 +1271,17 @@ export default function ContentReview() {
             transition={{ type: 'spring', damping: 25, stiffness: 350 }}
             className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 print:hidden"
           >
-            <div className="flex items-center gap-3 bg-zinc-900/90 backdrop-blur-xl border border-white/10 rounded-2xl px-5 py-3 shadow-2xl shadow-black/40">
+            <div className="flex items-center gap-3 [background:var(--color-surface-hover)] backdrop-blur-xl border border-white/10 rounded-2xl px-5 py-3 shadow-2xl shadow-black/40">
               {/* Select all */}
               <button
                 onClick={toggleSelectAll}
-                className="flex items-center gap-2 text-sm text-zinc-400 hover:text-white transition-colors"
+                className="flex items-center gap-2 text-sm [color:var(--color-fg-muted)] hover:text-white transition-colors"
               >
                 {selectedIds.size === filteredPieces.length
-                  ? <CheckSquare className="w-4 h-4 text-amber-400" />
+                  ? <CheckSquare className="w-4 h-4 [color:var(--color-accent)]" />
                   : <Square className="w-4 h-4" />
                 }
-                <span className="text-amber-400 font-medium">{selectedIds.size}</span>
+                <span className="[color:var(--color-accent)] font-medium">{selectedIds.size}</span>
                 <span>selected</span>
               </button>
 
@@ -1254,7 +1289,7 @@ export default function ContentReview() {
 
               <button
                 onClick={() => bulkAction('approved')}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/20 transition-colors"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium [background:var(--color-success-subtle)] [color:var(--color-success)] hover:[background:var(--color-success-subtle)] border [border-color:var(--color-success-subtle)] transition-colors"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 Approve ({selectedIds.size})
@@ -1262,7 +1297,7 @@ export default function ContentReview() {
 
               <button
                 onClick={() => bulkAction('rejected')}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/20 transition-colors"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium [background:var(--color-danger-subtle)] [color:var(--color-danger)] hover:[background:var(--color-danger-subtle)] border [border-color:var(--color-danger-subtle)] transition-colors"
               >
                 <XCircle className="w-4 h-4" />
                 Reject
@@ -1270,7 +1305,7 @@ export default function ContentReview() {
 
               <button
                 onClick={handleExport}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 border border-amber-500/20 transition-colors"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium [background:var(--color-accent-subtle)] [color:var(--color-accent)] hover:[background:var(--color-accent-subtle)] border [border-color:var(--color-accent-subtle)] transition-colors"
               >
                 <Printer className="w-4 h-4" />
                 Export Approved
@@ -1278,7 +1313,7 @@ export default function ContentReview() {
 
               <button
                 onClick={() => setSelectedIds(new Set())}
-                className="p-2 rounded-lg text-zinc-500 hover:text-white hover:bg-white/5 transition-colors"
+                className="p-2 rounded-lg [color:var(--color-fg-subtle)] hover:text-white hover:bg-white/5 transition-colors"
                 title="Clear selection"
               >
                 <X className="w-4 h-4" />

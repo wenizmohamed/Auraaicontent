@@ -101,7 +101,8 @@ export default function Gallery() {
         className="flex flex-wrap items-center justify-between gap-4"
       >
         <div>
-          <h1 className={`text-3xl font-black tracking-tight ${textPrimary}`}>Gallery</h1>
+          <p className="text-[11px] uppercase tracking-[0.14em] font-semibold" style={{ color: 'var(--color-fg-subtle)' }}>Assets</p>
+          <h1 className={`font-display text-3xl sm:text-4xl font-bold tracking-tight ${textPrimary}`}>Gallery</h1>
           <p className={`text-sm mt-1 ${textSecondary}`}>
             All generated images and videos across your clients
           </p>
