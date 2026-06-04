@@ -65,6 +65,26 @@ export const AI_PRICING: Record<string, PricePoint> = {
   // so cost reports never under-attribute. If cache-aware accounting is
   // added later, swap to a weighted average.
   'kimi-k2.6':                         { promptPerM: 0.95, completionPerM: 4.00 },
+
+  // ─── DashScope (Alibaba Model Studio "Token Plan") ──────────────
+  // APPROXIMATE intl per-M rates (verify vs the plan's unit billing — the
+  // plan bills a fixed quota of "units", so these are for the cost meter
+  // only). Text via OpenAI-compatible; image is per generated image.
+  'qwen3.7-max':                       { promptPerM: 1.60, completionPerM: 6.40 },
+  'qwen3.6-plus':                      { promptPerM: 0.40, completionPerM: 1.20 },
+  'qwen3.6-flash':                     { promptPerM: 0.05, completionPerM: 0.40 },
+  'deepseek-v4-pro':                   { promptPerM: 0.55, completionPerM: 2.20 },
+  'deepseek-v4-flash':                 { promptPerM: 0.14, completionPerM: 0.28 },
+  'deepseek-v3.2':                     { promptPerM: 0.28, completionPerM: 0.42 },
+  'glm-5.1':                           { promptPerM: 0.60, completionPerM: 2.20 },
+  'glm-5':                             { promptPerM: 0.60, completionPerM: 2.20 },
+  'MiniMax-M2.5':                      { promptPerM: 0.30, completionPerM: 1.20 },
+  'kimi-k2.5':                         { promptPerM: 0.60, completionPerM: 2.50 },
+  // Image models (per generated image).
+  'qwen-image-2.0':                    { promptPerM: 0, completionPerM: 0, perCall: 0.025 },
+  'qwen-image-2.0-pro':                { promptPerM: 0, completionPerM: 0, perCall: 0.05 },
+  'wan2.7-image':                      { promptPerM: 0, completionPerM: 0, perCall: 0.025 },
+  'wan2.7-image-pro':                  { promptPerM: 0, completionPerM: 0, perCall: 0.05 },
 };
 
 export function priceFor(model: string): PricePoint {

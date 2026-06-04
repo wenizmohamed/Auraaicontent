@@ -39,6 +39,13 @@ export const env = {
   GEMINI_EMBEDDING_MODEL: optional('GEMINI_EMBEDDING_MODEL', 'gemini-embedding-2-preview'),
   GEMINI_TIMEOUT_MS: parseInt(optional('GEMINI_TIMEOUT_MS', '90000'), 10),
 
+  // DashScope (Alibaba Model Studio "Token Plan") — multi-model text + image.
+  DASHSCOPE_API_KEY: optional('DASHSCOPE_API_KEY', ''),
+  DASHSCOPE_BASE_URL: optional('DASHSCOPE_BASE_URL', 'https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1'),
+  DASHSCOPE_TEXT_MODEL: optional('DASHSCOPE_TEXT_MODEL', 'qwen3.7-max'),
+  DASHSCOPE_IMAGE_MODEL: optional('DASHSCOPE_IMAGE_MODEL', 'qwen-image-2.0-pro'),
+  DASHSCOPE_TIMEOUT_MS: parseInt(optional('DASHSCOPE_TIMEOUT_MS', '120000'), 10),
+
   // Routing
   AI_TEXT_PRIMARY: optional('AI_TEXT_PRIMARY', 'gemini'),
   AI_IMAGE_PRIMARY: optional('AI_IMAGE_PRIMARY', 'gemini'),

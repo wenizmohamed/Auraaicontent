@@ -1,4 +1,4 @@
-export type AiProviderName = 'xai' | 'gemini';
+export type AiProviderName = 'xai' | 'gemini' | 'dashscope';
 export type AiTask = 'text' | 'image' | 'image_edit' | 'video' | 'analysis' | 'embedding';
 
 export interface TextRequest {
@@ -7,6 +7,7 @@ export interface TextRequest {
   temperature?: number;
   json?: boolean;
   maxTokens?: number;
+  model?: string;  // optional per-call model override (powers the model picker)
 }
 
 export interface ImageRequest {
@@ -18,6 +19,7 @@ export interface ImageRequest {
   referenceImages?: { base64: string; mimeType: string }[];
   grounded?: boolean;
   quality?: 'standard' | 'ultra';  // ultra → imagen-4.0-ultra
+  model?: string;  // optional per-call model override (powers the model picker)
 }
 
 export interface VideoRequest {

@@ -1,5 +1,6 @@
 import { xaiProvider } from './xai.provider.js';
 import { geminiProvider } from './gemini.provider.js';
+import { dashscopeProvider } from './dashscope.provider.js';
 import { isRetryableAiError, isSafetyBlock, AllProvidersFailedError, type ProviderFailure } from './errors.js';
 import { filterAvailable, recordSuccess, recordFailure, getCircuitSnapshot } from './circuit-breaker.js';
 import type { AiProvider, AiProviderName, AiTask, AiTelemetryEntry, AnalysisRequest, ImageRequest, ProviderResult, TextRequest, VideoRequest } from './types.js';
@@ -93,16 +94,46 @@ const FALLBACK_ENABLED = process.env.AI_ENABLE_FALLBACK !== 'false';
 const PROVIDERS: Record<AiProviderName, AiProvider> = {
   xai: xaiProvider,
   gemini: geminiProvider,
+  dashscope: dashscopeProvider,
 };
 
-// preferredPrimary forces a per-call primary (e.g. draft video → 'xai' so cheap
-// Grok runs first), overriding the env default for THIS call only. When omitted,
-// the env PRIMARY map decides — text/image/analysis behavior is unchanged.
+// Per-task fallback chain (order = preference). DashScope joins text/image/
+// analysis as an extra fallback (it has no video on the current plan). Gemini
+// stays primary by default via the PRIMARY env map; this only adds resilience —
+// a request only reaches DashScope if the providers before it fail.
+const CHAIN: Record<string, AiProviderName[]> = {
+  text: ['gemini', 'xai', 'dashscope'],
+  image: ['gemini', 'xai', 'dashscope'],
+  analysis: ['gemini', 'xai', 'dashscope'],
+  video: ['gemini', 'xai'],
+};
+
+// A provider is usable only when its credential is configured — keeps a
+// keyless DashScope (or xAI) out of the chain so it can't throw a
+// non-retryable "key not set" and break the fallback.
+function providerAvailable(name: AiProviderName): boolean {
+  switch (name) {
+    case 'dashscope': return !!process.env.DASHSCOPE_API_KEY;
+    case 'xai': return !!process.env.XAI_API_KEY;
+    case 'gemini': return !!process.env.GEMINI_API_KEY;
+    default: return false;
+  }
+}
+
+// preferredPrimary forces a per-call primary (e.g. draft text→video → 'xai' so
+// cheap Grok runs first, or a model-picker choice), overriding the env default
+// for THIS call only. The rest of the task's CHAIN follows as fallbacks.
 function orderedProviders(task: string, preferredPrimary?: AiProviderName): AiProvider[] {
   const normalizedTask = task === 'image_edit' ? 'image' : task;
+  const base = CHAIN[normalizedTask] || ['gemini', 'xai'];
   const primary = preferredPrimary || PRIMARY[normalizedTask] || 'gemini';
-  const fallback = primary === 'gemini' ? 'xai' : 'gemini';
-  return FALLBACK_ENABLED ? [PROVIDERS[primary], PROVIDERS[fallback]] : [PROVIDERS[primary]];
+  // primary first, then the rest of the chain (deduped), filtered to available.
+  const ordered = [primary, ...base.filter((p) => p !== primary)].filter(providerAvailable);
+  const names = FALLBACK_ENABLED ? ordered : ordered.slice(0, 1);
+  const list = names.map((n) => PROVIDERS[n]).filter(Boolean);
+  // Never return empty — fall back to the primary (or gemini) even if the
+  // availability check is wrong, so the call attempts rather than 500s here.
+  return list.length ? list : [PROVIDERS[primary] || PROVIDERS.gemini];
 }
 
 // ─── Telemetry ring buffer ───────────────────────────────────────
