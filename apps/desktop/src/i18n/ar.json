@@ -148,7 +148,10 @@
   "invite.expires": "تنتهي الدعوة في",
   "invite.accept": "قبول الدعوة",
   "invite.accepting": "جارٍ الانضمام…",
-  "invite.signin_prompt": "سجّل الدخول كـ {email} لقبول الدعوة.",
+  "invite.signin_prompt": "للقبول، استخدم {email} — أنشئ حسابًا أو سجّل الدخول.",
   "invite.signin": "تسجيل الدخول",
-  "invite.joined": "تم الانضمام إلى {org}. جارٍ التحويل…"
+  "invite.create_account": "إنشاء حساب والانضمام",
+  "invite.have_account": "لديّ حساب بالفعل",
+  "invite.joined": "تم الانضمام إلى {org}. جارٍ التحويل…",
+  "invite.replay_failed": "تعذّر الانضمام تلقائيًا — قد لا يطابق بريد حسابك الدعوة."
 }

@@ -11,7 +11,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { invitationsApi, type InvitePreview, orgsApi } from '../lib/backend-api';
 import { useTheme } from '../lib/theme-context';
 import { t } from '../i18n';
-import { Mail, Building2, AlertCircle, Check, LogIn } from 'lucide-react';
+import { Mail, Building2, AlertCircle, Check, LogIn, UserPlus } from 'lucide-react';
 
 function fill(template: string, vars: Record<string, string>): string {
   return template.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? `{${k}}`);
@@ -53,6 +53,16 @@ export default function AcceptInvite() {
       setError(e?.message || 'Failed to accept invitation');
       setAccepting(false);
     }
+  }
+
+  // Persist the invite across the auth round-trip: the token is replayed by
+  // App's Layout once authenticated, and the email is read by Login to pre-fill
+  // (and lock) the address so it matches the invite the backend checks against.
+  function stashInvite() {
+    try {
+      localStorage.setItem('radix.pendingInvite', token!);
+      if (preview?.email) localStorage.setItem('radix.inviteEmail', preview.email);
+    } catch { /* ignore */ }
   }
 
   const card = isDark ? 'bg-white/[0.03] border border-white/[0.06]' : 'bg-white border border-slate-200 shadow-sm';
@@ -107,7 +117,8 @@ export default function AcceptInvite() {
               <button
                 onClick={accept}
                 disabled={accepting}
-                className="mt-6 w-full py-2.5 rounded-xl font-semibold text-sm bg-amber-500 hover:bg-amber-600 text-white transition-all duration-200 disabled:opacity-50 cursor-pointer"
+                style={{ color: '#fff' }}
+                className="mt-6 w-full py-2.5 rounded-xl font-semibold text-sm bg-amber-500 hover:bg-amber-600 transition-all duration-200 disabled:opacity-50 cursor-pointer"
               >
                 {accepting ? t('invite.accepting') : t('invite.accept')}
               </button>
@@ -116,15 +127,32 @@ export default function AcceptInvite() {
                 <div className={`text-sm ${sub}`}>
                   {fill(t('invite.signin_prompt'), { email: preview.email })}
                 </div>
+                {/* Primary: brand-new recipients need an obvious way to register.
+                    Stash the token (replayed post-auth in App's Layout) and the
+                    invited email (Login pre-fills + locks it, since the backend
+                    requires the logged-in email to match the invite). */}
+                {/* NOTE: do NOT use the `text-white` utility here — index.css has
+                    `html.light .text-white { color:#0f172a !important }`, which would
+                    make dark-button labels invisible in light mode. Force color inline. */}
                 <Link
-                  to="/login"
+                  to="/login?mode=signup"
+                  style={{ color: '#fff' }}
+                  className="w-full py-2.5 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 transition-all duration-200 cursor-pointer"
+                  onClick={stashInvite}
+                >
+                  <UserPlus size={14} />
+                  {t('invite.create_account')}
+                </Link>
+                <Link
+                  to="/login?mode=signin"
+                  style={{ color: '#fff' }}
                   className={`w-full py-2.5 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 ${
-                    isDark ? 'bg-white/10 hover:bg-white/15 text-white' : 'bg-slate-900 hover:bg-slate-800 text-white'
+                    isDark ? 'bg-white/10 hover:bg-white/15' : 'bg-slate-900 hover:bg-slate-800'
                   } transition-all duration-200 cursor-pointer`}
-                  onClick={() => { try { localStorage.setItem('radix.pendingInvite', token!); } catch {} }}
+                  onClick={stashInvite}
                 >
                   <LogIn size={14} />
-                  {t('invite.signin')}
+                  {t('invite.have_account')}
                 </Link>
               </div>
             )}

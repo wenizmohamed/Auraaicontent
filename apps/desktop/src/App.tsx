@@ -61,7 +61,7 @@ import { ShortcutCheatSheet } from './components/ShortcutCheatSheet';
 import { UpgradeBanner } from './components/UpgradeBanner';
 import { TooltipProvider, Tooltip } from './components/ui/Tooltip';
 import { useShortcut } from './lib/shortcuts';
-import { Toaster } from 'sonner';
+import { Toaster, toast } from 'sonner';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './lib/query-client';
 import { MotionConfig, motion } from 'framer-motion';
@@ -123,6 +123,33 @@ function Layout({ children }: { children: React.ReactNode }) {
       }).catch(() => { /* ignore */ });
     }, 1200);
     return () => clearTimeout(t);
+  }, []);
+
+  // Pending-invite replay — a logged-out recipient who clicked an invite link
+  // had the token stashed in localStorage (AcceptInvite → Login round-trip).
+  // Now that they're authenticated (Layout only mounts when authed), accept it
+  // automatically and drop them into the new org. The backend rejects the
+  // accept if the logged-in email ≠ the invited email; on any failure we clear
+  // the stash so it can't loop and surface a toast.
+  useEffect(() => {
+    let token: string | null = null;
+    try { token = localStorage.getItem('radix.pendingInvite'); } catch { /* ignore */ }
+    if (!token) return;
+    let cancelled = false;
+    const clear = () => { try { localStorage.removeItem('radix.pendingInvite'); localStorage.removeItem('radix.inviteEmail'); } catch { /* ignore */ } };
+    (async () => {
+      try {
+        const { invitationsApi, orgsApi } = await import('./lib/backend-api');
+        const r = await invitationsApi.accept(token!);
+        try { await orgsApi.switch(r.orgId); } catch { /* user can switch manually */ }
+        clear();
+        if (!cancelled) window.location.href = '/';
+      } catch {
+        clear();
+        if (!cancelled) toast.error(t('invite.replay_failed'));
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   // Central keyboard shortcuts — discoverable via "?" cheat sheet.

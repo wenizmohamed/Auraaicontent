@@ -26,10 +26,29 @@ const TRUSTED_AGENCIES = [
   'Studio Levant',
 ];
 
+function readLS(key: string): string | null {
+  try { return localStorage.getItem(key); } catch { return null; }
+}
+
 export default function Login() {
   const { login, register, authError } = useClients();
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
-  const [email, setEmail] = useState(() => localStorage.getItem('radix_last_email') ?? '');
+
+  // Invite flow: when a logged-out recipient clicks an invite link, the token +
+  // invited email are stashed in localStorage. Arriving here we open the right
+  // tab (?mode=signup) and lock the email to the invited address — the backend
+  // rejects acceptance unless the logged-in email matches the invite.
+  const pendingInvite = readLS('radix.pendingInvite');
+  const inviteEmail = readLS('radix.inviteEmail');
+  const lockEmail = !!(pendingInvite && inviteEmail);
+
+  const [mode, setMode] = useState<'signin' | 'signup'>(() => {
+    try {
+      const m = new URLSearchParams(window.location.search).get('mode');
+      if (m === 'signup' || m === 'signin') return m;
+    } catch { /* ignore */ }
+    return 'signin';
+  });
+  const [email, setEmail] = useState(() => (lockEmail ? inviteEmail! : (localStorage.getItem('radix_last_email') ?? '')));
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [rememberMe, setRememberMe] = useState(() => localStorage.getItem('radix_remember_me') === '1');
@@ -137,7 +156,20 @@ export default function Login() {
               )}
             </AnimatePresence>
 
-            <Field id="login-email" label="Email" type="email" autoComplete="email" required value={email} onChange={setEmail} placeholder="you@example.com" />
+            {lockEmail && (
+              <div
+                className="rounded-xl border px-3 py-2 text-[12px]"
+                style={{
+                  background: 'var(--color-accent-subtle)',
+                  borderColor: 'var(--color-border-subtle)',
+                  color: 'var(--color-fg-muted)',
+                }}
+              >
+                Joining via invitation — using <span style={{ color: 'var(--color-fg)' }}>{inviteEmail}</span>
+              </div>
+            )}
+
+            <Field id="login-email" label="Email" type="email" autoComplete="email" required value={email} onChange={setEmail} placeholder="you@example.com" readOnly={lockEmail} />
             <Field id="login-password" label="Password" type="password" autoComplete={mode === 'signin' ? 'current-password' : 'new-password'} required minLength={6} value={password} onChange={setPassword} placeholder="••••••••" />
 
             <label className="flex items-center gap-2 select-none cursor-pointer text-[12px]" style={{ color: 'var(--color-fg-muted)' }}>
@@ -309,7 +341,7 @@ export default function Login() {
   );
 }
 
-function Field({ id, label, type, autoComplete, required, minLength, value, onChange, placeholder }: {
+function Field({ id, label, type, autoComplete, required, minLength, value, onChange, placeholder, readOnly }: {
   id: string;
   label: string;
   type: string;
@@ -319,6 +351,7 @@ function Field({ id, label, type, autoComplete, required, minLength, value, onCh
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
+  readOnly?: boolean;
 }) {
   return (
     <div>
@@ -334,11 +367,14 @@ function Field({ id, label, type, autoComplete, required, minLength, value, onCh
         required={required}
         minLength={minLength}
         placeholder={placeholder}
+        readOnly={readOnly}
+        aria-readonly={readOnly}
         className="w-full rounded-xl border px-3.5 py-2.5 text-[13px] transition-colors focus:outline-none"
         style={{
-          background: 'var(--color-surface)',
+          background: readOnly ? 'var(--color-bg-elevated)' : 'var(--color-surface)',
           borderColor: 'var(--color-border-subtle)',
-          color: 'var(--color-fg)',
+          color: readOnly ? 'var(--color-fg-muted)' : 'var(--color-fg)',
+          cursor: readOnly ? 'not-allowed' : undefined,
         }}
         onFocus={(e) => { (e.currentTarget as HTMLInputElement).style.borderColor = 'var(--color-accent)'; }}
         onBlur={(e) => { (e.currentTarget as HTMLInputElement).style.borderColor = 'var(--color-border-subtle)'; }}

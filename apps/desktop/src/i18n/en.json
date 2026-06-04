@@ -148,7 +148,10 @@
   "invite.expires": "Invitation expires",
   "invite.accept": "Accept invitation",
   "invite.accepting": "Joining…",
-  "invite.signin_prompt": "Sign in as {email} to accept.",
+  "invite.signin_prompt": "To accept, use {email} — create an account or sign in.",
   "invite.signin": "Sign in",
-  "invite.joined": "Joined {org}. Redirecting…"
+  "invite.create_account": "Create account & join",
+  "invite.have_account": "I already have an account",
+  "invite.joined": "Joined {org}. Redirecting…",
+  "invite.replay_failed": "Couldn't auto-join — your account email may not match the invite."
 }
