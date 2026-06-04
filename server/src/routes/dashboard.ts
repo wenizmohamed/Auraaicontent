@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { db } from '../db/prisma.js';
 import { authGuard } from '../middleware/auth.js';
 import { getAiTelemetry } from '../services/providers/ai-router.js';
+import { getEnrichmentHealth } from '../lib/enrichment-stats.js';
 import { getCircuitSnapshot } from '../services/providers/circuit-breaker.js';
 
 export async function dashboardRoutes(app: FastifyInstance) {
@@ -258,6 +259,9 @@ export async function dashboardRoutes(app: FastifyInstance) {
         totalTokens: t.totalTokens,
       })),
       circuits: getCircuitSnapshot(),
+      // RAG / memory retrieval health — is enrichment actually firing, or silently
+      // no-op'ing? injectionRate>0 with ran>0 = working; failed>0 = breakage.
+      enrichment: getEnrichmentHealth(),
       recent: entries.slice(-20).reverse(),
     };
     } catch (err) {

@@ -22,6 +22,7 @@
 
 import { db } from '../db/prisma.js';
 import { retrieveContext } from '../services/retrieval.service.js';
+import { recordGated, recordRan, recordFailed } from './enrichment-stats.js';
 
 const CHUNK_CAP = 4;          // max chunks injected (token-budget guard)
 const CHUNK_CHAR_CAP = 600;   // trim each chunk to bound context-window pressure
@@ -39,15 +40,15 @@ export async function enrichWithKnowledge(
   retrievalQuery: string,
   opts: KnowledgeEnrichOpts = {},
 ): Promise<string> {
-  if (opts.skip) return prompt;
-  if (!orgId || !clientId || !prompt || !retrievalQuery) return prompt;
+  if (opts.skip || !orgId || !clientId || !prompt || !retrievalQuery) { recordGated('knowledge'); return prompt; }
 
   // Cheap gate: don't pay for a query-embedding if the client has no knowledge.
   try {
     const count = await db.knowledgeItem.count({ where: { orgId, clientId } });
-    if (count === 0) return prompt;
+    if (count === 0) { recordGated('knowledge'); return prompt; }
   } catch (err: any) {
     console.warn('[knowledge-enricher] count failed:', err?.message || err);
+    recordFailed('knowledge');
     return prompt;
   }
 
@@ -56,12 +57,14 @@ export async function enrichWithKnowledge(
     hits = await retrieveContext(orgId, clientId, retrievalQuery, CHUNK_CAP * 2);
   } catch (err: any) {
     console.warn('[knowledge-enricher] retrieval failed:', err?.message || err);
+    recordFailed('knowledge');
     return prompt;
   }
 
   const relevant = hits
     .filter(h => h.score >= MIN_SCORE && h.text?.trim())
     .slice(0, CHUNK_CAP);
+  recordRan('knowledge', relevant.length);
   if (!relevant.length) return prompt;
 
   const lines: string[] = ['[KNOWLEDGE BASE — retrieved for this request]'];

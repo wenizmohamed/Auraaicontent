@@ -13,6 +13,7 @@
 
 import { db } from '../db/prisma.js';
 import { retrieveMemories } from '../services/memory.service.js';
+import { recordGated, recordRan, recordFailed } from './enrichment-stats.js';
 
 const MEM_CAP = 4;          // max learnings injected (token-budget guard)
 const MEM_CHAR_CAP = 400;   // trim each learning to bound context-window pressure
@@ -29,15 +30,15 @@ export async function enrichWithMemory(
   retrievalQuery: string,
   opts: MemoryEnrichOpts = {},
 ): Promise<string> {
-  if (opts.skip) return prompt;
-  if (!orgId || !prompt || !retrievalQuery) return prompt;
+  if (opts.skip || !orgId || !prompt || !retrievalQuery) { recordGated('memory'); return prompt; }
 
   // Cheap gate: don't pay for a query-embedding if the org has no learnings yet.
   try {
     const count = await db.memory.count({ where: { orgId, status: 'active' } });
-    if (count === 0) return prompt;
+    if (count === 0) { recordGated('memory'); return prompt; }
   } catch (err: any) {
     console.warn('[memory-enricher] count failed:', err?.message || err);
+    recordFailed('memory');
     return prompt;
   }
 
@@ -46,10 +47,12 @@ export async function enrichWithMemory(
     hits = await retrieveMemories(orgId, clientId, retrievalQuery, MEM_CAP, MIN_SCORE);
   } catch (err: any) {
     console.warn('[memory-enricher] retrieval failed:', err?.message || err);
+    recordFailed('memory');
     return prompt;
   }
 
   const relevant = hits.filter(h => h.content?.trim()).slice(0, MEM_CAP);
+  recordRan('memory', relevant.length);
   if (!relevant.length) return prompt;
 
   const lines: string[] = ['[LEARNED FROM PAST FEEDBACK — apply these corrections/preferences]'];
