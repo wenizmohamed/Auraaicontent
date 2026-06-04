@@ -7,6 +7,7 @@ import { db } from '../../db/prisma.js';
 import { computeCostUsd } from '../../lib/ai-pricing.js';
 import { assertOrgBudget } from '../../lib/budget.js';
 import { enrichWithBrandKit } from '../../lib/brand-kit-enricher.js';
+import { enrichWithKnowledge } from '../../lib/knowledge-enricher.js';
 
 // Public meta shape passed to every aiRouter.* call.  clientId triggers the
 // BrandKit enricher; skipBrandKit bypasses it for debug/testing; platform
@@ -18,6 +19,7 @@ export type AiRouterMeta = {
   orgId?: string;
   userId?: string;
   skipBrandKit?: boolean;
+  skipKnowledge?: boolean;
   platform?: string;
 };
 
@@ -147,6 +149,15 @@ async function routeCall<T>(
   // exists for the client.  Mutates req.prompt in place so the closure
   // captured by `fn` sees the enriched value.
   if (req && meta?.clientId && req.prompt) {
+    // Retrieve Knowledge using the ORIGINAL prompt (before BrandKit voice
+    // samples are prepended, which would skew the query embedding). Gated to
+    // text/analysis — doc knowledge doesn't help image/video prompts. Best-
+    // effort: no-op when the client has no knowledge or no embeddings exist.
+    if (meta?.orgId && (task === 'text' || task === 'analysis')) {
+      req.prompt = await enrichWithKnowledge(req.prompt, meta.orgId, meta.clientId, req.prompt, {
+        skip: meta?.skipKnowledge,
+      });
+    }
     req.prompt = await enrichWithBrandKit(req.prompt, meta.clientId, {
       skip: meta?.skipBrandKit,
       platform: meta?.platform as any,
