@@ -46,6 +46,7 @@ const Workspace         = lazy(() => import('./pages/Workspace'));
 const Agent             = lazy(() => import('./pages/Agent'));
 const Integrations      = lazy(() => import('./pages/Integrations'));
 const History           = lazy(() => import('./pages/History'));
+const GuideWidget       = lazy(() => import('./components/GuideWidget'));
 
 import MobileMenu from './components/MobileMenu';
 import OrgSwitcher from './components/OrgSwitcher';
@@ -504,6 +505,11 @@ function Layout({ children }: { children: React.ReactNode }) {
         {/* Global Floating Chat Widget — lazy + null fallback so it never blocks */}
         <Suspense fallback={null}>
           <RadixAssistant />
+        </Suspense>
+
+        {/* Get-started guidance companion (bottom-left, clear of the chat widget) */}
+        <Suspense fallback={null}>
+          <GuideWidget />
         </Suspense>
       </div>
 
