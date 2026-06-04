@@ -91,6 +91,18 @@ interface OccasionEntry {
   enabled: boolean;
 }
 
+// ─── In-flight generation persistence ──────────────────────────────
+// The calendar generation runs as a server-side job; if the user refreshes
+// mid-run we'd lose the jobId and the "generating" UI even though the job is
+// still going. Stashing it lets the page reconnect on reload.
+const ACTIVE_JOB_KEY = 'radix.activeJob.calendar';
+interface ActiveJob { jobId: string; clientId: string; month: string }
+function saveActiveJob(j: ActiveJob) { try { localStorage.setItem(ACTIVE_JOB_KEY, JSON.stringify(j)); } catch { /* noop */ } }
+function clearActiveJob() { try { localStorage.removeItem(ACTIVE_JOB_KEY); } catch { /* noop */ } }
+function readActiveJob(): ActiveJob | null {
+  try { const r = localStorage.getItem(ACTIVE_JOB_KEY); return r ? (JSON.parse(r) as ActiveJob) : null; } catch { return null; }
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // PAGE COMPONENT
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -236,11 +248,47 @@ export default function BriefInput() {
 
   const handleCancel = useCallback(() => {
     cancelledRef.current = true;
+    clearActiveJob();
     setIsGenerating(false);
     setGenerationProgress('Cancelled.');
   }, []);
 
   // ─── Shared generate + poll helper ──────────────────────────────
+
+  // Poll a server-side generation job to completion. Extracted so a page
+  // refresh mid-generation can RESUME the same job (see the mount effect below)
+  // instead of stranding the user — the job keeps running on the server, we just
+  // reconnect to it.
+  const pollJob = useCallback(async (
+    jobId: string,
+    clientId: string,
+    month: string,
+    onProgress?: (msg: string) => void,
+  ): Promise<void> => {
+    let attempts = 0;
+    while (attempts < 120) {
+      if (cancelledRef.current) { clearActiveJob(); throw new Error('Cancelled'); }
+      await new Promise(r => setTimeout(r, 5000));
+      const job = await jobsApi.get(jobId);
+      const elapsed = Math.round((attempts + 1) * 5);
+      onProgress?.(`Generating... ${job.progress}% (${elapsed}s)`);
+
+      if (job.status === 'completed') {
+        onProgress?.('Done!');
+        clearActiveJob();
+        // Route to Review (not Calendar) so user sees generated content + visual references first
+        navigate(`/content-review?client=${clientId}&month=${encodeURIComponent(month)}`);
+        return;
+      }
+      if (job.status === 'failed') {
+        clearActiveJob();
+        throw new Error(job.error || 'Generation failed on server');
+      }
+      attempts++;
+    }
+    clearActiveJob();
+    throw new Error('Generation timed out after 10 minutes');
+  }, [navigate]);
 
   const generateAndPoll = useCallback(async (
     clientId: string,
@@ -250,28 +298,29 @@ export default function BriefInput() {
   ): Promise<void> => {
     onProgress?.(`Generating ${count} content pieces...`);
     const { jobId } = await calendarApi.generate(clientId, month, count);
+    // Persist the in-flight job so a refresh can reconnect to it.
+    saveActiveJob({ jobId, clientId, month });
+    await pollJob(jobId, clientId, month, onProgress);
+  }, [pollJob]);
 
-    let attempts = 0;
-    while (attempts < 120) {
-      if (cancelledRef.current) throw new Error('Cancelled');
-      await new Promise(r => setTimeout(r, 5000));
-      const job = await jobsApi.get(jobId);
-      const elapsed = Math.round((attempts + 1) * 5);
-      onProgress?.(`Generating... ${job.progress}% (${elapsed}s)`);
-
-      if (job.status === 'completed') {
-        onProgress?.('Done!');
-        // Route to Review (not Calendar) so user sees generated content + visual references first
-        navigate(`/content-review?client=${clientId}&month=${encodeURIComponent(month)}`);
-        return;
-      }
-      if (job.status === 'failed') {
-        throw new Error(job.error || 'Generation failed on server');
-      }
-      attempts++;
-    }
-    throw new Error('Generation timed out after 10 minutes');
-  }, [navigate]);
+  // Resume an in-flight generation after a page refresh: the server job is
+  // still running, so reconnect to it instead of losing the "generating" state.
+  useEffect(() => {
+    const active = readActiveJob();
+    if (!active?.jobId) return;
+    cancelledRef.current = false;
+    setIsGenerating(true);
+    setGenerationProgress('Reconnecting to your generation…');
+    pollJob(active.jobId, active.clientId, active.month, setGenerationProgress)
+      .catch(() => {
+        // Job already finished / expired / gone — clear and reset quietly.
+        clearActiveJob();
+        setIsGenerating(false);
+        setGenerationProgress('');
+      });
+    // Run once on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ─── Generate ────────────────────────────────────────────────────
 
