@@ -146,6 +146,18 @@ function aspectRatiosFor(mode: Mode) {
     : ASPECT_RATIOS_IMAGE;
 }
 
+// Image engine picker — 'auto' uses the default chain (Gemini → fallback);
+// the rest force a specific provider/model for sharper stills.
+const IMAGE_MODELS: { value: string; label: string; provider?: 'gemini' | 'xai' | 'dashscope'; model?: string }[] = [
+  { value: 'auto', label: 'Auto (Gemini)' },
+  { value: 'qwen-image-2.0-pro', label: 'Qwen Image 2.0 Pro', provider: 'dashscope', model: 'qwen-image-2.0-pro' },
+  { value: 'wan2.7-image-pro', label: 'Wan 2.7 Image Pro', provider: 'dashscope', model: 'wan2.7-image-pro' },
+];
+function resolveImageModel(value: string): { provider?: 'gemini' | 'xai' | 'dashscope'; model?: string } {
+  const m = IMAGE_MODELS.find((x) => x.value === value);
+  return m && m.provider ? { provider: m.provider, model: m.model } : {};
+}
+
 const VIDEO_DURATIONS = [
   { label: '5s', value: 5 },
   { label: '8s', value: 8 },
@@ -191,6 +203,9 @@ export default function CreativeTools() {
   // Video cost tier (design 2026-06-03). Default 'draft' (cheap, Grok);
   // 'hd' opts into veo-3.1-fast. Sent to the backend as `tier`.
   const [tier, setTier] = useState<'draft' | 'hd'>('draft');
+  // Image engine picker (multi-LLM). 'auto' = Gemini default chain; DashScope
+  // qwen/wan options for higher-fidelity stills. Sent as { provider, model }.
+  const [imageModel, setImageModel] = useState<string>('auto');
   const [sourceBase64, setSourceBase64] = useState('');
   const [sourceMime, setSourceMime] = useState('image/png');
   const [sourcePreview, setSourcePreview] = useState('');
@@ -349,6 +364,7 @@ export default function CreativeTools() {
           prompt: prompt.trim(),
           aspectRatio,
           clientId: selectedClientId || undefined,
+          ...resolveImageModel(imageModel),
         });
         generatedUrl = out.assetUrl || out.url || '';
         setResultUrl(generatedUrl);
@@ -361,6 +377,7 @@ export default function CreativeTools() {
           mimeType: sourceMime,
           aspectRatio,
           clientId: selectedClientId || undefined,
+          ...resolveImageModel(imageModel),
         });
         generatedUrl = out.assetUrl || out.url || '';
         setResultUrl(generatedUrl);
@@ -908,6 +925,30 @@ export default function CreativeTools() {
               ))}
             </div>
           </div>
+
+          {!isVideoMode && (
+            <div>
+              <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Engine</label>
+              <div className="flex items-center gap-2 mt-2">
+                {IMAGE_MODELS.map(im => (
+                  <button
+                    key={im.value}
+                    type="button"
+                    onClick={() => setImageModel(im.value)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                      imageModel === im.value ? '' : 'bg-white/[0.03] text-zinc-500 border-white/[0.06] hover:border-white/[0.1]'
+                    }`}
+                    style={imageModel === im.value
+                      ? { background: 'var(--color-accent-subtle)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' }
+                      : undefined}
+                    title={im.provider === 'dashscope' ? 'Alibaba DashScope — higher-fidelity stills' : 'Default engine with automatic fallback'}
+                  >
+                    {im.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {isVideoMode && (
             <div>

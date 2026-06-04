@@ -15,21 +15,31 @@ export async function creativeRoutes(app: FastifyInstance) {
 
   // POST /api/creative/images/generate
   app.post('/creative/images/generate', async (request, reply) => {
-    const { prompt: rawPrompt, aspectRatio, clientId, quality } = request.body as { prompt: string; aspectRatio?: string; clientId?: string; quality?: 'standard' | 'ultra' };
+    const { prompt: rawPrompt, aspectRatio, clientId, quality, model, provider } = request.body as { prompt: string; aspectRatio?: string; clientId?: string; quality?: 'standard' | 'ultra'; model?: string; provider?: 'gemini' | 'xai' | 'dashscope' };
     const v = validatePrompt(rawPrompt);
     if (!v.valid) return reply.status(400).send({ error: v.error });
     const prompt = sanitizePrompt(rawPrompt);
 
     try {
-      const result = await aiRouter.image({ prompt, aspectRatio, quality }, { orgId: request.orgId, userId: request.user?.userId, clientId });
-      // Save to assets if we have base64
+      const result = await aiRouter.image({ prompt, aspectRatio, quality, model }, { orgId: request.orgId, userId: request.user?.userId, clientId, preferredProvider: provider });
+      // Persist to assets. Gemini/Grok return base64; DashScope (qwen/wan)
+      // returns an EXPIRING OSS url, so fetch+store it too — otherwise the
+      // image vanishes when the signed link expires and never hits the gallery.
       let savedAsset = null;
-      if (result.output.base64 && clientId) {
-        const buf = Buffer.from(result.output.base64, 'base64');
-        const { fileUrl, thumbUrl } = await storageService.saveFile(buf, `ai-gen-${Date.now()}.png`, 'image/png');
-        savedAsset = await db.asset.create({
-          data: { orgId: request.orgId!, clientId, name: `ai-gen-${Date.now()}.png`, mimeType: 'image/png', fileUrl, thumbUrl, tags: ['ai-generated'], safeForClient: true },
-        });
+      if (clientId) {
+        let buf: Buffer | null = null;
+        if (result.output.base64) {
+          buf = Buffer.from(result.output.base64, 'base64');
+        } else if (result.output.url) {
+          try { buf = Buffer.from(await (await fetch(result.output.url)).arrayBuffer()); }
+          catch (e: any) { request.log.warn(`image url fetch failed: ${e?.message}`); }
+        }
+        if (buf) {
+          const { fileUrl, thumbUrl } = await storageService.saveFile(buf, `ai-gen-${Date.now()}.png`, 'image/png');
+          savedAsset = await db.asset.create({
+            data: { orgId: request.orgId!, clientId, name: `ai-gen-${Date.now()}.png`, mimeType: 'image/png', fileUrl, thumbUrl, tags: ['ai-generated'], safeForClient: true },
+          });
+        }
       }
       const finalUrl = savedAsset?.fileUrl || result.output.url || null;
       await historyService.record({
@@ -74,11 +84,11 @@ export async function creativeRoutes(app: FastifyInstance) {
 
   // POST /api/creative/images/edit
   app.post('/creative/images/edit', async (request, reply) => {
-    const { prompt, imageBase64, mimeType, aspectRatio, clientId } = request.body as any;
+    const { prompt, imageBase64, mimeType, aspectRatio, clientId, model, provider } = request.body as any;
     if (!prompt || !imageBase64) return reply.status(400).send({ error: 'prompt and imageBase64 are required' });
 
     try {
-      const result = await aiRouter.image({ prompt, imageBase64, mimeType: mimeType || 'image/png', aspectRatio }, { orgId: request.orgId, userId: request.user?.userId, clientId });
+      const result = await aiRouter.image({ prompt, imageBase64, mimeType: mimeType || 'image/png', aspectRatio, model }, { orgId: request.orgId, userId: request.user?.userId, clientId, preferredProvider: provider });
       let savedAsset = null;
       if (result.output.base64 && clientId) {
         const buf = Buffer.from(result.output.base64, 'base64');

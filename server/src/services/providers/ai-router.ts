@@ -24,6 +24,9 @@ export type AiRouterMeta = {
   skipKnowledge?: boolean;
   skipMemory?: boolean;
   platform?: string;
+  // Model picker: force a specific provider first for this call (the rest of
+  // the task's chain still follows as fallback). Pairs with req.model.
+  preferredProvider?: AiProviderName;
 };
 
 // Map task → UsageEvent.kind. Image edits bill the same as image gens.
@@ -215,8 +218,11 @@ async function routeCall<T>(
   // env default order (Veo-primary) regardless of tier — correctness over the
   // draft cost saving. Pure text→video drafts still go to cheap Grok.
   const imageConditioned = !!(req?.imageBase64 || req?.startImageBase64 || req?.endImageBase64);
+  // Model-picker override wins: a user-chosen provider runs first for this call.
+  // Otherwise the draft text→video rule applies; else the env default order.
   const preferredPrimary: AiProviderName | undefined =
-    task === 'video' && req?.tier === 'draft' && !imageConditioned ? 'xai' : undefined;
+    meta?.preferredProvider
+    || (task === 'video' && req?.tier === 'draft' && !imageConditioned ? 'xai' : undefined);
 
   // Circuit breaker: drop providers whose breaker is open so an ongoing outage
   // doesn't tax every request with a full timeout before falling through.
