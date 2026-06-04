@@ -113,46 +113,45 @@ export default function GuideWidget() {
 
   return (
     <>
-      {/* Launcher — bottom-LEFT so it never collides with the chat widget. */}
+      {/* Launcher — a subtle pill stacked ABOVE the chat widget. No second
+          heavy orange disc: ghost/elevated chrome, accent only in the thin
+          progress ring + compass glyph, so the chat bubble stays the one
+          primary action in the corner. */}
       <motion.button
         onClick={() => setOpen(o => !o)}
-        initial={{ scale: 0, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        whileHover={{ scale: 1.06 }}
-        whileTap={{ scale: 0.94 }}
+        initial={{ y: 8, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        whileHover={{ y: -1 }}
+        whileTap={{ scale: 0.97 }}
         transition={motionUI}
-        style={{ zIndex: Z.widget }}
-        className="fixed bottom-6 right-[5.5rem] w-14 h-14 rounded-full shadow-2xl cursor-pointer grid place-items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] focus-visible:ring-offset-2"
+        style={{ zIndex: Z.widget, background: panelBg, borderColor: border, color: fg }}
+        className="fixed bottom-[5.5rem] right-6 inline-flex items-center gap-2 h-9 pl-1.5 pr-3 rounded-full border shadow-lg cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] focus-visible:ring-offset-2"
         title={open ? 'Close guide' : `Get started — ${doneCount}/${total} done`}
         aria-label={open ? 'Close getting-started guide' : `Open getting-started guide, ${doneCount} of ${total} steps complete`}
         aria-expanded={open}
       >
-        {/* Progress ring */}
-        <svg viewBox="0 0 44 44" className="absolute inset-0 w-full h-full -rotate-90" aria-hidden>
-          <circle cx="22" cy="22" r="20" fill="none" stroke={isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.08)'} strokeWidth="3" />
-          <circle
-            cx="22" cy="22" r="20" fill="none"
-            stroke="var(--color-accent)" strokeWidth="3" strokeLinecap="round"
-            strokeDasharray={2 * Math.PI * 20}
-            strokeDashoffset={2 * Math.PI * 20 * (1 - doneCount / total)}
-            style={{ transition: 'stroke-dashoffset 0.4s ease' }}
-          />
-        </svg>
-        <span
-          className="absolute inset-1 rounded-full grid place-items-center"
-          style={{ background: 'linear-gradient(135deg, var(--color-accent-hover), var(--color-accent))' }}
-        >
+        {/* Small progress ring + glyph */}
+        <span className="relative w-6 h-6 shrink-0 grid place-items-center">
+          <svg viewBox="0 0 24 24" className="absolute inset-0 w-full h-full -rotate-90" aria-hidden>
+            <circle cx="12" cy="12" r="10" fill="none" stroke={isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.10)'} strokeWidth="2" />
+            <circle
+              cx="12" cy="12" r="10" fill="none"
+              stroke="var(--color-accent)" strokeWidth="2" strokeLinecap="round"
+              strokeDasharray={2 * Math.PI * 10}
+              strokeDashoffset={2 * Math.PI * 10 * (1 - doneCount / total)}
+              style={{ transition: 'stroke-dashoffset 0.4s ease' }}
+            />
+          </svg>
           {allDone
-            ? <Sparkles className="w-5 h-5" style={{ color: 'var(--color-fg-on-accent)' }} />
-            : <Compass className="w-5 h-5" style={{ color: 'var(--color-fg-on-accent)' }} />}
+            ? <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--color-accent)' }} />
+            : <Compass className="w-3.5 h-3.5" style={{ color: 'var(--color-accent)' }} />}
         </span>
-        {/* Remaining-count badge */}
+        <span className="text-[13px] font-semibold leading-none">
+          {allDone ? 'All set' : 'Get started'}
+        </span>
         {!allDone && (
-          <span
-            className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold grid place-items-center shadow"
-            style={{ background: 'var(--color-fg)', color: 'var(--color-bg-elevated)' }}
-          >
-            {total - doneCount}
+          <span className="text-[11px] font-medium leading-none tabular-nums" style={{ color: fgMuted }}>
+            {doneCount}/{total}
           </span>
         )}
       </motion.button>
@@ -165,7 +164,7 @@ export default function GuideWidget() {
             exit={{ opacity: 0, y: 12, scale: 0.98 }}
             transition={motionUI}
             style={{ zIndex: Z.widgetOpen, background: panelBg, borderColor: border, color: fg }}
-            className="fixed bottom-24 right-6 w-[360px] max-w-[calc(100vw-3rem)] max-h-[calc(100vh-8rem)] rounded-2xl border shadow-2xl flex flex-col overflow-hidden"
+            className="fixed bottom-[8.5rem] right-6 w-[360px] max-w-[calc(100vw-3rem)] max-h-[calc(100vh-10rem)] rounded-2xl border shadow-2xl flex flex-col overflow-hidden"
             role="dialog"
             aria-label="Getting started guide"
           >
