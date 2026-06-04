@@ -662,6 +662,37 @@ export const knowledgeApi = {
     ),
 };
 
+// ─── Memory / Learnings (experiential self-learning layer) ───────
+// What the AI has LEARNED from interaction — corrections, preferences,
+// patterns, failures to avoid. Backed by the Memory table + memory.service;
+// every text/analysis generation is enriched with the relevant learnings.
+export type MemoryKind = 'correction' | 'preference' | 'pattern' | 'failure' | 'success';
+
+export interface MemoryRecord {
+  id: string;
+  clientId: string | null; // null = org-wide learning (applies to every client)
+  kind: MemoryKind;
+  source: string;          // edit | rejection | regeneration | failed_call | explicit | consolidation
+  content: string;
+  context: string | null;
+  weight: number;
+  useCount: number;
+  createdAt: string;
+}
+
+export const memoryApi = {
+  // clientId given → that client's learnings + org-wide; omitted → all active.
+  list: (clientId?: string, limit = 100) =>
+    request<MemoryRecord[]>(
+      `/api/memory?limit=${limit}${clientId ? `&clientId=${encodeURIComponent(clientId)}` : ''}`,
+    ),
+  create: (data: { content: string; kind?: MemoryKind; clientId?: string | null; context?: string }) =>
+    request<{ id: string }>('/api/memory', { method: 'POST', body: JSON.stringify(data) }),
+  // Archive (never hard-deletes) — the lesson is retired, history preserved.
+  archive: (id: string) =>
+    request<{ success: boolean }>(`/api/memory/${id}`, { method: 'DELETE' }),
+};
+
 // ─── Dashboard ──────────────────────────────────────────────────
 
 export interface DashboardStats {

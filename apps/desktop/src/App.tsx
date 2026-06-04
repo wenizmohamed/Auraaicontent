@@ -29,6 +29,7 @@ const TopicDesk         = lazy(() => import('./pages/TopicDesk'));
 const DesignTextures    = lazy(() => import('./pages/DesignTextures'));
 const ContentPieces     = lazy(() => import('./pages/ContentPieces'));
 const Knowledge         = lazy(() => import('./pages/Knowledge'));
+const AILearnings       = lazy(() => import('./pages/AILearnings'));
 const BrandKit          = lazy(() => import('./pages/BrandKit'));
 const AIDesignGenerator = lazy(() => import('./pages/AIDesignGenerator'));
 const VisualReferences  = lazy(() => import('./pages/VisualReferences'));
@@ -199,6 +200,7 @@ function Layout({ children }: { children: React.ReactNode }) {
         { name: t('nav.brief'),   href: '/brief',       icon: FileText,  prefetch: () => import('./pages/BriefInput') },
         { name: 'Brand Kit',      href: '/brand-kit',   icon: Palette,   prefetch: () => import('./pages/BrandKit') },
         { name: 'Knowledge',      href: '/knowledge',   icon: Brain,     prefetch: () => import('./pages/Knowledge') },
+        { name: 'AI Learnings',   href: '/learnings',   icon: Lightbulb, prefetch: () => import('./pages/AILearnings') },
         { name: 'Research',       href: '/research',    icon: Telescope, prefetch: () => import('./pages/Research') },
         { name: 'Topic Desk',     href: '/topics',      icon: Compass,   prefetch: () => import('./pages/TopicDesk') },
       ],
@@ -665,6 +667,7 @@ export default function App() {
               <Route path="/image-to-video" element={<Navigate to="/creative?tab=image-to-video" replace />} />
               <Route path="/pieces" element={<ContentPieces />} />
               <Route path="/knowledge" element={<Knowledge />} />
+              <Route path="/learnings" element={<AILearnings />} />
               <Route path="/brand-kit" element={<BrandKit />} />
               <Route path="/ai-design" element={<AIDesignGenerator />} />
               <Route path="/references" element={<VisualReferences />} />
