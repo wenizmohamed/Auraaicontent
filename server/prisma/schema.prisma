@@ -53,6 +53,7 @@ model Organization {
   usageEvents     UsageEvent[]
   platformConnections PlatformConnection[]
   generations     Generation[]
+  memories        Memory[]
 }
 
 enum OrgRole {
@@ -111,6 +112,7 @@ model User {
   memberships    OrgMembership[]
   usageEvents    UsageEvent[]
   generations    Generation[]
+  memories       Memory[]
 }
 
 model RefreshToken {
@@ -163,6 +165,7 @@ model Client {
   apiKeys         ApiKey[]
   platformConnections PlatformConnection[]
   generations     Generation[]
+  memories        Memory[]
 
   @@unique([orgId, slug])
   @@index([orgId])
@@ -288,6 +291,47 @@ model KnowledgeChunk {
 
   @@index([orgId])
   @@index([knowledgeItemId])
+}
+
+// ─── Experiential memory / learnings ─────────────────────────────
+// Distinct from KnowledgeItem (uploaded documents). A Memory is something the
+// system LEARNED from interaction: a correction the user made, a stated
+// preference, a recurring pattern, or a failure to avoid repeating. Captured
+// from real signals (post edits, rejections/comments, regenerations, failed
+// AI calls, explicit feedback), optionally distilled/deduped by a consolidation
+// worker, then retrieved + injected into future AI calls via memory-enricher.
+//
+// Embedding stored as JSON (number[]) + in-memory cosine, mirroring
+// KnowledgeChunk exactly — NO pgvector dependency. A later unified migration
+// can move both KnowledgeChunk and Memory to a real vector column together.
+// Tenant isolation: every row carries orgId; clientId null = org-wide learning.
+model Memory {
+  id             String    @id @default(cuid())
+  orgId          String
+  clientId       String?   // null = org-wide learning (applies to every client)
+  userId         String?   // who/what triggered the originating signal
+  kind           String    // correction | preference | pattern | failure | success
+  source         String    // edit | rejection | regeneration | failed_call | explicit | consolidation
+  content        String    // the distilled lesson — what to remember / do differently
+  context        String?   // optional: the situation/prompt the lesson came from
+  embedding      Json?     // cached content embedding (number[]); in-memory cosine, pgvector later
+  weight         Float     @default(1)  // confidence/decay weight; consolidation + TTL adjust it
+  useCount       Int       @default(0)  // times retrieved into a prompt
+  lastUsedAt     DateTime?
+  status         String    @default("active") // active | superseded | archived
+  supersededById String?   // the Memory that replaced this one (consolidation/dedup)
+  expiresAt      DateTime? // soft TTL for decay; null = never expires
+  metadata       Json?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  org    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  client Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  user   User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([orgId])
+  @@index([orgId, clientId])
+  @@index([orgId, status])
 }
 
 model Asset {
