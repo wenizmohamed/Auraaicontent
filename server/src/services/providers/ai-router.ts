@@ -8,6 +8,7 @@ import { computeCostUsd } from '../../lib/ai-pricing.js';
 import { assertOrgBudget } from '../../lib/budget.js';
 import { enrichWithBrandKit } from '../../lib/brand-kit-enricher.js';
 import { enrichWithKnowledge } from '../../lib/knowledge-enricher.js';
+import { enrichWithMemory } from '../../lib/memory-enricher.js';
 
 // Public meta shape passed to every aiRouter.* call.  clientId triggers the
 // BrandKit enricher; skipBrandKit bypasses it for debug/testing; platform
@@ -20,6 +21,7 @@ export type AiRouterMeta = {
   userId?: string;
   skipBrandKit?: boolean;
   skipKnowledge?: boolean;
+  skipMemory?: boolean;
   platform?: string;
 };
 
@@ -149,13 +151,19 @@ async function routeCall<T>(
   // exists for the client.  Mutates req.prompt in place so the closure
   // captured by `fn` sees the enriched value.
   if (req && meta?.clientId && req.prompt) {
-    // Retrieve Knowledge using the ORIGINAL prompt (before BrandKit voice
-    // samples are prepended, which would skew the query embedding). Gated to
-    // text/analysis — doc knowledge doesn't help image/video prompts. Best-
-    // effort: no-op when the client has no knowledge or no embeddings exist.
+    // Retrieve Knowledge + Memory using the ORIGINAL prompt (captured before any
+    // block is prepended, which would skew the query embedding). Gated to
+    // text/analysis — neither helps image/video prompts. Both best-effort: no-op
+    // when the client has no knowledge / the org has no learnings / embeddings
+    // are absent. Memory (learned corrections) is prepended LAST so it sits at
+    // the top, closest to the model's attention.
     if (meta?.orgId && (task === 'text' || task === 'analysis')) {
-      req.prompt = await enrichWithKnowledge(req.prompt, meta.orgId, meta.clientId, req.prompt, {
+      const originalPrompt = req.prompt;
+      req.prompt = await enrichWithKnowledge(req.prompt, meta.orgId, meta.clientId, originalPrompt, {
         skip: meta?.skipKnowledge,
+      });
+      req.prompt = await enrichWithMemory(req.prompt, meta.orgId, meta.clientId, originalPrompt, {
+        skip: meta?.skipMemory,
       });
     }
     req.prompt = await enrichWithBrandKit(req.prompt, meta.clientId, {
