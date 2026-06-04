@@ -64,7 +64,8 @@ import { useShortcut } from './lib/shortcuts';
 import { Toaster } from 'sonner';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './lib/query-client';
-import { MotionConfig } from 'framer-motion';
+import { MotionConfig, motion } from 'framer-motion';
+import { motionUI } from './lib/motion';
 
 // Email allowlist for the Team page + Admin (cross-org) page. Mirrors
 // server-side TEAM_ADMIN_EMAILS + STAFF_EMAILS env vars. Anyone not listed
@@ -350,7 +351,11 @@ function Layout({ children }: { children: React.ReactNode }) {
                           title={isCollapsed ? item.name : undefined}
                         >
                           {isActive && (
-                            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-[color:var(--color-accent)]" />
+                            <motion.div
+                              layoutId="sidebar-active-indicator"
+                              transition={motionUI}
+                              className="absolute left-0 inset-y-0 my-auto h-5 w-[3px] rounded-r-full bg-[color:var(--color-accent)]"
+                            />
                           )}
                           <item.icon className={`${isCollapsed ? '' : 'mr-3'} h-[18px] w-[18px] transition-all duration-200 ${
                             isActive ? isDark ? 'text-amber-400' : 'text-amber-600' : isDark ? 'group-hover:text-zinc-300' : 'group-hover:text-slate-700'
