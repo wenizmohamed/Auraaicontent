@@ -1,5 +1,32 @@
 import { db } from '../db/prisma.js';
 import crypto from 'crypto';
+import { recordMemory } from './memory.service.js';
+
+// Turn a reviewer's comment into a reusable learning. Client comments are
+// human-written guidance ("shorten the captions", "more formal tone"), so they
+// store verbatim — no LLM distillation needed. Scoped to the post's client so
+// the lesson only colours that brand's future generations. Best-effort: any
+// failure is swallowed so leaving a comment never breaks.
+async function captureCommentLearning(orgId: string, postId: string, comment: string, status?: string) {
+  try {
+    const post = await db.calendarPost.findUnique({
+      where: { id: postId, orgId },
+      select: { title: true, calendarMonth: { select: { clientId: true } } },
+    });
+    const clientId = post?.calendarMonth?.clientId ?? null;
+    const isRevision = /revis|reject|change|redo|fix|wrong|don'?t|do not|instead|should/i.test(`${status || ''} ${comment}`);
+    await recordMemory({
+      orgId,
+      clientId,
+      kind: isRevision ? 'correction' : 'preference',
+      source: 'rejection',
+      content: comment.trim(),
+      context: post?.title ? `Reviewer feedback on post: ${post.title}` : undefined,
+    });
+  } catch (err: any) {
+    console.warn('[review] capture comment learning failed:', err?.message || err);
+  }
+}
 
 // ReviewLink is the only tenant model that is intentionally readable by an
 // unauthenticated party (the agency's client opens the link in a browser
@@ -53,9 +80,12 @@ export const reviewService = {
   },
 
   async addComment(orgId: string, postId: string, authorName: string, comment: string, status?: string) {
-    return db.postComment.create({
+    const created = await db.postComment.create({
       data: { orgId, postId, authorName, source: 'client', comment, status: status || 'note' },
     });
+    // Learn from the feedback (fire-and-forget — never delay/break the comment).
+    if (comment?.trim()) void captureCommentLearning(orgId, postId, comment, status);
+    return created;
   },
 
   async approvePost(orgId: string, postId: string) {

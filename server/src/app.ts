@@ -32,6 +32,7 @@ import { publishRoutes } from './routes/publish.js';
 import { historyRoutes } from './routes/history.js';
 import { productReferenceRoutes } from './routes/product-references.js';
 import { brandKitRoutes } from './routes/brand-kit.js';
+import { memoryRoutes } from './routes/memory.js';
 import { startTokenHealthWorker } from './workers/tokenHealth.worker.js';
 import { startSchedulerWorker } from './workers/scheduler.worker.js';
 import { startGeminiModelValidator } from './services/providers/gemini-model-validator.js';
@@ -266,6 +267,7 @@ export async function buildApp() {
   await app.register(historyRoutes, { prefix: '/api' });
   await app.register(productReferenceRoutes, { prefix: '/api' });
   await app.register(brandKitRoutes, { prefix: '/api' });
+  await app.register(memoryRoutes, { prefix: '/api' });
 
   // Boot the token-health worker — runs hourly after a 60s warmup. Refreshes
   // platform connection tokens before they expire; flips status to
