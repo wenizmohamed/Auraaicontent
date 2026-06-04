@@ -256,13 +256,30 @@ export async function authRoutes(app: FastifyInstance) {
     })();
 
     // Prod gate: 404 unless ALLOW_PUBLIC_REGISTER=true OR the email's domain is
-    // whitelisted in AUTO_ORG_DOMAINS. Spam/random emails stay blocked.
+    // whitelisted in AUTO_ORG_DOMAINS OR a valid (pending, unexpired) invitation
+    // exists for this email. An invite IS authorization to register — without
+    // this, externally-invited collaborators (domains outside AUTO_ORG_DOMAINS)
+    // hit a 404 "Not found" and can never sign up. After registration the
+    // frontend replays the invite (accept → join org), so a personal org is
+    // created here and they're switched into the inviting org on accept.
     if (
       process.env.NODE_ENV === 'production' &&
       process.env.ALLOW_PUBLIC_REGISTER !== 'true' &&
       !domainAllowed
     ) {
-      return reply.status(404).send({ error: 'Not found' });
+      const invited = email
+        ? await db.invitation.findFirst({
+            where: {
+              email: { equals: email, mode: 'insensitive' },
+              acceptedAt: null,
+              expiresAt: { gt: new Date() },
+            },
+            select: { id: true },
+          })
+        : null;
+      if (!invited) {
+        return reply.status(404).send({ error: 'Not found' });
+      }
     }
 
     if (!email || !password || !name) {
