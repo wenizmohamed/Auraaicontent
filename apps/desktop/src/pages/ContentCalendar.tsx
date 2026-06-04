@@ -11,7 +11,7 @@ import { calendarApi, reviewApi, exportsApi, jobsApi, visualRefsApi } from '../l
 import type { CalendarMonthSummary } from '../lib/backend-api';
 import { hijriDateLabel, holidaysForDate, isInRamadan, type Holiday } from '../lib/gcc-holidays';
 import { SkeletonRow, SkeletonAnnouncer } from '../components/ui/Skeleton';
-import { motionUI, motionBase, motionInstant, motionHero } from '../lib/motion';
+import { motionUI, motionBase } from '../lib/motion';
 import { HoverCard } from '../components/ui/HoverCard';
 import { STATUS_LABEL, normalizeStatus } from '../lib/status-enum';
 import VisualRefGrid from '../components/VisualRefGrid';
@@ -23,7 +23,7 @@ import InboxRail, { CalendarDndProvider, useDayDroppable } from '../components/c
  * dragged drafts from InboxRail can be dropped onto it. Adds a faint accent
  * outline + background tint when hovered with a draggable.
  */
-function DayCell(props: { day: number; cellDate: Date; onClick: () => void; title?: string; className?: string; children?: React.ReactNode }) {
+function DayCell(props: { day: number; cellDate: Date; onClick: () => void; title?: string; className?: string; style?: React.CSSProperties; children?: React.ReactNode }) {
   const { setNodeRef, isOver } = useDayDroppable(props.cellDate);
   return (
     <button
@@ -31,7 +31,10 @@ function DayCell(props: { day: number; cellDate: Date; onClick: () => void; titl
       onClick={props.onClick}
       title={props.title}
       className={props.className}
-      style={isOver ? { outline: '1.5px dashed var(--color-accent)', outlineOffset: -2, background: 'var(--color-accent-subtle)' } : undefined}
+      style={{
+        ...props.style,
+        ...(isOver ? { outline: '1.5px dashed var(--color-accent)', outlineOffset: -2, background: 'var(--color-accent-subtle)' } : {}),
+      }}
     >
       {props.children}
     </button>
@@ -509,11 +512,21 @@ export default function ContentCalendar() {
       <AnimatePresence>
         {statusMsg && (
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-            className={`rounded-xl px-4 py-2.5 text-sm font-medium ${
-              statusMsg.type === 'ok' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-              statusMsg.type === 'error' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
-              'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-            }`}>
+            className="rounded-xl px-4 py-2.5 text-sm font-medium border"
+            style={{
+              background:
+                statusMsg.type === 'ok' ? 'var(--color-success-subtle)' :
+                statusMsg.type === 'error' ? 'var(--color-danger-subtle)' :
+                'var(--color-info-subtle)',
+              color:
+                statusMsg.type === 'ok' ? 'var(--color-success)' :
+                statusMsg.type === 'error' ? 'var(--color-danger)' :
+                'var(--color-info)',
+              borderColor:
+                statusMsg.type === 'ok' ? 'color-mix(in srgb, var(--color-success) 24%, transparent)' :
+                statusMsg.type === 'error' ? 'color-mix(in srgb, var(--color-danger) 24%, transparent)' :
+                'color-mix(in srgb, var(--color-info) 24%, transparent)',
+            }}>
             {statusMsg.text}
           </motion.div>
         )}
@@ -521,27 +534,45 @@ export default function ContentCalendar() {
 
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-        className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-3xl font-black text-white tracking-tight">{t('page.calendar.title')}</h1>
-          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+        className="relative overflow-hidden rounded-3xl border px-6 py-5 flex items-start justify-between gap-4 flex-wrap"
+        style={{
+          background: 'linear-gradient(135deg, var(--color-bg-elevated), color-mix(in srgb, var(--color-accent) 4%, var(--color-bg-elevated)))',
+          borderColor: 'var(--color-border-subtle)',
+        }}>
+        {/* Decorative accent glow — depth layer behind header content */}
+        <div aria-hidden="true" className="pointer-events-none absolute -top-24 end-[-4rem] w-72 h-72 rounded-full blur-3xl opacity-[0.5] z-0"
+          style={{ background: 'radial-gradient(circle, color-mix(in srgb, var(--color-accent) 22%, transparent), transparent 70%)' }} />
+        <div className="relative z-10">
+          <div className="flex items-center gap-2.5">
+            <span className="inline-flex items-center justify-center w-9 h-9 rounded-xl border"
+              style={{ background: 'var(--color-accent-subtle)', borderColor: 'color-mix(in srgb, var(--color-accent) 30%, transparent)' }}>
+              <CalendarIcon className="w-5 h-5" style={{ color: 'var(--color-accent)' }} aria-hidden="true" />
+            </span>
+            <h1 className="text-3xl font-black tracking-tight" style={{ color: 'var(--color-fg)' }}>{t('page.calendar.title')}</h1>
+          </div>
+          <div className="flex items-center gap-2 mt-2 flex-wrap">
             {/* Client selector — drives the entire page */}
             <div className="relative">
               <select
                 value={activeClientId}
                 onChange={e => handleClientPick(e.target.value)}
-                className="appearance-none rounded-lg bg-violet-500/15 border border-violet-500/30 pl-8 pr-8 py-1.5 text-xs font-semibold text-violet-300 outline-none cursor-pointer hover:bg-violet-500/20"
+                className="appearance-none rounded-lg px-8 py-1.5 text-xs font-semibold outline-none cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:[outline-color:var(--color-info)]"
+                style={{
+                  background: 'color-mix(in srgb, var(--color-info) 14%, transparent)',
+                  border: '1px solid color-mix(in srgb, var(--color-info) 32%, transparent)',
+                  color: 'var(--color-info)',
+                }}
               >
                 {clients.length === 0 && <option value="">No clients</option>}
                 {clients.map(c => (
-                  <option key={c.id} value={c.id} className="bg-zinc-900 text-white">{c.name}</option>
+                  <option key={c.id} value={c.id} style={{ background: 'var(--color-bg-elevated)', color: 'var(--color-fg)' }}>{c.name}</option>
                 ))}
               </select>
-              <Building2 className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-violet-400" />
-              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-violet-400" />
+              <Building2 className="pointer-events-none absolute start-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: 'var(--color-info)' }} />
+              <ChevronDown className="pointer-events-none absolute end-2.5 top-1/2 -translate-y-1/2 w-3 h-3" style={{ color: 'var(--color-info)' }} />
             </div>
-            <span className="text-xs text-zinc-600">·</span>
-            <p className="text-xs text-zinc-500">
+            <span className="text-xs" style={{ color: 'var(--color-fg-subtle)' }}>·</span>
+            <p className="text-xs" style={{ color: 'var(--color-fg-muted)' }}>
               {loadingBackend ? 'Loading from server...' :
                 backendMonth ? `${backendMonth.month} — ${totalPieces} posts (${backendMonth.status})` :
                 activeClientId ? 'No content yet — create a brief first' :
@@ -550,15 +581,17 @@ export default function ContentCalendar() {
           </div>
         </div>
         {backendMonth && (
-          <div className="flex items-center gap-2">
+          <div className="relative z-10 flex items-center gap-2 flex-wrap justify-end">
             {exportDone && (
               <a href={exportDone} download
-                className="text-[10px] text-violet-400 bg-violet-500/10 px-3 py-1.5 rounded-lg hover:bg-violet-500/20 transition-colors">
+                className="text-[10px] px-3 py-1.5 rounded-lg transition-colors"
+                style={{ color: 'var(--color-info)', background: 'color-mix(in srgb, var(--color-info) 12%, transparent)' }}>
                 Download again
               </a>
             )}
             <button onClick={handleExport} disabled={exporting}
-              className="flex items-center gap-2 bg-white/[0.06] border border-white/[0.1] text-zinc-300 px-4 py-2 rounded-xl text-sm font-medium hover:bg-white/[0.1] cursor-pointer disabled:opacity-50">
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0"
+              style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-fg-muted)' }}>
               {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
               {exporting ? 'Exporting...' : 'Export PPTX'}
             </button>
@@ -571,26 +604,31 @@ export default function ContentCalendar() {
               />
             )}
             {reviewLink && (
-              <div className="text-[10px] text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-lg">
+              <div className="text-[10px] px-3 py-1.5 rounded-lg"
+                style={{ color: 'var(--color-success)', background: 'var(--color-success-subtle)' }}>
                 {copyNotice ? 'Copied!' : 'Link created'}
               </div>
             )}
             <button onClick={handleCreateReviewLink}
-              className="flex items-center gap-2 bg-white/[0.06] border border-white/[0.1] text-zinc-300 px-4 py-2 rounded-xl text-sm font-medium hover:bg-white/[0.1] cursor-pointer">
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer transition-all hover:-translate-y-0.5"
+              style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-fg-muted)' }}>
               <Share2 className="w-4 h-4" /> Share for Review
             </button>
             <button onClick={handleBackfillRefs} disabled={backfilling}
-              className="flex items-center gap-2 bg-violet-500/10 border border-violet-500/20 text-violet-300 px-4 py-2 rounded-xl text-sm font-medium hover:bg-violet-500/20 cursor-pointer disabled:opacity-50">
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0"
+              style={{ background: 'color-mix(in srgb, var(--color-info) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--color-info) 24%, transparent)', color: 'var(--color-info)' }}>
               {backfilling ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImagePlus className="w-4 h-4" />}
               {backfilling ? 'Backfilling...' : 'Backfill Refs'}
             </button>
             <button onClick={openHistory}
-              className="flex items-center gap-2 bg-white/[0.06] border border-white/[0.1] text-zinc-300 px-4 py-2 rounded-xl text-sm font-medium hover:bg-white/[0.1] cursor-pointer">
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer transition-all hover:-translate-y-0.5"
+              style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-fg-muted)' }}>
               <History className="w-4 h-4" /> Previous Months
             </button>
             <button onClick={handleArchiveMonth}
               title="Archive this month — reversible. Posts are preserved in Previous Months."
-              className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 text-amber-300 px-4 py-2 rounded-xl text-sm font-medium hover:bg-amber-500/20 cursor-pointer">
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer transition-all hover:-translate-y-0.5"
+              style={{ background: 'var(--color-accent-subtle)', border: '1px solid color-mix(in srgb, var(--color-accent) 24%, transparent)', color: 'var(--color-accent)' }}>
               <Archive className="w-4 h-4" /> Archive Month
             </button>
           </div>
@@ -613,7 +651,8 @@ export default function ContentCalendar() {
             Create a content brief to generate this client's first month of scheduled posts.
           </p>
           <Link to="/brief"
-            className="inline-flex items-center gap-2 bg-white text-black px-6 py-3 rounded-xl text-sm font-bold hover:bg-zinc-200 transition-colors">
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold transition-colors hover:brightness-110"
+            style={{ background: 'var(--color-accent)', color: 'var(--color-fg-on-accent)' }}>
             <FileText className="w-4 h-4" /> Create Brief
             <ArrowRight className="w-4 h-4" />
           </Link>
@@ -626,18 +665,21 @@ export default function ContentCalendar() {
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ ...motionBase, delay: 0.05 }}
             className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <button onClick={() => setMonthOffset(o => o - 1)}
-                className="p-2 rounded-xl bg-white/[0.03] border border-white/[0.06] text-zinc-500 hover:text-white hover:border-white/[0.1] transition-all cursor-pointer">
+              <button onClick={() => setMonthOffset(o => o - 1)} aria-label="Previous month"
+                className="p-2 rounded-xl transition-all cursor-pointer hover:-translate-y-0.5"
+                style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border-subtle)', color: 'var(--color-fg-subtle)' }}>
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              <h2 className="text-lg font-bold text-white min-w-[180px] text-center">{monthName}</h2>
-              <button onClick={() => setMonthOffset(o => o + 1)}
-                className="p-2 rounded-xl bg-white/[0.03] border border-white/[0.06] text-zinc-500 hover:text-white hover:border-white/[0.1] transition-all cursor-pointer">
+              <h2 className="text-xl font-black tracking-tight min-w-[180px] text-center" style={{ color: 'var(--color-fg)' }}>{monthName}</h2>
+              <button onClick={() => setMonthOffset(o => o + 1)} aria-label="Next month"
+                className="p-2 rounded-xl transition-all cursor-pointer hover:-translate-y-0.5"
+                style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border-subtle)', color: 'var(--color-fg-subtle)' }}>
                 <ChevronRight className="w-4 h-4" />
               </button>
               {monthOffset !== 0 && (
                 <button onClick={() => setMonthOffset(0)}
-                  className="text-[10px] text-zinc-600 hover:text-white transition-colors cursor-pointer">Today</button>
+                  className="text-[10px] font-semibold uppercase tracking-wider px-2 py-1 rounded-md transition-colors cursor-pointer"
+                  style={{ color: 'var(--color-accent)', background: 'var(--color-accent-subtle)' }}>Today</button>
               )}
               <button
                 onClick={() => {
@@ -646,9 +688,11 @@ export default function ContentCalendar() {
                   try { localStorage.setItem('radix.calendar.hijri', next ? '1' : '0'); } catch {}
                 }}
                 title="Toggle Hijri / Gregorian dual display"
-                className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wider transition-all cursor-pointer ${
-                  showHijri ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'text-zinc-600 hover:text-zinc-300 border border-white/[0.06] hover:border-white/[0.12]'
-                }`}>
+                aria-pressed={showHijri}
+                className="px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wider transition-all cursor-pointer border"
+                style={showHijri
+                  ? { background: 'var(--color-accent-subtle)', color: 'var(--color-accent)', borderColor: 'color-mix(in srgb, var(--color-accent) 30%, transparent)' }
+                  : { background: 'transparent', color: 'var(--color-fg-subtle)', borderColor: 'var(--color-border-subtle)' }}>
                 ه Hijri
               </button>
               {/* Density toggle — compact / comfortable / spacious */}
@@ -673,11 +717,11 @@ export default function ContentCalendar() {
             <div className="flex items-center gap-1.5">
               {['All', ...platforms].map(p => (
                 <button key={p} onClick={() => setPlatformFilter(p)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-                    platformFilter === p
-                      ? 'bg-white/[0.1] text-white border border-white/[0.15]'
-                      : 'text-zinc-600 hover:text-zinc-300 border border-transparent'
-                  }`}>
+                  aria-pressed={platformFilter === p}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer border"
+                  style={platformFilter === p
+                    ? { background: 'var(--color-accent-subtle)', color: 'var(--color-accent)', borderColor: 'color-mix(in srgb, var(--color-accent) 30%, transparent)' }
+                    : { background: 'transparent', color: 'var(--color-fg-subtle)', borderColor: 'transparent' }}>
                   {p}
                 </button>
               ))}
@@ -688,9 +732,16 @@ export default function ContentCalendar() {
           <CalendarDndProvider onDrop={() => { try { (window as any).dispatchEvent(new CustomEvent('radix:calendar-refetch')); } catch {} }}>
           <div className="flex gap-3">
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ ...motionBase, delay: 0.1 }}
-            className="flex-1 min-w-0 rounded-3xl border p-5"
-            style={{ background: 'var(--color-bg-elevated)', borderColor: 'var(--color-border-subtle)' }}>
-            <div className={`grid grid-cols-7 ${densityClasses.gap} mb-2`}>
+            className="relative overflow-hidden flex-1 min-w-0 rounded-3xl border p-5"
+            style={{
+              background: 'linear-gradient(160deg, var(--color-bg-elevated), color-mix(in srgb, var(--color-accent) 3%, var(--color-bg-elevated)))',
+              borderColor: 'var(--color-border-subtle)',
+              boxShadow: '0 1px 0 0 color-mix(in srgb, var(--color-fg) 4%, transparent) inset, 0 20px 50px -30px color-mix(in srgb, var(--color-bg-sunken) 60%, transparent)',
+            }}>
+            {/* Decorative corner glow — depth layer behind the grid */}
+            <div aria-hidden="true" className="pointer-events-none absolute -bottom-32 start-[-5rem] w-80 h-80 rounded-full blur-3xl opacity-40 z-0"
+              style={{ background: 'radial-gradient(circle, color-mix(in srgb, var(--color-accent) 16%, transparent), transparent 70%)' }} />
+            <div className={`relative z-10 grid grid-cols-7 ${densityClasses.gap} mb-2`}>
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
                 <div key={d} className="text-center text-[10px] font-bold uppercase tracking-wider py-2" style={{ color: 'var(--color-fg-subtle)' }}>{d}</div>
               ))}
@@ -702,7 +753,7 @@ export default function ContentCalendar() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -12 }}
               transition={motionUI}
-              className={`grid grid-cols-7 ${densityClasses.gap}`}
+              className={`relative z-10 grid grid-cols-7 ${densityClasses.gap}`}
             >
               {Array.from({ length: firstDayOffset }).map((_, i) => (
                 <div key={`empty-${i}`} className="aspect-square rounded-xl" style={{ background: 'var(--color-surface)' }} />
@@ -723,24 +774,44 @@ export default function ContentCalendar() {
                     day={day} cellDate={cellDate}
                     onClick={() => setSelectedDay(isSelected ? null : day)}
                     title={dayHolidays.map((h) => h.name).join(' · ') || (hijri || undefined)}
-                    className={`aspect-square rounded-xl border ${densityClasses.padding} flex flex-col transition-all cursor-pointer relative ${
-                      isSelected ? 'bg-white/[0.08] border-white/[0.2]'
-                        : dayHolidays.length > 0 ? 'bg-amber-500/[0.06] border-amber-500/30 hover:border-amber-500/50'
-                        : ramadan ? 'bg-emerald-500/[0.04] border-emerald-500/20 hover:border-emerald-500/40'
-                        : pieces.length > 0 ? 'bg-white/[0.03] border-white/[0.06] hover:border-white/[0.12]'
-                        : 'bg-white/[0.01] border-white/[0.03] hover:bg-white/[0.02]'
-                    }`}>
+                    className={`aspect-square rounded-xl border ${densityClasses.padding} flex flex-col transition-all duration-200 cursor-pointer relative ${pieces.length > 0 || dayHolidays.length > 0 ? 'hover:-translate-y-0.5' : ''}`}
+                    style={
+                      isSelected ? {
+                        background: 'color-mix(in srgb, var(--color-accent) 16%, transparent)',
+                        borderColor: 'color-mix(in srgb, var(--color-accent) 45%, transparent)',
+                        boxShadow: '0 8px 24px -12px color-mix(in srgb, var(--color-accent) 50%, transparent)',
+                      }
+                        : dayHolidays.length > 0 ? {
+                        background: 'color-mix(in srgb, var(--color-accent) 8%, transparent)',
+                        borderColor: 'color-mix(in srgb, var(--color-accent) 32%, transparent)',
+                      }
+                        : ramadan ? {
+                        background: 'color-mix(in srgb, var(--color-success) 7%, transparent)',
+                        borderColor: 'color-mix(in srgb, var(--color-success) 24%, transparent)',
+                      }
+                        : pieces.length > 0 ? {
+                        background: 'var(--color-surface)',
+                        borderColor: 'var(--color-border-subtle)',
+                      }
+                        : {
+                        background: 'color-mix(in srgb, var(--color-fg) 2%, transparent)',
+                        borderColor: 'var(--color-border-subtle)',
+                      }
+                    }>
                     <div className="flex items-start justify-between w-full">
-                      <span className={`text-xs font-bold ${
-                        isToday ? 'text-white bg-white/20 w-6 h-6 rounded-full flex items-center justify-center' :
-                        pieces.length > 0 ? 'text-zinc-300' : 'text-zinc-700'
-                      }`}>{day}</span>
+                      {isToday ? (
+                        <span className="text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center"
+                          style={{ color: 'var(--color-fg-on-accent)', background: 'var(--color-accent)' }}>{day}</span>
+                      ) : (
+                        <span className="text-xs font-bold tabular-nums"
+                          style={{ color: pieces.length > 0 ? 'var(--color-fg)' : 'var(--color-fg-subtle)' }}>{day}</span>
+                      )}
                       {showHijri && hijriShort && (
-                        <span className="text-[8px] font-medium text-amber-400/70 leading-tight text-right">{hijriShort}</span>
+                        <span className="text-[8px] font-medium leading-tight text-end" style={{ color: 'color-mix(in srgb, var(--color-accent) 70%, var(--color-fg-subtle))' }}>{hijriShort}</span>
                       )}
                     </div>
                     {dayHolidays.length > 0 && (
-                      <span className="text-[7px] uppercase tracking-wider text-amber-300/80 mt-0.5 truncate w-full" title={dayHolidays[0].name}>
+                      <span className="text-[7px] uppercase tracking-wider mt-0.5 truncate w-full" style={{ color: 'var(--color-accent)' }} title={dayHolidays[0].name}>
                         {dayHolidays[0].name.length > 12 ? dayHolidays[0].name.slice(0, 12) + '…' : dayHolidays[0].name}
                       </span>
                     )}
@@ -751,7 +822,7 @@ export default function ContentCalendar() {
                             key={j}
                             className="flex items-center gap-1 truncate rounded px-1 py-[1px] text-[8px] font-medium leading-tight"
                             style={{
-                              background: 'var(--color-surface)',
+                              background: 'var(--color-bg-elevated)',
                               color: 'var(--color-fg-muted)',
                             }}
                           >
@@ -811,18 +882,27 @@ export default function ContentCalendar() {
             {selectedDay && selectedPieces.length > 0 && (
               <motion.div
                 initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-                className="rounded-3xl bg-[#0c0c0c] border border-white/[0.06] p-6">
-                <div className="flex items-center justify-between mb-5">
-                  <h3 className="text-sm font-bold text-white">
+                className="relative overflow-hidden rounded-3xl border p-6"
+                style={{
+                  background: 'var(--color-bg-elevated)',
+                  borderColor: 'var(--color-border-subtle)',
+                  boxShadow: '0 20px 50px -30px color-mix(in srgb, var(--color-bg-sunken) 60%, transparent)',
+                }}>
+                <div aria-hidden="true" className="pointer-events-none absolute -top-24 end-[-3rem] w-64 h-64 rounded-full blur-3xl opacity-30 z-0"
+                  style={{ background: 'radial-gradient(circle, color-mix(in srgb, var(--color-accent) 16%, transparent), transparent 70%)' }} />
+                <div className="relative z-10 flex items-center justify-between mb-5">
+                  <h3 className="text-sm font-bold flex items-center gap-2" style={{ color: 'var(--color-fg)' }}>
+                    <span className="inline-block w-1 h-4 rounded-full" style={{ background: 'var(--color-accent)' }} />
                     {displayDate.toLocaleString('en-US', { month: 'long' })} {selectedDay} — {selectedPieces.length} piece{selectedPieces.length > 1 ? 's' : ''}
                   </h3>
-                  <button onClick={() => setSelectedDay(null)}
-                    className="p-1.5 text-zinc-600 hover:text-white transition-colors cursor-pointer">
+                  <button onClick={() => setSelectedDay(null)} aria-label="Close day detail"
+                    className="p-1.5 rounded-lg transition-colors cursor-pointer"
+                    style={{ color: 'var(--color-fg-subtle)' }}>
                     <X className="w-4 h-4" />
                   </button>
                 </div>
 
-                <div className="space-y-4">
+                <div className="relative z-10 space-y-4">
                   {selectedPieces.map((piece: any, i: number) => {
                     const isEditing = editingPostId === piece.id;
                     const v = validateCaption(isEditing ? editDraft.caption || '' : piece.caption || '', (isEditing ? editDraft.platform : piece.platform) || 'Instagram');
@@ -831,44 +911,53 @@ export default function ContentCalendar() {
                     return (
                       <motion.div key={piece.id || i}
                         initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ ...motionUI, delay: i * 0.05 }}
-                        className={`rounded-2xl border p-5 space-y-3 ${isEditing ? 'bg-white/[0.04] border-violet-500/30' : 'bg-white/[0.02] border-white/[0.05]'}`}>
+                        className="rounded-2xl border p-5 space-y-3 transition-shadow"
+                        style={isEditing
+                          ? { background: 'var(--color-surface-hover)', borderColor: 'color-mix(in srgb, var(--color-accent) 35%, transparent)', boxShadow: '0 0 0 1px color-mix(in srgb, var(--color-accent) 12%, transparent), 0 16px 40px -28px color-mix(in srgb, var(--color-bg-sunken) 70%, transparent)' }
+                          : { background: 'var(--color-surface)', borderColor: 'var(--color-border-subtle)', boxShadow: '0 12px 32px -28px color-mix(in srgb, var(--color-bg-sunken) 70%, transparent)' }}>
 
                         {/* Header: Platform + Format + Edit/Save buttons */}
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border ${pc.badge}`}>
                             {getPlatformIcon(isEditing ? editDraft.platform : piece.platform)} {isEditing ? editDraft.platform : piece.platform}
                           </span>
-                          <span className="text-[10px] font-medium text-zinc-600 bg-white/[0.03] px-2 py-1 rounded-lg">
+                          <span className="text-[10px] font-medium px-2 py-1 rounded-lg"
+                            style={{ color: 'var(--color-fg-subtle)', background: 'color-mix(in srgb, var(--color-fg) 4%, transparent)' }}>
                             {isEditing ? editDraft.format : piece.format}
                           </span>
                           {piece.pillar && !isEditing && (
-                            <span className="text-[10px] font-medium text-violet-400/60 bg-violet-500/10 px-2 py-1 rounded-lg">{piece.pillar}</span>
+                            <span className="text-[10px] font-medium px-2 py-1 rounded-lg"
+                              style={{ color: 'var(--color-info)', background: 'color-mix(in srgb, var(--color-info) 12%, transparent)' }}>{piece.pillar}</span>
                           )}
 
-                          <div className="ml-auto flex items-center gap-2">
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                              v.status === 'good' ? 'bg-emerald-500/10 text-emerald-400' :
-                              v.status === 'warning' ? 'bg-amber-500/10 text-amber-400' : 'bg-red-500/10 text-red-400'
-                            }`}>{v.length}/{v.max}</span>
+                          <div className="ms-auto flex items-center gap-2">
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full tabular-nums"
+                              style={{
+                                color: v.status === 'good' ? 'var(--color-success)' : v.status === 'warning' ? 'var(--color-warning)' : 'var(--color-danger)',
+                                background: v.status === 'good' ? 'var(--color-success-subtle)' : v.status === 'warning' ? 'var(--color-warning-subtle)' : 'var(--color-danger-subtle)',
+                              }}>{v.length}/{v.max}</span>
 
                             {isEditing ? (
                               <>
                                 {saveStatus === 'saved' && (
-                                  <span className="text-[10px] text-emerald-400 flex items-center gap-1"><Check className="w-3 h-3" /> Saved</span>
+                                  <span className="text-[10px] flex items-center gap-1" style={{ color: 'var(--color-success)' }}><Check className="w-3 h-3" /> Saved</span>
                                 )}
                                 <button onClick={saveEdit} disabled={saving}
-                                  className="flex items-center gap-1 px-3 py-1 rounded-lg text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/30 disabled:opacity-50 cursor-pointer">
+                                  className="flex items-center gap-1 px-3 py-1 rounded-lg text-[10px] font-bold border disabled:opacity-50 cursor-pointer transition-colors"
+                                  style={{ color: 'var(--color-success)', background: 'var(--color-success-subtle)', borderColor: 'color-mix(in srgb, var(--color-success) 24%, transparent)' }}>
                                   {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />} Save
                                 </button>
                                 <button onClick={cancelEdit}
-                                  className="flex items-center gap-1 px-3 py-1 rounded-lg text-[10px] font-bold bg-zinc-500/20 text-zinc-400 border border-zinc-500/20 hover:bg-zinc-500/30 cursor-pointer">
+                                  className="flex items-center gap-1 px-3 py-1 rounded-lg text-[10px] font-bold border cursor-pointer transition-colors"
+                                  style={{ color: 'var(--color-fg-muted)', background: 'color-mix(in srgb, var(--color-fg) 6%, transparent)', borderColor: 'var(--color-border)' }}>
                                   <X className="w-3 h-3" /> Cancel
                                 </button>
                               </>
                             ) : (
                               piece.id && (
                                 <button onClick={() => startEdit(piece)}
-                                  className="flex items-center gap-1 px-3 py-1 rounded-lg text-[10px] font-bold bg-white/[0.05] text-zinc-400 border border-white/[0.08] hover:text-white hover:bg-white/[0.1] cursor-pointer">
+                                  className="flex items-center gap-1 px-3 py-1 rounded-lg text-[10px] font-bold border cursor-pointer transition-colors"
+                                  style={{ color: 'var(--color-fg-muted)', background: 'var(--color-surface-hover)', borderColor: 'var(--color-border)' }}>
                                   <Edit3 className="w-3 h-3" /> Edit
                                 </button>
                               )
@@ -977,49 +1066,54 @@ export default function ContentCalendar() {
                           <>
                             {/* Title */}
                             {piece.title && (
-                              <h4 className="text-sm font-bold text-white">{piece.title}</h4>
+                              <h4 className="text-sm font-bold" style={{ color: 'var(--color-fg)' }}>{piece.title}</h4>
                             )}
 
                             {/* Hook */}
                             {piece.hook && (
-                              <p className="text-xs text-amber-300/80 italic">"{piece.hook}"</p>
+                              <p className="text-xs italic" style={{ color: 'color-mix(in srgb, var(--color-accent) 85%, var(--color-fg))' }}>"{piece.hook}"</p>
                             )}
 
                             {/* Art Direction */}
                             {(piece.creativeCopy || piece.visualDirection) && (
                               <div>
-                                <h4 className="text-[10px] font-bold text-zinc-600 uppercase tracking-wider mb-1">Art Direction</h4>
-                                <p className="text-xs text-zinc-400 leading-relaxed">{piece.visualDirection || piece.creativeCopy}</p>
+                                <h4 className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--color-fg-subtle)' }}>Art Direction</h4>
+                                <p className="text-xs leading-relaxed" style={{ color: 'var(--color-fg-muted)' }}>{piece.visualDirection || piece.creativeCopy}</p>
                               </div>
                             )}
 
                             {/* Copy Section */}
-                            <div className="space-y-2 bg-white/[0.01] rounded-lg p-3 border border-white/[0.03]">
-                              <h4 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Copy</h4>
+                            <div className="space-y-2 rounded-lg p-3 border"
+                              style={{ background: 'var(--color-bg-sunken)', borderColor: 'var(--color-border-subtle)' }}>
+                              <h4 className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--color-fg-subtle)' }}>Copy</h4>
 
                               {piece.keyMessage && (
                                 <div>
-                                  <span className="text-[9px] text-amber-400/60 uppercase tracking-wider font-semibold">Key Message (on visual)</span>
-                                  <p className="text-sm text-amber-200/90 font-medium bg-amber-500/[0.06] rounded-lg px-2 py-1.5 border border-amber-500/10 mt-0.5">{piece.keyMessage}</p>
+                                  <span className="text-[9px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-accent)' }}>Key Message (on visual)</span>
+                                  <p className="text-sm font-medium rounded-lg px-2 py-1.5 border mt-0.5"
+                                    style={{ color: 'color-mix(in srgb, var(--color-accent) 80%, var(--color-fg))', background: 'var(--color-accent-subtle)', borderColor: 'color-mix(in srgb, var(--color-accent) 18%, transparent)' }}>{piece.keyMessage}</p>
                                 </div>
                               )}
 
                               <div>
-                                <span className="text-[9px] text-zinc-600 uppercase tracking-wider font-semibold">Caption</span>
-                                <p className="text-sm text-zinc-200 bg-white/[0.02] p-2 rounded-lg border border-white/[0.04] whitespace-pre-wrap leading-relaxed mt-0.5">{piece.caption}</p>
+                                <span className="text-[9px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-fg-subtle)' }}>Caption</span>
+                                <p className="text-sm p-2 rounded-lg border whitespace-pre-wrap leading-relaxed mt-0.5"
+                                  style={{ color: 'var(--color-fg)', background: 'color-mix(in srgb, var(--color-fg) 3%, transparent)', borderColor: 'var(--color-border-subtle)' }}>{piece.caption}</p>
                               </div>
 
                               {piece.cta && (
                                 <div>
-                                  <span className="text-[9px] text-emerald-400/60 uppercase tracking-wider font-semibold">CTA</span>
-                                  <p className="text-sm text-emerald-300/90 font-medium bg-emerald-500/[0.06] rounded-lg px-2 py-1.5 border border-emerald-500/10 mt-0.5">{piece.cta}</p>
+                                  <span className="text-[9px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-success)' }}>CTA</span>
+                                  <p className="text-sm font-medium rounded-lg px-2 py-1.5 border mt-0.5"
+                                    style={{ color: 'var(--color-success)', background: 'var(--color-success-subtle)', borderColor: 'color-mix(in srgb, var(--color-success) 18%, transparent)' }}>{piece.cta}</p>
                                 </div>
                               )}
 
                               {piece.hashtags?.length > 0 && (
                                 <div className="flex flex-wrap gap-1 pt-1">
                                   {piece.hashtags.map((h: string, j: number) => (
-                                    <span key={j} className="text-[10px] text-violet-400/70 bg-violet-500/10 px-1.5 py-0.5 rounded">#{h.replace(/^#/, '')}</span>
+                                    <span key={j} className="text-[10px] px-1.5 py-0.5 rounded"
+                                      style={{ color: 'var(--color-info)', background: 'color-mix(in srgb, var(--color-info) 12%, transparent)' }}>#{h.replace(/^#/, '')}</span>
                                   ))}
                                 </div>
                               )}
@@ -1041,7 +1135,7 @@ export default function ContentCalendar() {
 
 
                             {piece.timing && (
-                              <p className="text-[10px] text-zinc-600">Timing: {piece.timing}</p>
+                              <p className="text-[10px]" style={{ color: 'var(--color-fg-subtle)' }}>Timing: {piece.timing}</p>
                             )}
                           </>
                         )}
@@ -1055,8 +1149,9 @@ export default function ContentCalendar() {
 
           {selectedDay && selectedPieces.length === 0 && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-              className="rounded-2xl bg-white/[0.02] border border-white/[0.05] p-8 text-center">
-              <p className="text-zinc-600 text-sm">No content scheduled for {displayDate.toLocaleString('en-US', { month: 'long' })} {selectedDay}</p>
+              className="rounded-2xl border p-8 text-center"
+              style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border-subtle)' }}>
+              <p className="text-sm" style={{ color: 'var(--color-fg-subtle)' }}>No content scheduled for {displayDate.toLocaleString('en-US', { month: 'long' })} {selectedDay}</p>
             </motion.div>
           )}
         </>

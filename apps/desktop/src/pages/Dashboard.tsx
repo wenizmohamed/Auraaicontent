@@ -124,8 +124,10 @@ function Sparkline({ data, color, height = 32, width = 100 }: { data: number[]; 
     const y = height / 2;
     return (
       <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
-        <line x1="0" y1={y} x2={width} y2={y} stroke={color} strokeWidth="1.5" strokeOpacity="0.4" strokeDasharray="2 2" />
-        <circle cx={width / 2} cy={y} r="3" fill={color} />
+        {/* color via inline style so design tokens (var(--color-*)) resolve —
+            SVG presentation attributes don't reliably accept CSS vars. */}
+        <line x1="0" y1={y} x2={width} y2={y} style={{ stroke: color }} strokeWidth="1.5" strokeOpacity="0.4" strokeDasharray="2 2" />
+        <circle cx={width / 2} cy={y} r="3" style={{ fill: color }} />
       </svg>
     );
   }
@@ -138,13 +140,15 @@ function Sparkline({ data, color, height = 32, width = 100 }: { data: number[]; 
   return (
     <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="overflow-visible">
       <defs>
+        {/* stopColor/stroke via inline style so var(--color-*) tokens resolve
+            (SVG presentation attributes don't reliably accept CSS vars). */}
         <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.3" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
+          <stop offset="0%" style={{ stopColor: color }} stopOpacity="0.3" />
+          <stop offset="100%" style={{ stopColor: color }} stopOpacity="0" />
         </linearGradient>
       </defs>
       <polygon points={areaPoints} fill={`url(#${gradId})`} />
-      <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+      <polyline points={points} fill="none" style={{ stroke: color }} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
     </svg>
   );
 }
@@ -286,7 +290,7 @@ function WalkthroughSection({ isDark, glass, glassStatic, textPrimary, textSecon
           onClick={toggle}
           aria-expanded={open}
           aria-label={open ? 'Collapse Radix walkthrough' : 'Expand Radix walkthrough'}
-          className={`w-full flex items-center justify-between p-6 text-left cursor-pointer transition-colors ${isDark ? 'hover:bg-white/[0.02]' : 'hover:bg-slate-50'}`}
+          className={`w-full flex items-center justify-between p-6 text-start cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] rounded-2xl ${isDark ? 'hover:bg-white/[0.02]' : 'hover:bg-slate-50'}`}
         >
           <div className="flex items-center gap-3">
             <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${isDark ? 'bg-amber-500/10' : 'bg-amber-50'}`}>
@@ -457,13 +461,13 @@ export default function Dashboard() {
 
             {/* Body — asymmetric: headline + lede on the left, action
                 slug on the right, generous vertical breathing room. */}
-            <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] items-end gap-6 px-6 lg:px-10 py-8 lg:py-12">
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] items-end gap-8 px-6 lg:px-10 py-9 lg:py-14">
               <div className="min-w-0">
-                <p className="font-mono text-[10px] uppercase tracking-[0.22em]" style={{ color: 'var(--color-fg-muted)' }}>
+                <p className="font-mono text-[10px] uppercase tracking-[0.24em]" style={{ color: 'var(--color-fg-muted)' }}>
                   {heroGreeting}{currentClient?.name ? ` · ${currentClient.name}` : ''}
                 </p>
                 <h1
-                  className="font-display mt-3 text-4xl sm:text-5xl lg:text-6xl font-semibold leading-[0.95] tracking-tight"
+                  className="font-display mt-4 text-4xl sm:text-5xl lg:text-[64px] font-semibold leading-[0.92] tracking-tight"
                   style={{ color: 'var(--color-fg)' }}
                 >
                   <span className="relative inline-block">
@@ -709,9 +713,18 @@ export default function Dashboard() {
           (() => {
             const knowledgeItems = stats.knowledge.totalItems || 0;
             const lowApproval = totalPosts > 0 && approvalRate < 50; // M6
+            // Tone → design token. Default to amber brand accent; approval card
+            // flips to semantic success/danger. Collapsing the old multi-hue
+            // (blue/purple/emerald/amber) scheme onto one accent + semantics is
+            // the editorial move away from the generic-SaaS look.
+            const TONE: Record<string, string> = {
+              accent: 'var(--color-accent)',
+              success: 'var(--color-success)',
+              danger: 'var(--color-danger)',
+            };
             const tiles = [
-              { key: 'clients', icon: Users, label: 'Clients', value: stats.clients.total ?? 0, sub: stats.clients.withBrief ? `${stats.clients.withBrief} with brief` : '', color: isDark ? 'text-blue-400' : 'text-blue-700', bg: isDark ? 'bg-blue-500/10' : 'bg-blue-100' },
-              { key: 'calendars', icon: Calendar, label: 'Calendars', value: stats.content.totalMonths ?? 0, sub: '', color: isDark ? 'text-purple-400' : 'text-purple-700', bg: isDark ? 'bg-purple-500/10' : 'bg-purple-100' },
+              { key: 'clients', icon: Users, label: 'Clients', value: stats.clients.total ?? 0, sub: stats.clients.withBrief ? `${stats.clients.withBrief} with brief` : '', tone: 'accent' as const },
+              { key: 'calendars', icon: Calendar, label: 'Calendars', value: stats.content.totalMonths ?? 0, sub: '', tone: 'accent' as const },
               {
                 key: 'approval',
                 icon: lowApproval ? AlertTriangle : CheckCircle2,
@@ -720,45 +733,98 @@ export default function Dashboard() {
                 sub: lowApproval
                   ? 'Needs attention'
                   : approvalRate >= 80 ? 'Healthy' : approvalRate > 0 ? 'Needs review' : '—',
-                color: lowApproval ? (isDark ? 'text-red-400' : 'text-red-700') : (isDark ? 'text-emerald-400' : 'text-emerald-700'),
-                bg: lowApproval ? (isDark ? 'bg-red-500/10' : 'bg-red-100') : (isDark ? 'bg-emerald-500/10' : 'bg-emerald-100'),
+                tone: (lowApproval ? 'danger' : 'success') as 'danger' | 'success',
                 href: '/content-review',
                 alert: lowApproval,
               },
-              { key: 'knowledge', icon: Database, label: 'Knowledge', value: knowledgeItems, sub: stats.knowledge.totalChunks ? `${stats.knowledge.totalChunks} chunks` : '', color: isDark ? 'text-amber-400' : 'text-amber-700', bg: isDark ? 'bg-amber-500/10' : 'bg-amber-100', zeroCta: knowledgeItems === 0 },
+              { key: 'knowledge', icon: Database, label: 'Knowledge', value: knowledgeItems, sub: stats.knowledge.totalChunks ? `${stats.knowledge.totalChunks} chunks` : '', tone: 'accent' as const, zeroCta: knowledgeItems === 0 },
             ];
             return tiles.map((stat, i) => {
+              const toneVar = TONE[stat.tone];
+              const valueColor = stat.alert ? 'var(--color-danger)' : 'var(--color-fg)';
               const inner = (
                 <>
-                  <div className="p-5 pb-3">
+                  {/* 21st statistics-card depth layer — soft radial accent glow
+                      anchored to the top trailing corner, tinted to the card's
+                      tone. inset-anchored (not left/right pinned) so it stays
+                      consistent under RTL. pointer-events-none + low z keeps it
+                      purely decorative behind the content. */}
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute -top-12 end-[-3rem] w-40 h-40 z-0"
+                    style={{
+                      background: `radial-gradient(circle at center, color-mix(in srgb, ${toneVar} 22%, transparent), transparent 70%)`,
+                      filter: 'blur(4px)',
+                    }}
+                  />
+                  {/* Faint concentric ring cluster — adds quiet editorial depth
+                      without reading as a chart. */}
+                  <svg
+                    aria-hidden="true"
+                    className="pointer-events-none absolute -top-8 end-[-2rem] z-0 opacity-[0.5]"
+                    width="120" height="120" viewBox="0 0 120 120"
+                  >
+                    <circle cx="60" cy="60" r="58" fill="none" strokeWidth="1"
+                      style={{ stroke: `color-mix(in srgb, ${toneVar} 14%, transparent)` }} />
+                    <circle cx="60" cy="60" r="42" fill="none" strokeWidth="1"
+                      style={{ stroke: `color-mix(in srgb, ${toneVar} 10%, transparent)` }} />
+                    <circle cx="60" cy="60" r="26" fill="none" strokeWidth="1"
+                      style={{ stroke: `color-mix(in srgb, ${toneVar} 8%, transparent)` }} />
+                  </svg>
+
+                  <div className="relative z-10 p-5 pb-3">
                     <div className="flex items-center justify-between mb-4">
-                      <div className={`w-9 h-9 rounded-xl ${stat.bg} flex items-center justify-center`}>
-                        <stat.icon className={`w-4 h-4 ${stat.color}`} />
+                      <div
+                        className="w-9 h-9 rounded-xl flex items-center justify-center"
+                        style={{
+                          background: `color-mix(in srgb, ${toneVar} 12%, transparent)`,
+                          boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${toneVar} 22%, transparent)`,
+                        }}
+                      >
+                        <stat.icon className="w-4 h-4" style={{ color: toneVar }} />
                       </div>
                       {stat.sub && (
-                        <span className={`text-[10px] font-semibold ${stat.color} ${stat.bg} px-2 py-0.5 rounded-full`}>{stat.sub}</span>
+                        <span
+                          className="text-[10px] font-semibold uppercase tracking-[0.08em] px-2 py-0.5 rounded-full"
+                          style={{
+                            color: toneVar,
+                            background: `color-mix(in srgb, ${toneVar} 12%, transparent)`,
+                          }}
+                        >{stat.sub}</span>
                       )}
                     </div>
                     {/* M1: Knowledge zero-state inline CTA in place of the big "0" */}
                     {stat.zeroCta ? (
                       <>
-                        <Link to="/knowledge" className="text-sm font-semibold text-amber-400 hover:text-amber-300">+ Add knowledge</Link>
-                        <p className={`text-xs mt-1 ${textMuted}`}>{t('page.dashboard.upload_briefs')}</p>
+                        <Link
+                          to="/knowledge"
+                          className="text-sm font-semibold transition-opacity hover:opacity-80"
+                          style={{ color: 'var(--color-accent)' }}
+                        >+ Add knowledge</Link>
+                        <p className="text-xs mt-1" style={{ color: 'var(--color-fg-muted)' }}>{t('page.dashboard.upload_briefs')}</p>
                       </>
                     ) : (
                       <>
                         {/* eyebrow label → hero number: stronger visual hierarchy */}
-                        <p className={`text-[11px] uppercase tracking-[0.14em] font-semibold ${textMuted}`}>{stat.label}</p>
-                        <div className={`mt-1 text-[34px] leading-none font-black tabular-nums ${stat.alert ? 'text-red-400' : textPrimary}`}>
+                        <p
+                          className="text-[10px] uppercase tracking-[0.18em] font-semibold"
+                          style={{ color: 'var(--color-fg-subtle)' }}
+                        >{stat.label}</p>
+                        <div
+                          className="mt-1.5 text-[42px] leading-[0.95] font-black tabular-nums tracking-tight"
+                          style={{ color: valueColor }}
+                        >
                           {typeof stat.value === 'number' ? <AnimatedNumber value={stat.value} /> : (stat.value ?? '—')}
                         </div>
                       </>
                     )}
                   </div>
-                  {/* Full-bleed graph footer — the "premium metric card" signature. */}
+                  {/* Full-bleed graph footer — the "premium metric card" signature.
+                      Token-colored: success normally, danger when the approval
+                      card is below threshold. */}
                   {typeof stat.value === 'number' && stat.value > 0 && !stat.zeroCta && (
-                    <div className="h-10">
-                      <Sparkline data={trendSeries(stat.value)} color={stat.alert ? '#ef4444' : '#10b981'} height={40} />
+                    <div className="relative z-10 h-10">
+                      <Sparkline data={trendSeries(stat.value)} color={stat.alert ? 'var(--color-danger)' : 'var(--color-success)'} height={40} />
                     </div>
                   )}
                 </>
@@ -767,14 +833,14 @@ export default function Dashboard() {
               if (stat.href) {
                 return (
                   <motion.div key={stat.key} {...fadeUp(0.15 + i * 0.05)}>
-                    <Link to={stat.href} className={`block rounded-2xl overflow-hidden ${glassStatic}`}>
+                    <Link to={stat.href} className={`relative block rounded-2xl overflow-hidden ${glassStatic}`}>
                       {inner}
                     </Link>
                   </motion.div>
                 );
               }
               return (
-                <motion.div key={stat.key} {...fadeUp(0.15 + i * 0.05)} className={`rounded-2xl overflow-hidden ${glassStatic}`}>
+                <motion.div key={stat.key} {...fadeUp(0.15 + i * 0.05)} className={`relative rounded-2xl overflow-hidden ${glassStatic}`}>
                   {inner}
                 </motion.div>
               );
@@ -841,7 +907,7 @@ export default function Dashboard() {
                     key={p.provider}
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 0.4, delay: 0.3 + i * 0.08 }}
+                    transition={{ ...motionBase, delay: 0.3 + i * 0.08 }}
                     className={`rounded-2xl p-5 border transition-all duration-200 ${isDark ? 'bg-white/[0.03] backdrop-blur-xl border-white/[0.06]' : 'bg-white border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300'}`}
                   >
                     <div className="flex items-center justify-between mb-3">
@@ -1317,7 +1383,7 @@ export default function Dashboard() {
                 <div className="w-full">
                   <Sparkline
                     data={insights.trends.sparkline.map(d => d.posts)}
-                    color={isDark ? '#a78bfa' : '#7c3aed'}
+                    color="var(--color-accent)"
                     height={40}
                     width={300}
                   />
