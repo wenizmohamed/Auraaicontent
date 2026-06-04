@@ -97,12 +97,12 @@ export function WorkspaceShell({ surfaces, activeSurface, activeItemId }: Worksp
           <div key={g.name} className={gi > 0 ? 'mt-3 border-t pt-3' : undefined} style={gi > 0 ? { borderColor: 'var(--color-border-subtle)' } : undefined}>
             {showHeaders && (
               <p
-                className="mb-1.5 text-center text-[8px] font-bold uppercase tracking-[0.18em]"
+                className="mb-1.5 text-center text-[8px] font-bold uppercase tracking-[0.06em] leading-tight"
                 style={{ color: 'var(--color-fg-subtle)' }}
                 aria-hidden
                 title={g.name}
               >
-                {g.name.slice(0, 4)}
+                {g.name}
               </p>
             )}
             {g.items.map((s) => {
