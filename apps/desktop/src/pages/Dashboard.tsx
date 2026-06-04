@@ -795,10 +795,10 @@ export default function Dashboard() {
               </h3>
               <div className="space-y-4">
                 <div>
-                  <div className={`text-3xl font-black tabular-nums ${textPrimary}`}>
+                  <p className={`text-[11px] uppercase tracking-[0.14em] font-semibold ${textMuted}`}>{t('page.dashboard.total_calls')}</p>
+                  <div className={`mt-1 text-[34px] leading-none font-black tabular-nums ${textPrimary}`}>
                     <AnimatedNumber value={aiStats.totalCalls} />
                   </div>
-                  <p className={`text-xs mt-1 ${textMuted}`}>{t('page.dashboard.total_calls')}</p>
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   <div className={`rounded-xl p-3 border ${isDark ? 'bg-white/[0.03] border-white/[0.04]' : 'bg-slate-100 border-slate-300'}`}>
