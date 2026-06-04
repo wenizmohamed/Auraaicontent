@@ -11,7 +11,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { invitationsApi, type InvitePreview, orgsApi } from '../lib/backend-api';
 import { useTheme } from '../lib/theme-context';
 import { t } from '../i18n';
-import { Mail, Building2, AlertCircle, Check, LogIn, UserPlus } from 'lucide-react';
+import { Mail, Building2, AlertCircle, Check, LogIn, UserPlus, Calendar, Sparkles, Users } from 'lucide-react';
 
 function fill(template: string, vars: Record<string, string>): string {
   return template.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? `{${k}}`);
@@ -65,16 +65,40 @@ export default function AcceptInvite() {
     } catch { /* ignore */ }
   }
 
-  const card = isDark ? 'bg-white/[0.03] border border-white/[0.06]' : 'bg-white border border-slate-200 shadow-sm';
+  const card = isDark ? 'bg-white/[0.04] border border-white/[0.08]' : 'bg-white border border-slate-200 shadow-xl';
   const text = isDark ? 'text-white' : 'text-slate-900';
   const sub = isDark ? 'text-zinc-400' : 'text-slate-500';
   const accent = isDark ? 'text-amber-400' : 'text-amber-600';
 
+  // What a new member gets — reinforces the value at the moment of joining
+  // (Jasper-style welcoming onboarding). Bilingual line is first-class for Gulf.
+  const perks = [
+    { icon: Calendar, label: 'Plan & schedule content across every channel' },
+    { icon: Sparkles, label: 'Generate on-brand posts with AI — Arabic & English' },
+    { icon: Users, label: 'Review, comment, and approve together' },
+  ];
+
   return (
-    <div className={`min-h-screen flex items-center justify-center p-6 ${isDark ? 'bg-zinc-950' : 'bg-slate-50'}`}>
-      <div className={`${card} rounded-2xl p-8 max-w-md w-full`}>
+    <div className={`relative min-h-screen flex items-center justify-center p-6 overflow-hidden ${isDark ? 'bg-zinc-950' : 'bg-slate-50'}`}>
+      {/* Branded gradient hero backdrop */}
+      <div aria-hidden className="pointer-events-none absolute inset-0" style={{
+        background: isDark
+          ? 'radial-gradient(60rem 40rem at 50% -10%, color-mix(in srgb, var(--color-accent) 18%, transparent), transparent 60%)'
+          : 'radial-gradient(60rem 40rem at 50% -10%, color-mix(in srgb, var(--color-accent) 14%, transparent), transparent 60%)',
+      }} />
+      <div className={`relative ${card} rounded-3xl p-8 max-w-md w-full`}>
+        {/* Wordmark */}
+        <div className="flex items-center gap-2 mb-6">
+          <div className="w-9 h-9 rounded-xl overflow-hidden border" style={{ borderColor: 'color-mix(in srgb, var(--color-accent) 40%, transparent)' }}>
+            <img src="./radix-dna.jpg" alt="Radix" className="w-full h-full object-cover" />
+          </div>
+          <span className="text-sm font-black tracking-tight" style={{ color: 'var(--color-fg)' }}>RADIX</span>
+        </div>
+
         <div className={`text-xs uppercase tracking-[0.2em] ${sub}`}>{t('invite.eyebrow')}</div>
-        <h1 className={`text-2xl font-bold mt-1 ${text}`}>{t('invite.title')}</h1>
+        <h1 className={`text-2xl font-black mt-1 tracking-tight ${text}`}>
+          {preview ? `Join ${preview.org.name}` : t('invite.title')}
+        </h1>
 
         {loading && (
           <div className={`mt-6 ${sub}`}>{t('invite.loading')}</div>
@@ -105,6 +129,19 @@ export default function AcceptInvite() {
                 {' '}{t('invite.expires')} {new Date(preview.expiresAt).toLocaleDateString()}.
               </div>
             </div>
+
+            {/* What you'll get */}
+            <ul className="mt-5 space-y-2.5">
+              {perks.map((p) => (
+                <li key={p.label} className={`flex items-center gap-2.5 text-[13px] ${text}`}>
+                  <span className="flex h-6 w-6 items-center justify-center rounded-lg shrink-0"
+                    style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>
+                    <p.icon className="w-3.5 h-3.5" />
+                  </span>
+                  {p.label}
+                </li>
+              ))}
+            </ul>
 
             {error && (
               <div className={`mt-4 flex gap-2 items-start text-sm ${isDark ? 'text-red-400' : 'text-red-600'}`}>
