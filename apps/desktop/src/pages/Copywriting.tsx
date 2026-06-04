@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { copywritingApi } from '../lib/backend-api';
 import { useClients } from '../lib/client-context';
+import { usePersistentDraft } from '../lib/use-persistent-draft';
 
 type CopyType = 'headline' | 'description' | 'article' | 'cta';
 type CopyLanguage = 'en' | 'ar' | 'fr';
@@ -35,8 +36,9 @@ export default function Copywriting() {
 
   const [copyType, setCopyType] = useState<CopyType>('headline');
   const [language, setLanguage] = useState<CopyLanguage>('en');
-  const [tone, setTone] = useState('');
-  const [brief, setBrief] = useState('');
+  // Drafts persist across refresh, scoped per client.
+  const [tone, setTone] = usePersistentDraft(`copywriting.tone.${selectedClientId ?? 'none'}`, '');
+  const [brief, setBrief] = usePersistentDraft(`copywriting.brief.${selectedClientId ?? 'none'}`, '');
   const [count, setCount] = useState(3);
 
   const [loading, setLoading] = useState(false);

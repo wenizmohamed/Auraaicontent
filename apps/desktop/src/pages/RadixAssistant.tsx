@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { Z } from '../lib/z-index';
 import { ThinkingIndicator } from '../components/ui/ThinkingIndicator';
 import { motionUI } from '../lib/motion';
+import { usePersistentDraft } from '../lib/use-persistent-draft';
 
 interface ActionResult {
   type: string;
@@ -56,7 +57,8 @@ export default function RadixAssistant() {
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState(false); // focus mode — larger panel for agent runs
   const [messages, setMessages] = useState<EnrichedMessage[]>([]);
-  const [input, setInput] = useState('');
+  // Draft survives refresh — the prompt you were typing is restored on reload.
+  const [input, setInput] = usePersistentDraft('assistant.input', '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);

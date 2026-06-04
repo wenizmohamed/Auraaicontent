@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Palette, Loader2, Copy, AlertCircle, ArrowLeft, RefreshCw, Wand2, Layers, Brush, Square } from 'lucide-react';
 import { designApi } from '../lib/backend-api';
 import { useClients } from '../lib/client-context';
+import { usePersistentDraft } from '../lib/use-persistent-draft';
 
 interface DesignBriefResult {
   visualDirection: string;
@@ -19,10 +20,12 @@ interface DesignBriefResult {
 export default function AIDesignGenerator() {
   const { selectedClientId, currentClient } = useClients();
   const [step, setStep] = useState<1 | 2>(1);
-  const [topic, setTopic] = useState('');
-  const [audience, setAudience] = useState('');
-  const [objective, setObjective] = useState('');
-  const [mood, setMood] = useState('');
+  // Brief fields persist across refresh, scoped per client.
+  const ck = selectedClientId ?? 'none';
+  const [topic, setTopic] = usePersistentDraft(`design.topic.${ck}`, '');
+  const [audience, setAudience] = usePersistentDraft(`design.audience.${ck}`, '');
+  const [objective, setObjective] = usePersistentDraft(`design.objective.${ck}`, '');
+  const [mood, setMood] = usePersistentDraft(`design.mood.${ck}`, '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [brief, setBrief] = useState<DesignBriefResult | null>(null);
