@@ -4,6 +4,10 @@
    Self-hosting via Google Fonts; subset to wghts actually used. */
 @import url('https://fonts.googleapis.com/css2?family=Libre+Bodoni:ital,wght@0,500;0,600;0,700;0,800;0,900;1,400;1,500&family=Public+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,500&family=JetBrains+Mono:wght@400;500&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=ADLaM+Display&display=swap');
+/* Arabic editorial pairing (ui-ux-pro-max design-system rec for the bilingual
+   Gulf market): Noto Naskh Arabic (display/headings) + Noto Sans Arabic (body).
+   Without these, Arabic content fell back to a basic system font. */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;500;600;700&family=Noto+Sans+Arabic:wght@300;400;500;600;700&display=swap');
 @import "tailwindcss";
 
 /* ════════════════════════════════════════════════════════════════════════════
@@ -22,8 +26,11 @@
   /* ── Typography ─────────────────────────────────────────────────────── */
   /* 2026-06-03: ADLaM Display for HEADINGS only (--font-display); body stays the
      readable Public Sans, mono stays JetBrains. (Kept from the tweakcn experiment.) */
-  --font-sans: "Public Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "ADLaM Display", "Libre Bodoni", ui-serif, Georgia, serif;
+  /* Noto Arabic added to every family so Arabic glyphs render with a proper
+     typeface in mixed (EN-UI) content via per-glyph fallback; full RTL mode
+     leads with Noto via the [dir="rtl"] override below. */
+  --font-sans: "Public Sans", "Noto Sans Arabic", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "ADLaM Display", "Libre Bodoni", "Noto Naskh Arabic", ui-serif, Georgia, serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
   --text-xs:   0.75rem;   /* 12px */ --text-xs--line-height:   1rem;        /* 16 */
@@ -583,6 +590,15 @@ html.light [role="tab"]:focus-visible {
 }
 
 /* driver.js (onboarding tour) — restyle into our token system. */
+/* Full RTL (Arabic locale sets html[dir="rtl"]): lead with Noto Arabic so the
+   entire Arabic UI is typographically consistent (naskh display + sans body),
+   not a system fallback. Placed after @theme so it overrides the :root vars. */
+[dir="rtl"] {
+  --font-sans: "Noto Sans Arabic", "Public Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Noto Naskh Arabic", "ADLaM Display", ui-serif, Georgia, serif;
+  letter-spacing: 0; /* naskh reads better without the Latin display tracking */
+}
+
 .driver-popover.radix-driver-popover {
   background: var(--color-bg-elevated);
   color: var(--color-fg);
