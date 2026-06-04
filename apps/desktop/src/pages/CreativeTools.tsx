@@ -840,11 +840,26 @@ export default function CreativeTools() {
                 <button
                   key={`${asset.timestamp}-${i}`}
                   type="button"
-                  onClick={() => {
+                  onClick={async () => {
                     if (asset.outputType === 'image') {
-                      // Reuse the image as the source for image-edit / image-to-video
-                      // by setting the source preview + base64 fields. Keeps the page in-place.
+                      // Reuse the image as the source for image-edit / image-to-video.
+                      // Recent assets carry a URL (not base64), so fetch + encode it
+                      // into sourceBase64/sourceMime — otherwise generation would send
+                      // a stale/empty image while the preview shows this thumbnail.
                       setSourcePreview(asset.url);
+                      try {
+                        const blob = await (await fetch(asset.url)).blob();
+                        const dataUrl: string = await new Promise((res, rej) => {
+                          const r = new FileReader();
+                          r.onload = () => res(r.result as string);
+                          r.onerror = rej;
+                          r.readAsDataURL(blob);
+                        });
+                        const m = dataUrl.match(/^data:([^;]+);base64,(.*)$/);
+                        if (m) { setSourceMime(m[1]); setSourceBase64(m[2]); }
+                      } catch {
+                        setError('Could not load that image as a source — re-upload it.');
+                      }
                     }
                     setResultUrl(asset.url);
                     setProvider('');

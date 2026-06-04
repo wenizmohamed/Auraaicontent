@@ -138,13 +138,25 @@ export const xaiProvider: AiProvider = {
       });
     }
     const start = Date.now();
-    // Build reference images: explicit URLs first, then fall back to imageBase64
-    // so image-to-video requests from Gemini fallback still carry the source frame.
-    const refImages = req.referenceImageUrls?.length
-      ? req.referenceImageUrls.map(url => ({ url }))
-      : req.imageBase64 && req.mimeType
-        ? [{ url: `data:${req.mimeType};base64,${req.imageBase64}` }]
-        : undefined;
+    // Frame conditioning (2026-06-04 fix): a SOURCE/START frame must go in xAI's
+    // image-to-video `image` field (= "use this as the starting frame"), NOT
+    // `reference_images` (= a loose style hint that's prompt-dominated and only
+    // honored when the prompt cites @Image1 — which we never do). Sending the
+    // product image as reference_images is exactly why Grok returned a different
+    // product. Resolve start like Veo does: explicit start, else legacy image.
+    // `reference_images` is reserved for genuine URL references with no start
+    // frame. The two are mutually exclusive xAI modes — never send both.
+    // NOTE: Grok's /videos/generations has no documented last_frame, so it can't
+    // honor an END frame; image→video + bookended requests are routed to Veo by
+    // the router (ai-router preferredPrimary), so Grok only runs here as a
+    // degrade-safe fallback.
+    const startB64 = req.startImageBase64 || req.imageBase64;
+    const startMime = req.startMimeType || req.mimeType;
+    const imageField = startB64 && startMime
+      ? { image: { url: `data:${startMime};base64,${startB64}` } }
+      : req.referenceImageUrls?.length
+        ? { reference_images: req.referenceImageUrls.map(url => ({ url })) }
+        : {};
 
     const ladderResult = await runModelLadder('xai', 'video', ladder, async (entry) => {
       const data = await xaiFetch('/videos/generations', {
@@ -152,7 +164,7 @@ export const xaiProvider: AiProvider = {
         duration: req.durationSeconds ?? 8,
         aspect_ratio: req.aspectRatio ?? '16:9',
         resolution: req.resolution ?? '720p',
-        ...(refImages ? { reference_images: refImages } : {}),
+        ...imageField,
       });
       return await pollVideo(data.request_id);
     });

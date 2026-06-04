@@ -172,11 +172,20 @@ async function routeCall<T>(
     });
   }
 
-  // Per-call provider-order override (Part A): a draft video forces Grok (xai)
+  // Per-call provider-order override: a draft TEXT→video forces Grok (xai)
   // first since it's ~10× cheaper than Veo. HD / undefined tier keeps the env
   // default order. Only applies to video — text/image/analysis pass undefined.
+  //
+  // IMPORTANT (2026-06-04 fix): image-conditioned video (a source/start/end
+  // frame attached) must NOT be forced to Grok. Grok's /videos/generations
+  // takes the frame as a `reference_images` *style hint* (prompt-dominated), so
+  // it invents a DIFFERENT subject than the uploaded product. Veo attaches the
+  // frame as the actual first/last frame. So any image→video request keeps the
+  // env default order (Veo-primary) regardless of tier — correctness over the
+  // draft cost saving. Pure text→video drafts still go to cheap Grok.
+  const imageConditioned = !!(req?.imageBase64 || req?.startImageBase64 || req?.endImageBase64);
   const preferredPrimary: AiProviderName | undefined =
-    task === 'video' && req?.tier === 'draft' ? 'xai' : undefined;
+    task === 'video' && req?.tier === 'draft' && !imageConditioned ? 'xai' : undefined;
 
   // Circuit breaker: drop providers whose breaker is open so an ongoing outage
   // doesn't tax every request with a full timeout before falling through.
