@@ -228,16 +228,36 @@ export default function RadixAssistant() {
 
   return (
     <>
-      {/* Floating launcher — DNA avatar */}
-      <button
+      {/* Floating launcher — Zendesk-style widget: branded circle with the chat icon
+          cross-sliding to a chevron on open/close, plus a spring pop-in. */}
+      <motion.button
         onClick={() => setOpen(!open)}
-        style={{ zIndex: Z.widget }}
-        className="fixed bottom-6 right-6 w-14 h-14 rounded-full shadow-2xl hover:scale-105 transition-transform cursor-pointer overflow-hidden border-2 border-amber-500/40"
+        initial={{ scale: 0, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        whileHover={{ scale: 1.06 }}
+        whileTap={{ scale: 0.94 }}
+        transition={motionUI}
+        style={{ zIndex: Z.widget, background: 'linear-gradient(135deg, var(--color-accent-hover), var(--color-accent))' }}
+        className="fixed bottom-6 right-6 w-14 h-14 rounded-full shadow-2xl cursor-pointer overflow-hidden grid place-items-center"
         title={open ? 'Close assistant' : 'Open Radix Assistant'}
+        aria-label={open ? 'Close assistant' : 'Open Radix Assistant'}
+        aria-expanded={open}
       >
-        {open ? <X className="w-6 h-6 text-white absolute inset-0 m-auto z-10" /> : null}
-        <img src="./radix-dna.jpg" alt="Radix AI" className={`w-full h-full object-cover ${open ? 'opacity-30' : ''}`} />
-      </button>
+        <motion.span
+          className="absolute"
+          animate={{ y: open ? -30 : 0, opacity: open ? 0 : 1 }}
+          transition={motionUI}
+        >
+          <MessageSquare className="w-6 h-6" style={{ color: 'var(--color-fg-on-accent)' }} />
+        </motion.span>
+        <motion.span
+          className="absolute"
+          animate={{ y: open ? 0 : 30, opacity: open ? 1 : 0 }}
+          transition={motionUI}
+        >
+          <ChevronDown className="w-6 h-6" style={{ color: 'var(--color-fg-on-accent)' }} />
+        </motion.span>
+      </motion.button>
 
       <AnimatePresence>
         {open && (
