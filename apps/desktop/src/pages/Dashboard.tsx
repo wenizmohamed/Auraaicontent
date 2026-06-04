@@ -564,10 +564,11 @@ export default function Dashboard() {
                     </span>
                   )}
                 </div>
-                <div className={`text-3xl font-black tabular-nums ${textPrimary}`}>
+                {/* eyebrow → hero number: matches the stat-card standard for a cohesive dashboard */}
+                <p className={`text-[11px] uppercase tracking-[0.14em] font-semibold ${textMuted}`}>{t('page.dashboard.total_posts')}</p>
+                <div className={`mt-1 text-[34px] leading-none font-black tabular-nums ${textPrimary}`}>
                   <AnimatedNumber value={totalPosts} />
                 </div>
-                <p className={`text-xs mt-1 ${textMuted}`}>{t('page.dashboard.total_posts')}</p>
               </>
             )}
           </div>
