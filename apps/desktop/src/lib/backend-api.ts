@@ -745,6 +745,18 @@ export interface AiProviderStat {
   tasks: Record<string, number>;
 }
 
+export interface EnrichmentHealthStat {
+  type: 'memory' | 'knowledge';
+  gated: number;       // skipped retrieval (no orgId / skip flag / zero-count gate)
+  ran: number;         // performed a real embedding + retrieval round-trip
+  injected: number;    // ran AND prepended ≥1 item to the prompt
+  empty: number;       // ran but found nothing above threshold
+  failed: number;      // retrieval threw (the silent-breakage case)
+  hits: number;        // total items prepended
+  lastInjectedAt: string | null;
+  injectionRate: number; // injected / ran, %
+}
+
 export interface AiStats {
   totalCalls: number;
   totalTokens: number;
@@ -752,6 +764,8 @@ export interface AiStats {
   totalFallbacks: number;
   providers: AiProviderStat[];
   tasks: { task: string; calls: number; avgLatencyMs: number; totalTokens: number }[];
+  /** RAG/memory retrieval health (added with the self-learning observability). */
+  enrichment?: EnrichmentHealthStat[];
 }
 
 export interface DashboardInsights {

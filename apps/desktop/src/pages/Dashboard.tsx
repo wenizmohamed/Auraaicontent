@@ -963,6 +963,72 @@ export default function Dashboard() {
         </BentoGrid>
       </motion.div>
 
+      {/* ─── ROW 2b.6: AI Grounding & Self-Learning ─── */}
+      {/* Surfaces the RAG/memory enrichment health: is every generation actually
+          grounded in the client's Knowledge + the system's Learnings, or is
+          retrieval silently no-op'ing? failed>0 flags real breakage. */}
+      {aiStats?.enrichment && aiStats.enrichment.some((e) => e.ran > 0 || e.failed > 0 || e.gated > 0) && (
+        <motion.div {...fadeUp(0.275)}>
+          <BentoGrid columns={12} gap="base">
+            <BentoTile colSpan={12} pad="lg" static>
+              <h3 className={`text-sm font-semibold flex items-center gap-2 mb-1 ${textPrimary}`}>
+                <Lightbulb className={`w-4 h-4 ${textSecondary}`} /> AI Grounding &amp; Self-Learning
+              </h3>
+              <p className={`text-[11px] mb-4 ${textMuted}`}>
+                Every text generation is enriched with the client&apos;s documents (Knowledge) and what the system has learned from feedback (Memory). These gauges confirm it&apos;s firing.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {aiStats.enrichment.map((e) => {
+                  const Icon = e.type === 'memory' ? Lightbulb : Database;
+                  const label = e.type === 'memory' ? 'Memory (learnings)' : 'Knowledge (documents)';
+                  const idle = e.ran === 0 && e.failed === 0;
+                  return (
+                    <div key={e.type} className={`rounded-xl p-4 border ${isDark ? 'bg-white/[0.03] border-white/[0.05]' : 'bg-slate-100 border-slate-300'}`}>
+                      <div className="flex items-center justify-between mb-3">
+                        <span className={`text-xs font-semibold flex items-center gap-1.5 ${textPrimary}`}>
+                          <Icon className="w-3.5 h-3.5" style={{ color: 'var(--color-accent)' }} /> {label}
+                        </span>
+                        {e.failed > 0 ? (
+                          <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded ${isDark ? 'text-red-400 bg-red-500/10' : 'text-red-700 bg-red-100'}`}>
+                            <AlertTriangle className="w-2.5 h-2.5" /> {e.failed} failed
+                          </span>
+                        ) : idle ? (
+                          <span className={`text-[10px] ${textMuted}`}>idle</span>
+                        ) : (
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${isDark ? 'text-emerald-400 bg-emerald-500/10' : 'text-emerald-700 bg-emerald-100'}`}>healthy</span>
+                        )}
+                      </div>
+                      <div className="flex items-end gap-4">
+                        <div>
+                          <div className={`text-3xl font-black tabular-nums leading-none ${textPrimary}`}>
+                            <AnimatedNumber value={e.injectionRate} />%
+                          </div>
+                          <p className={`text-[10px] mt-1 ${textMuted}`}>grounding rate</p>
+                        </div>
+                        <div className="flex-1 grid grid-cols-3 gap-2 text-center">
+                          <div>
+                            <div className={`text-sm font-bold tabular-nums ${textPrimary}`}>{e.injected}</div>
+                            <p className={`text-[9px] ${textMuted}`}>grounded</p>
+                          </div>
+                          <div>
+                            <div className={`text-sm font-bold tabular-nums ${textPrimary}`}>{e.hits}</div>
+                            <p className={`text-[9px] ${textMuted}`}>items used</p>
+                          </div>
+                          <div>
+                            <div className={`text-sm font-bold tabular-nums ${textPrimary}`}>{e.ran}</div>
+                            <p className={`text-[9px] ${textMuted}`}>lookups</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </BentoTile>
+          </BentoGrid>
+        </motion.div>
+      )}
+
       {/* ─── ROW 2c: Token Efficiency ─── */}
       {aiStats && aiStats.tasks.length > 0 && (
         <motion.div {...fadeUp(0.28)} className={`rounded-2xl p-6 ${glassStatic}`}>
