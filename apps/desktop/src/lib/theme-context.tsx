@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useMemo, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
 
 // Theme: what the USER chose. Includes 'auto' which resolves at render.
 export type Theme = 'auto' | 'dark' | 'light' | 'studio';
@@ -80,14 +80,24 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     theme === 'auto' ? autoResolved : theme
   , [theme, autoResolved]);
 
+  const firstThemeRun = useRef(true);
   useEffect(() => {
     try { localStorage.setItem('radix_theme', theme); } catch { /* ignore */ }
     const root = document.documentElement;
+    // Smooth cross-fade on theme change; skip the initial mount so first paint is instant.
+    let clear: number | undefined;
+    if (!firstThemeRun.current) {
+      root.classList.add('theme-switching');
+      clear = window.setTimeout(() => root.classList.remove('theme-switching'), 360);
+    } else {
+      firstThemeRun.current = false;
+    }
     root.classList.toggle('light', effectiveTheme === 'light');
     root.classList.toggle('dark', effectiveTheme === 'dark');
     root.classList.toggle('theme-studio', effectiveTheme === 'studio');
     // Tag the choice so CSS can react to auto-vs-manual if it wants.
     root.dataset.themeMode = theme;
+    return () => { if (clear) window.clearTimeout(clear); };
   }, [theme, effectiveTheme]);
 
   // Cycle: auto → dark → light → studio → auto

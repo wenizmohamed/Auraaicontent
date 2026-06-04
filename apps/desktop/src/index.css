@@ -665,6 +665,22 @@ body.locale-flipping {
   body.locale-flipping { animation: none; }
 }
 
+/* ── Smooth day↔night theme switching (2026-06-04) ──────────────────────────
+   The theme toggle used to SNAP instantly. theme-context adds `.theme-switching`
+   to <html> for ~350ms during a change; this cross-fades every color so day↔night
+   glides instead of jolting. Scoped to that class so it NEVER lags hover/press. */
+html.theme-switching,
+html.theme-switching *,
+html.theme-switching *::before,
+html.theme-switching *::after {
+  transition: background-color 320ms ease, border-color 320ms ease,
+              color 320ms ease, fill 320ms ease, stroke 320ms ease,
+              box-shadow 320ms ease !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  html.theme-switching, html.theme-switching * { transition: none !important; }
+}
+
 /* ════════════════════════════════════════════════════════════════════════════
    "MORE COLOR + LIFE" PASS (2026-06-03) — app-wide accent injection.
    Keeps the editorial base; adds warmth so the UI feels alive, not sterile.
