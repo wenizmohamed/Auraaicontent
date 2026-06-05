@@ -18,6 +18,7 @@ import OpenAI from 'openai';
 import type {
   AiProvider, AnalysisRequest, ImageRequest, ProviderResult, TextRequest, VideoRequest,
 } from './types.js';
+import { AiProviderError } from './errors.js';
 
 const BASE_URL = process.env.DASHSCOPE_BASE_URL
   || 'https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1';
@@ -116,14 +117,44 @@ async function generateImage(req: ImageRequest, model: string): Promise<Provider
   };
 }
 
+// Vision analysis — AnalysisRequest carries an image; send it as multimodal
+// content to a VISION-capable model (qwen3.6-plus understands images). The old
+// path routed to text-only chat() and dropped the image → hallucinations.
+async function analyze(req: AnalysisRequest): Promise<ProviderResult<object>> {
+  const client = getClient();
+  const model = process.env.DASHSCOPE_VISION_MODEL || 'qwen3.6-plus';
+  const start = Date.now();
+  const r = await client.chat.completions.create({
+    model,
+    max_tokens: 2048,
+    response_format: { type: 'json_object' as const },
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'text', text: req.prompt },
+        ...(req.imageBase64 && req.mimeType
+          ? [{ type: 'image_url' as const, image_url: { url: `data:${req.mimeType};base64,${req.imageBase64}` } }]
+          : []),
+      ] as any,
+    }],
+  });
+  const text = (r.choices[0]?.message as any)?.content ?? '';
+  return {
+    provider: 'dashscope', model: r.model || model, output: safeJson(text),
+    latencyMs: Date.now() - start, fallbackUsed: false,
+    promptTokens: r.usage?.prompt_tokens, completionTokens: r.usage?.completion_tokens, totalTokens: r.usage?.total_tokens,
+  };
+}
+
 export const dashscopeProvider: AiProvider = {
   name: 'dashscope',
   text: (req) => chat(req, !!req.json),
-  analysis: (req) => chat(req, true) as Promise<ProviderResult<object>>,
+  analysis: (req) => analyze(req),
   image: (req) => generateImage(req, (req as any).model || IMAGE_MODEL),
   imageEdit: (req) => generateImage(req, (req as any).model || IMAGE_MODEL),
   video: async (_req: VideoRequest): Promise<ProviderResult<{ url: string }>> => {
-    // Not in the "aura" plan quota — let the router fall through to Veo/Grok.
-    throw new Error('DashScope: video generation is not available on this plan');
+    // Not in the "aura" plan quota — 503 so the router falls through to Veo/Grok
+    // (retryable) rather than breaking the chain with a plain Error.
+    throw new AiProviderError('dashscope', 'video', 'video generation not on this plan', 503);
   },
 };

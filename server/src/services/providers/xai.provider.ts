@@ -100,9 +100,11 @@ export const xaiProvider: AiProvider = {
     const data = await xaiFetch('/images/generations', {
       model, prompt: req.prompt, n: req.n ?? 1,
     });
+    const url = data.data?.[0]?.url;
+    if (!url) throw new AiProviderError('xai', 'image', 'empty image response', 503);
     return {
       provider: 'xai', model, latencyMs: Date.now() - start, fallbackUsed: false,
-      output: { url: data.data?.[0]?.url },
+      output: { url },
     };
   },
 
@@ -113,9 +115,11 @@ export const xaiProvider: AiProvider = {
       model, prompt: req.prompt,
       image: { url: `data:${req.mimeType};base64,${req.imageBase64}`, type: 'image_url' },
     });
+    const url = data.data?.[0]?.url ?? data.url;
+    if (!url) throw new AiProviderError('xai', 'imageEdit', 'empty image-edit response', 503);
     return {
       provider: 'xai', model, latencyMs: Date.now() - start, fallbackUsed: false,
-      output: { url: data.data?.[0]?.url ?? data.url },
+      output: { url },
     };
   },
 
@@ -172,6 +176,9 @@ export const xaiProvider: AiProvider = {
   },
 
   async analysis(_req: AnalysisRequest): Promise<never> {
-    throw new AiProviderError('xai', 'analysis', 'xAI analysis not supported — use Gemini');
+    // 503 → retryable so the analysis chain falls THROUGH to the next provider
+    // (dashscope) instead of breaking here. (A statusless throw was treated as
+    // non-retryable and killed analysis fallback past Gemini.)
+    throw new AiProviderError('xai', 'analysis', 'xAI analysis not supported — falling through', 503);
   },
 };

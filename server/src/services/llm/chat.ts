@@ -33,6 +33,7 @@ import type {
 } from 'openai/resources/chat/completions';
 import { db } from '../../db/prisma.js';
 import { computeCostUsd } from '../../lib/ai-pricing.js';
+import { assertOrgBudget } from '../../lib/budget.js';
 
 export type ProviderName = 'gemini' | 'xai' | 'moonshot';
 
@@ -206,6 +207,9 @@ export async function chatText(
   params: Omit<ChatCompletionCreateParamsNonStreaming, 'model' | 'stream'>,
   options?: { chain?: ProviderName[]; chainEnv?: string; meta?: UsageMeta },
 ): Promise<ChatTextResult> {
+  // Spend gate — mirror ai-router so the chat stack (assistant/agent/research)
+  // honours the same monthly org budget cap. No-op when orgId/budget absent.
+  await assertOrgBudget(options?.meta?.orgId);
   const start = Date.now();
   const out = await withFallback(async ({ client, model }) => {
     const r: ChatCompletion = await client.chat.completions.create({ ...params, model, stream: false });
@@ -248,6 +252,8 @@ export async function chatStream(
   model: string;
   fallbackUsed: boolean;
 }> {
+  // Spend gate — same monthly org budget cap as ai-router / chatText.
+  await assertOrgBudget(options?.meta?.orgId);
   // stream_options.include_usage = true makes Gemini / xAI / Kimi emit one
   // final chunk containing prompt+completion token counts. Without this,
   // the streaming path can't be priced and every chatbot turn would be a

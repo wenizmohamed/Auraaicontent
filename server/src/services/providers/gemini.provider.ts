@@ -252,15 +252,20 @@ export const geminiProvider: AiProvider = {
     const model = ladderResult.modelUsed;
     if (ladderResult.result.kind === 'imagen') {
       const base64 = ladderResult.result.response.generatedImages?.[0]?.image?.imageBytes;
+      // 503 (retryable) on empty so the router falls through to xai instead of
+      // returning a silently-broken {base64: undefined} as a false success.
+      if (!base64) throw new AiProviderError('gemini', 'image', 'empty image response', 503);
       return {
         provider: 'gemini', model, latencyMs: Date.now() - start, fallbackUsed: false,
         output: { base64 },
       };
     }
     const part = (ladderResult.result.response as any).candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData);
+    const b64 = part?.inlineData?.data;
+    if (!b64) throw new AiProviderError('gemini', 'image', 'empty image response', 503);
     return {
       provider: 'gemini', model, latencyMs: Date.now() - start, fallbackUsed: false,
-      output: { base64: part?.inlineData?.data },
+      output: { base64: b64 },
     };
   },
 
@@ -299,9 +304,11 @@ export const geminiProvider: AiProvider = {
       IMAGE_EDIT_TIMEOUT, 'imageEdit',
     ));
     const part = (response as any).candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData);
+    const b64 = part?.inlineData?.data;
+    if (!b64) throw new AiProviderError('gemini', 'imageEdit', 'empty image-edit response', 503);
     return {
       provider: 'gemini', model, latencyMs: Date.now() - start, fallbackUsed: false,
-      output: { base64: part?.inlineData?.data },
+      output: { base64: b64 },
     };
   },
 
