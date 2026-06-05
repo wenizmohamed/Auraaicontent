@@ -97,6 +97,19 @@ function isStaff(): boolean {
   return !!e && STAFF_EMAILS.includes(e.toLowerCase());
 }
 
+// Premium nav motion choreography (per the AURA spec): grid/header settle, then
+// the nav groups stagger up. Runs once — Layout persists across routes, so the
+// sidebar doesn't re-animate on every navigation. Respects reduced-motion via
+// the global <MotionConfig>.
+const navContainerVariants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { staggerChildren: 0.1, delayChildren: 0.2 } },
+};
+const navColumnVariants = {
+  hidden: { y: 15, opacity: 0 },
+  visible: { y: 0, opacity: 1, transition: { type: 'spring' as const, stiffness: 100, damping: 15 } },
+};
+
 function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -342,11 +355,17 @@ function Layout({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Navigation — grouped (Today / Strategy / Create / Distribute / Settings) */}
-        <nav className="flex-1 px-3 py-3 space-y-3 overflow-y-auto" aria-label="Primary">
+        <motion.nav
+          className="flex-1 px-3 py-3 space-y-3 overflow-y-auto"
+          aria-label="Primary"
+          variants={navContainerVariants}
+          initial="hidden"
+          animate="visible"
+        >
           {navGroups.map((group) => {
             const isOpen = openGroups[group.id] !== false;
             return (
-              <div key={group.id}>
+              <motion.div key={group.id} variants={navColumnVariants}>
                 {/* Group header — hidden when sidebar collapsed (icons only); also acts as the collapsible toggle. */}
                 {!isCollapsed && (
                   <button
@@ -396,6 +415,10 @@ function Layout({ children }: { children: React.ReactNode }) {
                               className="absolute left-0 inset-y-0 my-auto h-5 w-[3px] rounded-r-full bg-[color:var(--color-accent)]"
                             />
                           )}
+                          {/* Hover "aura": a fine left-border that grows vertically on hover (AURA spec). */}
+                          {!isActive && !isCollapsed && (
+                            <span aria-hidden className="absolute left-0 inset-y-0 my-auto h-0 w-[2px] rounded-r-full opacity-0 transition-all duration-200 group-hover:h-5 group-hover:opacity-100" style={{ background: 'var(--color-accent)' }} />
+                          )}
                           <item.icon className={`${isCollapsed ? '' : 'mr-3'} h-[18px] w-[18px] transition-all duration-200 ${
                             isActive ? isDark ? 'text-amber-400' : 'text-amber-600' : isDark ? 'group-hover:text-zinc-300' : 'group-hover:text-slate-700'
                           }`} />
@@ -405,10 +428,10 @@ function Layout({ children }: { children: React.ReactNode }) {
                     })}
                   </div>
                 )}
-              </div>
+              </motion.div>
             );
           })}
-        </nav>
+        </motion.nav>
 
         {/* Bottom: Org switcher + Locale + Theme + Profile */}
         <div className={`p-3 border-t space-y-1 ${isDark ? 'border-white/[0.06]' : 'border-slate-200/60'}`}>
