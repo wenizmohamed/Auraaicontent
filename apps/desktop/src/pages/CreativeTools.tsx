@@ -209,6 +209,9 @@ export default function CreativeTools() {
   const [sourceBase64, setSourceBase64] = useState('');
   const [sourceMime, setSourceMime] = useState('image/png');
   const [sourcePreview, setSourcePreview] = useState('');
+  // Multi-image edit (Gemini/DashScope can take several input frames): the
+  // primary frame is sourceBase64; these are the extra reference frames.
+  const [extraRefs, setExtraRefs] = useState<{ base64: string; mimeType: string; preview: string }[]>([]);
   // End-frame state for image-to-video (workshop 2026-05-06 #3 — Haneen).
   // Optional: omit to let Veo free-interpolate; provide to lock the final
   // frame so the video has controlled bookends.
@@ -267,6 +270,8 @@ export default function CreativeTools() {
       setSourceMime('image/png');
       setSourcePreview('');
     }
+    // Extra reference frames are image-edit only — clear when leaving it.
+    if (next !== 'image-edit') setExtraRefs([]);
     // End-frame is only meaningful in image-to-video; clear on every other mode
     if (next !== 'image-to-video') {
       setEndBase64('');
@@ -299,10 +304,40 @@ export default function CreativeTools() {
     }
   };
 
+  // Accept one OR many files: first fills the primary source (if empty), the
+  // rest become extra reference frames (multi-image edit). Capped at 8 total.
+  const handleFiles = async (files: FileList | File[]) => {
+    setError('');
+    const list = Array.from(files);
+    if (!list.length) return;
+    try {
+      const encoded = await Promise.all(list.map(fileToBase64));
+      let rest = encoded;
+      if (!sourceBase64) {
+        const first = encoded[0];
+        setSourceBase64(first.base64);
+        setSourceMime(first.mimeType);
+        setSourcePreview(`data:${first.mimeType};base64,${first.base64}`);
+        rest = encoded.slice(1);
+      }
+      if (rest.length) {
+        setExtraRefs(prev => [
+          ...prev,
+          ...rest.map(e => ({ base64: e.base64, mimeType: e.mimeType, preview: `data:${e.mimeType};base64,${e.base64}` })),
+        ].slice(0, 7)); // 1 primary + up to 7 refs = 8 total
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Failed to read files');
+    }
+  };
+
+  const removeExtraRef = (i: number) => setExtraRefs(prev => prev.filter((_, idx) => idx !== i));
+
   const clearSource = () => {
     setSourceBase64('');
     setSourceMime('image/png');
     setSourcePreview('');
+    setExtraRefs([]);
   };
 
   const handleEndFile = async (file: File) => {
@@ -377,6 +412,7 @@ export default function CreativeTools() {
           mimeType: sourceMime,
           aspectRatio,
           clientId: selectedClientId || undefined,
+          ...(extraRefs.length ? { referenceImages: extraRefs.map(r => ({ base64: r.base64, mimeType: r.mimeType })) } : {}),
           ...resolveImageModel(imageModel),
         });
         generatedUrl = out.assetUrl || out.url || '';
@@ -621,7 +657,50 @@ export default function CreativeTools() {
                   </button>
                 </div>
               )}
-              <input ref={fileRef} type="file" accept="image/*" hidden onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
+
+              {/* Multi-image edit: extra reference frames (Gemini/DashScope blend
+                  several inputs). Only meaningful for image-edit. */}
+              {mode === 'image-edit' && sourcePreview && (
+                <div className="mt-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {extraRefs.map((r, i) => (
+                      <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden border border-white/[0.08] bg-black group/ref">
+                        <img src={r.preview} alt={`Reference ${i + 2}`} className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => removeExtraRef(i)}
+                          className="absolute top-0.5 right-0.5 p-0.5 rounded bg-black/70 text-white opacity-0 group-hover/ref:opacity-100 transition-opacity"
+                          aria-label={`Remove reference image ${i + 2}`}
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                    {extraRefs.length < 7 && (
+                      <button
+                        type="button"
+                        onClick={() => fileRef.current?.click()}
+                        className="w-16 h-16 rounded-lg border-2 border-dashed border-white/[0.1] flex items-center justify-center text-zinc-600 hover:border-[color:var(--color-accent)] hover:text-[color:var(--color-accent)] transition-colors"
+                        title="Add another reference image"
+                      >
+                        <Upload className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-zinc-600 mt-1.5">
+                    {extraRefs.length > 0 ? `${extraRefs.length + 1} images — blended in the edit` : 'Add more images to blend/compose them in the edit'}
+                  </p>
+                </div>
+              )}
+
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                multiple={mode === 'image-edit'}
+                hidden
+                onChange={e => { if (e.target.files?.length) handleFiles(e.target.files); e.target.value = ''; }}
+              />
             </div>
 
             {/* End frame — only for image-to-video. Optional: omit to let

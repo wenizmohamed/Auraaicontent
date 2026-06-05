@@ -89,6 +89,10 @@ async function generateImage(req: ImageRequest, model: string): Promise<Provider
   if (req.imageBase64 && req.mimeType) {
     content.push({ image: `data:${req.mimeType};base64,${req.imageBase64}` });
   }
+  // Multi-image edit: include every additional reference frame too.
+  for (const ref of req.referenceImages || []) {
+    if (ref?.base64 && ref?.mimeType) content.push({ image: `data:${ref.mimeType};base64,${ref.base64}` });
+  }
   content.push({ text: req.prompt });
 
   const res = await fetch(NATIVE_URL, {

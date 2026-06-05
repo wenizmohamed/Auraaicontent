@@ -84,11 +84,16 @@ export async function creativeRoutes(app: FastifyInstance) {
 
   // POST /api/creative/images/edit
   app.post('/creative/images/edit', async (request, reply) => {
-    const { prompt, imageBase64, mimeType, aspectRatio, clientId, model, provider } = request.body as any;
+    const { prompt, imageBase64, mimeType, aspectRatio, clientId, model, provider, referenceImages } = request.body as any;
     if (!prompt || !imageBase64) return reply.status(400).send({ error: 'prompt and imageBase64 are required' });
 
     try {
-      const result = await aiRouter.image({ prompt, imageBase64, mimeType: mimeType || 'image/png', aspectRatio, model }, { orgId: request.orgId, userId: request.user?.userId, clientId, preferredProvider: provider });
+      // referenceImages = additional input frames (multi-image edit). Gemini's
+      // imageEdit inlines imageBase64 (primary) + every referenceImage.
+      const refs = Array.isArray(referenceImages)
+        ? referenceImages.filter((r: any) => r?.base64 && r?.mimeType).slice(0, 8)
+        : undefined;
+      const result = await aiRouter.image({ prompt, imageBase64, mimeType: mimeType || 'image/png', aspectRatio, model, referenceImages: refs }, { orgId: request.orgId, userId: request.user?.userId, clientId, preferredProvider: provider });
       let savedAsset = null;
       if (result.output.base64 && clientId) {
         const buf = Buffer.from(result.output.base64, 'base64');
