@@ -28,8 +28,7 @@ const RadixAssistant    = lazy(() => import('./pages/RadixAssistant'));
 const TopicDesk         = lazy(() => import('./pages/TopicDesk'));
 const DesignTextures    = lazy(() => import('./pages/DesignTextures'));
 const ContentPieces     = lazy(() => import('./pages/ContentPieces'));
-const Knowledge         = lazy(() => import('./pages/Knowledge'));
-const AILearnings       = lazy(() => import('./pages/AILearnings'));
+const AIMemory          = lazy(() => import('./pages/AIMemory'));
 const BrandKit          = lazy(() => import('./pages/BrandKit'));
 const AIDesignGenerator = lazy(() => import('./pages/AIDesignGenerator'));
 const VisualReferences  = lazy(() => import('./pages/VisualReferences'));
@@ -212,8 +211,7 @@ function Layout({ children }: { children: React.ReactNode }) {
         { name: t('nav.clients'),   href: '/clients',     icon: Building2, prefetch: () => import('./pages/Clients') },
         { name: t('nav.brief'),     href: '/brief',       icon: FileText,  prefetch: () => import('./pages/BriefInput') },
         { name: t('nav.brandKit'),  href: '/brand-kit',   icon: Palette,   prefetch: () => import('./pages/BrandKit') },
-        { name: t('nav.knowledge'), href: '/knowledge',   icon: Brain,     prefetch: () => import('./pages/Knowledge') },
-        { name: t('nav.learnings'), href: '/learnings',   icon: Lightbulb, prefetch: () => import('./pages/AILearnings') },
+        { name: t('nav.memory'),    href: '/memory',      icon: Brain,     prefetch: () => import('./pages/AIMemory') },
         { name: t('nav.research'),  href: '/research',    icon: Telescope, prefetch: () => import('./pages/Research') },
         { name: t('nav.topics'),    href: '/topics',      icon: Compass,   prefetch: () => import('./pages/TopicDesk') },
       ],
@@ -698,8 +696,10 @@ export default function App() {
               <Route path="/text-to-video" element={<Navigate to="/creative?tab=text-to-video" replace />} />
               <Route path="/image-to-video" element={<Navigate to="/creative?tab=image-to-video" replace />} />
               <Route path="/pieces" element={<ContentPieces />} />
-              <Route path="/knowledge" element={<Knowledge />} />
-              <Route path="/learnings" element={<AILearnings />} />
+              <Route path="/memory" element={<AIMemory />} />
+              {/* Legacy deep links — keep working, render the unified AI Memory page */}
+              <Route path="/knowledge" element={<AIMemory />} />
+              <Route path="/learnings" element={<AIMemory />} />
               <Route path="/brand-kit" element={<BrandKit />} />
               <Route path="/ai-design" element={<AIDesignGenerator />} />
               <Route path="/references" element={<VisualReferences />} />

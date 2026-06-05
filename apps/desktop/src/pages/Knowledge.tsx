@@ -37,7 +37,7 @@ function TypeIcon({ mime, className = 'w-5 h-5' }: { mime: string; className?: s
   return <Paperclip className={`${className} text-zinc-500`} aria-label="file" />;
 }
 
-export default function Knowledge() {
+export default function Knowledge({ embedded = false }: { embedded?: boolean } = {}) {
   const { selectedClientId, currentClient } = useClients();
   const { success: toastSuccess, error: toastError } = useToast();
   const [items, setItems] = useState<KnowledgeItemRecord[]>([]);
@@ -145,57 +145,77 @@ export default function Knowledge() {
     }
   }
 
+  // The hidden file input + the Upload File button. Rendered in the header when
+  // standalone, or in a tab-local toolbar when embedded — must stay mounted in
+  // BOTH modes (hiding the header alone would drop the only upload entry point).
+  const uploadControls = (
+    <div className="flex items-center gap-2">
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        accept=".pdf,.txt,.md,.docx,.json,.csv,image/*"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) handleUpload(f);
+        }}
+      />
+      <button
+        type="button"
+        onClick={() => fileInputRef.current?.click()}
+        disabled={uploading || !selectedClientId}
+        className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold disabled:opacity-50 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
+        style={{ background: 'var(--color-accent)', color: 'var(--color-fg-on-accent)' }}
+      >
+        {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+        {uploading ? 'Uploading…' : 'Upload File'}
+      </button>
+    </div>
+  );
+
+  // No-client state. When embedded we render an inline card inside the tab body
+  // (the merged page owns the outer container); standalone keeps its own.
   if (!selectedClientId) {
-    return (
-      <div className="max-w-[1400px] mx-auto p-6">
-        <div className="rounded-2xl bg-white/[0.03] border border-white/[0.06] p-12 text-center">
-          <Database className="w-12 h-12 text-zinc-700 mx-auto mb-4" />
-          <h2 className="text-lg font-bold text-zinc-300 mb-2">No client selected</h2>
-          <p className="text-sm text-zinc-500">Pick a client from the top bar to manage their knowledge base.</p>
-        </div>
+    const card = (
+      <div className="rounded-2xl bg-white/[0.03] border border-white/[0.06] p-12 text-center">
+        <Database className="w-12 h-12 mx-auto mb-4" style={{ color: 'var(--color-fg-subtle)' }} />
+        <h2 className="text-lg font-bold mb-2" style={{ color: 'var(--color-fg-muted)' }}>No client selected</h2>
+        <p className="text-sm" style={{ color: 'var(--color-fg-subtle)' }}>Pick a client from the top bar to manage their knowledge base.</p>
       </div>
     );
+    if (embedded) return card;
+    return <div className="max-w-[1400px] mx-auto p-6">{card}</div>;
   }
 
-  return (
-    <div className="max-w-[1400px] mx-auto p-6 space-y-6">
-      {/* Header */}
+  const body = (
+    <>
+      {/* Header — hidden in embedded mode (the merged AI Memory page owns it). */}
+      {!embedded && (
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <p className="text-[11px] uppercase tracking-[0.14em] font-semibold" style={{ color: 'var(--color-fg-subtle)' }}>Knowledge</p>
-          <h1 className="font-display text-2xl font-black text-white tracking-tight flex items-center gap-3">
+          <h1 className="font-display text-2xl font-black tracking-tight flex items-center gap-3" style={{ color: 'var(--color-fg)' }}>
             <Database className="w-6 h-6" style={{ color: 'var(--color-accent)' }} />
             Knowledge Base
-            <span className="text-sm font-medium text-zinc-500">· {currentClient?.name || 'client'}</span>
+            <span className="text-sm font-medium" style={{ color: 'var(--color-fg-subtle)' }}>· {currentClient?.name || 'client'}</span>
           </h1>
-          <p className="text-sm text-zinc-500 mt-1">
+          <p className="text-sm mt-1" style={{ color: 'var(--color-fg-subtle)' }}>
             Upload briefs, brand guides, and reference docs. Auto-embedded for retrieval-augmented generation.
           </p>
         </div>
-
-        <div className="flex items-center gap-2">
-          <input
-            ref={fileInputRef}
-            type="file"
-            className="hidden"
-            accept=".pdf,.txt,.md,.docx,.json,.csv,image/*"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) handleUpload(f);
-            }}
-          />
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            className="flex items-center gap-2 text-black px-4 py-2 rounded-xl text-sm font-bold disabled:opacity-50 transition-colors cursor-pointer"
-            style={{ background: 'var(--color-accent)' }}
-          >
-            {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-            {uploading ? 'Uploading…' : 'Upload File'}
-          </button>
-        </div>
+        {uploadControls}
       </motion.div>
+      )}
+
+      {/* Embedded toolbar — keeps the Upload entry point visible without a header. */}
+      {embedded && (
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <p className="text-sm" style={{ color: 'var(--color-fg-subtle)' }}>
+            Documents grounding this client's generations via retrieval-augmented generation.
+          </p>
+          {uploadControls}
+        </div>
+      )}
 
       {/* Retrieval test */}
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ ...motionUI, delay: 0.05 }}
@@ -369,6 +389,9 @@ export default function Knowledge() {
           <Trash2 size={12} /> Delete
         </button>
       </BulkActionBar>
-    </div>
+    </>
   );
+
+  if (embedded) return <div className="space-y-6">{body}</div>;
+  return <div className="max-w-[1400px] mx-auto p-6 space-y-6">{body}</div>;
 }

@@ -43,7 +43,7 @@ function KindBadge({ kind }: { kind: MemoryKind }) {
   );
 }
 
-export default function AILearnings() {
+export default function AILearnings({ embedded = false }: { embedded?: boolean } = {}) {
   const { selectedClientId, currentClient, clients } = useClients();
   const { success: toastSuccess, error: toastError } = useToast();
   const [items, setItems] = useState<MemoryRecord[]>([]);
@@ -130,9 +130,23 @@ export default function AILearnings() {
     }
   }
 
-  return (
-    <div className="max-w-[1400px] mx-auto p-6 space-y-6">
-      {/* Header */}
+  // "Teach the AI" trigger — rendered in the header standalone, or in a tab-local
+  // toolbar when embedded (hiding the header alone would drop the only entry point).
+  const teachButton = (
+    <button
+      type="button"
+      onClick={() => setComposerOpen((o) => !o)}
+      className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
+      style={{ background: 'var(--color-accent)', color: 'var(--color-fg-on-accent)' }}
+    >
+      <Plus className="w-4 h-4" /> Teach the AI
+    </button>
+  );
+
+  const body = (
+    <>
+      {/* Header — hidden in embedded mode (the merged AI Memory page owns it). */}
+      {!embedded && (
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={motionUI}
         className="flex items-start justify-between flex-wrap gap-4">
         <div>
@@ -147,15 +161,21 @@ export default function AILearnings() {
             injected into future AI generations so the same correction never has to be made twice.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setComposerOpen((o) => !o)}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors cursor-pointer"
-          style={{ background: 'var(--color-accent)', color: 'var(--color-fg-on-accent)' }}
-        >
-          <Plus className="w-4 h-4" /> Teach the AI
-        </button>
+        {teachButton}
       </motion.div>
+      )}
+
+      {/* Embedded toolbar — keeps the Teach entry point visible without a header. */}
+      {embedded && (
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <p className="text-sm max-w-2xl" style={{ color: 'var(--color-fg-subtle)' }}>
+            {currentClient
+              ? <>Lessons the AI applies for {currentClient.name} — including org-wide rules.</>
+              : 'Lessons the AI applies across every client.'}
+          </p>
+          {teachButton}
+        </div>
+      )}
 
       {/* Composer */}
       <AnimatePresence>
@@ -329,6 +349,9 @@ export default function AILearnings() {
           })}
         </div>
       )}
-    </div>
+    </>
   );
+
+  if (embedded) return <div className="space-y-6">{body}</div>;
+  return <div className="max-w-[1400px] mx-auto p-6 space-y-6">{body}</div>;
 }
