@@ -189,6 +189,14 @@ export async function buildApp() {
           rank: 2,
         },
         kimi: { ...kimiStatus(), role: 'tertiary — long-context (text only)', rank: 3 },
+        dashscope: {
+          configured: !!process.env.DASHSCOPE_API_KEY,
+          textModel: process.env.DASHSCOPE_TEXT_MODEL || 'qwen3.7-max',
+          imageModel: process.env.DASHSCOPE_IMAGE_MODEL || 'qwen-image-2.0-pro',
+          baseURL: process.env.DASHSCOPE_BASE_URL || 'https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1',
+          role: 'fallback (text + image) — Qwen/DeepSeek/GLM/MiniMax/Kimi + Qwen/Wan image; no video',
+          rank: 4,
+        },
       },
     };
   });
