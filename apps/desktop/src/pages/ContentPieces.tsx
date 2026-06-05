@@ -539,6 +539,7 @@ export default function ContentPieces() {
       return (
         <EmptyState
           icon={Layers}
+          spotlight
           title="No content pieces yet"
           description="Pieces are reusable post drafts (image / video / carousel) that flow into the calendar. Create your first to get started."
           primary={
@@ -692,6 +693,7 @@ export default function ContentPieces() {
       return (
         <EmptyState
           icon={Layers}
+          spotlight
           title="No content pieces yet"
           description="Pieces are reusable post drafts (image / video / carousel) that flow into the calendar. Create your first to get started."
           primary={

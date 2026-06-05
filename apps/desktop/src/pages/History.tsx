@@ -226,6 +226,7 @@ export default function History() {
       ) : items.length === 0 ? (
         <EmptyState
           icon={HistoryIcon}
+          spotlight
           title={searchDebounced ? `No history matches "${searchDebounced}"` : 'No generations yet'}
           description={searchDebounced
             ? 'Try a different search or switch tabs.'

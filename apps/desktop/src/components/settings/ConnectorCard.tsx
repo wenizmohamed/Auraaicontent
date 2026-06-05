@@ -65,12 +65,20 @@ export function ConnectorCard({ platform, connection, onConnect, onDisconnect, b
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={motionUI}
-      className="relative flex flex-col gap-3 rounded-2xl border p-4"
+      whileHover={{ y: -2 }}
+      className="relative flex flex-col gap-3 rounded-2xl border p-4 overflow-hidden"
       style={{
-        background: 'var(--color-surface)',
-        borderColor: 'var(--color-border-subtle)',
+        background: 'var(--color-bg-elevated)',
+        borderColor: isConnected ? 'var(--color-accent)' : 'var(--color-border-subtle)',
+        boxShadow: isConnected
+          ? '0 0 0 1px var(--color-accent), 0 10px 30px -12px color-mix(in srgb, var(--color-accent) 40%, transparent)'
+          : undefined,
       }}
     >
+      {isConnected && (
+        <div aria-hidden className="pointer-events-none absolute inset-0"
+          style={{ background: 'radial-gradient(circle at 100% 0%, var(--color-accent-subtle), transparent 55%)' }} />
+      )}
       <div className="flex items-start gap-3">
         <span
           aria-hidden
