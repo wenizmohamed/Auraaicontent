@@ -9,6 +9,9 @@ import { generateMonthWorker } from '../workers/generateMonth.worker.js';
 import { visualSearchService } from '../services/visual-search.service.js';
 import { auditService } from '../services/audit.service.js';
 import { chatText, type ProviderName } from '../services/llm/chat.js';
+import { enrichWithKnowledge } from '../lib/knowledge-enricher.js';
+import { enrichWithMemory } from '../lib/memory-enricher.js';
+import { enrichWithBrandKit } from '../lib/brand-kit-enricher.js';
 
 // ─── Assistant LLM ───────────────────────────────────────────────
 // 2026-04-23: Weni's directive — Gemini 3.1 Pro is PRIMARY (Radix
@@ -336,7 +339,21 @@ export async function assistantRoutes(app: FastifyInstance) {
       } catch { /* best-effort */ }
     }
 
-    const systemPrompt = RADIX_PERSONA + clientContext;
+    let systemPrompt = RADIX_PERSONA + clientContext;
+
+    // RAG grounding — the assistant runs on chat.ts (not aiRouter), so it must
+    // run the SAME enrichers itself or it stays blind to the client's Knowledge
+    // Base + Learnings + Brand Kit (the "it asks you to paste what's already
+    // uploaded" bug). Retrieval query = the latest user turn. Each enricher is
+    // gated (no client / no docs / no learnings → no-op) and best-effort.
+    const lastUserText = [...messages].reverse().find(m => m.role === 'user')?.content?.trim() || '';
+    if (orgId && lastUserText) {
+      try {
+        systemPrompt = await enrichWithKnowledge(systemPrompt, orgId, clientId, lastUserText, {});
+        systemPrompt = await enrichWithMemory(systemPrompt, orgId, clientId, lastUserText, {});
+        systemPrompt = await enrichWithBrandKit(systemPrompt, clientId, {});
+      } catch { /* best-effort — never block the chat on enrichment */ }
+    }
 
     // Format conversation for the chat API
     const grokMessages: { role: 'user' | 'assistant'; content: any }[] = messages
