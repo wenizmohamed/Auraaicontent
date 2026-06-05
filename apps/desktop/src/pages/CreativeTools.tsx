@@ -151,6 +151,7 @@ function aspectRatiosFor(mode: Mode) {
 // the rest force a specific provider/model for sharper stills.
 const IMAGE_MODELS: { value: string; label: string; provider?: 'gemini' | 'xai' | 'dashscope'; model?: string }[] = [
   { value: 'auto', label: 'Auto (Gemini)' },
+  { value: 'grok', label: 'Grok Imagine', provider: 'xai' },
   { value: 'qwen-image-2.0-pro', label: 'Qwen Image 2.0 Pro', provider: 'dashscope', model: 'qwen-image-2.0-pro' },
   { value: 'wan2.7-image-pro', label: 'Wan 2.7 Image Pro', provider: 'dashscope', model: 'wan2.7-image-pro' },
 ];
@@ -1053,8 +1054,10 @@ export default function CreativeTools() {
               <label className="text-[10px] uppercase tracking-wider font-bold" style={{ color: 'var(--color-fg-muted)' }}>Quality</label>
               <div className="flex items-center gap-2 mt-2">
                 {([
-                  { value: 'draft' as const, label: 'Draft' },
-                  { value: 'hd' as const, label: 'HD' },
+                  // Draft text→video runs on Grok (cheap/fast); image→video is
+                  // forced to Veo (Grok mis-handles the reference frame). HD = Veo.
+                  { value: 'draft' as const, label: mode === 'image-to-video' ? 'Draft · Veo' : 'Draft · Grok' },
+                  { value: 'hd' as const, label: 'HD · Veo' },
                 ]).map(opt => {
                   const active = tier === opt.value;
                   return (
