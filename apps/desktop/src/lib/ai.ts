@@ -1,75 +1,25 @@
-import { GoogleGenAI } from '@google/genai';
+import { aiApi } from './backend-api';
 
-// ─── Providers ───────────────────────────────────────────────────
-
-const GEMINI_KEY = process.env.GEMINI_API_KEY || '';
-const CLAUDE_KEY = process.env.ANTHROPIC_API_KEY || '';
-
-// Detect if running on VPS (not localhost) — use server-side proxy to avoid CORS
-const isDeployed = typeof window !== 'undefined' && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1');
-const CLAUDE_API_BASE = isDeployed ? '/claude' : 'https://api.anthropic.com';
-const GEMINI_API_BASE = isDeployed ? '/gemini' : '';
-
-async function generateWithGemini(prompt: string): Promise<string> {
-  if (isDeployed) {
-    // Use server-side proxy (no CORS issues, keys on server)
-    const res = await fetch(`${GEMINI_API_BASE}/v1beta/models/gemini-3-flash-preview:generateContent`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-    });
-    const data = await res.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-  }
-  const ai = new GoogleGenAI({ apiKey: GEMINI_KEY });
-  const res = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: prompt });
-  return res.text || '';
-}
-
-async function generateWithClaude(prompt: string): Promise<string> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (!isDeployed) {
-    headers['x-api-key'] = CLAUDE_KEY;
-    headers['anthropic-version'] = '2023-06-01';
-    headers['anthropic-dangerous-direct-browser-access'] = 'true';
-  }
-  const res = await fetch(`${CLAUDE_API_BASE}/v1/messages`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      model: 'claude-opus-4-20250514',
-      max_tokens: 4096,
-      messages: [{ role: 'user', content: prompt }],
-    }),
-  });
-  const data = await res.json();
-  if (data.content?.[0]?.text) return data.content[0].text;
-  throw new Error(data.error?.message || 'Claude API error');
-}
+// All generation routes through the backend aiRouter (Gemini-primary + universal
+// fallback + org budget + telemetry + enrichment). The browser no longer calls
+// LLM providers directly — the old /gemini & /claude proxy paths 404'd in prod
+// (nginx only proxies /api/), which silently broke Topic Desk AI + visual-ref
+// keyword search. `provider` is kept for signature compatibility but is advisory;
+// the router decides (Gemini first).
 
 export type AIProvider = 'gemini' | 'claude';
 
-export async function generateContent(prompt: string, provider: AIProvider = 'gemini'): Promise<string> {
-  try {
-    if (provider === 'claude') return await generateWithClaude(prompt);
-    return await generateWithGemini(prompt);
-  } catch (err) {
-    // Fallback to the other provider
-    console.warn(`${provider} failed, trying fallback...`, err);
-    try {
-      if (provider === 'claude') return await generateWithGemini(prompt);
-      return await generateWithClaude(prompt);
-    } catch (fallbackErr) {
-      throw new Error(`Both AI providers failed. Last error: ${(fallbackErr as Error).message}`);
-    }
-  }
+export async function generateContent(prompt: string, _provider: AIProvider = 'gemini'): Promise<string> {
+  const r = await aiApi.text({ prompt });
+  return r.text || '';
 }
 
 // ─── JSON helper ─────────────────────────────────────────────────
 
-async function generateJSON(prompt: string, provider: AIProvider = 'gemini'): Promise<any> {
-  const text = await generateContent(prompt + '\n\nReturn ONLY valid JSON, no markdown formatting or code fences.', provider);
-  const match = text.match(/[\[{][\s\S]*[\]}]/);
+async function generateJSON(prompt: string, _provider: AIProvider = 'gemini'): Promise<any> {
+  const r = await aiApi.text({ prompt, json: true });
+  try { return JSON.parse(r.text); } catch { /* fall through to lenient extraction */ }
+  const match = r.text.match(/[\[{][\s\S]*[\]}]/);
   if (match) return JSON.parse(match[0]);
   throw new Error('Could not parse JSON from AI response');
 }

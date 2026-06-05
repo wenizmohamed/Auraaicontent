@@ -18,6 +18,7 @@ import { exportRoutes } from './routes/exports.js';
 import { creativeRoutes } from './routes/creative.js';
 import { copywritingRoutes } from './routes/copywriting.js';
 import { researchRoutes } from './routes/research.js';
+import { aiRoutes } from './routes/ai.js';
 import { assistantRoutes } from './routes/assistant.js';
 import { designRoutes } from './routes/design.js';
 import { analyzeRoutes } from './routes/analyze.js';
@@ -260,6 +261,7 @@ export async function buildApp() {
   await app.register(creativeRoutes, { prefix: '/api' });
   await app.register(copywritingRoutes, { prefix: '/api' });
   await app.register(researchRoutes, { prefix: '/api' });
+  await app.register(aiRoutes, { prefix: '/api' });
   await app.register(assistantRoutes, { prefix: '/api' });
   await app.register(designRoutes, { prefix: '/api' });
   await app.register(analyzeRoutes, { prefix: '/api' });
