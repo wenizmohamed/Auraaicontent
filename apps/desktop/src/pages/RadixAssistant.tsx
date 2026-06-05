@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bot, Send, X, Loader2, Trash2, MessageSquare, AlertCircle, Zap, Search, FileText, Calendar, Image as ImageIcon, ExternalLink, Copy, RefreshCw, Check, Sparkles, Quote, Brain, ChevronDown, Palette, Database, Lightbulb, Languages, Scissors, Shuffle, Maximize2, Minimize2, Plus, StopCircle } from 'lucide-react';
+import { Bot, Send, X, Loader2, Trash2, MessageSquare, AlertCircle, Zap, Search, FileText, Calendar, Image as ImageIcon, ExternalLink, Copy, RefreshCw, Check, Sparkles, Quote, Brain, ChevronDown, Palette, Database, Lightbulb, Languages, Scissors, Shuffle, Maximize2, Minimize2, Plus, StopCircle, Paperclip } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { toast } from 'sonner';
 import { assistantApi, agentApi, type ChatMessage, type AgentTemplateSummary } from '../lib/backend-api';
@@ -59,6 +59,10 @@ export default function RadixAssistant() {
   const [messages, setMessages] = useState<EnrichedMessage[]>([]);
   // Draft survives refresh — the prompt you were typing is restored on reload.
   const [input, setInput] = usePersistentDraft('assistant.input', '');
+  // Multimodal attachments for the next turn (images go to the vision model;
+  // docs/video noted in text for now).
+  const [attachments, setAttachments] = useState<{ dataUrl: string; mimeType: string; name: string; kind: 'image' | 'video' | 'doc' }[]>([]);
+  const attachInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -82,19 +86,23 @@ export default function RadixAssistant() {
 
   const handleSend = async (overrideInput?: string) => {
     const content = (overrideInput || input).trim();
-    if (!content || loading) return;
+    // Attachments only ride the typed turn, not quick-action/template prompts.
+    const atts = overrideInput ? [] : attachments;
+    if ((!content && atts.length === 0) || loading) return;
 
-    const userMsg: EnrichedMessage = { role: 'user', content };
+    const shownContent = content || (atts.length ? `📎 ${atts.length} attachment${atts.length === 1 ? '' : 's'}` : '');
+    const userMsg: EnrichedMessage = { role: 'user', content: shownContent };
     const chatMessages: ChatMessage[] = [...messages.map(m => ({ role: m.role, content: m.content })), { role: 'user' as const, content }];
     setMessages(prev => [...prev, userMsg]);
     setInput('');
+    if (atts.length) setAttachments([]);
     setLoading(true);
     setError('');
 
     const controller = new AbortController();
     abortRef.current = controller;
     try {
-      const out = await assistantApi.chat(chatMessages, selectedClientId || undefined, controller.signal);
+      const out = await assistantApi.chat(chatMessages, selectedClientId || undefined, controller.signal, atts.length ? atts : undefined);
       const action = (out as any).action as ActionResult | undefined;
       // The backend may surface RAG citations + reasoning trace on the response;
       // both are optional, both render only when present.
@@ -141,7 +149,32 @@ export default function RadixAssistant() {
     setLoading(false);
   };
 
-  const handleClear = () => { setMessages([]); setError(''); abortRef.current?.abort(); };
+  const handleClear = () => { setMessages([]); setError(''); setAttachments([]); abortRef.current?.abort(); };
+
+  // Encode attached files to data URLs (images go to the vision model; others
+  // are noted in text for now). Cap 6 per turn; ~15MB each to keep the JSON sane.
+  const handleAttach = async (files: FileList | null) => {
+    if (!files?.length) return;
+    setError('');
+    const picked = Array.from(files).slice(0, 6);
+    try {
+      const encoded = await Promise.all(picked.map(async (f) => {
+        if (f.size > 15 * 1024 * 1024) throw new Error(`${f.name} is over 15MB`);
+        const dataUrl: string = await new Promise((res, rej) => {
+          const r = new FileReader();
+          r.onload = () => res(r.result as string);
+          r.onerror = rej;
+          r.readAsDataURL(f);
+        });
+        const kind: 'image' | 'video' | 'doc' = f.type.startsWith('image/') ? 'image' : f.type.startsWith('video/') ? 'video' : 'doc';
+        return { dataUrl, mimeType: f.type || 'application/octet-stream', name: f.name, kind };
+      }));
+      setAttachments(prev => [...prev, ...encoded].slice(0, 6));
+    } catch (err: any) {
+      setError(err?.message || 'Could not attach file');
+    }
+  };
+  const removeAttachment = (i: number) => setAttachments(prev => prev.filter((_, idx) => idx !== i));
 
   // Agent templates — fetched once, rendered alongside the static quick actions.
   const [templates, setTemplates] = useState<AgentTemplateSummary[]>([]);
@@ -476,6 +509,40 @@ export default function RadixAssistant() {
 
             {/* Input — polished prompt box: auto-resize textarea, send-inside,
                 Enter to send + Shift+Enter for newline, char counter at limit */}
+            {/* Attachment tray — chips for queued files + the attach control. */}
+            <div className="px-3 pt-2 flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => attachInputRef.current?.click()}
+                title="Attach image / file"
+                aria-label="Attach image or file"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-lg transition-colors cursor-pointer"
+                style={{ color: 'var(--color-fg-muted)', border: '1px solid var(--color-border)' }}
+              >
+                <Paperclip className="w-3.5 h-3.5" />
+              </button>
+              {attachments.map((a, i) => (
+                <span key={i} className="inline-flex items-center gap-1.5 rounded-lg pl-1 pr-1.5 py-0.5 text-[11px] max-w-[160px]"
+                  style={{ background: 'var(--color-bg-elevated)', border: '1px solid var(--color-border)', color: 'var(--color-fg-muted)' }}>
+                  {a.kind === 'image'
+                    ? <img src={a.dataUrl} alt="" className="h-5 w-5 rounded object-cover shrink-0" />
+                    : <FileText className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--color-accent)' }} />}
+                  <span className="truncate">{a.name}</span>
+                  <button type="button" onClick={() => removeAttachment(i)} aria-label={`Remove ${a.name}`} className="shrink-0 hover:opacity-70">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+              <input
+                ref={attachInputRef}
+                type="file"
+                multiple
+                accept="image/*,video/*,.pdf,.docx,.txt,.md"
+                hidden
+                onChange={(e) => { handleAttach(e.target.files); e.target.value = ''; }}
+              />
+            </div>
+
             <PromptBox
               value={input}
               onChange={setInput}

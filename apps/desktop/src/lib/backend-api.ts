@@ -541,9 +541,10 @@ export interface ChatMessage {
 
 export const assistantApi = {
   // `signal` lets the caller abort an in-flight agent run (Stop button).
-  chat: (messages: ChatMessage[], clientId?: string, signal?: AbortSignal) =>
+  // `attachments` = files on the latest user turn (images → vision model).
+  chat: (messages: ChatMessage[], clientId?: string, signal?: AbortSignal, attachments?: { dataUrl: string; mimeType: string; name?: string; kind?: 'image' | 'video' | 'doc' }[]) =>
     request<{ message: ChatMessage; action?: { type: string; params: Record<string, any>; result: any }; provider: string; latencyMs: number }>(
-      '/api/assistant/chat', { method: 'POST', body: JSON.stringify({ messages, clientId }), signal }, { timeoutMs: 120000 }
+      '/api/assistant/chat', { method: 'POST', body: JSON.stringify({ messages, clientId, attachments }), signal }, { timeoutMs: 120000 }
     ),
 };
 

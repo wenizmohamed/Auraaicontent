@@ -16,7 +16,9 @@ import { chatText, type ProviderName } from '../services/llm/chat.js';
 // implemented in services/llm/chat.ts → chatText().
 async function callAssistantLLM(
   system: string,
-  messages: { role: 'user' | 'assistant'; content: string }[],
+  // content is string for plain turns, or an OpenAI multimodal parts array
+  // ({type:'text'} + {type:'image_url'}) when the user attached image(s).
+  messages: { role: 'user' | 'assistant'; content: any }[],
   meta?: { orgId?: string; userId?: string; clientId?: string },
 ): Promise<{ text: string; provider: ProviderName; model: string; latencyMs: number; fallbackUsed: boolean }> {
   // 4096 budget: Gemini 3 / Kimi K2 are thinking models that may burn
@@ -38,9 +40,20 @@ interface ChatMessage {
   content: string;
 }
 
+interface ChatAttachment {
+  dataUrl: string;       // data:<mime>;base64,<...>
+  mimeType: string;
+  name?: string;
+  kind?: 'image' | 'video' | 'doc';
+}
+
 interface ChatBody {
   messages?: ChatMessage[];
   clientId?: string;
+  // Files attached to the LATEST user turn (multimodal). Phase 1: images go
+  // straight to the vision model; docs arrive as extracted text appended to the
+  // message; video is not yet supported on the chat path.
+  attachments?: ChatAttachment[];
 }
 
 interface AgentAction {
@@ -286,7 +299,7 @@ export async function assistantRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authGuard);
 
   app.post('/assistant/chat', async (request, reply) => {
-    const { messages, clientId } = (request.body as ChatBody) || {};
+    const { messages, clientId, attachments } = (request.body as ChatBody) || {};
     const orgId = request.orgId!;
     if (!Array.isArray(messages) || messages.length === 0) {
       return reply.status(400).send({ error: 'messages array is required' });
@@ -325,10 +338,34 @@ export async function assistantRoutes(app: FastifyInstance) {
 
     const systemPrompt = RADIX_PERSONA + clientContext;
 
-    // Format conversation for Claude's messages API
-    const grokMessages: { role: 'user' | 'assistant'; content: string }[] = messages
+    // Format conversation for the chat API
+    const grokMessages: { role: 'user' | 'assistant'; content: any }[] = messages
       .filter(m => m.role !== 'system')
       .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+
+    // Multimodal: fold attached IMAGES into the latest user turn as OpenAI
+    // image_url parts so the vision model (Gemini primary) actually sees them.
+    // (Docs/video handled separately later — for now non-image attachments are
+    // noted in text so the model knows they exist.)
+    const imageAtts = (attachments || []).filter(a => a?.dataUrl && (a.kind === 'image' || a.mimeType?.startsWith('image/')));
+    const otherAtts = (attachments || []).filter(a => !imageAtts.includes(a));
+    if ((imageAtts.length || otherAtts.length) && grokMessages.length) {
+      const lastIdx = grokMessages.length - 1;
+      const last = grokMessages[lastIdx];
+      if (last.role === 'user') {
+        let textPart = (typeof last.content === 'string' ? last.content : '') || 'Use the attached file(s).';
+        if (otherAtts.length) {
+          textPart += `\n\n[Attached (not yet readable inline): ${otherAtts.map(a => a.name || a.mimeType).join(', ')}]`;
+        }
+        grokMessages[lastIdx] = {
+          role: 'user',
+          content: [
+            { type: 'text', text: textPart },
+            ...imageAtts.map(a => ({ type: 'image_url', image_url: { url: a.dataUrl } })),
+          ],
+        };
+      }
+    }
 
     try {
       const start = Date.now();
