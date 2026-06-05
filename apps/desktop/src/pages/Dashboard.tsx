@@ -1230,24 +1230,25 @@ export default function Dashboard() {
         {/* Quick Actions */}
         <motion.div {...fadeUp(0.4)} className="col-span-12 lg:col-span-3 flex flex-col gap-3">
           {[
-            { label: 'Get Started', href: '/onboarding', icon: Sparkles, desc: 'Onboarding steps', color: isDark ? 'text-emerald-400' : 'text-emerald-700', bg: isDark ? 'bg-emerald-500/10' : 'bg-emerald-100', ring: 'group-hover:ring-emerald-500/30' },
-            { label: 'Review Content', href: '/content-review', icon: Layers, desc: 'Approve pieces', color: isDark ? 'text-purple-400' : 'text-purple-700', bg: isDark ? 'bg-purple-500/10' : 'bg-purple-100', ring: 'group-hover:ring-purple-500/30' },
-            { label: 'Calendar', href: '/calendar', icon: Calendar, desc: 'View schedule', color: isDark ? 'text-blue-400' : 'text-blue-700', bg: isDark ? 'bg-blue-500/10' : 'bg-blue-100', ring: 'group-hover:ring-blue-500/30' },
-            { label: 'Creative Tools', href: '/creative', icon: Wand2, desc: 'Generate visuals', color: isDark ? 'text-amber-400' : 'text-amber-700', bg: isDark ? 'bg-amber-500/10' : 'bg-amber-100', ring: 'group-hover:ring-amber-500/30' },
+            { label: 'Get Started', href: '/onboarding', icon: Sparkles, desc: 'Onboarding steps' },
+            { label: 'Review Content', href: '/content-review', icon: Layers, desc: 'Approve pieces' },
+            { label: 'Calendar', href: '/calendar', icon: Calendar, desc: 'View schedule' },
+            { label: 'Creative Tools', href: '/creative', icon: Wand2, desc: 'Generate visuals' },
           ].map((action) => (
             <Link
               key={action.label}
               to={action.href}
-              className={`flex items-center gap-3 rounded-2xl p-4 group transition-all duration-200 cursor-pointer flex-1 ${glass}`}
+              className={`flex items-center gap-3 rounded-2xl p-4 group transition-all duration-200 cursor-pointer flex-1 hover:-translate-y-0.5 ${glass}`}
             >
-              <div className={`w-11 h-11 rounded-xl ${action.bg} flex items-center justify-center shrink-0 ring-1 ring-transparent ${action.ring} transition-all duration-200`}>
-                <action.icon className={`w-5 h-5 ${action.color}`} />
+              <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 transition-all duration-200"
+                style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)', border: '1px solid color-mix(in srgb, var(--color-accent) 28%, transparent)' }}>
+                <action.icon className="w-5 h-5" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className={`text-sm font-semibold transition-colors ${isDark ? 'text-zinc-200 group-hover:text-white' : 'text-slate-700 group-hover:text-slate-900'}`}>{action.label}</p>
+                <p className="text-sm font-semibold" style={{ color: 'var(--color-fg)' }}>{action.label}</p>
                 <p className={`text-[11px] ${textMuted}`}>{action.desc}</p>
               </div>
-              <ArrowRight className={`w-3.5 h-3.5 transition-all duration-200 group-hover:translate-x-0.5 ${isDark ? 'text-zinc-700 group-hover:text-zinc-400' : 'text-slate-300 group-hover:text-slate-500'}`} />
+              <ArrowRight className="w-3.5 h-3.5 transition-transform duration-200 group-hover:translate-x-0.5" style={{ color: 'var(--color-fg-subtle)' }} />
             </Link>
           ))}
         </motion.div>
