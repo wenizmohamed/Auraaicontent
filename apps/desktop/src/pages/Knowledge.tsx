@@ -255,6 +255,7 @@ export default function Knowledge() {
       {!loading && items.length === 0 && (
         <EmptyState
           icon={Database}
+          spotlight
           title="No knowledge items yet"
           description="Upload briefs, brand guides, references — anything the AI should know about. Documents are auto-embedded for retrieval-augmented generation."
           primary={

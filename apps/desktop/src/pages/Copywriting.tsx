@@ -8,19 +8,21 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   PenLine, Loader2, Sparkles, Copy, Check, AlertCircle, BookOpen,
+  Type, AlignLeft, FileText, MousePointerClick,
 } from 'lucide-react';
 import { copywritingApi } from '../lib/backend-api';
 import { useClients } from '../lib/client-context';
 import { usePersistentDraft } from '../lib/use-persistent-draft';
+import { FeatureCard } from '../components/ui';
 
 type CopyType = 'headline' | 'description' | 'article' | 'cta';
 type CopyLanguage = 'en' | 'ar' | 'fr';
 
-const COPY_TYPES: { id: CopyType; label: string; hint: string }[] = [
-  { id: 'headline',    label: 'Headline',    hint: '~15 words, punchy' },
-  { id: 'description', label: 'Description', hint: '~20 words, benefit-led' },
-  { id: 'article',     label: 'Article',     hint: '100-160 words' },
-  { id: 'cta',         label: 'CTA',         hint: '2-6 words, action' },
+const COPY_TYPES: { id: CopyType; label: string; hint: string; icon: typeof PenLine }[] = [
+  { id: 'headline',    label: 'Headline',    hint: '~15 words, punchy',     icon: Type },
+  { id: 'description', label: 'Description', hint: '~20 words, benefit-led', icon: AlignLeft },
+  { id: 'article',     label: 'Article',     hint: '100-160 words',          icon: FileText },
+  { id: 'cta',         label: 'CTA',         hint: '2-6 words, action',      icon: MousePointerClick },
 ];
 
 const LANGUAGES: { id: CopyLanguage; label: string; rtl: boolean }[] = [
@@ -90,7 +92,7 @@ export default function Copywriting() {
             <PenLine className="w-6 h-6 text-black" />
           </div>
           <div>
-            <h1 className="text-4xl font-black text-white tracking-tight">AI Copywriting</h1>
+            <h1 className="text-4xl font-black tracking-tight" style={{ color: 'var(--color-fg)' }}>AI Copywriting</h1>
             <p className="text-sm text-zinc-500 mt-0.5">
               Brand-grounded website copy — headlines, descriptions, articles.
               {currentClient && <span className="ml-1 text-amber-400/80">Client: {currentClient.name}</span>}
@@ -103,22 +105,19 @@ export default function Copywriting() {
       <div className="space-y-6">
         {/* Copy type */}
         <div>
-          <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Copy type</label>
-          <div className="flex flex-wrap gap-2 mt-2">
-            {COPY_TYPES.map(ct => (
-              <button
+          <label className="text-[10px] uppercase tracking-wider font-bold" style={{ color: 'var(--color-fg-subtle)' }}>Copy type</label>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-2">
+            {COPY_TYPES.map((ct, i) => (
+              <FeatureCard
                 key={ct.id}
-                type="button"
+                icon={ct.icon}
+                title={ct.label}
+                description={ct.hint}
+                active={copyType === ct.id}
+                glow={copyType === ct.id}
+                index={i}
                 onClick={() => setCopyType(ct.id)}
-                className={`px-3.5 py-2 rounded-lg text-xs font-semibold border transition-all ${
-                  copyType === ct.id
-                    ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
-                    : 'bg-white/[0.03] text-zinc-500 border-white/[0.06] hover:border-white/[0.12]'
-                }`}
-              >
-                {ct.label}
-                <span className="ml-1.5 text-[10px] text-zinc-600">{ct.hint}</span>
-              </button>
+              />
             ))}
           </div>
         </div>

@@ -10,6 +10,7 @@ import {
 import { expandTopicBrief, suggestTopics, generateTopicOutline, type AIProvider, type VisualReference as AIVisualRef } from '../lib/ai';
 import VisualRefSearch from '../components/VisualRefSearch';
 import { motionUI } from '../lib/motion';
+import { MaskedGridIcon } from '../components/ui';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -905,16 +906,15 @@ export default function TopicDesk() {
   // ---------------------------------------------------------------------------
   const renderEmptyState = () => (
     <div className="flex flex-col items-center justify-center py-24 text-center">
-      <div className="w-20 h-20 rounded-2xl bg-violet-500/10 flex items-center justify-center mb-6">
-        <FileText className="w-10 h-10 text-violet-500/50" />
-      </div>
-      <h3 className="text-xl font-display font-bold text-white mb-2">No topics yet</h3>
-      <p className="text-sm text-zinc-500 max-w-sm mb-6 leading-relaxed">
+      <MaskedGridIcon icon={FileText} className="mb-6" />
+      <h3 className="text-xl font-display font-bold mb-2" style={{ color: 'var(--color-fg)' }}>No topics yet</h3>
+      <p className="text-sm max-w-sm mb-6 leading-relaxed" style={{ color: 'var(--color-fg-muted)' }}>
         Create your first topic to get started with the content production pipeline. Topics flow through Draft, Review, Approved, In Production, and Published.
       </p>
       <button
         onClick={() => setIsCreateOpen(true)}
-        className="inline-flex items-center gap-2 px-6 py-3 bg-violet-600 hover:bg-violet-500 text-white rounded-xl font-medium transition-colors shadow-lg shadow-violet-500/20"
+        className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-colors hover:brightness-110"
+        style={{ background: 'var(--color-accent)', color: 'var(--color-fg-on-accent)' }}
       >
         <Plus className="w-4 h-4" /> Create First Topic
       </button>
@@ -940,8 +940,8 @@ export default function TopicDesk() {
         animate={{ opacity: 1, y: 0 }}
         className="relative overflow-hidden rounded-3xl bg-black/20 p-8 shadow-2xl border border-white/10"
       >
-        <div className="absolute inset-0 bg-gradient-to-br from-violet-500/10 via-fuchsia-500/5 to-transparent z-0" />
-        <div className="absolute -top-24 -right-24 w-96 h-96 bg-violet-500/15 rounded-full blur-3xl z-0" />
+        <div aria-hidden className="absolute inset-0 z-0" style={{ background: 'linear-gradient(135deg, var(--color-accent-subtle), transparent 70%)' }} />
+        <div aria-hidden className="absolute -top-24 -end-24 w-96 h-96 rounded-full blur-3xl z-0" style={{ background: 'color-mix(in srgb, var(--color-accent) 15%, transparent)' }} />
 
         <div className="relative z-10 flex items-center gap-6">
           <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white shadow-lg shadow-violet-500/20">
