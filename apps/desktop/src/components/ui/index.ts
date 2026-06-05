@@ -46,6 +46,10 @@ export {
 export { SlashMenu, useSlashTrigger, DEFAULT_SLASH_ACTIONS, type SlashAction } from './SlashMenu';
 export { Slider } from './Slider';
 export { Sparkline } from './Sparkline';
+export { MaskedGridIcon } from './MaskedGridIcon';
+export { FeatureCard } from './FeatureCard';
+export { BentoGrid, BentoTile } from './BentoGrid';
+export { AnimatedGradientBorder } from './AnimatedGradientBorder';
 export { Switch } from './Switch';
 export { Tabs } from './Tabs';
 export { Toggle } from './Toggle';

@@ -4,6 +4,7 @@ import { Sparkles, Palette, Loader2, Copy, AlertCircle, ArrowLeft, RefreshCw, Wa
 import { designApi } from '../lib/backend-api';
 import { useClients } from '../lib/client-context';
 import { usePersistentDraft } from '../lib/use-persistent-draft';
+import { FeatureCard } from '../components/ui';
 
 interface DesignBriefResult {
   visualDirection: string;
@@ -107,28 +108,19 @@ export default function AIDesignGenerator() {
 
           {step === 1 && (
             <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {STYLE_PRESETS.map(p => {
+              {STYLE_PRESETS.map((p, i) => {
                 const active = mood === p.mood;
                 return (
-                  <button
+                  <FeatureCard
                     key={p.name}
-                    type="button"
+                    icon={p.icon}
+                    title={p.name}
+                    description={p.mood.split('.')[0]}
+                    active={active}
+                    glow={active}
+                    index={i}
                     onClick={() => setMood(p.mood)}
-                    aria-pressed={active}
-                    className="group flex flex-col items-start gap-2 rounded-xl border p-3 text-left transition-all cursor-pointer hover:-translate-y-0.5 hover:bg-[color:var(--color-surface-hover)]"
-                    style={{
-                      borderColor: active ? 'rgba(139,92,246,0.6)' : 'var(--color-border)',
-                      background: active ? 'rgba(139,92,246,0.10)' : 'var(--color-surface)',
-                    }}
-                  >
-                    <p.icon className="w-4 h-4" style={{ color: active ? '#a78bfa' : 'var(--color-fg-muted)' }} aria-hidden="true" />
-                    <div>
-                      <p className="text-[12px] font-semibold" style={{ color: 'var(--color-fg)' }}>{p.name}</p>
-                      <p className="mt-0.5 text-[10px] leading-snug line-clamp-2" style={{ color: 'var(--color-fg-subtle)' }}>
-                        {p.mood.split('.')[0]}
-                      </p>
-                    </div>
-                  </button>
+                  />
                 );
               })}
             </div>

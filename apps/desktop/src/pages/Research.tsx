@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, Search as SearchIcon, ExternalLink, Sparkles, AlertCircle, FileSearch, Telescope, TrendingUp, Globe2 } from 'lucide-react';
 import { researchApi } from '../lib/backend-api';
 import { Skeleton, SkeletonText, SkeletonAnnouncer } from '../components/ui/Skeleton';
+import { AnimatedGradientBorder } from '../components/ui';
 
 interface Source {
   title: string;
@@ -204,27 +205,32 @@ export default function Research() {
       {(summary || keyPoints.length > 0 || sources.length > 0) && (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
           {summary && (
-            <div className="bg-[#0c0c0c] border border-white/[0.06] rounded-2xl p-5 shadow-sm">
-              <div className="flex items-center gap-2 mb-2">
-                <Sparkles className="w-3.5 h-3.5 text-[color:var(--color-accent)]" />
-                <h3 className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Summary</h3>
-                {provider && <span className="ml-auto text-[10px] text-zinc-700">via {provider}</span>}
+            <AnimatedGradientBorder radius={16} thickness={1.5} innerBg="var(--color-bg-elevated)">
+              <div className="p-5">
+                <div className="flex items-center gap-2 mb-2">
+                  <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--color-accent)' }} />
+                  <h3 className="text-[10px] uppercase tracking-wider font-bold" style={{ color: 'var(--color-fg-subtle)' }}>Summary</h3>
+                  {provider && <span className="ml-auto text-[10px]" style={{ color: 'var(--color-fg-subtle)' }}>via {provider}</span>}
+                </div>
+                <p className="text-sm leading-relaxed" style={{ color: 'var(--color-fg)' }}>{summary}</p>
               </div>
-              <p className="text-sm text-zinc-300 leading-relaxed">{summary}</p>
-            </div>
+            </AnimatedGradientBorder>
           )}
 
           {keyPoints.length > 0 && (
-            <div className="bg-[#0c0c0c] border border-white/[0.06] rounded-2xl p-5 shadow-sm">
-              <h3 className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold mb-3">Key Points</h3>
-              <ul className="space-y-2">
+            <div>
+              <h3 className="text-[10px] uppercase tracking-wider font-bold mb-3" style={{ color: 'var(--color-fg-subtle)' }}>Key Points</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {keyPoints.map((kp, i) => (
-                  <li key={i} className="flex gap-2 text-sm text-zinc-300">
-                    <span className="text-[color:var(--color-accent)] shrink-0">•</span>
-                    <span>{kp}</span>
-                  </li>
+                  <motion.div key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18, delay: Math.min(i, 8) * 0.04 }}
+                    className="relative overflow-hidden rounded-xl border p-4 flex gap-2.5"
+                    style={{ background: 'var(--color-bg-elevated)', borderColor: 'var(--color-border)' }}>
+                    <div aria-hidden className="pointer-events-none absolute inset-0" style={{ background: 'radial-gradient(circle at 0% 0%, var(--color-accent-subtle), transparent 60%)', opacity: 0.5 }} />
+                    <span className="relative shrink-0 mt-0.5 h-5 w-5 inline-flex items-center justify-center rounded-md text-[10px] font-bold tabular-nums" style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>{i + 1}</span>
+                    <span className="relative text-sm leading-relaxed" style={{ color: 'var(--color-fg)' }}>{kp}</span>
+                  </motion.div>
                 ))}
-              </ul>
+              </div>
             </div>
           )}
 

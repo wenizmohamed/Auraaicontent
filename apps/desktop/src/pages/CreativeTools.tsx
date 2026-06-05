@@ -23,6 +23,7 @@ import { creativeApi } from '../lib/backend-api';
 import { useClients } from '../lib/client-context';
 import { readJson } from '../lib/safe-storage';
 import { motionUI, motionBase } from '../lib/motion';
+import { FeatureCard } from '../components/ui';
 
 // ─── Prompt History ─────────────────────────────────────────────
 
@@ -573,35 +574,26 @@ export default function CreativeTools() {
       {/* ─── Mode Tabs ──────────────────────────────────────────── */}
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ ...motionUI, delay: 0.05 }}
         className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        {MODES.map(m => {
-          const Icon = m.icon;
+        {MODES.map((m, i) => {
           const active = mode === m.id;
           return (
-            <button
+            <FeatureCard
               key={m.id}
+              icon={m.icon}
+              title={m.label}
+              description={m.description}
+              active={active}
+              glow={active}
+              index={i}
               onClick={() => switchMode(m.id)}
-              className={`group relative rounded-2xl p-5 text-left transition-all border ${
-                active
-                  ? 'bg-gradient-to-br from-amber-500/15 to-amber-500/5 border-amber-500/40 shadow-lg shadow-amber-500/10'
-                  : 'bg-[#0c0c0c] border-white/[0.06] shadow-sm hover:border-white/[0.12] hover:bg-[#101010]'
-              }`}
             >
-              <div className="flex items-start justify-between mb-3">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${active ? '' : 'bg-white/[0.04] border-white/[0.06]'}`}
-                  style={active ? { background: 'var(--color-accent-subtle)', borderColor: 'var(--color-accent)' } : undefined}>
-                  <Icon className={`w-5 h-5 ${active ? '' : 'text-zinc-500 group-hover:text-zinc-300'}`}
-                    style={active ? { color: 'var(--color-accent)' } : undefined} />
-                </div>
-                {active && (
-                  <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border"
-                    style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' }}>
-                    Active
-                  </span>
-                )}
-              </div>
-              <h3 className={`text-sm font-bold mb-1 ${active ? 'text-white' : 'text-zinc-300'}`}>{m.label}</h3>
-              <p className="text-[11px] text-zinc-500 leading-relaxed">{m.description}</p>
-            </button>
+              {active && (
+                <span className="mt-3 inline-flex items-center text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md"
+                  style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)', border: '1px solid var(--color-accent)' }}>
+                  Active
+                </span>
+              )}
+            </FeatureCard>
           );
         })}
       </motion.div>
