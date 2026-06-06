@@ -75,14 +75,15 @@ export default function Knowledge({ embedded = false }: { embedded?: boolean } =
     try {
       const created = await knowledgeApi.upload(selectedClientId, file);
       setItems((prev) => [created, ...prev]);
-      toastSuccess(`Uploaded ${file.name}`);
-      // Auto-embed in background
+      toastSuccess(`Uploaded ${file.name} — embedding in background`);
+      // NOTE: the server now auto-embeds on upload (fire-and-forget), so we do NOT
+      // call /embed here — running both races the worker's deleteMany+recreate.
+      // Refresh shortly to surface the chunk count once the server finishes.
       setEmbeddingId(created.id);
-      knowledgeApi
-        .embed(created.id)
-        .then((r) => toastSuccess(`Embedded ${file.name} (${r.chunks} chunks)`))
-        .catch((err) => toastError(`Embed failed: ${err?.message || 'unknown'}`))
-        .finally(() => setEmbeddingId(null));
+      setTimeout(() => {
+        if (selectedClientId) knowledgeApi.list(selectedClientId).then(setItems).catch(() => {});
+        setEmbeddingId(null);
+      }, 6000);
     } catch (err: any) {
       toastError(err?.message || 'Upload failed');
     } finally {

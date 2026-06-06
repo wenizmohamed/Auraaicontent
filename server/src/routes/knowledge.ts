@@ -55,6 +55,18 @@ export async function knowledgeRoutes(app: FastifyInstance) {
       payload: { title: file.filename, sizeBytes: buffer.length },
     }).catch(() => {});
 
+    // Server-side auto-embed (fire-and-forget). This is the GUARANTEE: embedding no
+    // longer depends on the browser staying open or even being the upload client
+    // (API/integration uploads get embedded too). Without it, an un-embedded doc is
+    // invisible to the agent's RAG enricher. The frontend no longer calls /embed,
+    // so there's no race on the worker's deleteMany+recreate.
+    const itemId = (item as any)?.id;
+    if (itemId) {
+      embedKnowledgeItem(orgId, itemId)
+        .then((r) => request.log.info({ itemId, ...r }, 'knowledge.autoEmbed.done'))
+        .catch((err) => request.log.error({ itemId, err: String(err) }, 'knowledge.autoEmbed.failed'));
+    }
+
     return reply.status(201).send(item);
   });
 
