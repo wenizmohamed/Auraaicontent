@@ -19,8 +19,8 @@ export default function SettingsDetail({ pieceId: slug }: { pieceId: string }) {
   const navigate = useNavigate();
 
   if (slug === 'profile')      return <ProfilePanel onOpen={() => navigate('/profile')} />;
-  if (slug === 'members')      return <MembersPanel onOpen={() => navigate('/members')} />;
-  if (slug === 'billing')      return <BillingPanel onOpen={() => navigate('/billing')} />;
+  if (slug === 'members')      return <MembersPanel onOpen={() => navigate('/settings/members')} />;
+  if (slug === 'billing')      return <BillingPanel onOpen={() => navigate('/settings/billing')} />;
   if (slug === 'api-keys')     return <ApiKeysPanel onOpen={() => navigate('/profile')} />;
   if (slug === 'integrations') return <IntegrationsPanel />;
 
