@@ -49,6 +49,19 @@ export const AI_PRICING: Record<string, PricePoint> = {
   'veo-2.0-generate-001':              { promptPerM: 0,    completionPerM: 0,    perSecond: 0.05 },
   // gemini-embedding-2-preview: $0.20/M for text; multimodal climbs higher.
   'gemini-embedding-2-preview':        { promptPerM: 0.20, completionPerM: 0 },
+  // ── "-latest" aliases actually configured in prod .env (GEMINI_*_MODEL).
+  // These are the rolling pointers Google exposes; without them every text/
+  // analysis/chat call was costed at $0. Mapped to their versioned price.
+  'gemini-pro-latest':                 { promptPerM: 2.00, completionPerM: 12.00 }, // = 3.1 Pro
+  'gemini-flash-latest':               { promptPerM: 0.30, completionPerM: 2.50 },  // 3.1 Flash (approx)
+  'gemini-flash-lite-latest':          { promptPerM: 0.25, completionPerM: 1.50 },  // = flash-lite
+  'gemini-2.5-flash':                  { promptPerM: 0.15, completionPerM: 0.60 },  // legacy flash
+  // imagen standard (non-ultra). ~$0.04/image; ultra above is $0.06.
+  'imagen-4.0-generate-001':           { promptPerM: 0,    completionPerM: 0,    perCall: 0.04 },
+
+  // ─── Anthropic Claude (assistant via chat.ts CLAUDE_ASSISTANT_MODEL) ──
+  // Claude Sonnet 4: $3/M input, $15/M output.
+  'claude-sonnet-4-20250514':          { promptPerM: 3.00, completionPerM: 15.00 },
 
   // ─── xAI Grok ───────────────────────────────────────────────────
   // grok-4.20 was $5/$15 a few months ago; xAI cut it sharply in 2026.
@@ -87,8 +100,23 @@ export const AI_PRICING: Record<string, PricePoint> = {
   'wan2.7-image-pro':                  { promptPerM: 0, completionPerM: 0, perCall: 0.05 },
 };
 
+// Models we've already warned about, so the log isn't spammed once per call.
+const warnedUnpriced = new Set<string>();
+
 export function priceFor(model: string): PricePoint {
-  return AI_PRICING[model] ?? { promptPerM: 0, completionPerM: 0 };
+  const p = AI_PRICING[model];
+  if (!p) {
+    // Loud-but-once: an unpriced model is tracked as a call but costed at $0,
+    // silently undercounting spend. Surfacing it means adding a new model to
+    // .env can't quietly break the cost meter (it did for the gemini "-latest"
+    // aliases + Claude assistant until 2026-06-29).
+    if (!warnedUnpriced.has(model)) {
+      warnedUnpriced.add(model);
+      console.warn(`[ai-pricing] no price for model "${model}" — usage tracked but costed $0. Add it to AI_PRICING.`);
+    }
+    return { promptPerM: 0, completionPerM: 0 };
+  }
+  return p;
 }
 
 // Default assumed duration for video calls when the caller doesn't pass
