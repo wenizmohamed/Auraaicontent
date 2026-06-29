@@ -60,10 +60,18 @@ export function startSchedulerWorker(): void {
 
   // Redis connections for BullMQ must use maxRetriesPerRequest=null and
   // enableReadyCheck=false; otherwise BullMQ throws on startup.
-  const makeClient = (): Redis => new IORedis(env.REDIS_URL, {
-    maxRetriesPerRequest: null,
-    enableReadyCheck: false,
-  });
+  const makeClient = (): Redis => {
+    const client = new IORedis(env.REDIS_URL, {
+      maxRetriesPerRequest: null,
+      enableReadyCheck: false,
+    });
+    // Without an 'error' listener, a 1-second Redis blip (e.g. apt restarting
+    // redis-server) floods the log with unhandled AggregateError stack dumps.
+    client.on('error', (err) => {
+      console.error('[scheduler] redis connection error:', err?.message ?? err);
+    });
+    return client;
+  };
 
   // Shared Redis client used for SETNX idempotency locks (NOT shared with
   // BullMQ's internal connections — BullMQ owns its own).
