@@ -63,6 +63,7 @@ import { ShortcutCheatSheet } from './components/ShortcutCheatSheet';
 import { UpgradeBanner } from './components/UpgradeBanner';
 import { TooltipProvider, Tooltip } from './components/ui/Tooltip';
 import { useShortcut } from './lib/shortcuts';
+import { authApi, type MeRecord } from './lib/backend-api';
 import { Toaster, toast } from 'sonner';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './lib/query-client';
@@ -110,6 +111,16 @@ const navColumnVariants = {
   visible: { y: 0, opacity: 1, transition: { type: 'spring' as const, stiffness: 100, damping: 15 } },
 };
 
+// Avatar initials from a display name: first + last initial, else first two
+// letters, else a neutral placeholder while the user loads.
+function initials(name?: string | null): string {
+  const n = (name ?? '').trim();
+  if (!n) return '··';
+  const parts = n.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  return n.slice(0, 2).toUpperCase();
+}
+
 function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -118,6 +129,15 @@ function Layout({ children }: { children: React.ReactNode }) {
   const showTeam = isTeamAdmin();
   const showStaff = isStaff();
   const [cmdkOpen, setCmdkOpen] = useState(false);
+
+  // Current signed-in user for the profile panel. Previously hardcoded to
+  // "Mohamed S." — every user saw the founder's name. Source it from /api/auth/me.
+  const [me, setMe] = useState<MeRecord | null>(null);
+  useEffect(() => {
+    let alive = true;
+    authApi.me().then((u) => { if (alive) setMe(u); }).catch(() => { /* unauth → AuthGate handles */ });
+    return () => { alive = false; };
+  }, []);
 
   // Onboarding tour — fires once per browser per JWT-orgId on first authed
   // visit. Lazy-imported so driver.js stays out of the initial bundle.
@@ -491,12 +511,12 @@ function Layout({ children }: { children: React.ReactNode }) {
             <div className={`h-8 w-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${
               isDark ? 'bg-gradient-to-br from-amber-500/20 to-amber-600/10 text-amber-400 ring-1 ring-amber-500/20' : 'bg-amber-100 text-amber-700 ring-1 ring-amber-200'
             }`}>
-              MS
+              {initials(me?.name)}
             </div>
             {!isCollapsed && (
               <div className="flex-1 min-w-0">
-                <p className={`text-[13px] font-medium truncate ${isDark ? 'text-zinc-200' : 'text-slate-800'}`}>Mohamed S.</p>
-                <p className={`text-[10px] truncate ${isDark ? 'text-zinc-600' : 'text-slate-400'}`}>Radix Media</p>
+                <p className={`text-[13px] font-medium truncate ${isDark ? 'text-zinc-200' : 'text-slate-800'}`}>{me?.name || 'Your account'}</p>
+                <p className={`text-[10px] truncate ${isDark ? 'text-zinc-600' : 'text-slate-400'}`}>{me?.email || '—'}</p>
               </div>
             )}
           </Link>
