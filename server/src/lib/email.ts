@@ -26,9 +26,71 @@ export interface SendEmailResult {
 
 const FROM_DEFAULT = 'Radix <onboarding@resend.dev>';
 
+// ─── Microsoft Graph (Microsoft 365) sender ──────────────────────────────
+// Modern app-only sending via OAuth2 client-credentials → Graph /sendMail.
+// This is the only supported M365 path since Basic-Auth SMTP was disabled
+// (2026-03-01). Configure with MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET
+// and MS_MAIL_FROM (a real/shared mailbox, e.g. noreply@radixmediamena.com).
+let graphToken: { value: string; expiresAt: number } | null = null;
+
+async function getGraphToken(): Promise<string> {
+  // 60s safety margin so we never send with a token about to expire.
+  if (graphToken && graphToken.expiresAt > Date.now() + 60_000) return graphToken.value;
+  const tenant = process.env.MS_TENANT_ID!;
+  const body = new URLSearchParams({
+    client_id: process.env.MS_CLIENT_ID!,
+    client_secret: process.env.MS_CLIENT_SECRET!,
+    scope: 'https://graph.microsoft.com/.default',
+    grant_type: 'client_credentials',
+  });
+  const res = await fetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(() => '');
+    throw new Error(`token ${res.status}: ${t.slice(0, 200)}`);
+  }
+  const json = await res.json() as { access_token: string; expires_in: number };
+  graphToken = { value: json.access_token, expiresAt: Date.now() + json.expires_in * 1000 };
+  return graphToken.value;
+}
+
+async function sendViaGraph(args: SendEmailArgs): Promise<SendEmailResult> {
+  try {
+    const token = await getGraphToken();
+    const sender = process.env.MS_MAIL_FROM!;
+    const res = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(sender)}/sendMail`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: {
+          subject: args.subject,
+          body: { contentType: 'HTML', content: args.html },
+          toRecipients: [{ emailAddress: { address: args.to } }],
+        },
+        saveToSentItems: false,
+      }),
+    });
+    if (res.status === 202 || res.ok) return { delivered: true, reason: 'sent' };
+    const t = await res.text().catch(() => '');
+    console.error('[email][graph] %d %s', res.status, t.slice(0, 300));
+    return { delivered: false, reason: 'failed', detail: `${res.status}: ${t.slice(0, 200)}` };
+  } catch (err: any) {
+    console.error('[email][graph] error', err?.message);
+    return { delivered: false, reason: 'failed', detail: err?.message };
+  }
+}
+
 export async function sendEmail(args: SendEmailArgs): Promise<SendEmailResult> {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.EMAIL_FROM || FROM_DEFAULT;
+
+  // Preferred: Microsoft 365 via Graph (company domain, OAuth2, no SMTP).
+  if (process.env.MS_TENANT_ID && process.env.MS_CLIENT_ID && process.env.MS_CLIENT_SECRET && process.env.MS_MAIL_FROM) {
+    return sendViaGraph(args);
+  }
 
   // Preferred path when configured: generic SMTP (Gmail, Google Workspace, or
   // any provider). For Gmail use host smtp.gmail.com, port 587, SMTP_USER =
