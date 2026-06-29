@@ -100,6 +100,34 @@ export const AI_PRICING: Record<string, PricePoint> = {
   'wan2.7-image-pro':                  { promptPerM: 0, completionPerM: 0, perCall: 0.05 },
 };
 
+// Every model name that has an explicit price. Used by the coverage guard
+// (test + boot check) to assert that every model configured in .env is priced.
+export const PRICED_MODELS: string[] = Object.keys(AI_PRICING);
+
+// True when the model has an explicit price entry. Lets callers record
+// metadata.priced=false instead of writing a misleading $0 (Phase 1).
+export function isPriced(model: string): boolean {
+  return Object.prototype.hasOwnProperty.call(AI_PRICING, model);
+}
+
+// Boot-time coverage guard (Phase 2): scan env for every configured model name
+// (any *_MODEL var) and report those with no price — they would silently log
+// $0. Call once at startup so a new model in .env can't quietly break the cost
+// meter (it did for the gemini "-latest" aliases + Claude until 2026-06-29).
+export function auditConfiguredModelPricing(env: NodeJS.ProcessEnv = process.env): string[] {
+  const models = new Set<string>();
+  for (const [k, v] of Object.entries(env)) {
+    if (v && /_MODEL$/.test(k)) models.add(v.trim());
+  }
+  const unpriced = [...models].filter((m) => m && !isPriced(m));
+  if (unpriced.length) {
+    console.warn(`[ai-pricing] ${unpriced.length} configured model(s) have NO price (usage will log $0): ${unpriced.join(', ')} — add them to AI_PRICING.`);
+  } else {
+    console.log('[ai-pricing] model pricing coverage OK — all configured models priced.');
+  }
+  return unpriced;
+}
+
 // Models we've already warned about, so the log isn't spammed once per call.
 const warnedUnpriced = new Set<string>();
 

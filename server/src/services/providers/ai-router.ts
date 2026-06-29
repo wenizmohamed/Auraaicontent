@@ -5,7 +5,7 @@ import { isRetryableAiError, isSafetyBlock, AllProvidersFailedError, type Provid
 import { filterAvailable, recordSuccess, recordFailure, getCircuitSnapshot } from './circuit-breaker.js';
 import type { AiProvider, AiProviderName, AiTask, AiTelemetryEntry, AnalysisRequest, ImageRequest, ProviderResult, TextRequest, VideoRequest } from './types.js';
 import { db } from '../../db/prisma.js';
-import { computeCostUsd } from '../../lib/ai-pricing.js';
+import { computeCostUsd, isPriced } from '../../lib/ai-pricing.js';
 import { assertOrgBudget } from '../../lib/budget.js';
 import { enrichWithBrandKit } from '../../lib/brand-kit-enricher.js';
 import { enrichWithKnowledge } from '../../lib/knowledge-enricher.js';
@@ -47,7 +47,7 @@ function usageKind(task: AiTask): string {
 // doesn't return clip length, computeCostUsd falls back to the 8s
 // default (matches our default VideoRequest.durationSeconds).
 function persistUsage(meta: { orgId?: string; userId?: string; clientId?: string; jobId?: string },
-                       task: AiTask, model: string,
+                       task: AiTask, model: string, provider: string,
                        tokens: { p?: number; c?: number; t?: number },
                        extras?: { durationSeconds?: number }) {
   if (!meta.orgId) {
@@ -58,6 +58,7 @@ function persistUsage(meta: { orgId?: string; userId?: string; clientId?: string
     return;
   }
   const cost = computeCostUsd(model, tokens.p, tokens.c, 1, extras?.durationSeconds);
+  const priced = isPriced(model);  // Phase 1: distinguish a real $0 from "cost unknown".
   const kind = usageKind(task);
   void db.usageEvent.create({
     data: {
@@ -68,9 +69,10 @@ function persistUsage(meta: { orgId?: string; userId?: string; clientId?: string
       costUsd: cost,
       ref: meta.jobId ?? meta.clientId ?? null,
       metadata: {
-        model, task,
+        model, task, provider, priced,
         promptTokens: tokens.p,
         completionTokens: tokens.c,
+        ...(priced ? {} : { unpricedModel: model }),
         ...(extras?.durationSeconds ? { durationSeconds: extras.durationSeconds } : {}),
       },
     },
@@ -253,6 +255,7 @@ async function routeCall<T>(
         meta ?? {},
         task,
         result.model,
+        result.provider,
         { p: result.promptTokens, c: result.completionTokens, t: result.totalTokens },
         extras,
       );

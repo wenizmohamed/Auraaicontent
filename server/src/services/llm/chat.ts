@@ -32,7 +32,7 @@ import type {
   ChatCompletionChunk,
 } from 'openai/resources/chat/completions';
 import { db } from '../../db/prisma.js';
-import { computeCostUsd } from '../../lib/ai-pricing.js';
+import { computeCostUsd, isPriced } from '../../lib/ai-pricing.js';
 import { assertOrgBudget } from '../../lib/budget.js';
 
 export type ProviderName = 'gemini' | 'xai' | 'moonshot';
@@ -49,8 +49,9 @@ export interface UsageMeta {
   clientId?: string;
   jobId?: string;
 }
-function persistChatUsage(meta: UsageMeta | undefined, model: string, p?: number, c?: number, t?: number) {
+function persistChatUsage(meta: UsageMeta | undefined, model: string, provider: ProviderName, p?: number, c?: number, t?: number) {
   if (!meta?.orgId) return;
+  const priced = isPriced(model);  // Phase 1: a real $0 vs cost-unknown.
   void db.usageEvent.create({
     data: {
       orgId: meta.orgId,
@@ -59,7 +60,7 @@ function persistChatUsage(meta: UsageMeta | undefined, model: string, p?: number
       units: t ?? 0,
       costUsd: computeCostUsd(model, p, c, 1),
       ref: meta.jobId ?? meta.clientId ?? null,
-      metadata: { model, task: 'text', promptTokens: p, completionTokens: c, surface: 'chat' },
+      metadata: { model, task: 'text', provider, priced, promptTokens: p, completionTokens: c, surface: 'chat', ...(priced ? {} : { unpricedModel: model }) },
     },
   }).catch((err: any) => {
     console.warn('[chat] usage persist failed:', err?.message || err);
@@ -223,6 +224,7 @@ export async function chatText(
   persistChatUsage(
     options?.meta,
     out.model,
+    out.provider,
     out.result.usage?.prompt_tokens,
     out.result.usage?.completion_tokens,
     out.result.usage?.total_tokens,
@@ -290,6 +292,7 @@ export async function chatStream(
         persistChatUsage(
           options?.meta,
           out.model,
+          out.provider,
           usage?.prompt_tokens,
           usage?.completion_tokens,
           usage?.total_tokens,
