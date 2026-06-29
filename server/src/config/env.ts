@@ -57,7 +57,7 @@ export const env = {
 
   // Public base URL — used to build OAuth redirect URIs that match what's
   // registered in each platform's developer console.
-  RADIX_APP_BASE_URL: optional('RADIX_APP_BASE_URL', 'https://radix.synapseai-labs.com'),
+  RADIX_APP_BASE_URL: optional('RADIX_APP_BASE_URL', 'https://radixcontent.com'),
 
   // AES-256-GCM key for encrypting OAuth tokens at rest. Generate with
   // `openssl rand -base64 32`. Required for any platform connection to work;

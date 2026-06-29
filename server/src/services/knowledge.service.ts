@@ -25,8 +25,11 @@ export const knowledgeService = {
 
   async saveChunks(orgId: string, knowledgeItemId: string, chunks: { chunkText: string; metadata?: any }[]) {
     for (const chunk of chunks) {
+      // Postgres text columns reject NUL bytes (error 22021); PDF/scraped
+      // extractions sometimes carry them, which would fail the whole insert.
+      const chunkText = chunk.chunkText.replace(/\u0000/g, '');
       await db.knowledgeChunk.create({
-        data: { orgId, knowledgeItemId, chunkText: chunk.chunkText, metadata: chunk.metadata || null },
+        data: { orgId, knowledgeItemId, chunkText, metadata: chunk.metadata || null },
       });
     }
   },
