@@ -30,6 +30,38 @@ export async function sendEmail(args: SendEmailArgs): Promise<SendEmailResult> {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.EMAIL_FROM || FROM_DEFAULT;
 
+  // Preferred path when configured: generic SMTP (Gmail, Google Workspace, or
+  // any provider). For Gmail use host smtp.gmail.com, port 587, SMTP_USER =
+  // the gmail address, SMTP_PASS = a 16-char App Password (requires 2-Step
+  // Verification on the account). nodemailer is imported lazily so it's only
+  // pulled in when SMTP is actually in use.
+  const smtpHost = process.env.SMTP_HOST;
+  if (smtpHost) {
+    try {
+      const nodemailer = (await import('nodemailer')).default;
+      const port = Number(process.env.SMTP_PORT || 587);
+      const transport = nodemailer.createTransport({
+        host: smtpHost,
+        port,
+        secure: port === 465, // 465 = implicit TLS; 587 = STARTTLS
+        auth: process.env.SMTP_USER
+          ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+          : undefined,
+      });
+      await transport.sendMail({
+        from,
+        to: args.to,
+        subject: args.subject,
+        html: args.html,
+        text: args.text,
+      });
+      return { delivered: true, reason: 'sent' };
+    } catch (err: any) {
+      console.error('[email][smtp] send failed', err?.message);
+      return { delivered: false, reason: 'failed', detail: err?.message };
+    }
+  }
+
   if (!apiKey) {
     // Fallback: log the message so the inviter can pick it up from pm2 logs.
     // Treat this as a partial success — caller still gets the invite URL
