@@ -9,8 +9,9 @@
  */
 import { useState, type FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Loader2, AlertCircle, ArrowRight, Sparkles } from 'lucide-react';
+import { Loader2, AlertCircle, ArrowRight, Sparkles, CheckCircle2, ArrowLeft } from 'lucide-react';
 import { useClients } from '../lib/client-context';
+import { authApi } from '../lib/backend-api';
 import { motionUI, motionBase } from '../lib/motion';
 import { AnimatedHeading } from '../components/ui/AnimatedHeading';
 import { MarqueeLogos } from '../components/ui/MarqueeLogos';
@@ -41,7 +42,7 @@ export default function Login() {
   const inviteEmail = readLS('radix.inviteEmail');
   const lockEmail = !!(pendingInvite && inviteEmail);
 
-  const [mode, setMode] = useState<'signin' | 'signup'>(() => {
+  const [mode, setMode] = useState<'signin' | 'signup' | 'forgot'>(() => {
     try {
       const m = new URLSearchParams(window.location.search).get('mode');
       if (m === 'signup' || m === 'signin') return m;
@@ -54,12 +55,24 @@ export default function Login() {
   const [rememberMe, setRememberMe] = useState(() => localStorage.getItem('radix_remember_me') === '1');
   const [submitting, setSubmitting] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [resetSent, setResetSent] = useState(false);
+
+  const switchMode = (m: 'signin' | 'signup' | 'forgot') => {
+    setMode(m);
+    setLocalError(null);
+    setResetSent(false);
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setLocalError(null);
     setSubmitting(true);
     try {
+      if (mode === 'forgot') {
+        await authApi.forgotPassword(email.trim());
+        setResetSent(true);
+        return;
+      }
       if (rememberMe) {
         try { localStorage.setItem('radix_last_email', email.trim()); } catch {}
       } else {
@@ -77,7 +90,7 @@ export default function Login() {
     }
   };
 
-  const err = localError || authError;
+  const err = localError || (mode !== 'forgot' ? authError : null);
 
   return (
     <div
@@ -110,35 +123,52 @@ export default function Login() {
 
           {/* Headline */}
           <h1 className="font-display text-[34px] font-bold leading-tight tracking-tight" style={{ color: 'var(--color-fg)' }}>
-            {mode === 'signin' ? 'Welcome back.' : 'Create your account.'}
+            {mode === 'signin' ? 'Welcome back.' : mode === 'signup' ? 'Create your account.' : 'Reset your password.'}
           </h1>
           <p className="mt-2 text-[14px]" style={{ color: 'var(--color-fg-muted)' }}>
             {mode === 'signin'
               ? 'Sign in to your content workspace.'
-              : 'Free 14-day trial. No card required.'}
+              : mode === 'signup'
+                ? 'Free 14-day trial. No card required.'
+                : 'Enter your email and we’ll send you a reset link.'}
           </p>
 
-          {/* Mode toggle — segmented */}
-          <div
-            className="mt-8 flex gap-1 rounded-xl border p-1"
-            style={{ borderColor: 'var(--color-border-subtle)', background: 'var(--color-surface)' }}
-          >
-            {(['signin', 'signup'] as const).map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => { setMode(m); setLocalError(null); }}
-                className="flex-1 rounded-lg py-1.5 text-[12px] font-medium transition-colors"
-                style={{
-                  background: mode === m ? 'var(--color-bg-elevated)' : 'transparent',
-                  color: mode === m ? 'var(--color-fg)' : 'var(--color-fg-muted)',
-                  boxShadow: mode === m ? '0 1px 0 0 rgba(0,0,0,0.06)' : undefined,
-                }}
-              >
-                {m === 'signin' ? 'Sign in' : 'Create account'}
-              </button>
-            ))}
-          </div>
+          {/* Mode toggle — segmented (hidden in forgot-password flow) */}
+          {mode !== 'forgot' && (
+            <div
+              className="mt-8 flex gap-1 rounded-xl border p-1"
+              style={{ borderColor: 'var(--color-border-subtle)', background: 'var(--color-surface)' }}
+            >
+              {(['signin', 'signup'] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => switchMode(m)}
+                  className="flex-1 rounded-lg py-1.5 text-[12px] font-medium transition-colors"
+                  style={{
+                    background: mode === m ? 'var(--color-bg-elevated)' : 'transparent',
+                    color: mode === m ? 'var(--color-fg)' : 'var(--color-fg-muted)',
+                    boxShadow: mode === m ? '0 1px 0 0 rgba(0,0,0,0.06)' : undefined,
+                  }}
+                >
+                  {m === 'signin' ? 'Sign in' : 'Create account'}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Back link for forgot-password flow */}
+          {mode === 'forgot' && (
+            <button
+              type="button"
+              onClick={() => switchMode('signin')}
+              className="mt-8 inline-flex items-center gap-1.5 text-[12px] font-medium transition-colors cursor-pointer"
+              style={{ color: 'var(--color-fg-muted)' }}
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Back to sign in
+            </button>
+          )}
 
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
             <AnimatePresence mode="wait">
@@ -170,21 +200,57 @@ export default function Login() {
             )}
 
             <Field id="login-email" label="Email" type="email" autoComplete="email" required value={email} onChange={setEmail} placeholder="you@example.com" readOnly={lockEmail} />
-            <Field id="login-password" label="Password" type="password" autoComplete={mode === 'signin' ? 'current-password' : 'new-password'} required minLength={6} value={password} onChange={setPassword} placeholder="••••••••" />
 
-            <label className="flex items-center gap-2 select-none cursor-pointer text-[12px]" style={{ color: 'var(--color-fg-muted)' }}>
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                className="h-3.5 w-3.5 rounded cursor-pointer"
-                style={{ accentColor: 'var(--color-accent)' }}
-              />
-              <span>
-                Remember me
-                <span className="ml-1.5" style={{ color: 'var(--color-fg-subtle)' }}>(30 days)</span>
-              </span>
-            </label>
+            {mode !== 'forgot' && (
+              <>
+                <Field id="login-password" label="Password" type="password" autoComplete={mode === 'signin' ? 'current-password' : 'new-password'} required minLength={6} value={password} onChange={setPassword} placeholder="••••••••" />
+
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2 select-none cursor-pointer text-[12px]" style={{ color: 'var(--color-fg-muted)' }}>
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="h-3.5 w-3.5 rounded cursor-pointer"
+                      style={{ accentColor: 'var(--color-accent)' }}
+                    />
+                    <span>
+                      Remember me
+                      <span className="ml-1.5" style={{ color: 'var(--color-fg-subtle)' }}>(30 days)</span>
+                    </span>
+                  </label>
+                  {mode === 'signin' && (
+                    <button
+                      type="button"
+                      onClick={() => switchMode('forgot')}
+                      className="text-[12px] font-medium transition-colors cursor-pointer"
+                      style={{ color: 'var(--color-accent)' }}
+                    >
+                      Forgot password?
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+
+            {mode === 'forgot' && resetSent && (
+              <motion.div
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={motionUI}
+                className="flex items-start gap-2 rounded-xl border px-3 py-2.5"
+                style={{
+                  background: 'var(--color-accent-subtle)',
+                  borderColor: 'var(--color-border-subtle)',
+                  color: 'var(--color-fg-muted)',
+                }}
+              >
+                <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" style={{ color: 'var(--color-accent)' }} />
+                <span className="text-[12px]">
+                  If <span style={{ color: 'var(--color-fg)' }}>{email.trim()}</span> is registered, a reset link is on its way. Check your inbox — the link expires in 1 hour.
+                </span>
+              </motion.div>
+            )}
 
             {err && (
               <motion.div
@@ -205,7 +271,7 @@ export default function Login() {
 
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || (mode === 'forgot' && resetSent)}
               className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-[13px] font-semibold transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               style={{
                 background: 'var(--color-accent)',
@@ -215,12 +281,12 @@ export default function Login() {
               {submitting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  {mode === 'signin' ? 'Signing in…' : 'Creating account…'}
+                  {mode === 'signin' ? 'Signing in…' : mode === 'signup' ? 'Creating account…' : 'Sending…'}
                 </>
               ) : (
                 <>
-                  {mode === 'signin' ? 'Sign in' : 'Create account'}
-                  <ArrowRight className="h-4 w-4" />
+                  {mode === 'signin' ? 'Sign in' : mode === 'signup' ? 'Create account' : resetSent ? 'Link sent' : 'Send reset link'}
+                  {!(mode === 'forgot' && resetSent) && <ArrowRight className="h-4 w-4" />}
                 </>
               )}
             </button>

@@ -42,6 +42,7 @@ const Admin             = lazy(() => import('./pages/Admin'));
 const Billing           = lazy(() => import('./pages/Billing'));
 const Members           = lazy(() => import('./pages/Members'));
 const AcceptInvite      = lazy(() => import('./pages/AcceptInvite'));
+const ResetPassword     = lazy(() => import('./pages/ResetPassword'));
 const Workspace         = lazy(() => import('./pages/Workspace'));
 const Agent             = lazy(() => import('./pages/Agent'));
 const Integrations      = lazy(() => import('./pages/Integrations'));
@@ -611,6 +612,16 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     );
   }
 
+  // Password reset lands here logged-out; render outside the gated layout so the
+  // user can set a new password without first being bounced to Login.
+  if (location.pathname.startsWith('/reset-password/')) {
+    return (
+      <Suspense fallback={<ShellSkeleton />}>
+        <Routes><Route path="/reset-password/:token" element={<ResetPassword />} /></Routes>
+      </Suspense>
+    );
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
@@ -714,6 +725,7 @@ export default function App() {
               <Route path="/settings/billing" element={<Billing />} />
               <Route path="/settings/members" element={isTeamAdmin() ? <Members /> : <Navigate to="/" replace />} />
               <Route path="/invite/:token" element={<AcceptInvite />} />
+              <Route path="/reset-password/:token" element={<ResetPassword />} />
               {/* Catch-all → bounce to Dashboard. Beats rendering blank for any
                   typo'd or stale URL (e.g. /dashboard, /home, /admin). */}
               <Route path="*" element={<Navigate to="/" replace />} />

@@ -107,6 +107,34 @@ Accept: ${opts.inviteUrl}
 This invitation expires on ${opts.expiresAt.toISOString().slice(0, 10)}.`;
 }
 
+export function resetEmailHtml(opts: { name?: string; resetUrl: string; expiresAt: Date }): string {
+  const exp = opts.expiresAt.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  return `<!doctype html>
+<html><body style="margin:0;padding:24px;background:#f7f7f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#0f172a;">
+  <div style="max-width:520px;margin:0 auto;background:#ffffff;border-radius:16px;padding:32px;border:1px solid #e2e8f0;">
+    <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#64748b;">Password reset</div>
+    <h1 style="margin:8px 0 16px;font-size:22px;color:#0f172a;">Reset your Radix password</h1>
+    <p style="margin:0 0 20px;color:#475569;font-size:14px;line-height:1.5;">
+      ${opts.name ? `Hi ${escapeHtml(opts.name)}, ` : ''}we got a request to reset your password.
+      Click the button below to choose a new one. If you didn't request this, you can safely ignore this email.
+    </p>
+    <a href="${opts.resetUrl}" style="display:inline-block;background:#f59e0b;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:12px;font-weight:600;font-size:14px;">Reset password</a>
+    <p style="margin:24px 0 0;color:#94a3b8;font-size:12px;">
+      This link expires ${exp}. If the button doesn't work, paste this URL into your browser:<br/>
+      <span style="word-break:break-all;color:#475569;">${opts.resetUrl}</span>
+    </p>
+  </div>
+</body></html>`;
+}
+
+export function resetEmailText(opts: { name?: string; resetUrl: string; expiresAt: Date }): string {
+  return `${opts.name ? `Hi ${opts.name}, ` : ''}we got a request to reset your Radix password.
+
+Reset it here: ${opts.resetUrl}
+
+This link expires ${opts.expiresAt.toISOString()}. If you didn't request this, ignore this email.`;
+}
+
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => (
     c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' :

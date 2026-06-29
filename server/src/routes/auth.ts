@@ -1,8 +1,18 @@
 import { FastifyInstance } from 'fastify';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { db } from '../db/prisma.js';
 import { signToken, authGuard, mintRefreshToken, hashRefreshToken, type JwtPayload } from '../middleware/auth.js';
 import { auditService } from '../services/audit.service.js';
+import { sendEmail, resetEmailHtml, resetEmailText } from '../lib/email.js';
+
+// Single source of truth for password length. Lowered 12 → 6 (2026-06-29):
+// users kept getting locked out and there was no self-serve recovery, so a
+// looser floor + a working "forgot password" flow beats a strict floor nobody
+// could recover from.
+const MIN_PASSWORD = 6;
+// Reset links are short-lived and single-use.
+const RESET_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 function reqMeta(request: any): { userAgent: string | null; ip: string | null } {
   const ua = (request.headers['user-agent'] as string | undefined)?.slice(0, 300) ?? null;
@@ -285,8 +295,8 @@ export async function authRoutes(app: FastifyInstance) {
     if (!email || !password || !name) {
       return reply.status(400).send({ error: 'Email, password, and name required' });
     }
-    if (password.length < 12) {
-      return reply.status(400).send({ error: 'Password must be at least 12 characters' });
+    if (password.length < MIN_PASSWORD) {
+      return reply.status(400).send({ error: `Password must be at least ${MIN_PASSWORD} characters` });
     }
 
     const existing = await db.user.findUnique({ where: { email } });
@@ -374,5 +384,148 @@ export async function authRoutes(app: FastifyInstance) {
       user: { id: result.user.id, email: result.user.email, name: result.user.name, role: result.user.role },
       activeOrgId: result.orgId,
     };
+  });
+
+  // PATCH /api/auth/me — update the current user's profile (name only for now).
+  app.patch('/me', { preHandler: [authGuard] }, async (request, reply) => {
+    const { userId } = (request as any).user as JwtPayload;
+    const { name } = (request.body ?? {}) as { name?: string };
+    const trimmed = (name ?? '').trim();
+    if (!trimmed) return reply.status(400).send({ error: 'Name is required' });
+    if (trimmed.length > 120) return reply.status(400).send({ error: 'Name is too long' });
+
+    const user = await db.user.update({
+      where: { id: userId },
+      data: { name: trimmed },
+      select: { id: true, email: true, name: true, role: true, createdAt: true },
+    });
+    return user;
+  });
+
+  // POST /api/auth/password — change password while signed in. Verifies the
+  // current password, sets the new one, and revokes all OTHER refresh tokens so
+  // stale sessions can't keep going after a credential change.
+  app.post('/password', { preHandler: [authGuard] }, async (request, reply) => {
+    const { userId } = (request as any).user as JwtPayload;
+    const { currentPassword, newPassword } = (request.body ?? {}) as {
+      currentPassword?: string;
+      newPassword?: string;
+    };
+    if (!currentPassword || !newPassword) {
+      return reply.status(400).send({ error: 'Current and new password required' });
+    }
+    if (newPassword.length < MIN_PASSWORD) {
+      return reply.status(400).send({ error: `Password must be at least ${MIN_PASSWORD} characters` });
+    }
+
+    const user = await db.user.findUnique({ where: { id: userId } });
+    if (!user) return reply.status(404).send({ error: 'User not found' });
+
+    const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!valid) return reply.status(401).send({ error: 'Current password is incorrect' });
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await db.user.update({ where: { id: userId }, data: { passwordHash } });
+
+    // Revoke every active refresh token for this user (incl. other devices).
+    await db.refreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+
+    auditService.log({
+      orgId: request.orgId,
+      userId,
+      action: 'auth.password_change',
+      entityType: 'User',
+      entityId: userId,
+    }).catch(() => {});
+
+    return { success: true };
+  });
+
+  // POST /api/auth/forgot-password — public. Always returns success regardless
+  // of whether the email exists (no account enumeration). When a matching user
+  // exists, mints a single-use, hashed, 1-hour reset token and emails the link.
+  app.post('/forgot-password', async (request) => {
+    const { email } = (request.body ?? {}) as { email?: string };
+    const addr = (email ?? '').trim().toLowerCase();
+    const generic = { success: true, message: 'If that email is registered, a reset link is on its way.' };
+    if (!addr) return generic;
+
+    const user = await db.user.findUnique({ where: { email: addr } });
+    if (!user) return generic; // silent — don't leak which emails exist
+
+    // Invalidate any outstanding (unused, unexpired) resets for this user so
+    // only the newest link works.
+    await db.passwordReset.updateMany({
+      where: { userId: user.id, usedAt: null, expiresAt: { gt: new Date() } },
+      data: { usedAt: new Date() },
+    });
+
+    const raw = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(raw).digest('hex');
+    const expiresAt = new Date(Date.now() + RESET_TTL_MS);
+    const meta = reqMeta(request);
+    await db.passwordReset.create({
+      data: { userId: user.id, tokenHash, expiresAt, userAgent: meta.userAgent, ip: meta.ip },
+    });
+
+    const baseUrl = process.env.RADIX_APP_BASE_URL || process.env.PUBLIC_APP_URL || 'https://radixcontent.com';
+    const resetUrl = `${baseUrl}/reset-password/${raw}`;
+
+    // Fire-and-forget. If RESEND_API_KEY is unset this logs the URL to pm2 so
+    // an admin can hand it over — the flow still works without a provider.
+    sendEmail({
+      to: user.email,
+      subject: 'Reset your Radix password',
+      html: resetEmailHtml({ name: user.name, resetUrl, expiresAt }),
+      text: resetEmailText({ name: user.name, resetUrl, expiresAt }),
+    }).catch((e) => console.error('[reset-email] send failed', e?.message));
+
+    auditService.log({
+      orgId: user.currentOrgId ?? undefined,
+      userId: user.id,
+      action: 'auth.password_reset_requested',
+      entityType: 'User',
+      entityId: user.id,
+    }).catch(() => {});
+
+    return generic;
+  });
+
+  // POST /api/auth/reset-password — public. Consumes a valid reset token, sets
+  // the new password, marks the token used, and revokes ALL refresh tokens.
+  app.post('/reset-password', async (request, reply) => {
+    const { token, password } = (request.body ?? {}) as { token?: string; password?: string };
+    if (!token || !password) {
+      return reply.status(400).send({ error: 'Token and new password required' });
+    }
+    if (password.length < MIN_PASSWORD) {
+      return reply.status(400).send({ error: `Password must be at least ${MIN_PASSWORD} characters` });
+    }
+
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const row = await db.passwordReset.findUnique({ where: { tokenHash } });
+    if (!row || row.usedAt || row.expiresAt.getTime() < Date.now()) {
+      return reply.status(400).send({ error: 'This reset link is invalid or has expired. Request a new one.' });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    await db.$transaction([
+      db.user.update({ where: { id: row.userId }, data: { passwordHash } }),
+      db.passwordReset.update({ where: { id: row.id }, data: { usedAt: new Date() } }),
+      db.refreshToken.updateMany({ where: { userId: row.userId, revokedAt: null }, data: { revokedAt: new Date() } }),
+    ]);
+
+    auditService.log({
+      orgId: undefined,
+      userId: row.userId,
+      action: 'auth.password_reset',
+      entityType: 'User',
+      entityId: row.userId,
+    }).catch(() => {});
+
+    return { success: true, message: 'Password updated. You can now sign in.' };
   });
 }

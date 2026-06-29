@@ -223,6 +223,18 @@ export const authApi = {
       method: 'POST',
       body: JSON.stringify({ currentPassword, newPassword }),
     }),
+  // Public — never throws on unknown email (backend returns generic success).
+  forgotPassword: (email: string) =>
+    request<{ success: boolean; message?: string }>('/api/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+  // Public — consume a reset token + set a new password.
+  resetPassword: (token: string, password: string) =>
+    request<{ success: boolean; message?: string }>('/api/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, password }),
+    }),
   // Logout revokes the refresh token server-side so replay can't extend
   // the session.  Access token stays valid until its short TTL expires.
   logout: () =>

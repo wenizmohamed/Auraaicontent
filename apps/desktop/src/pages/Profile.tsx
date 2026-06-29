@@ -114,7 +114,7 @@ export default function Profile() {
 
   async function changePassword(e: React.FormEvent) {
     e.preventDefault();
-    if (pwNew.length < 8) { setToast({ kind: 'error', msg: 'New password must be at least 8 characters' }); return; }
+    if (pwNew.length < 6) { setToast({ kind: 'error', msg: 'New password must be at least 6 characters' }); return; }
     if (pwNew !== pwConfirm) { setToast({ kind: 'error', msg: 'New passwords do not match' }); return; }
     if (pwCurrent === pwNew) { setToast({ kind: 'error', msg: 'New password must differ from current' }); return; }
     setSavingPw(true);
@@ -346,7 +346,7 @@ export default function Profile() {
               />
               <PasswordField
                 id="pw-new"
-                label="New password (min 8)"
+                label="New password (min 6)"
                 value={pwNew}
                 onChange={setPwNew}
                 show={pwShowNew}

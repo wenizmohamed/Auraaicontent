@@ -113,6 +113,7 @@ model User {
   usageEvents    UsageEvent[]
   generations    Generation[]
   memories       Memory[]
+  passwordResets PasswordReset[]
 }
 
 model RefreshToken {
@@ -123,6 +124,25 @@ model RefreshToken {
   createdAt   DateTime  @default(now())
   revokedAt   DateTime?
   replacedBy  String?
+  userAgent   String?
+  ip          String?
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// Self-serve password reset. The raw token is emailed to the user; only its
+// SHA-256 hash is stored, so a DB leak can't be replayed. Single-use (usedAt)
+// and short-lived (expiresAt). Consuming a reset revokes all refresh tokens.
+model PasswordReset {
+  id          String    @id @default(cuid())
+  userId      String
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+  usedAt      DateTime?
   userAgent   String?
   ip          String?
 
