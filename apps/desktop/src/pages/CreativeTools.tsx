@@ -232,6 +232,10 @@ export default function CreativeTools() {
   const [errorCode, setErrorCode] = useState<number | null>(null);
   const [resultUrl, setResultUrl] = useState('');
   const [savedAssetId, setSavedAssetId] = useState<string | null>(null);
+  // B2: generate several at once (text-to-image). First result is the primary
+  // (drives download/attach/calendar); the rest show as "more variations".
+  const [imageCount, setImageCount] = useState(1);
+  const [extraResults, setExtraResults] = useState<{ url: string; assetId: string | null }[]>([]);
   const [provider, setProvider] = useState('');
   const [improving, setImproving] = useState(false);
   const cancelledRef = useRef(false);
@@ -266,6 +270,7 @@ export default function CreativeTools() {
     setErrorCode(null);
     setResultUrl('');
     setSavedAssetId(null);
+    setExtraResults([]);
     setProvider('');
     setProgress(0);
     // If the next mode doesn't need an image, clear the source so the upload box collapses
@@ -382,6 +387,7 @@ export default function CreativeTools() {
     setErrorCode(null);
     setResultUrl('');
     setSavedAssetId(null);
+    setExtraResults([]);
     setProvider('');
     setProgress(0);
 
@@ -406,17 +412,24 @@ export default function CreativeTools() {
 
     try {
       if (mode === 'text-to-image') {
-        const out = await creativeApi.generateImage({
+        const req = {
           prompt: prompt.trim(),
           aspectRatio,
           clientId: selectedClientId || undefined,
           safeZone,
           ...resolveImageModel(imageModel),
-        });
-        generatedUrl = out.assetUrl || out.url || '';
+        };
+        const n = Math.max(1, imageCount);
+        // B2: fire N in parallel to compare. First = primary; rest = variations.
+        const settled = await Promise.allSettled(Array.from({ length: n }, () => creativeApi.generateImage(req)));
+        const ok = settled.filter(s => s.status === 'fulfilled').map(s => (s as PromiseFulfilledResult<any>).value);
+        if (!ok.length) throw ((settled[0] as PromiseRejectedResult)?.reason) || new Error('Generation failed');
+        const first = ok[0];
+        generatedUrl = first.assetUrl || first.url || '';
         setResultUrl(generatedUrl);
-        setSavedAssetId(out.assetId || null);
-        setProvider(out.provider || '');
+        setSavedAssetId(first.assetId || null);
+        setProvider(first.provider || '');
+        setExtraResults(ok.slice(1).map((o: any) => ({ url: o.assetUrl || o.url || '', assetId: o.assetId || null })));
       } else if (mode === 'image-edit') {
         const out = await creativeApi.editImage({
           prompt: prompt.trim(),
@@ -1042,6 +1055,31 @@ export default function CreativeTools() {
             </div>
           </div>
 
+          {/* B2 — generate several at once (text-to-image) to compare */}
+          {mode === 'text-to-image' && (
+            <div>
+              <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Variations</label>
+              <div className="flex gap-2 mt-2">
+                {[1, 2, 4].map(n => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setImageCount(n)}
+                    title={n > 1 ? `Generate ${n} at once (billed ${n}x)` : 'Single image'}
+                    className={`w-11 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                      imageCount === n ? '' : 'bg-white/[0.03] text-zinc-500 border-white/[0.06] hover:border-white/[0.1]'
+                    }`}
+                    style={imageCount === n
+                      ? { background: 'var(--color-accent-subtle)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' }
+                      : undefined}
+                  >
+                    {n}x
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {!isVideoMode && (
             <div>
               <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Engine</label>
@@ -1234,6 +1272,28 @@ export default function CreativeTools() {
                 <video src={resultUrl} controls className="w-full h-auto" />
               )}
             </div>
+          </motion.div>
+        )}
+
+        {/* B2 — additional variations from a x2/x4 run; click to promote to primary */}
+        {extraResults.length > 0 && (
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+            className="rounded-2xl bg-white/[0.02] border border-white/[0.06] p-5 space-y-3">
+            <h3 className="text-sm font-bold text-white">More variations ({extraResults.length})</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {extraResults.map((r, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => { setResultUrl(r.url); setSavedAssetId(r.assetId); }}
+                  title="Make this the primary result (for download / attach)"
+                  className="rounded-xl overflow-hidden border border-white/[0.06] bg-black hover:border-[color:var(--color-accent)] transition-colors"
+                >
+                  <img src={r.url} alt={`Variation ${i + 2}`} className="w-full h-auto" />
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-zinc-600">Click a variation to make it the primary result.</p>
           </motion.div>
         )}
 
