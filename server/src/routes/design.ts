@@ -12,6 +12,11 @@ interface DesignBriefBody {
   brandColors?: string[];
   mood?: string;
   clientId?: string;
+  // D2 concept ideation: feed the copy you already have, the product, and your
+  // rough visual thoughts; the model proposes a central concept + ready prompts.
+  copy?: string;
+  productFocus?: string;
+  visualThoughts?: string;
 }
 
 export async function designRoutes(app: FastifyInstance) {
@@ -19,7 +24,7 @@ export async function designRoutes(app: FastifyInstance) {
 
   // POST /api/design/brief
   app.post('/design/brief', async (request, reply) => {
-    const { topic, audience, objective, brandColors, mood, clientId } =
+    const { topic, audience, objective, brandColors, mood, clientId, copy, productFocus, visualThoughts } =
       (request.body as DesignBriefBody) || {};
     if (!topic || typeof topic !== 'string' || !topic.trim()) {
       return reply.status(400).send({ error: 'topic is required' });
@@ -41,23 +46,30 @@ export async function designRoutes(app: FastifyInstance) {
     }
 
     const prompt = [
-      `You are a creative director generating a structured design brief for a social-media post.`,
+      `You are a creative director. Propose ONE bold, specific central visual concept for a`,
+      `social-media post, then give the assets to execute it. Be concrete and original (e.g.`,
+      `"dirham coins stacking into an upward financial graph"), not generic.`,
       ``,
       `Topic: ${topic.trim()}`,
       audience ? `Target audience: ${audience}` : '',
       objective ? `Objective: ${objective}` : '',
       mood ? `Mood: ${mood}` : '',
       brandColors && brandColors.length ? `Brand colors: ${brandColors.join(', ')}` : '',
+      copy ? `Existing copy to build the visual around: ${copy}` : '',
+      productFocus ? `Product / focus: ${productFocus}` : '',
+      visualThoughts ? `The user's rough visual ideas — develop and build ON these, do not ignore them: ${visualThoughts}` : '',
       clientContext,
       ``,
       `Return a JSON object with this EXACT shape:`,
       `{`,
+      `  "conceptIdea": "the ONE central visual concept in 1-2 vivid sentences",`,
       `  "visualDirection": "2-3 sentence visual direction",`,
       `  "colorPalette": [ { "name": "Primary", "hex": "#000000" }, ... ],  // 3-5 colors`,
       `  "typography": { "heading": "Font name", "body": "Font name", "accent": "Font name" },`,
       `  "layoutDescription": "1-2 sentence layout description",`,
       `  "copy": { "headline": "...", "subheadline": "...", "body": "...", "cta": "..." },`,
-      `  "imagePrompts": [ "image prompt 1", "image prompt 2", "image prompt 3" ],`,
+      `  "imagePrompts": [ "ready-to-paste image prompt 1", "image prompt 2", "image prompt 3" ],`,
+      `  "videoPrompts": [ "ready-to-paste animation/video prompt that brings the concept to life" ],`,
       `  "dimensions": [ { "platform": "Instagram", "size": "1080x1080" }, { "platform": "Story", "size": "1080x1920" } ]`,
       `}`,
       ``,
@@ -70,6 +82,7 @@ export async function designRoutes(app: FastifyInstance) {
 
       // Best-effort normalization
       const safe = {
+        conceptIdea: typeof out?.conceptIdea === 'string' ? out.conceptIdea : '',
         visualDirection: typeof out?.visualDirection === 'string' ? out.visualDirection : '',
         colorPalette: Array.isArray(out?.colorPalette)
           ? out.colorPalette
@@ -90,6 +103,9 @@ export async function designRoutes(app: FastifyInstance) {
         },
         imagePrompts: Array.isArray(out?.imagePrompts)
           ? out.imagePrompts.filter((p: any) => typeof p === 'string')
+          : [],
+        videoPrompts: Array.isArray(out?.videoPrompts)
+          ? out.videoPrompts.filter((p: any) => typeof p === 'string')
           : [],
         dimensions: Array.isArray(out?.dimensions)
           ? out.dimensions

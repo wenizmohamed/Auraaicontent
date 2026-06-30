@@ -574,7 +574,7 @@ export const aiApi = {
 // ─── Design Brief ────────────────────────────────────────────────
 
 export const designApi = {
-  brief: (data: { topic: string; audience?: string; objective?: string; brandColors?: string[]; mood?: string; clientId?: string }) =>
+  brief: (data: { topic: string; audience?: string; objective?: string; brandColors?: string[]; mood?: string; clientId?: string; copy?: string; productFocus?: string; visualThoughts?: string }) =>
     request<any>('/api/design/brief', { method: 'POST', body: JSON.stringify(data) }, { timeoutMs: 120000 }),
 };
 

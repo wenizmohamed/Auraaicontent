@@ -7,12 +7,14 @@ import { usePersistentDraft } from '../lib/use-persistent-draft';
 import { FeatureCard } from '../components/ui';
 
 interface DesignBriefResult {
+  conceptIdea?: string;
   visualDirection: string;
   colorPalette: { name: string; hex: string }[];
   typography: { heading: string; body: string; accent: string };
   layoutDescription: string;
   copy: { headline: string; subheadline: string; body: string; cta: string };
   imagePrompts: string[];
+  videoPrompts?: string[];
   dimensions: { platform: string; size: string }[];
   provider?: string;
   latencyMs?: number;
@@ -27,6 +29,8 @@ export default function AIDesignGenerator() {
   const [audience, setAudience] = usePersistentDraft(`design.audience.${ck}`, '');
   const [objective, setObjective] = usePersistentDraft(`design.objective.${ck}`, '');
   const [mood, setMood] = usePersistentDraft(`design.mood.${ck}`, '');
+  // D2: your rough visual ideas to develop into a concept + prompts.
+  const [visualThoughts, setVisualThoughts] = usePersistentDraft(`design.thoughts.${ck}`, '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [brief, setBrief] = useState<DesignBriefResult | null>(null);
@@ -43,6 +47,7 @@ export default function AIDesignGenerator() {
         audience: audience.trim() || undefined,
         objective: objective.trim() || undefined,
         mood: mood.trim() || undefined,
+        visualThoughts: visualThoughts.trim() || undefined,
         clientId: selectedClientId || undefined,
       });
       setBrief(out);
@@ -170,6 +175,17 @@ export default function AIDesignGenerator() {
                 className="w-full mt-2 bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-amber-500/40"
               />
             </div>
+            <div>
+              <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Your visual ideas (optional)</label>
+              <textarea
+                value={visualThoughts}
+                onChange={e => setVisualThoughts(e.target.value)}
+                placeholder="Rough thoughts to develop into a concept — e.g. dirham coins forming an upward graph; product hero on marble; show the app saving someone time"
+                rows={3}
+                className="w-full mt-2 resize-y bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-amber-500/40"
+              />
+              <p className="text-[10px] text-zinc-600 mt-1">The AI builds ON these into one concept + ready image/video prompts.</p>
+            </div>
             {currentClient && (
               <p className="text-[10px] text-zinc-600">Brand context will be auto-loaded for {currentClient.name}</p>
             )}
@@ -209,6 +225,13 @@ export default function AIDesignGenerator() {
               </button>
               {brief.provider && <span className="text-[10px] text-zinc-700">via {brief.provider}</span>}
             </div>
+
+            {brief.conceptIdea && (
+              <div className="rounded-2xl p-5 border" style={{ background: 'var(--color-accent-subtle)', borderColor: 'var(--color-accent)' }}>
+                <h3 className="text-[10px] uppercase tracking-wider font-bold mb-2" style={{ color: 'var(--color-accent)' }}>The Concept</h3>
+                <p className="text-sm leading-relaxed" style={{ color: 'var(--color-fg)' }}>{brief.conceptIdea}</p>
+              </div>
+            )}
 
             {brief.visualDirection && (
               <div className="bg-[#0c0c0c] border border-white/[0.06] rounded-2xl p-5">
@@ -284,6 +307,20 @@ export default function AIDesignGenerator() {
                 <h3 className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold mb-3">Image Prompts</h3>
                 <ul className="space-y-2">
                   {brief.imagePrompts.map((p, i) => (
+                    <li key={i} className="flex gap-2 text-sm text-zinc-300">
+                      <span className="text-amber-400 shrink-0">{i + 1}.</span>
+                      <span>{p}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {brief.videoPrompts && brief.videoPrompts.length > 0 && (
+              <div className="bg-[#0c0c0c] border border-white/[0.06] rounded-2xl p-5">
+                <h3 className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold mb-3">Video / Animation Prompts</h3>
+                <ul className="space-y-2">
+                  {brief.videoPrompts.map((p, i) => (
                     <li key={i} className="flex gap-2 text-sm text-zinc-300">
                       <span className="text-amber-400 shrink-0">{i + 1}.</span>
                       <span>{p}</span>
