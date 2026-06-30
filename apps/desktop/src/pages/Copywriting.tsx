@@ -8,9 +8,9 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   PenLine, Loader2, Sparkles, Copy, Check, AlertCircle, BookOpen,
-  Type, AlignLeft, FileText, MousePointerClick,
+  Type, AlignLeft, FileText, MousePointerClick, ThumbsUp,
 } from 'lucide-react';
-import { copywritingApi } from '../lib/backend-api';
+import { copywritingApi, memoryApi } from '../lib/backend-api';
 import { useClients } from '../lib/client-context';
 import { usePersistentDraft } from '../lib/use-persistent-draft';
 import { FeatureCard } from '../components/ui';
@@ -33,6 +33,13 @@ const LANGUAGES: { id: CopyLanguage; label: string; rtl: boolean }[] = [
 
 const COUNTS = [3, 5, 8];
 
+// Length presets (C2). Empty hint = use the copy-type default.
+const LENGTHS: { id: string; label: string; hint: string }[] = [
+  { id: 'short',   label: 'Shorter',  hint: 'noticeably shorter and tighter than usual' },
+  { id: 'default', label: 'Default',  hint: '' },
+  { id: 'long',    label: 'Longer',   hint: 'noticeably longer and more detailed than usual' },
+];
+
 export default function Copywriting() {
   const { selectedClientId, currentClient } = useClients();
 
@@ -42,21 +49,28 @@ export default function Copywriting() {
   const [tone, setTone] = usePersistentDraft(`copywriting.tone.${selectedClientId ?? 'none'}`, '');
   const [brief, setBrief] = usePersistentDraft(`copywriting.brief.${selectedClientId ?? 'none'}`, '');
   const [count, setCount] = useState(3);
+  const [lengthPreset, setLengthPreset] = useState('default');
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [variants, setVariants] = useState<string[]>([]);
   const [meta, setMeta] = useState<{ provider: string; latencyMs: number; groundingChunks: number } | null>(null);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  const [favoritedIdx, setFavoritedIdx] = useState<number | null>(null);
 
   const rtl = LANGUAGES.find(l => l.id === language)?.rtl ?? false;
 
   const handleGenerate = async () => {
     if (!brief.trim() || loading) return;
+    // Regenerating? Feed the prior variants back so the new set is genuinely
+    // different (C2 anti-repeat). Cleared right after capturing.
+    const prev = variants;
     setLoading(true);
     setError('');
     setVariants([]);
     setMeta(null);
+    setFavoritedIdx(null);
+    const lengthHint = LENGTHS.find(l => l.id === lengthPreset)?.hint || '';
     try {
       const out = await copywritingApi.generate({
         brief: brief.trim(),
@@ -65,6 +79,8 @@ export default function Copywriting() {
         tone: tone.trim() || undefined,
         clientId: selectedClientId || undefined,
         count,
+        length: lengthHint || undefined,
+        avoid: prev.length ? prev : undefined,
       });
       setVariants(out.variants || []);
       setMeta({ provider: out.provider, latencyMs: out.latencyMs, groundingChunks: out.groundingChunks });
@@ -80,6 +96,21 @@ export default function Copywriting() {
     navigator.clipboard?.writeText(text).then(() => {
       setCopiedIdx(idx);
       setTimeout(() => setCopiedIdx(c => (c === idx ? null : c)), 1600);
+    }).catch(() => {});
+  };
+
+  // Thumbs-up (C1): store the favored variant as a 'preference' learning so
+  // future copy for this client self-applies the style (plugs into the memory
+  // system the AI router already reads from).
+  const handleFavorite = (text: string, idx: number) => {
+    memoryApi.create({
+      content: `Preferred ${copyType} copy style (${language}): "${text}"`,
+      kind: 'preference',
+      clientId: selectedClientId || null,
+      context: `copywriting · ${copyType} · tone: ${tone.trim() || 'default'}`,
+    }).then(() => {
+      setFavoritedIdx(idx);
+      setTimeout(() => setFavoritedIdx(c => (c === idx ? null : c)), 2500);
     }).catch(() => {});
   };
 
@@ -192,6 +223,26 @@ export default function Copywriting() {
             </div>
           </div>
 
+          <div>
+            <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Length</label>
+            <div className="flex gap-2 mt-2">
+              {LENGTHS.map(l => (
+                <button
+                  key={l.id}
+                  type="button"
+                  onClick={() => setLengthPreset(l.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                    lengthPreset === l.id
+                      ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                      : 'bg-white/[0.03] text-zinc-500 border-white/[0.06] hover:border-white/[0.12]'
+                  }`}
+                >
+                  {l.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <button
             onClick={handleGenerate}
             disabled={loading || !brief.trim()}
@@ -250,22 +301,34 @@ export default function Copywriting() {
                 className="group relative rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-3.5 hover:border-amber-500/25 transition-colors"
               >
                 <p
-                  className="text-sm text-zinc-100 leading-relaxed pr-10 whitespace-pre-wrap"
+                  className="text-sm text-zinc-100 leading-relaxed pr-20 whitespace-pre-wrap"
                   dir={rtl ? 'rtl' : 'ltr'}
                   style={rtl ? { textAlign: 'right' } : undefined}
                 >
                   {v}
                 </p>
-                <button
-                  type="button"
-                  onClick={() => handleCopy(v, i)}
-                  title="Copy to clipboard"
-                  className="absolute top-3 right-3 w-7 h-7 rounded-lg bg-white/[0.04] border border-white/10 text-zinc-500 hover:text-amber-400 hover:border-amber-500/30 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100"
-                >
-                  {copiedIdx === i
-                    ? <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    : <Copy className="w-3.5 h-3.5" />}
-                </button>
+                <div className="absolute top-3 right-3 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    type="button"
+                    onClick={() => handleFavorite(v, i)}
+                    title="Favor this — teaches the AI your preferred style for next time"
+                    className="w-7 h-7 rounded-lg bg-white/[0.04] border border-white/10 text-zinc-500 hover:text-amber-400 hover:border-amber-500/30 transition-all flex items-center justify-center"
+                  >
+                    {favoritedIdx === i
+                      ? <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      : <ThumbsUp className="w-3.5 h-3.5" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(v, i)}
+                    title="Copy to clipboard"
+                    className="w-7 h-7 rounded-lg bg-white/[0.04] border border-white/10 text-zinc-500 hover:text-amber-400 hover:border-amber-500/30 transition-all flex items-center justify-center"
+                  >
+                    {copiedIdx === i
+                      ? <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
               </div>
             ))}
           </motion.div>

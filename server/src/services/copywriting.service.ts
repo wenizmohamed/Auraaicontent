@@ -67,6 +67,11 @@ export interface CopywritingRequest {
   tone?: string;
   brief: string;
   count?: number;
+  // Free-text length override (e.g. "around 30 words", "one short sentence").
+  // When set, replaces the copy-type default length. (C2: length customization.)
+  length?: string;
+  // Previously-shown variants to AVOID repeating on regeneration (C2: diversity).
+  avoid?: string[];
 }
 
 export interface CopywritingResult {
@@ -101,11 +106,18 @@ export async function generateCopy(req: CopywritingRequest): Promise<Copywriting
     }
   }
 
-  // 2. System prompt — language directive + tone + brand grounding.
+  const lengthHint = req.length?.trim() || spec.lengthHint;
+
+  // 2. System prompt — language directive + tone + grounding + humanize rule.
   const system = [
     'You are a senior brand copywriter producing website copy for a client.',
     LANGUAGE_DIRECTIVES[language],
     tone ? `Tone of voice: ${tone}.` : 'Tone of voice: warm, clear, brand-appropriate.',
+    // De-jargon / humanize (C2): users complained variants read AI-generated.
+    'Write like a sharp human copywriter, not an AI. Avoid AI-tell phrases and '
+      + 'corporate jargon ("unlock", "elevate", "seamless", "in today\'s fast-paced world", '
+      + '"game-changer", "leverage", "robust", "delve", "tapestry", "—"-stuffed sentences). '
+      + 'Prefer concrete, specific, natural wording over generic hype.',
     brandContext
       ? 'Ground every line in the client brand material below. Match its vocabulary, '
         + 'claims, and voice. Never invent product facts it does not support.\n\n'
@@ -113,20 +125,30 @@ export async function generateCopy(req: CopywritingRequest): Promise<Copywriting
       : 'No brand material was provided — stay on-brief and avoid inventing specific product claims.',
   ].join('\n\n');
 
-  // 3. User prompt — ask for a JSON array of variants.
+  // 3. User prompt — ask for a JSON array of GENUINELY DISTINCT variants.
+  const avoid = (req.avoid || []).map(s => s.trim()).filter(Boolean).slice(0, 12);
   const prompt = [
-    `Write ${count} distinct ${spec.label} option${count > 1 ? 's' : ''} in ${langName}.`,
-    `Each should be ${spec.lengthHint}. ${spec.guidance}`,
+    `Write ${count} ${spec.label} option${count > 1 ? 's' : ''} in ${langName}.`,
+    `Each should be ${lengthHint}. ${spec.guidance}`,
+    count > 1
+      ? 'Make the options GENUINELY DIFFERENT from each other — vary the angle, the opening, '
+        + 'the structure, and the emphasis. Do NOT produce minor rewordings of the same idea.'
+      : '',
+    avoid.length
+      ? 'Do NOT repeat or lightly reword any of these already-shown options:\n'
+        + avoid.map(a => `- ${a}`).join('\n')
+      : '',
     '',
     'Brief / subject:',
     brief.trim(),
     '',
     'Return ONLY a JSON array of strings — no preamble, no markdown. Example: ["option one", "option two"].',
-  ].join('\n');
+  ].filter(Boolean).join('\n');
 
   // 4. Generate via the multi-provider router (Gemini primary, xAI fallback).
+  //    Higher temperature than before (0.8 -> 0.95) for more variation between runs.
   const result = await aiRouter.text(
-    { prompt, system, temperature: 0.8, json: true },
+    { prompt, system, temperature: 0.95, json: true },
     { orgId, clientId },
   );
 

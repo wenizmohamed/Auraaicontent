@@ -22,6 +22,8 @@ export async function copywritingRoutes(app: FastifyInstance) {
       tone?: string;
       brief?: string;
       count?: number;
+      length?: string;
+      avoid?: string[];
     }) || {};
 
     const orgId = request.orgId!;
@@ -54,6 +56,8 @@ export async function copywritingRoutes(app: FastifyInstance) {
         tone: body.tone,
         brief: body.brief,
         count: body.count,
+        length: body.length,
+        avoid: Array.isArray(body.avoid) ? body.avoid : undefined,
       });
 
       historyService.record({

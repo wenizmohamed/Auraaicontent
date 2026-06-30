@@ -519,6 +519,8 @@ export const copywritingApi = {
     tone?: string;
     clientId?: string;
     count?: number;
+    length?: string;
+    avoid?: string[];
   }) =>
     request<{
       variants: string[];
