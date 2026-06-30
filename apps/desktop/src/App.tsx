@@ -80,7 +80,14 @@ const TEAM_ADMIN_EMAILS = [
   'mohamed.sidahmed@radixmediamena.com',
   'mohamaed.hyatt@gmail.com',
 ];
-const STAFF_EMAILS = TEAM_ADMIN_EMAILS;
+// Founder-only: the cross-org Admin console exposes revenue/margin, AI spend,
+// every workspace (with delete), and secret-health — so it's locked to Weni's
+// two accounts only, tighter than TEAM_ADMIN (which still gates member mgmt).
+// Backend STAFF_EMAILS env must mirror this exactly (the real boundary).
+const ADMIN_CONSOLE_EMAILS = [
+  'weni.mohamed@gmail.com',
+  'mohamed.sidahmed@radixmediamena.com',
+];
 
 function getCallerEmail(): string | null {
   try {
@@ -95,7 +102,7 @@ function isTeamAdmin(): boolean {
 }
 function isStaff(): boolean {
   const e = getCallerEmail();
-  return !!e && STAFF_EMAILS.includes(e.toLowerCase());
+  return !!e && ADMIN_CONSOLE_EMAILS.includes(e.toLowerCase());
 }
 
 // Premium nav motion choreography (per the AURA spec): grid/header settle, then
