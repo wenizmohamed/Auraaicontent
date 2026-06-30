@@ -259,6 +259,10 @@ model ClientBrief {
   products            Json
   pillars             Json
   campaignMoments     Json
+  // Per-campaign structured data: [{name, targetAudience, objective, keyMessage,
+  // productFocus}]. Replaces the old flatten-to-campaign[0] bug where only the
+  // first campaign's audience/objective/keyMessage survived. Nullable for back-compat.
+  campaigns           Json?
   mandatoryInclusions String?
   complianceNotes     String?
   channels            Json

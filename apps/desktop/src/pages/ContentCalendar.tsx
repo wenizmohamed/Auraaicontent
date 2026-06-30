@@ -462,6 +462,23 @@ export default function ContentCalendar() {
     }
   };
 
+  // Sync the visible grid to the LOADED month (A3 fix). The grid is anchored to
+  // the current month via monthOffset; without this, a loaded July calendar
+  // rendered the June grid and its July-dated posts didn't show. Parse the
+  // stored month label ("July 2026" or "2026-07") → offset from current month.
+  useEffect(() => {
+    const label = backendMonth?.month;
+    if (!label) return;
+    const n = new Date();
+    let y: number | undefined; let m: number | undefined; // m = 0-based
+    const iso = String(label).match(/(\d{4})-(\d{2})/);
+    const txt = String(label).match(/([A-Za-z]+)\s+(\d{4})/);
+    if (iso) { y = +iso[1]; m = +iso[2] - 1; }
+    else if (txt) { const mi = new Date(`${txt[1]} 1, ${txt[2]}`); if (!isNaN(mi.getTime())) { y = +txt[2]; m = mi.getMonth(); } }
+    if (y === undefined || m === undefined) return;
+    setMonthOffset((y - n.getFullYear()) * 12 + (m - n.getMonth()));
+  }, [backendMonth?.month]);
+
   // ─── Calendar display ─────────────────────────────────────────
   const now = new Date();
   const displayDate = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);

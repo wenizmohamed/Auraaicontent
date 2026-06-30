@@ -116,6 +116,29 @@ function clientCountry(client: any): string | undefined {
   return undefined;
 }
 
+// Per-campaign brief block (A1 fix). Returns prompt lines describing EACH
+// campaign distinctly, or [] when there are 0–1 structured campaigns (caller
+// then uses the legacy scalar objective/audience). Fixes the bug where every
+// post inherited campaign #1's audience/objective/key-message.
+function formatCampaigns(brief: any, pieceCount: number): string[] {
+  let camps: any[] = [];
+  try { const v = brief?.campaigns; camps = typeof v === 'string' ? JSON.parse(v) : (v || []); } catch { camps = []; }
+  camps = (Array.isArray(camps) ? camps : []).filter((c) => c && (c.name || c.objective || c.keyMessage || c.targetAudience));
+  if (camps.length <= 1) return [];
+  const lines: string[] = [];
+  lines.push(`\n=== CAMPAIGNS (${camps.length}) — distribute the ${pieceCount} posts across ALL of these ===`);
+  lines.push("Each post belongs to exactly ONE campaign. Set post.pillar to that campaign's name and use THAT campaign's audience, objective, and key message — do NOT blend campaigns or reuse the first campaign for every post. Spread the posts roughly evenly across the campaigns.");
+  camps.forEach((c, i) => {
+    const parts = [`Campaign: ${c.name || `#${i + 1}`}`];
+    if (c.targetAudience) parts.push(`Audience: ${c.targetAudience}`);
+    if (c.objective) parts.push(`Objective: ${c.objective}`);
+    if (c.keyMessage) parts.push(`Key message: ${c.keyMessage}`);
+    if (c.productFocus) parts.push(`Product: ${c.productFocus}`);
+    lines.push(`${i + 1}. ${parts.join(' | ')}`);
+  });
+  return lines;
+}
+
 function buildEnglishPrompt(p: BuildArgs): string {
   const s: string[] = [];
   s.push(`You are an expert social media content strategist for ${p.client.name}, a ${p.client.industry || 'general'} company.`);
@@ -128,16 +151,24 @@ function buildEnglishPrompt(p: BuildArgs): string {
 
   if (p.brief) {
     s.push('\n=== BRIEF ===');
-    if (p.brief.objective) s.push(`Objective: ${p.brief.objective}`);
-    if (p.brief.audience) s.push(`Audience: ${p.brief.audience}`);
     if (p.brief.tone) s.push(`Tone: ${p.brief.tone}`);
     if (p.brief.brandDo) s.push(`Brand Do: ${p.brief.brandDo}`);
     if (p.brief.brandDont) s.push(`Brand Don't: ${p.brief.brandDont}`);
     if (p.brief.complianceNotes) s.push(`Compliance: ${p.brief.complianceNotes}`);
     const fmtArr = (l: string, v: any) => { try { const a = typeof v === 'string' ? JSON.parse(v) : v; if (Array.isArray(a) && a.length) s.push(`${l}: ${a.join(', ')}`); } catch {} };
     fmtArr('Products', p.brief.products);
-    fmtArr('Pillars', p.brief.pillars);
     fmtArr('Campaign Moments', p.brief.campaignMoments);
+    // Per-campaign block (distinct audience/objective/message per campaign).
+    // Falls back to the single objective/audience + pillars only for legacy
+    // briefs with 0–1 campaigns.
+    const campaignLines = formatCampaigns(p.brief, p.pieceCount);
+    if (campaignLines.length) {
+      campaignLines.forEach((l) => s.push(l));
+    } else {
+      if (p.brief.objective) s.push(`Objective: ${p.brief.objective}`);
+      if (p.brief.audience) s.push(`Audience: ${p.brief.audience}`);
+      fmtArr('Pillars', p.brief.pillars);
+    }
   }
 
   // Inject holidays even on English prompts — helps US/EU brands targeting GCC.
@@ -217,16 +248,24 @@ function buildArabicPrompt(p: BuildArgs): string {
 
   if (p.brief) {
     s.push('\n=== BRIEF ===');
-    if (p.brief.objective) s.push(`Objective: ${p.brief.objective}`);
-    if (p.brief.audience) s.push(`Audience: ${p.brief.audience}`);
     if (p.brief.tone) s.push(`Tone: ${p.brief.tone}`);
     if (p.brief.brandDo) s.push(`Brand Do: ${p.brief.brandDo}`);
     if (p.brief.brandDont) s.push(`Brand Don't: ${p.brief.brandDont}`);
     if (p.brief.complianceNotes) s.push(`Compliance: ${p.brief.complianceNotes}`);
     const fmtArr = (l: string, v: any) => { try { const a = typeof v === 'string' ? JSON.parse(v) : v; if (Array.isArray(a) && a.length) s.push(`${l}: ${a.join(', ')}`); } catch {} };
     fmtArr('Products', p.brief.products);
-    fmtArr('Pillars', p.brief.pillars);
     fmtArr('Campaign Moments', p.brief.campaignMoments);
+    // Per-campaign block (distinct audience/objective/message per campaign).
+    // Falls back to the single objective/audience + pillars only for legacy
+    // briefs with 0–1 campaigns.
+    const campaignLines = formatCampaigns(p.brief, p.pieceCount);
+    if (campaignLines.length) {
+      campaignLines.forEach((l) => s.push(l));
+    } else {
+      if (p.brief.objective) s.push(`Objective: ${p.brief.objective}`);
+      if (p.brief.audience) s.push(`Audience: ${p.brief.audience}`);
+      fmtArr('Pillars', p.brief.pillars);
+    }
   }
 
   if (holidays.length > 0) {

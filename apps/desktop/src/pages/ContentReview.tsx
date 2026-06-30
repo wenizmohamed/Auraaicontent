@@ -350,8 +350,21 @@ export default function ContentReview() {
     window.print();
   };
 
-  const handleRegenerate = (id: string) => {
-    handleStatusChange(id, 'draft');
+  // "Regenerate" = re-run the visual-reference search for this post + refresh,
+  // instead of the old no-op that only flipped status to draft (A4 fix). Mirrors
+  // the per-post VisualRefGrid onSearchClick path.
+  const handleRegenerate = async (id: string) => {
+    const cId = urlClient || selectedClientId || '';
+    if (!cId) return;
+    try {
+      await visualRefsApi.autoPopulate(id, 6);
+      if (backendMonth?.month) {
+        const refreshed = await calendarApi.getMonth(cId, backendMonth.month);
+        setBackendMonth(refreshed);
+      }
+    } catch (err: any) {
+      console.warn('Regenerate visual refs failed:', err);
+    }
   };
 
   const handleExportPptx = async () => {

@@ -172,9 +172,26 @@ export default function BriefInput() {
   useEffect(() => {
     if (!selectedClientId) return;
     let cancelled = false;
+    // 1. Restore an in-progress DRAFT first (survives tab switch / refresh) so
+    //    typed-but-not-yet-generated campaigns are never lost. Only a draft with
+    //    real content wins; a blank/default draft falls through to the saved brief.
+    try {
+      const raw = localStorage.getItem(`radix.draft.bi.${selectedClientId}`);
+      if (raw) {
+        const d = JSON.parse(raw);
+        const hasContent = Array.isArray(d?.campaigns) && d.campaigns.some((c: any) => c?.name?.trim());
+        if (hasContent) {
+          setCampaigns(d.campaigns);
+          if (Array.isArray(d.occasions)) setOccasions(d.occasions);
+          if (Array.isArray(d.selectedPlatforms)) setSelectedPlatforms(d.selectedPlatforms);
+          if (typeof d.toneNotes === 'string') setToneNotes(d.toneNotes);
+          if (typeof d.selectedMonth === 'string' && d.selectedMonth) setSelectedMonth(d.selectedMonth);
+          return; // keep the draft — do NOT overwrite with the saved backend brief
+        }
+      }
+    } catch { /* corrupt draft — ignore, fall through to backend brief */ }
+    // 2. No draft → reset to defaults, then hydrate from the saved backend brief.
     (async () => {
-      // Reset to empty defaults first so even if the fetch fails, the user
-      // sees a blank form (not the previous client's data).
       setCampaigns([blankCampaign()]);
       setOccasions(DEFAULT_OCCASIONS.map(o => ({ ...o, enabled: false })));
       setSelectedPlatforms(['Instagram', 'TikTok', 'LinkedIn']);
@@ -182,18 +199,30 @@ export default function BriefInput() {
       try {
         const brief = await briefsApi.get(selectedClientId);
         if (cancelled || !brief) return;
-        // Reconstruct campaigns from saved pillars+products (best-effort —
-        // the save path stores them as separate arrays, not as objects).
-        const pillars: string[] = Array.isArray(brief.pillars) ? brief.pillars : [];
-        const products: string[] = Array.isArray(brief.products) ? brief.products : [];
-        if (pillars.length > 0) {
-          setCampaigns(pillars.map((name, i) => ({
-            name,
-            productFocus: products[i] || '',
-            targetAudience: brief.audience || '',
-            objective: brief.objective || '',
-            keyMessage: brief.objective || '',
+        // Prefer the full per-campaign array (new format) so each campaign keeps
+        // its OWN audience/objective/keyMessage. Fall back to the legacy
+        // pillars+products reconstruction only for old briefs without `campaigns`.
+        const savedCampaigns: any[] = Array.isArray((brief as any).campaigns) ? (brief as any).campaigns : [];
+        if (savedCampaigns.length > 0) {
+          setCampaigns(savedCampaigns.map((c) => ({
+            name: c.name || '',
+            productFocus: c.productFocus || '',
+            targetAudience: c.targetAudience || '',
+            objective: c.objective || '',
+            keyMessage: c.keyMessage || '',
           })));
+        } else {
+          const pillars: string[] = Array.isArray(brief.pillars) ? brief.pillars : [];
+          const products: string[] = Array.isArray(brief.products) ? brief.products : [];
+          if (pillars.length > 0) {
+            setCampaigns(pillars.map((name, i) => ({
+              name,
+              productFocus: products[i] || '',
+              targetAudience: brief.audience || '',
+              objective: brief.objective || '',
+              keyMessage: brief.objective || '',
+            })));
+          }
         }
         if (Array.isArray(brief.campaignMoments) && brief.campaignMoments.length > 0) {
           const savedNames = new Set(brief.campaignMoments.map((m: any) => m.name));
@@ -211,6 +240,25 @@ export default function BriefInput() {
     })();
     return () => { cancelled = true; };
   }, [selectedClientId]);
+
+  // Persist the in-progress form per client (debounced) so switching tabs or
+  // refreshing never wipes typed campaigns (A2 fix). Only writes when there's
+  // real content; a blank form clears the draft so it can't shadow a saved brief.
+  useEffect(() => {
+    if (!selectedClientId) return;
+    const draftKey = `radix.draft.bi.${selectedClientId}`;
+    const t = setTimeout(() => {
+      try {
+        const hasContent = campaigns.some(c => c.name.trim()) || toneNotes.trim().length > 0;
+        if (hasContent) {
+          localStorage.setItem(draftKey, JSON.stringify({ campaigns, occasions, selectedPlatforms, toneNotes, selectedMonth }));
+        } else {
+          localStorage.removeItem(draftKey);
+        }
+      } catch { /* storage unavailable — in-memory only */ }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [selectedClientId, campaigns, occasions, selectedPlatforms, toneNotes, selectedMonth]);
 
   const updateCampaign = useCallback((index: number, field: keyof CampaignEntry, value: string) => {
     setCampaigns(prev => prev.map((c, i) => (i === index ? { ...c, [field]: value } : c)));
@@ -341,6 +389,9 @@ export default function BriefInput() {
       const validCampaigns = campaigns.filter(c => c.name.trim()).map(c => ({ ...c, duration: 'Monthly' }));
 
       await briefsApi.save(selectedClientId, {
+        // Scalar objective/audience kept for back-compat + display only; the
+        // generator now reads the full per-campaign array below (fixes the bug
+        // where every campaign collapsed to campaign #1).
         objective: validCampaigns[0]?.keyMessage || 'Content generation',
         audience: validCampaigns[0]?.targetAudience || 'General audience',
         tone: toneNotes || 'Professional',
@@ -348,10 +399,21 @@ export default function BriefInput() {
         brandDont: 'No misleading claims',
         products: validCampaigns.map(c => c.productFocus).filter(Boolean),
         pillars: validCampaigns.map(c => c.name).filter(Boolean),
+        // Full per-campaign data — each with its OWN audience/objective/keyMessage.
+        campaigns: validCampaigns.map(c => ({
+          name: c.name,
+          targetAudience: c.targetAudience,
+          objective: c.objective,
+          keyMessage: c.keyMessage,
+          productFocus: c.productFocus,
+        })),
         campaignMoments: enabledOccasions,
         channels: selectedPlatforms,
         approvers: [],
       });
+      // Brief is now persisted server-side — drop the local draft so future
+      // loads hydrate from the saved brief, not a stale draft.
+      try { localStorage.removeItem(`radix.draft.bi.${selectedClientId}`); } catch { /* noop */ }
 
       // 2. Generate + poll (shared helper)
       step = 'generate';
