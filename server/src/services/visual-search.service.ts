@@ -246,12 +246,17 @@ export const visualSearchService = {
     // filter which returns real pinimg.com images via Bing's index.
     const half = Math.ceil(safeCount / 2);
 
+    // D1: bias the broad web search toward marketing/social aesthetics so results
+    // read as ad/campaign creative rather than encyclopedic stock photos. Pinterest
+    // is already designer-leaning, so it keeps the raw query.
+    const adQuery = `${trimmedQuery} advertising campaign social media creative design`;
+
     // All sources fire in parallel. Pinterest path: Firecrawl (best quality,
     // costs 2 credits) → DDG site:pinterest.com (free, 4 results) as fallback.
     const [pinFcResult, pinDdgResult, ddgResult, openverseResult, wikiResult] = await Promise.allSettled([
       searchPinterestViaFirecrawl(trimmedQuery, half),
       searchPinterestViaDDG(trimmedQuery, half),
-      searchDuckDuckGo(trimmedQuery, safeCount),
+      searchDuckDuckGo(adQuery, safeCount),
       searchOpenverse(trimmedQuery, safeCount),
       searchWikimedia(trimmedQuery, safeCount),
     ]);
@@ -281,8 +286,10 @@ export const visualSearchService = {
       if (tryAdd(r)) pinTaken++;
     }
 
-    // Then: round-robin across "various" sources for diversity (DDG → Openverse → Wiki)
-    const variousQueues = [ddg, openverse, wiki];
+    // Then: round-robin DDG (ad-biased web) → Openverse for the primary fill.
+    // Wikimedia is demoted to backfill-only (D1) — its encyclopedic stock photos
+    // were the main source of "random, non-marketing" references.
+    const variousQueues = [ddg, openverse];
     let exhausted = 0;
     while (merged.length < safeCount && exhausted < variousQueues.length) {
       exhausted = 0;

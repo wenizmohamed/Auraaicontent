@@ -10,18 +10,25 @@ import { historyService } from '../services/history.service.js';
 import { sanitizePrompt, validatePrompt } from '../middleware/sanitize.js';
 import type { Job } from '../workers/queue.js';
 
+// B3 — social safe-zone: appended to the prompt when the user toggles it on, so
+// generated creative keeps the top/bottom platform-UI bands clear (Reels/Stories
+// controls, caption overlays). Prompt-level guidance (v1); pixel-accurate
+// compositing would be a later enhancement.
+const SAFE_ZONE_HINT = 'IMPORTANT COMPOSITION CONSTRAINT: keep the top ~15% and bottom ~15% of the frame clear of text, logos, faces, and key subjects — reserve those bands for social platform UI (Reels/Stories controls, captions). Center all important elements in the middle safe area.';
+
 export async function creativeRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authGuard);
 
   // POST /api/creative/images/generate
   app.post('/creative/images/generate', async (request, reply) => {
-    const { prompt: rawPrompt, aspectRatio, clientId, quality, model, provider } = request.body as { prompt: string; aspectRatio?: string; clientId?: string; quality?: 'standard' | 'ultra'; model?: string; provider?: 'gemini' | 'xai' | 'dashscope' };
+    const { prompt: rawPrompt, aspectRatio, clientId, quality, model, provider, safeZone } = request.body as { prompt: string; aspectRatio?: string; clientId?: string; quality?: 'standard' | 'ultra'; model?: string; provider?: 'gemini' | 'xai' | 'dashscope'; safeZone?: boolean };
     const v = validatePrompt(rawPrompt);
     if (!v.valid) return reply.status(400).send({ error: v.error });
     const prompt = sanitizePrompt(rawPrompt);
+    const genPrompt = safeZone ? `${prompt}\n\n${SAFE_ZONE_HINT}` : prompt;
 
     try {
-      const result = await aiRouter.image({ prompt, aspectRatio, quality, model }, { orgId: request.orgId, userId: request.user?.userId, clientId, preferredProvider: provider });
+      const result = await aiRouter.image({ prompt: genPrompt, aspectRatio, quality, model }, { orgId: request.orgId, userId: request.user?.userId, clientId, preferredProvider: provider });
       // Persist to assets. Gemini/Grok return base64; DashScope (qwen/wan)
       // returns an EXPIRING OSS url, so fetch+store it too — otherwise the
       // image vanishes when the signed link expires and never hits the gallery.
@@ -151,8 +158,10 @@ export async function creativeRoutes(app: FastifyInstance) {
       // Cost tiering (design 2026-06-03): draft → Grok ($0.05/s), hd → veo-3.1-fast
       // ($0.20/s). Default draft (cheap). Full Veo is never selected in v1.
       tier,
+      safeZone,
     } = request.body as any;
     if (!prompt) return reply.status(400).send({ error: 'prompt is required' });
+    const genPrompt = safeZone ? `${prompt}\n\n${SAFE_ZONE_HINT}` : prompt;
 
     // Both Gemini Veo and xAI grok-imagine-video only accept 16:9 and 9:16.
     // Reject unsupported ratios upfront with a clear message instead of letting
@@ -167,7 +176,7 @@ export async function creativeRoutes(app: FastifyInstance) {
     const orgId = request.orgId;
     const userId = request.user?.userId;
     const job = createJob('creative-video', {
-      prompt, aspectRatio, durationSeconds, resolution, clientId,
+      prompt: genPrompt, aspectRatio, durationSeconds, resolution, clientId,
       imageBase64, mimeType,
       startImageBase64, startMimeType, endImageBase64, endMimeType,
       tier: tier === 'hd' ? 'hd' : 'draft',

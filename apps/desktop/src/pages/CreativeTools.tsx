@@ -208,6 +208,8 @@ export default function CreativeTools() {
   // Image engine picker (multi-LLM). 'auto' = Gemini default chain; DashScope
   // qwen/wan options for higher-fidelity stills. Sent as { provider, model }.
   const [imageModel, setImageModel] = useState<string>('auto');
+  // B3: keep the platform-UI safe zones (top/bottom bands) clear of key elements.
+  const [safeZone, setSafeZone] = useState(false);
   const [sourceBase64, setSourceBase64] = useState('');
   const [sourceMime, setSourceMime] = useState('image/png');
   const [sourcePreview, setSourcePreview] = useState('');
@@ -401,6 +403,7 @@ export default function CreativeTools() {
           prompt: prompt.trim(),
           aspectRatio,
           clientId: selectedClientId || undefined,
+          safeZone,
           ...resolveImageModel(imageModel),
         });
         generatedUrl = out.assetUrl || out.url || '';
@@ -414,6 +417,7 @@ export default function CreativeTools() {
           mimeType: sourceMime,
           aspectRatio,
           clientId: selectedClientId || undefined,
+          safeZone,
           ...(extraRefs.length ? { referenceImages: extraRefs.map(r => ({ base64: r.base64, mimeType: r.mimeType })) } : {}),
           ...resolveImageModel(imageModel),
         });
@@ -429,6 +433,7 @@ export default function CreativeTools() {
           durationSeconds: duration,
           tier,
           clientId: selectedClientId || undefined,
+          safeZone,
           // Only attach the image when in image-to-video mode
           ...(mode === 'image-to-video' ? {
             imageBase64: sourceBase64,
@@ -995,6 +1000,26 @@ export default function CreativeTools() {
                   {ar.label}
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* B3 — social safe-zone toggle: keep platform-UI bands clear */}
+          <div>
+            <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Social safe zone</label>
+            <div className="mt-2">
+              <button
+                type="button"
+                onClick={() => setSafeZone(s => !s)}
+                title="Keep the top/bottom platform-UI bands clear of text & key elements (Reels/Stories captions + controls)"
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                  safeZone ? '' : 'bg-white/[0.03] text-zinc-500 border-white/[0.06] hover:border-white/[0.1]'
+                }`}
+                style={safeZone
+                  ? { background: 'var(--color-accent-subtle)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' }
+                  : undefined}
+              >
+                {safeZone ? '✓ Reels / Stories safe area' : 'Reels / Stories safe area'}
+              </button>
             </div>
           </div>
 
