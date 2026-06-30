@@ -1,0 +1,1 @@
+ALTER TABLE "ClientBrief" ADD COLUMN IF NOT EXISTS "visualLookFeel" TEXT;

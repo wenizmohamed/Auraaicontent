@@ -263,6 +263,9 @@ model ClientBrief {
   // productFocus}]. Replaces the old flatten-to-campaign[0] bug where only the
   // first campaign's audience/objective/keyMessage survived. Nullable for back-compat.
   campaigns           Json?
+  // B4: free-text visual direction / look & feel for the whole brief (mood,
+  // palette, references in words). Threaded into generation prompts.
+  visualLookFeel      String?
   mandatoryInclusions String?
   complianceNotes     String?
   channels            Json

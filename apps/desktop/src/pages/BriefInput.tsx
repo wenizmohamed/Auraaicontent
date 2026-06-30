@@ -148,6 +148,7 @@ export default function BriefInput() {
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['Instagram', 'TikTok', 'LinkedIn']);
   const [pieceCount, setPieceCount] = useState(18);
   const [toneNotes, setToneNotes] = useState('');
+  const [lookFeel, setLookFeel] = useState(''); // B4: visual look & feel direction
   // AI rewrite flow: useAIRewrite drives a state machine; AIRewriteDialog
   // mounts the DiffView for accept/reject. No more toast-as-Apply hack.
   const aiRewrite = useAIRewrite();
@@ -185,6 +186,7 @@ export default function BriefInput() {
           if (Array.isArray(d.occasions)) setOccasions(d.occasions);
           if (Array.isArray(d.selectedPlatforms)) setSelectedPlatforms(d.selectedPlatforms);
           if (typeof d.toneNotes === 'string') setToneNotes(d.toneNotes);
+          if (typeof d.lookFeel === 'string') setLookFeel(d.lookFeel);
           if (typeof d.selectedMonth === 'string' && d.selectedMonth) setSelectedMonth(d.selectedMonth);
           return; // keep the draft — do NOT overwrite with the saved backend brief
         }
@@ -196,6 +198,7 @@ export default function BriefInput() {
       setOccasions(DEFAULT_OCCASIONS.map(o => ({ ...o, enabled: false })));
       setSelectedPlatforms(['Instagram', 'TikTok', 'LinkedIn']);
       setToneNotes('');
+      setLookFeel('');
       try {
         const brief = await briefsApi.get(selectedClientId);
         if (cancelled || !brief) return;
@@ -234,6 +237,7 @@ export default function BriefInput() {
         if (typeof brief.tone === 'string' && brief.tone !== 'Professional') {
           setToneNotes(brief.tone);
         }
+        if (typeof (brief as any).visualLookFeel === 'string') setLookFeel((brief as any).visualLookFeel);
       } catch {
         // 404 / no brief yet — leave form empty for the user to fill in
       }
@@ -249,16 +253,16 @@ export default function BriefInput() {
     const draftKey = `radix.draft.bi.${selectedClientId}`;
     const t = setTimeout(() => {
       try {
-        const hasContent = campaigns.some(c => c.name.trim()) || toneNotes.trim().length > 0;
+        const hasContent = campaigns.some(c => c.name.trim()) || toneNotes.trim().length > 0 || lookFeel.trim().length > 0;
         if (hasContent) {
-          localStorage.setItem(draftKey, JSON.stringify({ campaigns, occasions, selectedPlatforms, toneNotes, selectedMonth }));
+          localStorage.setItem(draftKey, JSON.stringify({ campaigns, occasions, selectedPlatforms, toneNotes, selectedMonth, lookFeel }));
         } else {
           localStorage.removeItem(draftKey);
         }
       } catch { /* storage unavailable — in-memory only */ }
     }, 400);
     return () => clearTimeout(t);
-  }, [selectedClientId, campaigns, occasions, selectedPlatforms, toneNotes, selectedMonth]);
+  }, [selectedClientId, campaigns, occasions, selectedPlatforms, toneNotes, selectedMonth, lookFeel]);
 
   const updateCampaign = useCallback((index: number, field: keyof CampaignEntry, value: string) => {
     setCampaigns(prev => prev.map((c, i) => (i === index ? { ...c, [field]: value } : c)));
@@ -395,6 +399,7 @@ export default function BriefInput() {
         objective: validCampaigns[0]?.keyMessage || 'Content generation',
         audience: validCampaigns[0]?.targetAudience || 'General audience',
         tone: toneNotes || 'Professional',
+        visualLookFeel: lookFeel.trim() || undefined,
         brandDo: 'Follow brand guidelines',
         brandDont: 'No misleading claims',
         products: validCampaigns.map(c => c.productFocus).filter(Boolean),
@@ -991,6 +996,23 @@ export default function BriefInput() {
                   className="w-full resize-none rounded-lg border border-white/5 bg-white/5 px-3 py-2 text-xs text-zinc-300 outline-none placeholder:text-zinc-700 focus:border-fuchsia-500/30"
                 />
               </InlineAITextHost>
+            </div>
+
+            {/* B4 — visual look & feel direction (fed into generation prompts) */}
+            <div className="rounded-xl border border-white/10 bg-[#111] p-4">
+              <div className="mb-3 flex items-center gap-2">
+                <FileText className="h-4 w-4 text-fuchsia-400" />
+                <label className="text-xs font-medium uppercase tracking-wider text-zinc-500">
+                  Visual Look &amp; Feel
+                </label>
+              </div>
+              <textarea
+                value={lookFeel}
+                onChange={e => setLookFeel(e.target.value)}
+                placeholder="Mood, palette, and style in words — e.g. warm minimal, gold + cream, editorial photography, lots of negative space"
+                rows={3}
+                className="w-full resize-none rounded-lg border border-white/5 bg-white/5 px-3 py-2 text-xs text-zinc-300 outline-none placeholder:text-zinc-700 focus:border-fuchsia-500/30"
+              />
             </div>
 
             {/* AI engine info — configured server-side */}

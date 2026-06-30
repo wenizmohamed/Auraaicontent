@@ -155,6 +155,7 @@ function buildEnglishPrompt(p: BuildArgs): string {
     if (p.brief.brandDo) s.push(`Brand Do: ${p.brief.brandDo}`);
     if (p.brief.brandDont) s.push(`Brand Don't: ${p.brief.brandDont}`);
     if (p.brief.complianceNotes) s.push(`Compliance: ${p.brief.complianceNotes}`);
+    if (p.brief.visualLookFeel) s.push(`Visual look & feel: ${p.brief.visualLookFeel}`);
     const fmtArr = (l: string, v: any) => { try { const a = typeof v === 'string' ? JSON.parse(v) : v; if (Array.isArray(a) && a.length) s.push(`${l}: ${a.join(', ')}`); } catch {} };
     fmtArr('Products', p.brief.products);
     fmtArr('Campaign Moments', p.brief.campaignMoments);
@@ -252,6 +253,7 @@ function buildArabicPrompt(p: BuildArgs): string {
     if (p.brief.brandDo) s.push(`Brand Do: ${p.brief.brandDo}`);
     if (p.brief.brandDont) s.push(`Brand Don't: ${p.brief.brandDont}`);
     if (p.brief.complianceNotes) s.push(`Compliance: ${p.brief.complianceNotes}`);
+    if (p.brief.visualLookFeel) s.push(`Visual look & feel: ${p.brief.visualLookFeel}`);
     const fmtArr = (l: string, v: any) => { try { const a = typeof v === 'string' ? JSON.parse(v) : v; if (Array.isArray(a) && a.length) s.push(`${l}: ${a.join(', ')}`); } catch {} };
     fmtArr('Products', p.brief.products);
     fmtArr('Campaign Moments', p.brief.campaignMoments);
