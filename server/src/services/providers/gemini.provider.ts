@@ -45,6 +45,16 @@ function enrichBodyPrompt(prompt: string): string {
   return prompt.trim().replace(/[.,;]\s*$/, '') + STABILITY_TOKENS;
 }
 
+// B1: per reference-image role guidance (Midjourney-style image/style/character refs).
+function refRoleLabel(role?: 'content' | 'style' | 'character'): string {
+  switch (role) {
+    case 'style':     return 'STYLE REFERENCE — apply this image\'s visual style (color palette, lighting, texture, mood) but NOT its subject matter:';
+    case 'character': return 'CHARACTER/PRODUCT REFERENCE — keep this exact subject\'s identity, shape, and key features consistent in the output:';
+    case 'content':   return 'CONTENT/COMPOSITION REFERENCE — follow this image\'s layout and composition:';
+    default:          return 'REFERENCE IMAGE — use as visual guidance:';
+  }
+}
+
 let _ai: GoogleGenAI | null = null;
 function getAI(): GoogleGenAI {
   if (_ai) return _ai;
@@ -282,9 +292,13 @@ export const geminiProvider: AiProvider = {
     const enrichedPrompt = enrichBodyPrompt(req.prompt);
     const parts: any[] = [];
     if (req.imageBase64 && req.mimeType) {
+      // Only label the base when there are also role-tagged refs (avoids changing
+      // behavior for plain single-image edits).
+      if ((req.referenceImages || []).some(r => r.role)) parts.push({ text: 'BASE IMAGE to edit:' });
       parts.push({ inlineData: { mimeType: req.mimeType, data: req.imageBase64 } });
     }
     for (const ref of req.referenceImages || []) {
+      if (ref.role) parts.push({ text: refRoleLabel(ref.role) });  // B1: per-image role guidance
       parts.push({ inlineData: { mimeType: ref.mimeType, data: ref.base64 } });
     }
     parts.push({ text: enrichedPrompt });

@@ -215,7 +215,8 @@ export default function CreativeTools() {
   const [sourcePreview, setSourcePreview] = useState('');
   // Multi-image edit (Gemini/DashScope can take several input frames): the
   // primary frame is sourceBase64; these are the extra reference frames.
-  const [extraRefs, setExtraRefs] = useState<{ base64: string; mimeType: string; preview: string }[]>([]);
+  type RefRole = 'content' | 'style' | 'character';
+  const [extraRefs, setExtraRefs] = useState<{ base64: string; mimeType: string; preview: string; role: RefRole }[]>([]);
   // End-frame state for image-to-video (workshop 2026-05-06 #3 — Haneen).
   // Optional: omit to let Veo free-interpolate; provide to lock the final
   // frame so the video has controlled bookends.
@@ -327,7 +328,7 @@ export default function CreativeTools() {
       if (rest.length) {
         setExtraRefs(prev => [
           ...prev,
-          ...rest.map(e => ({ base64: e.base64, mimeType: e.mimeType, preview: `data:${e.mimeType};base64,${e.base64}` })),
+          ...rest.map(e => ({ base64: e.base64, mimeType: e.mimeType, preview: `data:${e.mimeType};base64,${e.base64}`, role: 'style' as RefRole })),
         ].slice(0, 7)); // 1 primary + up to 7 refs = 8 total
       }
     } catch (err: any) {
@@ -336,6 +337,12 @@ export default function CreativeTools() {
   };
 
   const removeExtraRef = (i: number) => setExtraRefs(prev => prev.filter((_, idx) => idx !== i));
+  const cycleRefRole = (i: number) => setExtraRefs(prev => prev.map((r, idx) => {
+    if (idx !== i) return r;
+    const order: RefRole[] = ['style', 'character', 'content'];
+    return { ...r, role: order[(order.indexOf(r.role) + 1) % order.length] };
+  }));
+  const ROLE_LABEL: Record<RefRole, string> = { style: 'Style', character: 'Product', content: 'Layout' };
 
   const clearSource = () => {
     setSourceBase64('');
@@ -418,7 +425,7 @@ export default function CreativeTools() {
           aspectRatio,
           clientId: selectedClientId || undefined,
           safeZone,
-          ...(extraRefs.length ? { referenceImages: extraRefs.map(r => ({ base64: r.base64, mimeType: r.mimeType })) } : {}),
+          ...(extraRefs.length ? { referenceImages: extraRefs.map(r => ({ base64: r.base64, mimeType: r.mimeType, role: r.role })) } : {}),
           ...resolveImageModel(imageModel),
         });
         generatedUrl = out.assetUrl || out.url || '';
@@ -662,15 +669,27 @@ export default function CreativeTools() {
                 <div className="mt-2">
                   <div className="flex items-center gap-2 flex-wrap">
                     {extraRefs.map((r, i) => (
-                      <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden border border-white/[0.08] bg-black group/ref">
-                        <img src={r.preview} alt={`Reference ${i + 2}`} className="w-full h-full object-cover" />
+                      <div key={i} className="flex flex-col items-center gap-1">
+                        <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-white/[0.08] bg-black group/ref">
+                          <img src={r.preview} alt={`Reference ${i + 2}`} className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => removeExtraRef(i)}
+                            className="absolute top-0.5 right-0.5 p-0.5 rounded bg-black/70 text-white opacity-0 group-hover/ref:opacity-100 transition-opacity"
+                            aria-label={`Remove reference image ${i + 2}`}
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                        {/* B1: click to cycle how this reference is used */}
                         <button
                           type="button"
-                          onClick={() => removeExtraRef(i)}
-                          className="absolute top-0.5 right-0.5 p-0.5 rounded bg-black/70 text-white opacity-0 group-hover/ref:opacity-100 transition-opacity"
-                          aria-label={`Remove reference image ${i + 2}`}
+                          onClick={() => cycleRefRole(i)}
+                          title="How this reference is used — click to change: Style (look/colour), Product (keep the subject), Layout (composition)"
+                          className="w-16 text-[9px] py-0.5 rounded border border-white/[0.12] bg-white/[0.03] hover:border-[color:var(--color-accent)] transition-colors truncate"
+                          style={{ color: 'var(--color-accent)' }}
                         >
-                          <X className="w-3 h-3" />
+                          {ROLE_LABEL[r.role]}
                         </button>
                       </div>
                     ))}
@@ -686,7 +705,7 @@ export default function CreativeTools() {
                     )}
                   </div>
                   <p className="text-[10px] text-zinc-600 mt-1.5">
-                    {extraRefs.length > 0 ? `${extraRefs.length + 1} images — blended in the edit` : 'Add more images to blend/compose them in the edit'}
+                    {extraRefs.length > 0 ? `${extraRefs.length + 1} images. Tag each: Style (match look/colour), Product (keep the subject), Layout (composition).` : 'Add reference images and tag each as Style, Product, or Layout'}
                   </p>
                 </div>
               )}

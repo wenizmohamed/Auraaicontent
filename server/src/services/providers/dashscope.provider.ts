@@ -79,6 +79,16 @@ function safeJson(s: string): object {
   } catch { return { raw: s }; }
 }
 
+// B1: per reference-image role guidance (mirrors gemini.provider).
+function refRoleLabel(role?: 'content' | 'style' | 'character'): string {
+  switch (role) {
+    case 'style':     return 'STYLE REFERENCE — apply this image\'s visual style (color, lighting, texture, mood) but NOT its subject:';
+    case 'character': return 'CHARACTER/PRODUCT REFERENCE — keep this subject\'s identity and key features consistent:';
+    case 'content':   return 'CONTENT/COMPOSITION REFERENCE — follow this image\'s layout and composition:';
+    default:          return 'REFERENCE IMAGE — visual guidance:';
+  }
+}
+
 // Native multimodal-generation image call (sync → OSS URL). Supports image-edit
 // when a source frame is supplied (content carries {image: dataURL}).
 async function generateImage(req: ImageRequest, model: string): Promise<ProviderResult<{ url?: string; base64?: string }>> {
@@ -87,12 +97,17 @@ async function generateImage(req: ImageRequest, model: string): Promise<Provider
   const start = Date.now();
 
   const content: any[] = [];
+  const anyRole = (req.referenceImages || []).some(r => r.role);
   if (req.imageBase64 && req.mimeType) {
+    if (anyRole) content.push({ text: 'BASE IMAGE to edit:' });
     content.push({ image: `data:${req.mimeType};base64,${req.imageBase64}` });
   }
-  // Multi-image edit: include every additional reference frame too.
+  // Multi-image edit: include every additional reference frame too (B1: role-labeled).
   for (const ref of req.referenceImages || []) {
-    if (ref?.base64 && ref?.mimeType) content.push({ image: `data:${ref.mimeType};base64,${ref.base64}` });
+    if (ref?.base64 && ref?.mimeType) {
+      if (ref.role) content.push({ text: refRoleLabel(ref.role) });
+      content.push({ image: `data:${ref.mimeType};base64,${ref.base64}` });
+    }
   }
   content.push({ text: req.prompt });
 

@@ -16,7 +16,10 @@ export interface ImageRequest {
   n?: number;
   imageBase64?: string;
   mimeType?: string;
-  referenceImages?: { base64: string; mimeType: string }[];
+  // B1: each reference image can carry a ROLE so the model treats it correctly
+  // (content/composition vs style/aesthetic vs character/product identity).
+  // Realized via per-image prompt prefixes in the providers.
+  referenceImages?: { base64: string; mimeType: string; role?: 'content' | 'style' | 'character' }[];
   grounded?: boolean;
   quality?: 'standard' | 'ultra';  // ultra → imagen-4.0-ultra
   model?: string;  // optional per-call model override (powers the model picker)
