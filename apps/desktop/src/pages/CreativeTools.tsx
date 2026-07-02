@@ -189,7 +189,12 @@ const VIDEO_DURATIONS = [
 const VIDEO_ENGINES = [
   { value: 'auto', label: 'Auto (Veo / Grok)' },
   { value: 'gemini-omni-flash-preview', label: 'Omni Flash · Beta' },
+  // Wan 2.7 (Alibaba) — text→video only; hidden in image-to-video mode.
+  { value: 'wan2.7-t2v', label: 'Wan 2.7 · Alibaba' },
 ];
+function videoEnginesFor(mode: Mode) {
+  return mode === 'image-to-video' ? VIDEO_ENGINES.filter(e => !e.value.startsWith('wan')) : VIDEO_ENGINES;
+}
 
 // ─── Helpers ───────────────────────────────────────────────────────
 
@@ -318,6 +323,8 @@ export default function CreativeTools() {
     // Reference frames apply to image-edit (multi-image blend) AND video
     // modes (Veo asset refs) — only clear when entering plain text-to-image.
     if (next === 'text-to-image') setExtraRefs([]);
+    // Wan is text-to-video only — fall back to Auto when entering i2v.
+    if (next === 'image-to-video' && videoEngine.startsWith('wan')) setVideoEngine('auto');
     // End-frame is only meaningful in image-to-video; clear on every other mode
     if (next !== 'image-to-video') {
       setEndBase64('');
@@ -497,7 +504,7 @@ export default function CreativeTools() {
           // Veo asset refs: the exact product/subject stays consistent in the
           // clip (forces 8s server-side per Google's constraint).
           ...(extraRefs.length ? { referenceImages: extraRefs.slice(0, 3).map(r => ({ base64: r.base64, mimeType: r.mimeType })) } : {}),
-          ...(videoEngine !== 'auto' && mode === 'text-to-video' && !extraRefs.length ? { model: videoEngine } : {}),
+          ...(videoEngine !== 'auto' && !extraRefs.length && !(mode === 'image-to-video' && videoEngine.startsWith('wan')) ? { model: videoEngine } : {}),
           // Only attach the image when in image-to-video mode
           ...(mode === 'image-to-video' ? {
             imageBase64: sourceBase64,
@@ -1184,16 +1191,18 @@ export default function CreativeTools() {
             </div>
           )}
 
-          {mode === 'text-to-video' && extraRefs.length === 0 && (
+          {isVideoMode && extraRefs.length === 0 && (
             <div>
               <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Engine</label>
               <div className="flex items-center gap-2 mt-2">
-                {VIDEO_ENGINES.map(ve => (
+                {videoEnginesFor(mode).map(ve => (
                   <button
                     key={ve.value}
                     type="button"
                     onClick={() => setVideoEngine(ve.value)}
-                    title={ve.value === 'auto' ? 'Cost-tiered routing: Draft → Grok, HD → Veo' : "Google's newest video model — stronger coherence & character consistency, ~$0.10/s, always 720p"}
+                    title={ve.value === 'auto' ? 'Cost-tiered routing: Draft → Grok/Veo, HD → Veo'
+                      : ve.value.startsWith('wan') ? "Alibaba's Wan 2.7 — cinematic text-to-video, ~$0.10/s (slower: ~2-3 min)"
+                      : "Google's newest video model — stronger coherence & character consistency, ~$0.10/s, fast"}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
                       videoEngine === ve.value ? '' : 'bg-white/[0.03] text-zinc-500 border-white/[0.06] hover:border-white/[0.1]'
                     }`}
@@ -1264,11 +1273,22 @@ export default function CreativeTools() {
                   );
                 })}
               </div>
-              {/* Cost preview — draft $0.03/s (Grok), HD $0.20/s (veo-3.1-fast). */}
-              <p className="text-[10px] mt-2" style={{ color: 'var(--color-fg-muted)' }}>
-                ≈ ${(((videoEngine !== 'auto' && mode === 'text-to-video' && !extraRefs.length) ? 0.1 : tier === 'hd' ? 0.2 : 0.03) * duration).toFixed(2)} for this {duration}s clip
-                <span> · {(videoEngine !== 'auto' && mode === 'text-to-video' && !extraRefs.length) ? 'Omni Flash ($0.10/s)' : tier === 'hd' ? 'HD ($0.20/s)' : 'Draft ($0.03/s)'}</span>
-              </p>
+              {/* Cost preview. Image-to-video drafts run on VEO (Grok mangles the
+                  source frame), so they bill at Veo's $0.20/s — the hint used to
+                  claim Grok's $0.03/s there, which was wrong. */}
+              {(() => {
+                const engineActive = videoEngine !== 'auto' && !extraRefs.length && !(mode === 'image-to-video' && videoEngine.startsWith('wan'));
+                const perSec = engineActive ? 0.1 : tier === 'hd' ? 0.2 : mode === 'image-to-video' ? 0.2 : 0.03;
+                const label = engineActive
+                  ? (videoEngine.includes('omni') ? 'Omni Flash ($0.10/s)' : 'Wan 2.7 (~$0.10/s)')
+                  : tier === 'hd' ? 'HD · Veo ($0.20/s)' : mode === 'image-to-video' ? 'Draft · Veo ($0.20/s)' : 'Draft · Grok ($0.03/s)';
+                return (
+                  <p className="text-[10px] mt-2" style={{ color: 'var(--color-fg-muted)' }}>
+                    ≈ ${(perSec * duration).toFixed(2)} for this {duration}s clip
+                    <span> · {label}</span>
+                  </p>
+                );
+              })()}
             </div>
           )}
 

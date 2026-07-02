@@ -231,10 +231,12 @@ export async function creativeRoutes(app: FastifyInstance) {
             referenceImages: j.data.referenceImages,
             model: j.data.model,
           },
-          // Omni Flash lives on Gemini only — pin the provider so a draft
-          // tier doesn't get re-ordered onto Grok (which ignores req.model).
+          // Engine pins: Omni lives on Gemini, Wan on DashScope — pin the
+          // provider so tier-based reordering can't send the request to an
+          // engine that ignores req.model.
           { orgId, userId, jobId: j.id, clientId: j.data.clientId,
-            ...(j.data.model && /omni/i.test(j.data.model) ? { preferredProvider: 'gemini' as const } : {}) },
+            ...(j.data.model && /omni/i.test(j.data.model) ? { preferredProvider: 'gemini' as const }
+              : j.data.model && /wan/i.test(j.data.model) ? { preferredProvider: 'dashscope' as const } : {}) },
         );
         await historyService.record({
           orgId,

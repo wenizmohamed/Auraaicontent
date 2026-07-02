@@ -205,15 +205,22 @@ async function omniVideo(req: VideoRequest): Promise<ProviderResult<{ url: strin
   const prompt = dur
     ? `${enrichBodyPrompt(req.prompt)} The clip should be approximately ${dur} seconds long.`
     : enrichBodyPrompt(req.prompt);
+  // image_to_video (verified live 2026-07-03): start frame goes in the input
+  // array as an image content item ahead of the text.
+  const startB64 = req.startImageBase64 || req.imageBase64;
+  const startMime = req.startMimeType || req.mimeType || 'image/png';
+  const input = startB64
+    ? [{ type: 'image', data: startB64, mime_type: startMime }, { type: 'text', text: prompt }]
+    : prompt;
 
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/interactions?key=${key}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model,
-      input: prompt,
+      input,
       response_format: { type: 'video', aspect_ratio: req.aspectRatio || '16:9', delivery: 'uri' },
-      generation_config: { video_config: { task: 'text_to_video' } },
+      generation_config: { video_config: { task: startB64 ? 'image_to_video' : 'text_to_video' } },
     }),
     signal: AbortSignal.timeout(budget),
   });
@@ -451,11 +458,11 @@ export const geminiProvider: AiProvider = {
 
   async video(req: VideoRequest): Promise<ProviderResult<{ url: string }>> {
     // Omni Flash (Interactions API) — Google's recommended default video
-    // model as of mid-2026. Verified live 2026-07-02: single synchronous
-    // request (no poll loop), returns a files/:download URI. Only wired for
-    // text→video; image-conditioned requests keep the proven Veo path even
-    // when omni is requested.
-    if (/omni/i.test(req.model || '') && !req.imageBase64 && !req.startImageBase64) {
+    // model as of mid-2026. Verified live: single synchronous request, video
+    // via files URI. Handles text→video AND image→video (start frame in the
+    // input array). Asset-REF-conditioned requests stay on Veo (omni's
+    // reference_to_video task is not wired yet).
+    if (/omni/i.test(req.model || '') && !req.referenceImages?.length) {
       return omniVideo(req);
     }
     const ai = getAI();

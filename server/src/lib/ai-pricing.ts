@@ -50,6 +50,10 @@ export const AI_PRICING: Record<string, PricePoint> = {
   // gemini-omni-flash-preview (video via Interactions API): $17.50/1M video
   // tokens ≈ $0.10/s of 720p (Google pricing page, verified 2026-07-02).
   'gemini-omni-flash-preview':         { promptPerM: 0,    completionPerM: 0,    perSecond: 0.10 },
+  // wan2.7 t2v (DashScope ws workspace): list price not published on the
+  // catalog page — ESTIMATE $0.10/s pending console verification.
+  'wan2.7-t2v':                        { promptPerM: 0,    completionPerM: 0,    perSecond: 0.10 },
+  'wan2.7-t2v-2026-06-12':             { promptPerM: 0,    completionPerM: 0,    perSecond: 0.10 },
   // veo-2.0-generate-001: legacy fallback, $0.05/sec (Google deprecated tier).
   'veo-2.0-generate-001':              { promptPerM: 0,    completionPerM: 0,    perSecond: 0.05 },
   // gemini-embedding-2-preview: $0.20/M for text; multimodal climbs higher.

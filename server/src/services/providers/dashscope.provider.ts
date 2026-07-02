@@ -7,8 +7,9 @@
 //   - IMAGE : native multimodal-generation (sync, returns an OSS image URL)
 //             {HOST}/api/v1/services/aigc/multimodal-generation/generation
 //             models: qwen-image-2.0(-pro), wan2.7-image(-pro)
-//   - VIDEO : NOT in the plan quota (every video model → "Model not exist").
-//             video() throws NotSupported so the router falls through to Veo/Grok.
+//   - VIDEO : LIVE since 2026-07-03 on the ws-5idw8yndpkd149fa workspace key —
+//             Wan 2.7 t2v via native video-synthesis (async task + poll). Text→
+//             video only; image-conditioned throws 503 so Veo keeps those.
 //
 // Adds many models to Radix's multi-LLM orchestration. Text/analysis run through
 // the SAME routeCall path as every other provider, so the knowledge + memory
@@ -19,6 +20,7 @@ import type {
   AiProvider, AnalysisRequest, ImageRequest, ProviderResult, TextRequest, VideoRequest,
 } from './types.js';
 import { AiProviderError } from './errors.js';
+import { storageService } from '../storage.service.js';
 
 const BASE_URL = process.env.DASHSCOPE_BASE_URL
   || 'https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1';
@@ -167,9 +169,61 @@ export const dashscopeProvider: AiProvider = {
   analysis: (req) => analyze(req),
   image: (req) => generateImage(req, (req as any).model || IMAGE_MODEL),
   imageEdit: (req) => generateImage(req, (req as any).model || IMAGE_MODEL),
-  video: async (_req: VideoRequest): Promise<ProviderResult<{ url: string }>> => {
-    // Not in the "aura" plan quota — 503 so the router falls through to Veo/Grok
-    // (retryable) rather than breaking the chain with a plain Error.
-    throw new AiProviderError('dashscope', 'video', 'video generation not on this plan', 503);
+  video: async (req: VideoRequest): Promise<ProviderResult<{ url: string }>> => {
+    // Wan 2.7 text→video (verified live 2026-07-03: submit → PENDING → poll
+    // /api/v1/tasks/{id} → SUCCEEDED in ~2.5min with an EXPIRING OSS url, so
+    // the clip is persisted to our storage immediately). Image-conditioned
+    // requests are not wired (wan i2v needs a public img_url) — 503 keeps
+    // them on Veo via the router.
+    const key = process.env.DASHSCOPE_API_KEY;
+    if (!key) throw new AiProviderError('dashscope', 'video', 'DASHSCOPE_API_KEY not set', 401);
+    if (req.imageBase64 || req.startImageBase64 || req.endImageBase64 || req.referenceImages?.length) {
+      throw new AiProviderError('dashscope', 'video', 'wan image-to-video not wired — Veo handles image-conditioned', 503);
+    }
+    const model = req.model && /wan/i.test(req.model) ? req.model : (process.env.DASHSCOPE_VIDEO_MODEL || 'wan2.7-t2v');
+    const host = BASE_URL.replace(/\/compatible-mode\/v1\/?$/, '');
+    const size = req.aspectRatio === '9:16' ? '720*1280' : '1280*720';
+    const duration = Math.min(Math.max(Math.round(req.durationSeconds || 5), 3), 10);
+    const start = Date.now();
+    const budget = Number(process.env.DASHSCOPE_VIDEO_BUDGET_MS ?? 8 * 60 * 1000);
+
+    const submitRes = await fetch(`${host}/api/v1/services/aigc/video-generation/video-synthesis`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}`, 'X-DashScope-Async': 'enable' },
+      body: JSON.stringify({ model, input: { prompt: req.prompt }, parameters: { size, duration } }),
+      signal: AbortSignal.timeout(60000),
+    });
+    const submitted: any = await submitRes.json().catch(() => ({}));
+    const taskId = submitted?.output?.task_id;
+    if (!submitRes.ok || !taskId) {
+      throw new AiProviderError('dashscope', 'video', `wan submit ${submitRes.status}: ${JSON.stringify(submitted).slice(0, 200)}`, submitRes.status === 200 ? 502 : submitRes.status);
+    }
+
+    let videoUrl: string | undefined;
+    while (Date.now() - start < budget) {
+      await new Promise(r => setTimeout(r, 10000));
+      const poll = await fetch(`${host}/api/v1/tasks/${taskId}`, {
+        headers: { Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(30000),
+      });
+      const st: any = await poll.json().catch(() => ({}));
+      const status = st?.output?.task_status;
+      if (status === 'SUCCEEDED') {
+        videoUrl = st.output.video_url || st.output.results?.[0]?.url;
+        break;
+      }
+      if (status === 'FAILED' || status === 'CANCELED' || status === 'UNKNOWN') {
+        throw new AiProviderError('dashscope', 'video', `wan task ${status}: ${JSON.stringify(st?.output || {}).slice(0, 200)}`);
+      }
+    }
+    if (!videoUrl) throw new AiProviderError('dashscope', 'video', `wan poll budget exhausted (${Math.round(budget / 1000)}s)`);
+
+    const dl = await fetch(videoUrl, { signal: AbortSignal.timeout(120000) });
+    if (!dl.ok) throw new AiProviderError('dashscope', 'video', `wan video download ${dl.status}`, dl.status);
+    const buf = Buffer.from(await dl.arrayBuffer());
+    const { fileUrl } = await storageService.saveFile(buf, `wan-${Date.now()}.mp4`, 'video/mp4');
+    return {
+      provider: 'dashscope', model, latencyMs: Date.now() - start, fallbackUsed: false,
+      output: { url: fileUrl },
+    };
   },
 };

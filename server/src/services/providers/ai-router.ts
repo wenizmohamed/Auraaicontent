@@ -110,7 +110,7 @@ const CHAIN: Record<string, AiProviderName[]> = {
   text: ['gemini', 'xai', 'dashscope'],
   image: ['gemini', 'xai', 'dashscope'],
   analysis: ['gemini', 'xai', 'dashscope'],
-  video: ['gemini', 'xai'],
+  video: ['gemini', 'xai', 'dashscope'],  // dashscope = Wan t2v (text-only; 503s image-conditioned)
 };
 
 // A provider is usable only when its credential is configured — keeps a
