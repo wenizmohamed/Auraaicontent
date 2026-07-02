@@ -202,13 +202,22 @@ export async function creativeRoutes(app: FastifyInstance) {
       model: typeof model === 'string' && model.trim() ? model.trim() : undefined,
     });
     processJob(job.id, async (j: Job) => {
-      // Bump progress every 3 seconds while the long Gemini Veo call runs.
-      // Without this the user sees "5%" frozen for ~75 seconds and assumes the job is broken.
-      // Caps at 90% so the final jump to 100% is the actual completion.
+      // Pace the progress bar to the engine's REAL latency. The old flat
+      // +5%/3s sprinted to 90% in ~48s and then froze for the 2-3 minutes
+      // Wan/Veo actually take — users read that as "stuck at 90%".
+      // Expected wall-clock per engine (measured live 2026-07-03):
+      // omni ~45s, veo ~70s, grok draft ~100s, wan ~170s. Creeps to 95%
+      // max so there's always visible motion until real completion.
+      const m: string = j.data.model || '';
+      const expectedSec = /wan/i.test(m) ? 170
+        : /omni/i.test(m) ? 55
+        : (j.data.imageBase64 || j.data.tier === 'hd') ? 80
+        : 110;
+      const stepPct = 85 / (expectedSec / 3);   // 10% → 95% across expectedSec
       let p = 10;
       const ticker = setInterval(() => {
-        p = Math.min(p + 5, 90);
-        updateJob(j.id, { progress: p });
+        p = Math.min(p + stepPct, 95);
+        updateJob(j.id, { progress: Math.round(p * 10) / 10 });
       }, 3000);
       try {
         const result = await aiRouter.video(
@@ -292,8 +301,24 @@ export async function creativeRoutes(app: FastifyInstance) {
   app.get('/creative/jobs/:jobId', async (request, reply) => {
     const { jobId } = request.params as { jobId: string };
     const job = getJob(jobId);
-    if (!job) return reply.status(404).send({ error: 'Job not found' });
-    return { id: job.id, status: job.status, progress: job.progress, result: job.result, error: job.error };
+    if (job) {
+      return { id: job.id, status: job.status, progress: job.progress, result: job.result, error: job.error };
+    }
+    // Restart survivor: the queue is in-memory and wiped on every deploy, but
+    // the worker records every finished video in Generation with
+    // metadata.jobId. If the result outlived the queue, hand it back instead
+    // of losing a paid generation to a 404.
+    const gen = await db.generation.findFirst({
+      where: { orgId: request.orgId!, type: 'video', metadata: { path: ['jobId'], equals: jobId } },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (gen) {
+      if (gen.status === 'failed') {
+        return { id: jobId, status: 'failed', progress: 100, result: null, error: gen.error || 'Video generation failed' };
+      }
+      return { id: jobId, status: 'completed', progress: 100, result: { url: gen.outputUrl, provider: gen.provider, model: gen.model }, error: null };
+    }
+    return reply.status(404).send({ error: 'Job not found' });
   });
 
   // GET /api/creative/telemetry — provider audit log

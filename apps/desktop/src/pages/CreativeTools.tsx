@@ -522,6 +522,7 @@ export default function CreativeTools() {
         });
 
         let attempts = 0;
+        let pollFails = 0;
         while (attempts < 120 && !cancelledRef.current) {
           await new Promise(r => setTimeout(r, 5000));
           if (cancelledRef.current) break;
@@ -529,15 +530,20 @@ export default function CreativeTools() {
           let job;
           try {
             job = await creativeApi.getJob(jobId);
+            pollFails = 0;
           } catch (pollErr: any) {
-            // The in-memory job queue is wiped on every server restart/deploy.
-            // If the job vanishes mid-flight, give the user a clear actionable message
-            // instead of "Job not found" or "Internal Server Error".
             const m = pollErr?.message || '';
+            // 404 = the job is truly gone AND has no recorded result (the
+            // server now falls back to generation history before 404ing).
             if (/job not found|404/i.test(m)) {
-              throw new Error('Your video job was lost (likely a server restart). Click Generate again — the result is not auto-recovered.');
+              throw new Error('Your video job was lost (likely a server restart mid-generation). Click Generate again.');
             }
-            throw pollErr;
+            // Transient blip (deploy restart, nginx 502, network hiccup) —
+            // keep polling; the server-side recovery returns the finished
+            // result once it's back. Only give up after ~30s of solid failure.
+            if (++pollFails >= 6) throw pollErr;
+            attempts++;
+            continue;
           }
 
           setProgress(job.progress || 0);
