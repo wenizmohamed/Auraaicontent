@@ -97,14 +97,28 @@ export const xaiProvider: AiProvider = {
   async image(req: ImageRequest): Promise<ProviderResult<{ url?: string; base64?: string }>> {
     const model = process.env.XAI_IMAGE_MODEL || 'grok-imagine-image';
     const start = Date.now();
+    // aspect_ratio: xAI enum verified live 2026-07-02 —
+    // 1:1, 3:4, 4:3, 9:16, 16:9, 2:3, 3:2, 9:19.5, 19.5:9. Map the nano-only
+    // ratios to the nearest legal one instead of 422ing.
+    const GROK_ASPECTS = new Set(['1:1', '3:4', '4:3', '9:16', '16:9', '2:3', '3:2', '9:19.5', '19.5:9']);
+    const GROK_NEAREST: Record<string, string> = { '4:5': '3:4', '5:4': '4:3', '21:9': '16:9' };
+    const ar = req.aspectRatio
+      ? (GROK_ASPECTS.has(req.aspectRatio) ? req.aspectRatio : GROK_NEAREST[req.aspectRatio])
+      : undefined;
+    // b64_json (verified live): xAI's hosted image URLs are ephemeral — base64
+    // goes straight into our own storage like the Gemini path, so gallery
+    // images can't rot when xAI's link expires.
     const data = await xaiFetch('/images/generations', {
       model, prompt: req.prompt, n: req.n ?? 1,
+      response_format: 'b64_json',
+      ...(ar ? { aspect_ratio: ar } : {}),
     });
+    const b64 = data.data?.[0]?.b64_json;
     const url = data.data?.[0]?.url;
-    if (!url) throw new AiProviderError('xai', 'image', 'empty image response', 503);
+    if (!b64 && !url) throw new AiProviderError('xai', 'image', 'empty image response', 503);
     return {
       provider: 'xai', model, latencyMs: Date.now() - start, fallbackUsed: false,
-      output: { url },
+      output: b64 ? { base64: b64 } : { url },
     };
   },
 

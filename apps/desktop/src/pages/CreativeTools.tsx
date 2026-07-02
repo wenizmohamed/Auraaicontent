@@ -129,17 +129,31 @@ const MODES: ModeDef[] = [
   },
 ];
 
-// Image modes accept all four aspect ratios.
+// Image aspects (verified live 2026-07-02): the Gemini image model takes the
+// full set — 4:5 is THE Instagram-feed ratio, 21:9 covers hero banners.
+// Providers with narrower enums (Imagen, Grok) clamp server-side to the
+// nearest legal ratio, so every choice here works on every engine.
 // Video modes (Gemini Veo + xAI grok-imagine-video) ONLY accept 16:9 and 9:16.
 const ASPECT_RATIOS_IMAGE = [
-  { label: '1:1', value: '1:1' },
-  { label: '16:9', value: '16:9' },
-  { label: '9:16', value: '9:16' },
-  { label: '4:3', value: '4:3' },
+  { label: '1:1', value: '1:1', hint: 'Square' },
+  { label: '4:5', value: '4:5', hint: 'IG Feed' },
+  { label: '9:16', value: '9:16', hint: 'Story / Reel' },
+  { label: '16:9', value: '16:9', hint: 'Landscape' },
+  { label: '4:3', value: '4:3', hint: 'Classic' },
+  { label: '3:4', value: '3:4', hint: 'Portrait' },
+  { label: '21:9', value: '21:9', hint: 'Banner' },
 ];
 const ASPECT_RATIOS_VIDEO = [
-  { label: '16:9', value: '16:9' },
-  { label: '9:16', value: '9:16' },
+  { label: '16:9', value: '16:9', hint: 'Landscape' },
+  { label: '9:16', value: '9:16', hint: 'Story / Reel' },
+];
+
+// Output resolution for image modes (nano-banana 1K/2K/4K; Imagen clamps 4K→2K;
+// Grok/DashScope ignore it). 1K default keeps latency/cost unchanged.
+const IMAGE_SIZES = [
+  { label: '1K', value: '1K' as const, hint: 'Fast' },
+  { label: '2K', value: '2K' as const, hint: 'High detail' },
+  { label: '4K', value: '4K' as const, hint: 'Max quality' },
 ];
 function aspectRatiosFor(mode: Mode) {
   return mode === 'text-to-video' || mode === 'image-to-video'
@@ -160,10 +174,13 @@ function resolveImageModel(value: string): { provider?: 'gemini' | 'xai' | 'dash
   return m && m.provider ? { provider: m.provider, model: m.model } : {};
 }
 
+// Veo 3.1 accepts exactly 4/6/8s (verified live 2026-07-02) — the old 5s/10s
+// options were silently ignored by Veo and only honored by Grok. 1080p is
+// Veo-only and requires an 8s clip; the UI auto-bumps duration when selected.
 const VIDEO_DURATIONS = [
-  { label: '5s', value: 5 },
+  { label: '4s', value: 4 },
+  { label: '6s', value: 6 },
   { label: '8s', value: 8 },
-  { label: '10s', value: 10 },
 ];
 
 // ─── Helpers ───────────────────────────────────────────────────────
@@ -201,10 +218,17 @@ export default function CreativeTools() {
   const [prompt, setPrompt] = useState('');
   const promptRef = useRef<HTMLTextAreaElement | null>(null);
   const [aspectRatio, setAspectRatio] = useState('1:1');
-  const [duration, setDuration] = useState(5);
+  const [duration, setDuration] = useState(6);
   // Video cost tier (design 2026-06-03). Default 'draft' (cheap, Grok);
   // 'hd' opts into veo-3.1-fast. Sent to the backend as `tier`.
   const [tier, setTier] = useState<'draft' | 'hd'>('draft');
+  // Image output resolution (1K/2K/4K — nano-banana native, verified live).
+  const [imageSize, setImageSize] = useState<'1K' | '2K' | '4K'>('1K');
+  // Video resolution: 1080p is Veo-only and requires an 8s clip; selecting it
+  // auto-bumps duration to 8 (server also degrades gracefully to 720p).
+  const [videoRes, setVideoRes] = useState<'720p' | '1080p'>('720p');
+  // Optional "avoid" terms — merged into Veo's negativePrompt server-side.
+  const [negPrompt, setNegPrompt] = useState('');
   // Image engine picker (multi-LLM). 'auto' = Gemini default chain; DashScope
   // qwen/wan options for higher-fidelity stills. Sent as { provider, model }.
   const [imageModel, setImageModel] = useState<string>('auto');
@@ -417,6 +441,7 @@ export default function CreativeTools() {
           aspectRatio,
           clientId: selectedClientId || undefined,
           safeZone,
+          ...(imageSize !== '1K' ? { imageSize } : {}),
           ...resolveImageModel(imageModel),
         };
         const n = Math.max(1, imageCount);
@@ -438,6 +463,7 @@ export default function CreativeTools() {
           aspectRatio,
           clientId: selectedClientId || undefined,
           safeZone,
+          ...(imageSize !== '1K' ? { imageSize } : {}),
           ...(extraRefs.length ? { referenceImages: extraRefs.map(r => ({ base64: r.base64, mimeType: r.mimeType, role: r.role })) } : {}),
           ...resolveImageModel(imageModel),
         });
@@ -454,6 +480,8 @@ export default function CreativeTools() {
           tier,
           clientId: selectedClientId || undefined,
           safeZone,
+          ...(tier === 'hd' && videoRes === '1080p' ? { resolution: '1080p' as const } : {}),
+          ...(negPrompt.trim() ? { negativePrompt: negPrompt.trim() } : {}),
           // Only attach the image when in image-to-video mode
           ...(mode === 'image-to-video' ? {
             imageBase64: sourceBase64,
@@ -1020,6 +1048,7 @@ export default function CreativeTools() {
                 <button
                   key={ar.value}
                   onClick={() => setAspectRatio(ar.value)}
+                  title={ar.hint}
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
                     aspectRatio === ar.value
                       ? ''
@@ -1104,6 +1133,32 @@ export default function CreativeTools() {
             </div>
           )}
 
+          {/* Image output resolution — nano-banana renders natively at 1K/2K/4K
+              (Imagen clamps 4K→2K; Grok/DashScope ignore). */}
+          {!isVideoMode && (
+            <div>
+              <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Resolution</label>
+              <div className="flex items-center gap-2 mt-2">
+                {IMAGE_SIZES.map(s => (
+                  <button
+                    key={s.value}
+                    type="button"
+                    onClick={() => setImageSize(s.value)}
+                    title={s.hint}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                      imageSize === s.value ? '' : 'bg-white/[0.03] text-zinc-500 border-white/[0.06] hover:border-white/[0.1]'
+                    }`}
+                    style={imageSize === s.value
+                      ? { background: 'var(--color-accent-subtle)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' }
+                      : undefined}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {isVideoMode && (
             <div>
               <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Duration</label>
@@ -1112,7 +1167,9 @@ export default function CreativeTools() {
                   <button
                     key={d.value}
                     onClick={() => setDuration(d.value)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                    disabled={tier === 'hd' && videoRes === '1080p' && d.value !== 8}
+                    title={tier === 'hd' && videoRes === '1080p' && d.value !== 8 ? '1080p requires an 8s clip' : undefined}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                       duration === d.value
                         ? ''
                         : 'bg-white/[0.03] text-zinc-500 border-white/[0.06] hover:border-white/[0.1]'
@@ -1163,6 +1220,49 @@ export default function CreativeTools() {
                 ≈ ${((tier === 'hd' ? 0.2 : 0.03) * duration).toFixed(2)} for this {duration}s clip
                 <span> · {tier === 'hd' ? 'HD ($0.20/s)' : 'Draft ($0.03/s)'}</span>
               </p>
+            </div>
+          )}
+
+          {/* HD output resolution — 1080p is Veo-only and needs an 8s clip, so
+              selecting it locks duration to 8 (Veo rejects other combos). */}
+          {isVideoMode && tier === 'hd' && (
+            <div>
+              <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Output</label>
+              <div className="flex items-center gap-2 mt-2">
+                {(['720p', '1080p'] as const).map(r => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => { setVideoRes(r); if (r === '1080p') setDuration(8); }}
+                    title={r === '1080p' ? 'Full HD — requires an 8s clip' : 'Standard'}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                      videoRes === r ? '' : 'bg-white/[0.03] text-zinc-500 border-white/[0.06] hover:border-white/[0.1]'
+                    }`}
+                    style={videoRes === r
+                      ? { background: 'var(--color-accent-subtle)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' }
+                      : undefined}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Optional avoid-list for video — merged into Veo's negativePrompt
+              (stability negatives are always on server-side; this adds the
+              user's own "never show X" terms). */}
+          {isVideoMode && (
+            <div className="min-w-[220px] flex-1">
+              <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Avoid (optional)</label>
+              <input
+                type="text"
+                value={negPrompt}
+                onChange={e => setNegPrompt(e.target.value)}
+                placeholder="e.g. text overlays, crowds, slow motion"
+                maxLength={300}
+                className="mt-2 w-full bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-1.5 text-xs text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-white/[0.15]"
+              />
             </div>
           )}
         </div>

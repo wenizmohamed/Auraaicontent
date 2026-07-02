@@ -23,6 +23,10 @@ export interface ImageRequest {
   grounded?: boolean;
   quality?: 'standard' | 'ultra';  // ultra → imagen-4.0-ultra
   model?: string;  // optional per-call model override (powers the model picker)
+  // Output resolution (verified live 2026-07-02): nano-banana accepts
+  // 512/1K/2K/4K via imageConfig.imageSize; Imagen accepts 1K/2K (4K is
+  // clamped to 2K in the provider). Other providers ignore it.
+  imageSize?: '1K' | '2K' | '4K';
 }
 
 export interface VideoRequest {
@@ -46,6 +50,10 @@ export interface VideoRequest {
   startMimeType?: string;
   endImageBase64?: string;
   endMimeType?: string;
+  // User-supplied "avoid" terms. Veo supports a real negativePrompt param
+  // (verified live 2026-07-02); the provider merges this with the default
+  // stability negatives. Providers without the param ignore it.
+  negativePrompt?: string;
 }
 
 export interface AnalysisRequest {

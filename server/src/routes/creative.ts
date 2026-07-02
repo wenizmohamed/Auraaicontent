@@ -21,14 +21,14 @@ export async function creativeRoutes(app: FastifyInstance) {
 
   // POST /api/creative/images/generate
   app.post('/creative/images/generate', async (request, reply) => {
-    const { prompt: rawPrompt, aspectRatio, clientId, quality, model, provider, safeZone } = request.body as { prompt: string; aspectRatio?: string; clientId?: string; quality?: 'standard' | 'ultra'; model?: string; provider?: 'gemini' | 'xai' | 'dashscope'; safeZone?: boolean };
+    const { prompt: rawPrompt, aspectRatio, clientId, quality, model, provider, safeZone, imageSize } = request.body as { prompt: string; aspectRatio?: string; clientId?: string; quality?: 'standard' | 'ultra'; model?: string; provider?: 'gemini' | 'xai' | 'dashscope'; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K' };
     const v = validatePrompt(rawPrompt);
     if (!v.valid) return reply.status(400).send({ error: v.error });
     const prompt = sanitizePrompt(rawPrompt);
     const genPrompt = safeZone ? `${prompt}\n\n${SAFE_ZONE_HINT}` : prompt;
 
     try {
-      const result = await aiRouter.image({ prompt: genPrompt, aspectRatio, quality, model }, { orgId: request.orgId, userId: request.user?.userId, clientId, preferredProvider: provider });
+      const result = await aiRouter.image({ prompt: genPrompt, aspectRatio, quality, model, imageSize }, { orgId: request.orgId, userId: request.user?.userId, clientId, preferredProvider: provider });
       // Persist to assets. Gemini/Grok return base64; DashScope (qwen/wan)
       // returns an EXPIRING OSS url, so fetch+store it too — otherwise the
       // image vanishes when the signed link expires and never hits the gallery.
@@ -91,7 +91,7 @@ export async function creativeRoutes(app: FastifyInstance) {
 
   // POST /api/creative/images/edit
   app.post('/creative/images/edit', async (request, reply) => {
-    const { prompt, imageBase64, mimeType, aspectRatio, clientId, model, provider, referenceImages, safeZone } = request.body as any;
+    const { prompt, imageBase64, mimeType, aspectRatio, clientId, model, provider, referenceImages, safeZone, imageSize } = request.body as any;
     if (!prompt || !imageBase64) return reply.status(400).send({ error: 'prompt and imageBase64 are required' });
 
     try {
@@ -104,7 +104,7 @@ export async function creativeRoutes(app: FastifyInstance) {
             .map((r: any) => ({ base64: r.base64, mimeType: r.mimeType, ...(r.role ? { role: r.role } : {}) }))
         : undefined;
       const genPrompt = safeZone ? `${prompt}\n\n${SAFE_ZONE_HINT}` : prompt;
-      const result = await aiRouter.image({ prompt: genPrompt, imageBase64, mimeType: mimeType || 'image/png', aspectRatio, model, referenceImages: refs }, { orgId: request.orgId, userId: request.user?.userId, clientId, preferredProvider: provider });
+      const result = await aiRouter.image({ prompt: genPrompt, imageBase64, mimeType: mimeType || 'image/png', aspectRatio, model, referenceImages: refs, imageSize }, { orgId: request.orgId, userId: request.user?.userId, clientId, preferredProvider: provider });
       let savedAsset = null;
       if (result.output.base64 && clientId) {
         const buf = Buffer.from(result.output.base64, 'base64');
@@ -163,6 +163,7 @@ export async function creativeRoutes(app: FastifyInstance) {
       // ($0.20/s). Default draft (cheap). Full Veo is never selected in v1.
       tier,
       safeZone,
+      negativePrompt,
     } = request.body as any;
     if (!prompt) return reply.status(400).send({ error: 'prompt is required' });
     const genPrompt = safeZone ? `${prompt}\n\n${SAFE_ZONE_HINT}` : prompt;
@@ -184,6 +185,7 @@ export async function creativeRoutes(app: FastifyInstance) {
       imageBase64, mimeType,
       startImageBase64, startMimeType, endImageBase64, endMimeType,
       tier: tier === 'hd' ? 'hd' : 'draft',
+      negativePrompt: typeof negativePrompt === 'string' && negativePrompt.trim() ? negativePrompt.trim().slice(0, 500) : undefined,
     });
     processJob(job.id, async (j: Job) => {
       // Bump progress every 3 seconds while the long Gemini Veo call runs.
@@ -211,6 +213,7 @@ export async function creativeRoutes(app: FastifyInstance) {
             // ALWAYS true in v1 (draft → grok-fast fallback, hd → veo-3.1-fast).
             tier: j.data.tier,
             fast: true,
+            negativePrompt: j.data.negativePrompt,
           },
           { orgId, userId, jobId: j.id, clientId: j.data.clientId },
         );

@@ -45,6 +45,31 @@ function enrichBodyPrompt(prompt: string): string {
   return prompt.trim().replace(/[.,;]\s*$/, '') + STABILITY_TOKENS;
 }
 
+// ─── Param clamps (verified live against the Gemini API 2026-07-02) ────
+// Imagen 4 only accepts these aspects; nano-banana takes the full set incl.
+// 4:5 / 5:4 / 2:3 / 3:2 / 21:9. Map unsupported ratios to the nearest legal
+// one instead of 400ing so the router's imagen fallback rung never breaks a
+// request that nano would have accepted.
+const IMAGEN_ASPECTS = new Set(['1:1', '3:4', '4:3', '9:16', '16:9']);
+const IMAGEN_ASPECT_NEAREST: Record<string, string> = {
+  '4:5': '3:4', '5:4': '4:3', '2:3': '3:4', '3:2': '4:3', '21:9': '16:9',
+};
+function clampImagenAspect(ar?: string): string | undefined {
+  if (!ar) return undefined;
+  if (IMAGEN_ASPECTS.has(ar)) return ar;
+  return IMAGEN_ASPECT_NEAREST[ar] || '1:1';
+}
+// Imagen imageSize: only 1K/2K are legal (4K → 2K). nano passes through as-is.
+function clampImagenSize(size?: string): string | undefined {
+  if (!size) return undefined;
+  return size === '4K' ? '2K' : size;
+}
+// Veo 3.1 accepts 4/6/8-second clips; round anything else to the nearest.
+function clampVeoDuration(sec?: number): number | undefined {
+  if (!sec || !Number.isFinite(sec)) return undefined;
+  return [4, 6, 8].reduce((a, b) => (Math.abs(b - sec) < Math.abs(a - sec) ? b : a));
+}
+
 // B1: per reference-image role guidance (Midjourney-style image/style/character refs).
 function refRoleLabel(role?: 'content' | 'style' | 'character'): string {
   switch (role) {
@@ -232,26 +257,38 @@ export const geminiProvider: AiProvider = {
       // uses generateContent() with responseModalities. Wrong dispatch = silent hang.
       const isImagen = /^imagen-/i.test(entry.model);
       if (isImagen) {
+        const imAspect = clampImagenAspect(req.aspectRatio);
+        const imSize = clampImagenSize(req.imageSize);
         const r = await withRetry('image', () => withTimeout(
           ai.models.generateImages({
             model: entry.model,
             prompt: enrichedPrompt,
             config: {
               numberOfImages: 1,
-              ...(req.aspectRatio ? { aspectRatio: req.aspectRatio } : {}),
+              ...(imAspect ? { aspectRatio: imAspect } : {}),
+              ...(imSize ? { imageSize: imSize } : {}),
             },
           }),
           TIMEOUT, 'image',
         ));
         return { kind: 'imagen' as const, response: r };
       }
+      // nano-banana: full aspect set (incl. 4:5 feed / 21:9 banner) + 1K-4K
+      // output via imageConfig.imageSize — both verified live 2026-07-02
+      // (4:5@2K → 2.9MB, 21:9@4K → 9.6MB).
+      const imageConfig = (req.aspectRatio || req.imageSize)
+        ? { imageConfig: {
+            ...(req.aspectRatio ? { aspectRatio: req.aspectRatio } : {}),
+            ...(req.imageSize ? { imageSize: req.imageSize } : {}),
+          } }
+        : {};
       const r = await withRetry('image', () => withTimeout(
         ai.models.generateContent({
           model: entry.model,
           contents: [{ parts: [{ text: enrichedPrompt }] }],
           config: {
             responseModalities: ['TEXT', 'IMAGE'],
-            ...(req.aspectRatio ? { imageConfig: { aspectRatio: req.aspectRatio } } : {}),
+            ...imageConfig,
           },
         }),
         TIMEOUT, 'image',
@@ -312,7 +349,12 @@ export const geminiProvider: AiProvider = {
         contents: [{ role: 'user', parts }],
         config: {
           responseModalities: ['TEXT', 'IMAGE'],
-          ...(req.aspectRatio ? { imageConfig: { aspectRatio: req.aspectRatio } } : {}),
+          ...((req.aspectRatio || req.imageSize)
+            ? { imageConfig: {
+                ...(req.aspectRatio ? { aspectRatio: req.aspectRatio } : {}),
+                ...(req.imageSize ? { imageSize: req.imageSize } : {}),
+              } }
+            : {}),
         },
       }),
       IMAGE_EDIT_TIMEOUT, 'imageEdit',
@@ -359,12 +401,29 @@ export const geminiProvider: AiProvider = {
       const startMime = req.startMimeType || req.mimeType;
       const hasStart = !!(startB64 && startMime);
       const hasEnd = !!(req.endImageBase64 && req.endMimeType);
+      // durationSeconds: Veo 3.1 takes 4/6/8 (verified live 2026-07-02) — the
+      // FE slider used to be silently ignored here, so every clip came out at
+      // the model default regardless of what the user picked.
+      const veoDuration = clampVeoDuration(req.durationSeconds);
+      // 1080p is only legal on 8s clips (API 400s otherwise) — degrade to 720p
+      // rather than failing the job.
+      const veoResolution = req.resolution === '1080p' && veoDuration !== 8
+        ? '720p'
+        : (req.resolution === '4k' ? '1080p' : req.resolution);
+      // Quality negatives now apply to EVERY Veo call (was image-conditioned
+      // only — pure text→video got zero stability steering). User-supplied
+      // "avoid" terms are appended. GEMINI_VIDEO_NEGATIVE="" opts out of the
+      // default; the user's terms still pass through.
+      const baseNegative = process.env.GEMINI_VIDEO_NEGATIVE ??
+        'face morphing, identity change, distorted faces, warping, melting, extra fingers, blurry, low quality, watermark, subtitles, text overlay artifacts';
+      const negative = [baseNegative, req.negativePrompt].filter(s => s && s.trim()).join(', ');
       let operation = await ai.models.generateVideos({
         model: entry.model,
         prompt: enrichBodyPrompt(req.prompt),
         config: {
           aspectRatio: req.aspectRatio || '16:9',
-          ...(req.resolution ? { resolution: req.resolution } : {}),
+          ...(veoDuration ? { durationSeconds: veoDuration } : {}),
+          ...(veoResolution ? { resolution: veoResolution } : {}),
           ...(process.env.GEMINI_VIDEO_PERSON_GENERATION
             ? { personGeneration: process.env.GEMINI_VIDEO_PERSON_GENERATION as any }
             : {}),
@@ -379,16 +438,7 @@ export const geminiProvider: AiProvider = {
           ...(hasStart && hasEnd
             ? { lastFrame: { imageBytes: req.endImageBase64, mimeType: req.endMimeType } }
             : {}),
-          // Identity stability: when conditioning on real frames, steer Veo away
-          // from re-inventing the subject mid-clip ("changing people's faces ...
-          // things get mushy"). Set GEMINI_VIDEO_NEGATIVE="" to opt out.
-          ...(hasStart
-            ? {
-                negativePrompt:
-                  process.env.GEMINI_VIDEO_NEGATIVE ??
-                  'face morphing, identity change, distorted faces, warping, melting, extra fingers, blurry, low quality',
-              }
-            : {}),
+          ...(negative ? { negativePrompt: negative } : {}),
         },
         ...(hasStart ? {
           image: { imageBytes: startB64, mimeType: startMime },
