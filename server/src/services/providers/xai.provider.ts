@@ -1,5 +1,6 @@
 import type { AiProvider, AnalysisRequest, ImageRequest, ProviderResult, TextRequest, VideoRequest } from './types.js';
 import { AiProviderError } from './errors.js';
+import { storageService } from '../storage.service.js';
 import { runModelLadder, readLadder } from './model-chain.js';
 
 const BASE_URL = process.env.XAI_BASE_URL || 'https://api.x.ai/v1';
@@ -186,7 +187,24 @@ export const xaiProvider: AiProvider = {
       });
       return await pollVideo(data.request_id);
     });
-    return { provider: 'xai', model: ladderResult.modelUsed, latencyMs: Date.now() - start, fallbackUsed: false, output: { url: ladderResult.result } };
+    // Persist the clip to our storage (2026-07-03): vidgen.x.ai URLs are (a)
+    // blocked by our CSP (default-src 'self', no media-src) so hot-linked
+    // players render BROKEN in the UI, and (b) ephemeral. Every other video
+    // engine already persists; Grok was the odd one out — 40 broken History
+    // rows traced to this.
+    const remoteUrl = ladderResult.result;
+    let url = remoteUrl;
+    try {
+      const dl = await fetch(remoteUrl, { signal: AbortSignal.timeout(120000) });
+      if (dl.ok) {
+        const buf = Buffer.from(await dl.arrayBuffer());
+        const saved = await storageService.saveFile(buf, `grok-${Date.now()}.mp4`, 'video/mp4');
+        url = saved.fileUrl;
+      }
+    } catch (e: any) {
+      console.warn(`[xai/video] persist failed (${e?.message}); returning remote url`);
+    }
+    return { provider: 'xai', model: ladderResult.modelUsed, latencyMs: Date.now() - start, fallbackUsed: false, output: { url } };
   },
 
   async analysis(_req: AnalysisRequest): Promise<never> {
