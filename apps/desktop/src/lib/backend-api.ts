@@ -477,9 +477,9 @@ export const apiKeysApi = {
 // ─── Creative ────────────────────────────────────────────────────
 
 export const creativeApi = {
-  generateImage: (data: { prompt: string; aspectRatio?: string; clientId?: string; model?: string; provider?: 'gemini' | 'xai' | 'dashscope'; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K' }) =>
+  generateImage: (data: { prompt: string; aspectRatio?: string; clientId?: string; model?: string; provider?: 'gemini' | 'xai' | 'dashscope'; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K'; enhance?: boolean }) =>
     request<any>('/api/creative/images/generate', { method: 'POST', body: JSON.stringify(data) }, { timeoutMs: 180000 }),
-  editImage: (data: { prompt: string; imageBase64: string; mimeType?: string; aspectRatio?: string; clientId?: string; model?: string; provider?: 'gemini' | 'xai' | 'dashscope'; referenceImages?: { base64: string; mimeType: string; role?: 'content' | 'style' | 'character' }[]; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K' }) =>
+  editImage: (data: { prompt: string; imageBase64: string; mimeType?: string; aspectRatio?: string; clientId?: string; model?: string; provider?: 'gemini' | 'xai' | 'dashscope'; referenceImages?: { base64: string; mimeType: string; role?: 'content' | 'style' | 'character' }[]; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K'; enhance?: boolean }) =>
     request<any>('/api/creative/images/edit', { method: 'POST', body: JSON.stringify(data) }, { timeoutMs: 180000 }),
   generateVideo: (data: {
     prompt: string;
@@ -505,6 +505,8 @@ export const creativeApi = {
     referenceImages?: { base64: string; mimeType: string }[];
     // Video engine override (e.g. 'gemini-omni-flash-preview').
     model?: string;
+    // Auto pro-prompt (server-side enhancer). Default true; false opts out.
+    enhance?: boolean;
   }) =>
     request<{ jobId: string }>('/api/creative/videos/generate', { method: 'POST', body: JSON.stringify(data) }),
   getJob: (jobId: string) =>

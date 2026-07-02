@@ -22,11 +22,23 @@ export async function creativeRoutes(app: FastifyInstance) {
 
   // POST /api/creative/images/generate
   app.post('/creative/images/generate', async (request, reply) => {
-    const { prompt: rawPrompt, aspectRatio, clientId, quality, model, provider, safeZone, imageSize } = request.body as { prompt: string; aspectRatio?: string; clientId?: string; quality?: 'standard' | 'ultra'; model?: string; provider?: 'gemini' | 'xai' | 'dashscope'; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K' };
+    const { prompt: rawPrompt, aspectRatio, clientId, quality, model, provider, safeZone, imageSize, enhance } = request.body as { prompt: string; aspectRatio?: string; clientId?: string; quality?: 'standard' | 'ultra'; model?: string; provider?: 'gemini' | 'xai' | 'dashscope'; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K'; enhance?: boolean };
     const v = validatePrompt(rawPrompt);
     if (!v.valid) return reply.status(400).send({ error: v.error });
     const prompt = sanitizePrompt(rawPrompt);
-    const genPrompt = safeZone ? `${prompt}\n\n${SAFE_ZONE_HINT}` : prompt;
+    // Auto pro-prompt (default ON, 2026-07-03): short user prompts are the #1
+    // quality killer — expand them through the model-aware enhancer BEFORE
+    // generation. Best-effort: any enhancer failure falls back to the raw
+    // prompt. enhance:false (FE toggle) opts out. The enhancer already folds
+    // the safe-zone constraint into its composition guidance.
+    let enhancedPrompt: string | null = null;
+    if (enhance !== false) {
+      try {
+        const e = await enhanceCreativePrompt({ prompt, mode: 'text-to-image', clientId: clientId || undefined, orgId: request.orgId, userId: request.user?.userId, safeZone: Boolean(safeZone) });
+        if (e.prompt && e.prompt.trim() && e.prompt.trim() !== prompt) enhancedPrompt = e.prompt.trim();
+      } catch (e: any) { request.log.warn(`prompt-enhancer failed (image): ${e?.message}`); }
+    }
+    const genPrompt = enhancedPrompt ?? (safeZone ? `${prompt}\n\n${SAFE_ZONE_HINT}` : prompt);
 
     try {
       const result = await aiRouter.image({ prompt: genPrompt, aspectRatio, quality, model, imageSize }, { orgId: request.orgId, userId: request.user?.userId, clientId, preferredProvider: provider });
@@ -62,7 +74,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         provider: result.provider,
         model: result.model,
         latencyMs: result.latencyMs,
-        metadata: { aspectRatio, quality, mode: 'text-to-image', assetId: savedAsset?.id || null },
+        metadata: { aspectRatio, quality, mode: 'text-to-image', assetId: savedAsset?.id || null, enhancedPrompt },
       });
       return {
         provider: result.provider,
@@ -73,6 +85,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         base64: result.output.base64 ? true : false,
         assetId: savedAsset?.id || null,
         assetUrl: finalUrl,
+        enhancedPrompt,
       };
     } catch (err: any) {
       await historyService.record({
@@ -92,7 +105,7 @@ export async function creativeRoutes(app: FastifyInstance) {
 
   // POST /api/creative/images/edit
   app.post('/creative/images/edit', async (request, reply) => {
-    const { prompt, imageBase64, mimeType, aspectRatio, clientId, model, provider, referenceImages, safeZone, imageSize } = request.body as any;
+    const { prompt, imageBase64, mimeType, aspectRatio, clientId, model, provider, referenceImages, safeZone, imageSize, enhance } = request.body as any;
     if (!prompt || !imageBase64) return reply.status(400).send({ error: 'prompt and imageBase64 are required' });
 
     try {
@@ -104,7 +117,15 @@ export async function creativeRoutes(app: FastifyInstance) {
             .slice(0, 8)
             .map((r: any) => ({ base64: r.base64, mimeType: r.mimeType, ...(r.role ? { role: r.role } : {}) }))
         : undefined;
-      const genPrompt = safeZone ? `${prompt}\n\n${SAFE_ZONE_HINT}` : prompt;
+      // Auto pro-prompt (default ON) — precise edit instructions beat vague ones.
+      let enhancedPrompt: string | null = null;
+      if (enhance !== false) {
+        try {
+          const e = await enhanceCreativePrompt({ prompt, mode: 'image-edit', clientId: clientId || undefined, orgId: request.orgId, userId: request.user?.userId, safeZone: Boolean(safeZone), hasRefs: !!refs?.length });
+          if (e.prompt && e.prompt.trim() && e.prompt.trim() !== prompt) enhancedPrompt = e.prompt.trim();
+        } catch (e: any) { request.log.warn(`prompt-enhancer failed (edit): ${e?.message}`); }
+      }
+      const genPrompt = enhancedPrompt ?? (safeZone ? `${prompt}\n\n${SAFE_ZONE_HINT}` : prompt);
       const result = await aiRouter.image({ prompt: genPrompt, imageBase64, mimeType: mimeType || 'image/png', aspectRatio, model, referenceImages: refs, imageSize }, { orgId: request.orgId, userId: request.user?.userId, clientId, preferredProvider: provider });
       let savedAsset = null;
       if (result.output.base64 && clientId) {
@@ -127,7 +148,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         provider: result.provider,
         model: result.model,
         latencyMs: result.latencyMs,
-        metadata: { aspectRatio, mode: 'image-edit', assetId: savedAsset?.id || null },
+        metadata: { aspectRatio, mode: 'image-edit', assetId: savedAsset?.id || null, enhancedPrompt },
       });
       return {
         provider: result.provider, model: result.model,
@@ -135,6 +156,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         url: result.output.url || null,
         assetId: savedAsset?.id || null,
         assetUrl: finalUrl,
+        enhancedPrompt,
       };
     } catch (err: any) {
       await historyService.record({
@@ -167,9 +189,29 @@ export async function creativeRoutes(app: FastifyInstance) {
       negativePrompt,
       referenceImages,
       model,
+      enhance,
     } = request.body as any;
     if (!prompt) return reply.status(400).send({ error: 'prompt is required' });
-    const genPrompt = safeZone ? `${prompt}\n\n${SAFE_ZONE_HINT}` : prompt;
+    // Auto pro-prompt (default ON): rewrite into Veo's cinematography-first
+    // formula w/ audio directives + auto negatives; Arabic briefs translated.
+    // Best-effort — failure falls back to the raw prompt.
+    const videoMode = imageBase64 || startImageBase64 ? 'image-to-video' : 'text-to-video';
+    let enhancedPrompt: string | null = null;
+    let autoNegative: string | undefined;
+    if (enhance !== false) {
+      try {
+        const e = await enhanceCreativePrompt({
+          prompt, mode: videoMode as any, clientId: clientId || undefined,
+          orgId: request.orgId, userId: request.user?.userId,
+          safeZone: Boolean(safeZone), hasRefs: Array.isArray(referenceImages) && referenceImages.length > 0,
+        });
+        if (e.prompt && e.prompt.trim() && e.prompt.trim() !== prompt) enhancedPrompt = e.prompt.trim();
+        autoNegative = e.negativePrompt;
+      } catch (e: any) { request.log.warn(`prompt-enhancer failed (video): ${e?.message}`); }
+    }
+    const genPrompt = enhancedPrompt ?? (safeZone ? `${prompt}\n\n${SAFE_ZONE_HINT}` : prompt);
+    const mergedNegative = [autoNegative, typeof negativePrompt === 'string' ? negativePrompt : '']
+      .filter(sv => sv && sv.trim()).join(', ').slice(0, 500) || undefined;
     // Veo "ingredients to video" asset refs — the subject/product stays
     // consistent in the output. Max 3; forces an 8s clip (Google constraint,
     // enforced in the provider). Routed Veo-primary via imageConditioned.
@@ -197,9 +239,11 @@ export async function creativeRoutes(app: FastifyInstance) {
       imageBase64, mimeType,
       startImageBase64, startMimeType, endImageBase64, endMimeType,
       tier: tier === 'hd' ? 'hd' : 'draft',
-      negativePrompt: typeof negativePrompt === 'string' && negativePrompt.trim() ? negativePrompt.trim().slice(0, 500) : undefined,
+      negativePrompt: mergedNegative,
       referenceImages: videoRefs,
       model: typeof model === 'string' && model.trim() ? model.trim() : undefined,
+      enhancedPrompt,
+      originalPrompt: prompt,
     });
     processJob(job.id, async (j: Job) => {
       // Pace the progress bar to the engine's REAL latency. The old flat
@@ -265,12 +309,14 @@ export async function creativeRoutes(app: FastifyInstance) {
             resolution: j.data.resolution,
             mode: j.data.imageBase64 ? 'image-to-video' : 'text-to-video',
             jobId: j.id,
+            enhancedPrompt: j.data.enhancedPrompt || null,
           },
         });
         return {
           provider: result.provider, model: result.model,
           latencyMs: result.latencyMs, fallbackUsed: result.fallbackUsed,
           url: result.output.url,
+          enhancedPrompt: j.data.enhancedPrompt || null,
         };
       } catch (err: any) {
         await historyService.record({

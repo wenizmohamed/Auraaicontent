@@ -235,8 +235,12 @@ export default function CreativeTools() {
   // Video cost tier (design 2026-06-03). Default 'draft' (cheap, Grok);
   // 'hd' opts into veo-3.1-fast. Sent to the backend as `tier`.
   const [tier, setTier] = useState<'draft' | 'hd'>('draft');
-  // Image output resolution (1K/2K/4K — nano-banana native, verified live).
-  const [imageSize, setImageSize] = useState<'1K' | '2K' | '4K'>('1K');
+  // Image output resolution (nano native; 2K default — same per-image price
+  // as 1K on the meter, visibly better detail for ad creative).
+  const [imageSize, setImageSize] = useState<'1K' | '2K' | '4K'>('2K');
+  // Auto pro-prompt: server-side model-aware enhancement on every generate.
+  const [proPrompt, setProPrompt] = useState(true);
+  const [lastEnhanced, setLastEnhanced] = useState('');
   // Video resolution: 1080p is Veo-only and requires an 8s clip; selecting it
   // auto-bumps duration to 8 (server also degrades gracefully to 720p).
   const [videoRes, setVideoRes] = useState<'720p' | '1080p'>('720p');
@@ -310,7 +314,7 @@ export default function CreativeTools() {
     setErrorCode(null);
     setResultUrl('');
     setSavedAssetId(null);
-    setExtraResults([]);
+    setExtraResults([]); setLastEnhanced('');
     setProvider('');
     setProgress(0);
     // If the next mode doesn't need an image, clear the source so the upload box collapses
@@ -430,7 +434,7 @@ export default function CreativeTools() {
     setErrorCode(null);
     setResultUrl('');
     setSavedAssetId(null);
-    setExtraResults([]);
+    setExtraResults([]); setLastEnhanced('');
     setProvider('');
     setProgress(0);
 
@@ -460,6 +464,7 @@ export default function CreativeTools() {
           aspectRatio,
           clientId: selectedClientId || undefined,
           safeZone,
+          enhance: proPrompt,
           ...(imageSize !== '1K' ? { imageSize } : {}),
           ...resolveImageModel(imageModel),
         };
@@ -473,6 +478,7 @@ export default function CreativeTools() {
         setResultUrl(generatedUrl);
         setSavedAssetId(first.assetId || null);
         setProvider(first.provider || '');
+        setLastEnhanced(first.enhancedPrompt || '');
         setExtraResults(ok.slice(1).map((o: any) => ({ url: o.assetUrl || o.url || '', assetId: o.assetId || null })));
       } else if (mode === 'image-edit') {
         const out = await creativeApi.editImage({
@@ -482,6 +488,7 @@ export default function CreativeTools() {
           aspectRatio,
           clientId: selectedClientId || undefined,
           safeZone,
+          enhance: proPrompt,
           ...(imageSize !== '1K' ? { imageSize } : {}),
           ...(extraRefs.length ? { referenceImages: extraRefs.map(r => ({ base64: r.base64, mimeType: r.mimeType, role: r.role })) } : {}),
           ...resolveImageModel(imageModel),
@@ -490,6 +497,7 @@ export default function CreativeTools() {
         setResultUrl(generatedUrl);
         setSavedAssetId(out.assetId || null);
         setProvider(out.provider || '');
+        setLastEnhanced(out.enhancedPrompt || '');
       } else {
         // text-to-video OR image-to-video — both go through the same async route
         const { jobId } = await creativeApi.generateVideo({
@@ -499,6 +507,7 @@ export default function CreativeTools() {
           tier,
           clientId: selectedClientId || undefined,
           safeZone,
+          enhance: proPrompt,
           ...(tier === 'hd' && videoRes === '1080p' ? { resolution: '1080p' as const } : {}),
           ...(negPrompt.trim() ? { negativePrompt: negPrompt.trim() } : {}),
           // Veo asset refs: the exact product/subject stays consistent in the
@@ -551,6 +560,7 @@ export default function CreativeTools() {
             generatedUrl = job.result?.url || '';
             setResultUrl(generatedUrl);
             setProvider(job.result?.provider || '');
+            setLastEnhanced(job.result?.enhancedPrompt || '');
             break;
           }
           if (job.status === 'failed') throw new Error(job.error || 'Video generation failed');
@@ -1102,6 +1112,27 @@ export default function CreativeTools() {
             </div>
           </div>
 
+          {/* Auto pro-prompt — server-side model-aware enhancement (Veo formula,
+              ad composition, Arabic→English) applied to EVERY generation. */}
+          <div>
+            <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Pro prompt</label>
+            <div className="mt-2">
+              <button
+                type="button"
+                onClick={() => setProPrompt(v => !v)}
+                title="Automatically rewrites your prompt into a production-grade prompt for the selected engine (composition, lighting, cinematography, audio). Turn off to send your exact words."
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                  proPrompt ? '' : 'bg-white/[0.03] text-zinc-500 border-white/[0.06] hover:border-white/[0.1]'
+                }`}
+                style={proPrompt
+                  ? { background: 'var(--color-accent-subtle)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' }
+                  : undefined}
+              >
+                {proPrompt ? '✨ Auto-enhance ON' : 'Auto-enhance off'}
+              </button>
+            </div>
+          </div>
+
           {/* B3 — social safe-zone toggle: keep platform-UI bands clear */}
           <div>
             <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Social safe zone</label>
@@ -1465,6 +1496,14 @@ export default function CreativeTools() {
         {resultUrl && (
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
             className="rounded-2xl bg-white/[0.02] border border-white/[0.06] p-5 space-y-3">
+            {/* The pro prompt that actually ran — visible so the team learns
+                what good prompts look like (and can copy/tweak them). */}
+            {lastEnhanced && (
+              <details className="text-xs text-zinc-500">
+                <summary className="cursor-pointer select-none hover:text-zinc-300 transition-colors">✨ Pro prompt used (click to view)</summary>
+                <p className="mt-2 p-3 rounded-lg bg-white/[0.03] border border-white/[0.06] text-zinc-400 leading-relaxed whitespace-pre-wrap">{lastEnhanced}</p>
+              </details>
+            )}
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-white">Result</h3>
               <div className="flex items-center gap-2">

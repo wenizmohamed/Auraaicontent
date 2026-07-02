@@ -277,6 +277,9 @@ export const geminiProvider: AiProvider = {
     // ladder auto-tries Flash on the same provider before crossing to xAI.
     // Override via GEMINI_TEXT_LADDER (colon-sep). Single-model env still works.
     const ladder = readLadder('GEMINI_TEXT_LADDER', [
+      // Per-call override first (e.g. the prompt enhancer requests flash for
+      // snappy rewrites instead of the pro reasoning model).
+      ...(req.model && /gemini/i.test(req.model) ? [req.model] : []),
       process.env.GEMINI_TEXT_MODEL || 'gemini-3.1-pro-preview',
       process.env.GEMINI_FLASH_TEXT_MODEL || 'gemini-3.1-flash-lite-preview',
       'gemini-2.5-flash',

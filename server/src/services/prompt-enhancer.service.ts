@@ -108,7 +108,8 @@ export async function enhanceCreativePrompt(input: EnhanceInput): Promise<Enhanc
   const userMsg = `${notes.length ? notes.map(n => `NOTE: ${n}`).join('\n') + '\n\n' : ''}User idea:\n"${input.prompt.trim()}"${brand}`;
 
   const result = await aiRouter.text(
-    { prompt: userMsg, system, json: true, temperature: 0.7, maxTokens: 800 },
+    // Flash tier: enhancement must feel instant next to a 30-180s generation.
+    { prompt: userMsg, system, json: true, temperature: 0.7, maxTokens: 800, model: process.env.PROMPT_ENHANCER_MODEL || 'gemini-flash-latest' },
     { orgId: input.orgId, userId: input.userId, clientId: input.clientId },
   );
 
