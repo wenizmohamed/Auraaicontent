@@ -8,6 +8,7 @@ import { db } from '../db/prisma.js';
 import { searchPinterest, searchPinterestMulti, fetchPinterestImageBase64 } from '../services/pinterest.service.js';
 import { historyService } from '../services/history.service.js';
 import { sanitizePrompt, validatePrompt } from '../middleware/sanitize.js';
+import { enhanceCreativePrompt, type EnhanceMode } from '../services/prompt-enhancer.service.js';
 import type { Job } from '../workers/queue.js';
 
 // B3 — social safe-zone: appended to the prompt when the user toggles it on, so
@@ -164,9 +165,19 @@ export async function creativeRoutes(app: FastifyInstance) {
       tier,
       safeZone,
       negativePrompt,
+      referenceImages,
     } = request.body as any;
     if (!prompt) return reply.status(400).send({ error: 'prompt is required' });
     const genPrompt = safeZone ? `${prompt}\n\n${SAFE_ZONE_HINT}` : prompt;
+    // Veo "ingredients to video" asset refs — the subject/product stays
+    // consistent in the output. Max 3; forces an 8s clip (Google constraint,
+    // enforced in the provider). Routed Veo-primary via imageConditioned.
+    const videoRefs = Array.isArray(referenceImages)
+      ? referenceImages
+          .filter((r: any) => r?.base64 && r?.mimeType)
+          .slice(0, 3)
+          .map((r: any) => ({ base64: r.base64, mimeType: r.mimeType }))
+      : undefined;
 
     // Both Gemini Veo and xAI grok-imagine-video only accept 16:9 and 9:16.
     // Reject unsupported ratios upfront with a clear message instead of letting
@@ -186,6 +197,7 @@ export async function creativeRoutes(app: FastifyInstance) {
       startImageBase64, startMimeType, endImageBase64, endMimeType,
       tier: tier === 'hd' ? 'hd' : 'draft',
       negativePrompt: typeof negativePrompt === 'string' && negativePrompt.trim() ? negativePrompt.trim().slice(0, 500) : undefined,
+      referenceImages: videoRefs,
     });
     processJob(job.id, async (j: Job) => {
       // Bump progress every 3 seconds while the long Gemini Veo call runs.
@@ -214,6 +226,7 @@ export async function creativeRoutes(app: FastifyInstance) {
             tier: j.data.tier,
             fast: true,
             negativePrompt: j.data.negativePrompt,
+            referenceImages: j.data.referenceImages,
           },
           { orgId, userId, jobId: j.id, clientId: j.data.clientId },
         );
@@ -281,60 +294,50 @@ export async function creativeRoutes(app: FastifyInstance) {
   });
 
   // POST /api/creative/prompt/improve
-  // Magic-pen prompt rewriter for the 4 primary creative modes.
-  // Body: { prompt: string, mode?: 'text-to-image'|'image-edit'|'text-to-video'|'image-to-video' }
+  // Model-aware magic pen (upgraded 2026-07-02). Video prompts follow Veo's
+  // official [Cinematography]+[Subject]+[Action]+[Context]+[Style&Ambiance]
+  // formula with SFX/Ambient-noise audio lines; image prompts follow an
+  // ad-creative composition structure; Arabic briefs are translated (Veo is
+  // English-only) while in-image ad copy stays in its original language.
+  // Body: { prompt, mode?, clientId?, safeZone?, hasRefs? }
   app.post('/creative/prompt/improve', async (request, reply) => {
-    const { prompt, mode } = (request.body as { prompt?: string; mode?: string }) || {};
+    const { prompt, mode, clientId, safeZone, hasRefs } = (request.body as {
+      prompt?: string; mode?: string; clientId?: string; safeZone?: boolean; hasRefs?: boolean;
+    }) || {};
     if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
       return reply.status(400).send({ error: 'prompt is required' });
     }
-
-    const modeHints: Record<string, string> = {
-      'text-to-image': 'a single still image',
-      'image-edit': 'an edit applied to an existing image',
-      'text-to-video': 'a short video clip generated from scratch',
-      'image-to-video': 'a short video animated from a starting still image',
-    };
-    const targetHint = modeHints[mode || ''] || 'a creative output';
-
-    const improvePrompt = [
-      `You are a senior creative director. Rewrite the user's raw prompt into a stronger, more vivid prompt for ${targetHint}.`,
-      ``,
-      `Rules:`,
-      `- Keep the user's core intent and subject.`,
-      `- Add specific visual details: lighting, composition, mood, color palette, camera angle, style references where relevant.`,
-      `- Use present tense, concrete nouns, evocative adjectives.`,
-      `- 1-3 sentences, no preamble, no quotes, no markdown.`,
-      `- Return ONLY the improved prompt as plain text.`,
-      ``,
-      `User prompt:`,
-      `"${prompt.trim()}"`,
-      ``,
-      `Improved prompt:`,
-    ].join('\n');
+    const validModes: EnhanceMode[] = ['text-to-image', 'image-edit', 'text-to-video', 'image-to-video'];
+    const enhanceMode: EnhanceMode = validModes.includes(mode as EnhanceMode) ? (mode as EnhanceMode) : 'text-to-image';
 
     try {
-      const result = await aiRouter.text({ prompt: improvePrompt, temperature: 0.6 }, { orgId: request.orgId, userId: request.user?.userId });
-      const improved = (typeof result.output === 'string' ? result.output : JSON.stringify(result.output))
-        .trim()
-        .replace(/^["']+|["']+$/g, '')   // strip wrap quotes if model added them
-        .replace(/^Improved prompt:\s*/i, '');
+      const result = await enhanceCreativePrompt({
+        prompt,
+        mode: enhanceMode,
+        clientId: clientId || undefined,
+        orgId: request.orgId,
+        userId: request.user?.userId,
+        safeZone: Boolean(safeZone),
+        hasRefs: Boolean(hasRefs),
+      });
       await historyService.record({
         orgId: request.orgId,
         userId: request.user?.userId,
+        clientId: clientId || undefined,
         type: 'text',
         surface: 'creative_tools',
-        prompt: `[improve:${mode || 'unknown'}] ${prompt}`,
-        outputText: improved,
+        prompt: `[improve:${enhanceMode}] ${prompt}`,
+        outputText: result.prompt,
         provider: result.provider,
         model: result.model,
         latencyMs: result.latencyMs,
-        metadata: { mode: mode || null, kind: 'prompt-improver' },
+        metadata: { mode: enhanceMode, kind: 'prompt-improver', negativePrompt: result.negativePrompt || null },
       });
       return {
         original: prompt,
-        improved,
-        mode: mode || null,
+        improved: result.prompt,
+        negativePrompt: result.negativePrompt || null,
+        mode: enhanceMode,
         provider: result.provider,
         latencyMs: result.latencyMs,
       };

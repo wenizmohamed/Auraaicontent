@@ -500,14 +500,17 @@ export const creativeApi = {
     safeZone?: boolean;
     // Merged with Veo's default stability negatives server-side.
     negativePrompt?: string;
+    // Veo asset refs ("ingredients to video") — product/subject stays
+    // consistent. Max 3; forces an 8s clip.
+    referenceImages?: { base64: string; mimeType: string }[];
   }) =>
     request<{ jobId: string }>('/api/creative/videos/generate', { method: 'POST', body: JSON.stringify(data) }),
   getJob: (jobId: string) =>
     request<{ id: string; status: string; progress: number; result?: any; error?: string }>(`/api/creative/jobs/${jobId}`),
-  improvePrompt: (prompt: string, mode?: string) =>
-    request<{ original: string; improved: string; mode: string | null; provider: string; latencyMs: number }>(
+  improvePrompt: (prompt: string, mode?: string, opts?: { clientId?: string; safeZone?: boolean; hasRefs?: boolean }) =>
+    request<{ original: string; improved: string; negativePrompt: string | null; mode: string | null; provider: string; latencyMs: number }>(
       '/api/creative/prompt/improve',
-      { method: 'POST', body: JSON.stringify({ prompt, mode }) },
+      { method: 'POST', body: JSON.stringify({ prompt, mode, ...(opts || {}) }) },
       { timeoutMs: 60000 },
     ),
 };

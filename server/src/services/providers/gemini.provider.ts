@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, VideoGenerationReferenceType } from '@google/genai';
 import path from 'path';
 import { promises as fsp } from 'fs';
 import type { AiProvider, AnalysisRequest, ImageRequest, ProviderResult, TextRequest, VideoRequest } from './types.js';
@@ -239,17 +239,24 @@ export const geminiProvider: AiProvider = {
     // gemini-flash-image; standard requests start with flash-image and ladder
     // through imagen-fast → imagen-3. Override via GEMINI_IMAGE_LADDER /
     // GEMINI_IMAGE_ULTRA_LADDER (colon-sep).
+    // Ultra ladder is nano-banana-FIRST since 2026-07-02: the Imagen Gemini
+    // API is deprecated with a hard shutdown on 2026-08-17 (research-verified,
+    // ai.google.dev/gemini-api/docs/imagen), and nano renders natively at
+    // 2K/4K. Imagen rungs stay as fallback until the shutdown date.
     const defaultLadder = req.quality === 'ultra'
       ? readLadder('GEMINI_IMAGE_ULTRA_LADDER', [
-          process.env.GEMINI_IMAGE_ULTRA_MODEL || 'imagen-4.0-ultra-generate-001',
+          process.env.GEMINI_IMAGE_ULTRA_MODEL || 'gemini-3.1-flash-image-preview',
+          'imagen-4.0-ultra-generate-001',
           'imagen-4.0-generate-001',
-          'gemini-3.1-flash-image-preview',
         ])
       : readLadder('GEMINI_IMAGE_LADDER', [
           process.env.GEMINI_IMAGE_MODEL || 'gemini-3.1-flash-image-preview',
           'imagen-4.0-generate-001',
           'imagen-3.0-generate-002',
         ]);
+    // Ultra on the nano path means high-res by default (2K unless the caller
+    // asked for a specific size).
+    const effectiveSize = req.imageSize || (req.quality === 'ultra' ? '2K' : undefined);
     const start = Date.now();
 
     const ladderResult = await runModelLadder('gemini', 'image', defaultLadder, async (entry) => {
@@ -258,7 +265,7 @@ export const geminiProvider: AiProvider = {
       const isImagen = /^imagen-/i.test(entry.model);
       if (isImagen) {
         const imAspect = clampImagenAspect(req.aspectRatio);
-        const imSize = clampImagenSize(req.imageSize);
+        const imSize = clampImagenSize(effectiveSize);
         const r = await withRetry('image', () => withTimeout(
           ai.models.generateImages({
             model: entry.model,
@@ -276,10 +283,10 @@ export const geminiProvider: AiProvider = {
       // nano-banana: full aspect set (incl. 4:5 feed / 21:9 banner) + 1K-4K
       // output via imageConfig.imageSize — both verified live 2026-07-02
       // (4:5@2K → 2.9MB, 21:9@4K → 9.6MB).
-      const imageConfig = (req.aspectRatio || req.imageSize)
+      const imageConfig = (req.aspectRatio || effectiveSize)
         ? { imageConfig: {
             ...(req.aspectRatio ? { aspectRatio: req.aspectRatio } : {}),
-            ...(req.imageSize ? { imageSize: req.imageSize } : {}),
+            ...(effectiveSize ? { imageSize: effectiveSize } : {}),
           } }
         : {};
       const r = await withRetry('image', () => withTimeout(
@@ -374,8 +381,8 @@ export const geminiProvider: AiProvider = {
     // separately; Veo 2 is older and may have leftover quota even when
     // 3.1 is exhausted). Override via GEMINI_VIDEO_LADDER env (colon-sep).
     const defaultLadder = req.fast
-      ? ['veo-3.1-fast-generate-preview', 'veo-3.1-generate-preview', 'veo-2.0-generate-001']
-      : ['veo-3.1-generate-preview', 'veo-3.1-fast-generate-preview', 'veo-2.0-generate-001'];
+      ? ['veo-3.1-fast-generate-preview', 'veo-3.1-generate-preview', 'veo-3.1-lite-generate-preview', 'veo-2.0-generate-001']
+      : ['veo-3.1-generate-preview', 'veo-3.1-fast-generate-preview', 'veo-3.1-lite-generate-preview', 'veo-2.0-generate-001'];
     const ladder = readLadder('GEMINI_VIDEO_LADDER', defaultLadder);
     const start = Date.now();
     // Shared poll budget across the entire ladder. Per-rung 10min meant
@@ -401,10 +408,14 @@ export const geminiProvider: AiProvider = {
       const startMime = req.startMimeType || req.mimeType;
       const hasStart = !!(startB64 && startMime);
       const hasEnd = !!(req.endImageBase64 && req.endMimeType);
+      // Asset ("ingredients to video") reference images — Veo keeps these
+      // subjects/products consistent in the output. Google constraint:
+      // reference-conditioned generation only supports 8s clips, so force it.
+      const assetRefs = (req.referenceImages || []).slice(0, 3);
       // durationSeconds: Veo 3.1 takes 4/6/8 (verified live 2026-07-02) — the
       // FE slider used to be silently ignored here, so every clip came out at
       // the model default regardless of what the user picked.
-      const veoDuration = clampVeoDuration(req.durationSeconds);
+      const veoDuration = assetRefs.length ? 8 : clampVeoDuration(req.durationSeconds);
       // 1080p is only legal on 8s clips (API 400s otherwise) — degrade to 720p
       // rather than failing the job.
       const veoResolution = req.resolution === '1080p' && veoDuration !== 8
@@ -438,7 +449,16 @@ export const geminiProvider: AiProvider = {
           ...(hasStart && hasEnd
             ? { lastFrame: { imageBytes: req.endImageBase64, mimeType: req.endMimeType } }
             : {}),
-          ...(negative ? { negativePrompt: negative } : {}),
+          // negativePrompt is rejected when referenceImages are attached
+          // ("Negative prompt is not supported in your use case" — live 400,
+          // 2026-07-02), so it's refs-XOR-negatives.
+          ...(negative && !assetRefs.length ? { negativePrompt: negative } : {}),
+          ...(assetRefs.length ? {
+            referenceImages: assetRefs.map(r => ({
+              image: { imageBytes: r.base64, mimeType: r.mimeType },
+              referenceType: VideoGenerationReferenceType.ASSET,
+            })),
+          } : {}),
         },
         ...(hasStart ? {
           image: { imageBytes: startB64, mimeType: startMime },

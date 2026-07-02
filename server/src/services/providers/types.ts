@@ -54,6 +54,12 @@ export interface VideoRequest {
   // (verified live 2026-07-02); the provider merges this with the default
   // stability negatives. Providers without the param ignore it.
   negativePrompt?: string;
+  // Veo 3.1 "ingredients to video": subject/asset reference images the model
+  // keeps consistent in the output (verified ACCEPTED live 2026-07-02 with
+  // referenceType:'asset'). Google's docs: asset refs only (no style refs) and
+  // reference-conditioned generation requires an 8s clip — the provider
+  // enforces both. Max 3 refs.
+  referenceImages?: { base64: string; mimeType: string }[];
 }
 
 export interface AnalysisRequest {

@@ -219,7 +219,9 @@ async function routeCall<T>(
   // frame as the actual first/last frame. So any image→video request keeps the
   // env default order (Veo-primary) regardless of tier — correctness over the
   // draft cost saving. Pure text→video drafts still go to cheap Grok.
-  const imageConditioned = !!(req?.imageBase64 || req?.startImageBase64 || req?.endImageBase64);
+  // Asset reference images (Veo 'ingredients to video') count as image-
+  // conditioned too — Grok has no equivalent, so refs must land on Veo.
+  const imageConditioned = !!(req?.imageBase64 || req?.startImageBase64 || req?.endImageBase64 || (req?.referenceImages && req.referenceImages.length));
   // Model-picker override wins: a user-chosen provider runs first for this call.
   // Otherwise the draft text→video rule applies; else the env default order.
   const preferredPrimary: AiProviderName | undefined =

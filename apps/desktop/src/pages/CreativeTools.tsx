@@ -248,6 +248,7 @@ export default function CreativeTools() {
   const [endMime, setEndMime] = useState('image/png');
   const [endPreview, setEndPreview] = useState('');
   const endFileRef = useRef<HTMLInputElement>(null);
+  const videoRefInputRef = useRef<HTMLInputElement>(null);
 
   // Result + lifecycle
   const [loading, setLoading] = useState(false);
@@ -304,8 +305,9 @@ export default function CreativeTools() {
       setSourceMime('image/png');
       setSourcePreview('');
     }
-    // Extra reference frames are image-edit only — clear when leaving it.
-    if (next !== 'image-edit') setExtraRefs([]);
+    // Reference frames apply to image-edit (multi-image blend) AND video
+    // modes (Veo asset refs) — only clear when entering plain text-to-image.
+    if (next === 'text-to-image') setExtraRefs([]);
     // End-frame is only meaningful in image-to-video; clear on every other mode
     if (next !== 'image-to-video') {
       setEndBase64('');
@@ -482,6 +484,9 @@ export default function CreativeTools() {
           safeZone,
           ...(tier === 'hd' && videoRes === '1080p' ? { resolution: '1080p' as const } : {}),
           ...(negPrompt.trim() ? { negativePrompt: negPrompt.trim() } : {}),
+          // Veo asset refs: the exact product/subject stays consistent in the
+          // clip (forces 8s server-side per Google's constraint).
+          ...(extraRefs.length ? { referenceImages: extraRefs.slice(0, 3).map(r => ({ base64: r.base64, mimeType: r.mimeType })) } : {}),
           // Only attach the image when in image-to-video mode
           ...(mode === 'image-to-video' ? {
             imageBase64: sourceBase64,
@@ -573,7 +578,16 @@ export default function CreativeTools() {
     setError('');
     setImprovedPreview(null);
     try {
-      const out = await creativeApi.improvePrompt(prompt.trim(), mode);
+      const out = await creativeApi.improvePrompt(prompt.trim(), mode, {
+        clientId: selectedClientId || undefined,
+        safeZone,
+        hasRefs: extraRefs.length > 0 || !!sourceBase64,
+      });
+      // Video modes: the enhancer also proposes shot-specific avoid-terms —
+      // pre-fill the Avoid field only if the user hasn't typed their own.
+      if (out?.negativePrompt && (mode === 'text-to-video' || mode === 'image-to-video')) {
+        setNegPrompt(prev => prev.trim() ? prev : out.negativePrompt!);
+      }
       // Non-destructive: surface the AI version in a preview banner so the user
       // can accept, discard, or keep editing their original. Workshop ask 2026-05-06.
       if (out?.improved && out.improved.trim() && out.improved.trim() !== prompt.trim()) {
@@ -1167,8 +1181,8 @@ export default function CreativeTools() {
                   <button
                     key={d.value}
                     onClick={() => setDuration(d.value)}
-                    disabled={tier === 'hd' && videoRes === '1080p' && d.value !== 8}
-                    title={tier === 'hd' && videoRes === '1080p' && d.value !== 8 ? '1080p requires an 8s clip' : undefined}
+                    disabled={(tier === 'hd' && videoRes === '1080p' && d.value !== 8) || (extraRefs.length > 0 && d.value !== 8)}
+                    title={extraRefs.length > 0 && d.value !== 8 ? 'Product references require an 8s clip' : (tier === 'hd' && videoRes === '1080p' && d.value !== 8 ? '1080p requires an 8s clip' : undefined)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                       duration === d.value
                         ? ''
@@ -1263,6 +1277,62 @@ export default function CreativeTools() {
                 maxLength={300}
                 className="mt-2 w-full bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-1.5 text-xs text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-white/[0.15]"
               />
+            </div>
+          )}
+
+          {/* Veo asset refs — the EXACT product/subject stays consistent in
+              the clip (top team ask: "image→video returned a different
+              product"). Google constraint: reference-conditioned clips are 8s. */}
+          {isVideoMode && (
+            <div>
+              <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Product refs ({Math.min(extraRefs.length, 3)}/3)</label>
+              <div className="flex items-center gap-2 mt-2">
+                {extraRefs.slice(0, 3).map((r, i) => (
+                  <div key={i} className="relative group">
+                    <img src={r.preview} alt="" className="w-9 h-9 rounded-lg object-cover border border-white/[0.08]" />
+                    <button
+                      type="button"
+                      onClick={() => removeExtraRef(i)}
+                      aria-label="Remove reference"
+                      className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-zinc-800 border border-white/[0.15] text-zinc-300 text-[9px] leading-none opacity-0 group-hover:opacity-100 transition-opacity"
+                    >×</button>
+                  </div>
+                ))}
+                {extraRefs.length < 3 && (
+                  <button
+                    type="button"
+                    onClick={() => videoRefInputRef.current?.click()}
+                    title="Attach up to 3 images of the exact product/subject — Veo keeps them consistent (8s clips)"
+                    className="w-9 h-9 rounded-lg border border-dashed border-white/[0.12] text-zinc-500 text-sm hover:border-white/[0.25] hover:text-zinc-300 transition-colors"
+                  >+</button>
+                )}
+                <input
+                  ref={videoRefInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={e => {
+                    const f = e.target.files;
+                    if (f?.length) {
+                      setError('');
+                      Promise.all(Array.from(f).map(fileToBase64))
+                        .then(encoded => {
+                          setExtraRefs(prev => [
+                            ...prev,
+                            ...encoded.map(en => ({ base64: en.base64, mimeType: en.mimeType, preview: `data:${en.mimeType};base64,${en.base64}`, role: 'character' as RefRole })),
+                          ].slice(0, 3));
+                          setDuration(8); // reference-conditioned clips are 8s
+                        })
+                        .catch(err => setError(err?.message || 'Failed to read files'));
+                    }
+                    e.target.value = '';
+                  }}
+                />
+              </div>
+              {extraRefs.length > 0 && (
+                <p className="text-[10px] mt-1.5 text-zinc-600">Subject kept consistent · 8s clip · Veo</p>
+              )}
             </div>
           )}
         </div>
