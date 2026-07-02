@@ -166,6 +166,7 @@ export async function creativeRoutes(app: FastifyInstance) {
       safeZone,
       negativePrompt,
       referenceImages,
+      model,
     } = request.body as any;
     if (!prompt) return reply.status(400).send({ error: 'prompt is required' });
     const genPrompt = safeZone ? `${prompt}\n\n${SAFE_ZONE_HINT}` : prompt;
@@ -198,6 +199,7 @@ export async function creativeRoutes(app: FastifyInstance) {
       tier: tier === 'hd' ? 'hd' : 'draft',
       negativePrompt: typeof negativePrompt === 'string' && negativePrompt.trim() ? negativePrompt.trim().slice(0, 500) : undefined,
       referenceImages: videoRefs,
+      model: typeof model === 'string' && model.trim() ? model.trim() : undefined,
     });
     processJob(job.id, async (j: Job) => {
       // Bump progress every 3 seconds while the long Gemini Veo call runs.
@@ -227,8 +229,12 @@ export async function creativeRoutes(app: FastifyInstance) {
             fast: true,
             negativePrompt: j.data.negativePrompt,
             referenceImages: j.data.referenceImages,
+            model: j.data.model,
           },
-          { orgId, userId, jobId: j.id, clientId: j.data.clientId },
+          // Omni Flash lives on Gemini only — pin the provider so a draft
+          // tier doesn't get re-ordered onto Grok (which ignores req.model).
+          { orgId, userId, jobId: j.id, clientId: j.data.clientId,
+            ...(j.data.model && /omni/i.test(j.data.model) ? { preferredProvider: 'gemini' as const } : {}) },
         );
         await historyService.record({
           orgId,

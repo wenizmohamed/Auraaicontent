@@ -31,6 +31,10 @@ export interface ImageRequest {
 
 export interface VideoRequest {
   prompt: string;
+  // Optional engine override (powers the FE video-engine picker). Currently:
+  // 'gemini-omni-flash-preview' → Interactions API path in gemini.provider;
+  // anything else falls through to the normal Veo/Grok ladders.
+  model?: string;
   aspectRatio?: '16:9' | '9:16';
   durationSeconds?: number;
   resolution?: '720p' | '1080p' | '4k';

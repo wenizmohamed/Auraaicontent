@@ -45,6 +45,11 @@ export const AI_PRICING: Record<string, PricePoint> = {
   'veo-3.1-generate-preview':          { promptPerM: 0,    completionPerM: 0,    perSecond: 0.50 },
   // veo-3.1-fast-generate-preview: $0.10 – $0.30 per second. Mid: $0.20/s.
   'veo-3.1-fast-generate-preview':     { promptPerM: 0,    completionPerM: 0,    perSecond: 0.20 },
+  // veo-3.1-lite-generate-preview: $0.05 (720p) / $0.08 (1080p) per second.
+  'veo-3.1-lite-generate-preview':     { promptPerM: 0,    completionPerM: 0,    perSecond: 0.05 },
+  // gemini-omni-flash-preview (video via Interactions API): $17.50/1M video
+  // tokens ≈ $0.10/s of 720p (Google pricing page, verified 2026-07-02).
+  'gemini-omni-flash-preview':         { promptPerM: 0,    completionPerM: 0,    perSecond: 0.10 },
   // veo-2.0-generate-001: legacy fallback, $0.05/sec (Google deprecated tier).
   'veo-2.0-generate-001':              { promptPerM: 0,    completionPerM: 0,    perSecond: 0.05 },
   // gemini-embedding-2-preview: $0.20/M for text; multimodal climbs higher.

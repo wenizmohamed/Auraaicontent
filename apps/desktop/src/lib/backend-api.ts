@@ -503,6 +503,8 @@ export const creativeApi = {
     // Veo asset refs ("ingredients to video") — product/subject stays
     // consistent. Max 3; forces an 8s clip.
     referenceImages?: { base64: string; mimeType: string }[];
+    // Video engine override (e.g. 'gemini-omni-flash-preview').
+    model?: string;
   }) =>
     request<{ jobId: string }>('/api/creative/videos/generate', { method: 'POST', body: JSON.stringify(data) }),
   getJob: (jobId: string) =>

@@ -183,6 +183,14 @@ const VIDEO_DURATIONS = [
   { label: '8s', value: 8 },
 ];
 
+// Video engine picker. Auto = tiered Veo/Grok routing; Omni Flash is
+// Google's new Interactions-API video model (character consistency,
+// ~\$0.10/s, text→video only — with a source image the server routes to Veo).
+const VIDEO_ENGINES = [
+  { value: 'auto', label: 'Auto (Veo / Grok)' },
+  { value: 'gemini-omni-flash-preview', label: 'Omni Flash · Beta' },
+];
+
 // ─── Helpers ───────────────────────────────────────────────────────
 
 function fileToBase64(file: File): Promise<{ base64: string; mimeType: string }> {
@@ -229,6 +237,8 @@ export default function CreativeTools() {
   const [videoRes, setVideoRes] = useState<'720p' | '1080p'>('720p');
   // Optional "avoid" terms — merged into Veo's negativePrompt server-side.
   const [negPrompt, setNegPrompt] = useState('');
+  // Video engine ('auto' = tiered Veo/Grok; omni = Interactions API).
+  const [videoEngine, setVideoEngine] = useState('auto');
   // Image engine picker (multi-LLM). 'auto' = Gemini default chain; DashScope
   // qwen/wan options for higher-fidelity stills. Sent as { provider, model }.
   const [imageModel, setImageModel] = useState<string>('auto');
@@ -487,6 +497,7 @@ export default function CreativeTools() {
           // Veo asset refs: the exact product/subject stays consistent in the
           // clip (forces 8s server-side per Google's constraint).
           ...(extraRefs.length ? { referenceImages: extraRefs.slice(0, 3).map(r => ({ base64: r.base64, mimeType: r.mimeType })) } : {}),
+          ...(videoEngine !== 'auto' && mode === 'text-to-video' && !extraRefs.length ? { model: videoEngine } : {}),
           // Only attach the image when in image-to-video mode
           ...(mode === 'image-to-video' ? {
             imageBase64: sourceBase64,
@@ -1173,6 +1184,30 @@ export default function CreativeTools() {
             </div>
           )}
 
+          {mode === 'text-to-video' && extraRefs.length === 0 && (
+            <div>
+              <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Engine</label>
+              <div className="flex items-center gap-2 mt-2">
+                {VIDEO_ENGINES.map(ve => (
+                  <button
+                    key={ve.value}
+                    type="button"
+                    onClick={() => setVideoEngine(ve.value)}
+                    title={ve.value === 'auto' ? 'Cost-tiered routing: Draft → Grok, HD → Veo' : "Google's newest video model — stronger coherence & character consistency, ~$0.10/s, always 720p"}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                      videoEngine === ve.value ? '' : 'bg-white/[0.03] text-zinc-500 border-white/[0.06] hover:border-white/[0.1]'
+                    }`}
+                    style={videoEngine === ve.value
+                      ? { background: 'var(--color-accent-subtle)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' }
+                      : undefined}
+                  >
+                    {ve.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {isVideoMode && (
             <div>
               <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Duration</label>
@@ -1231,8 +1266,8 @@ export default function CreativeTools() {
               </div>
               {/* Cost preview — draft $0.03/s (Grok), HD $0.20/s (veo-3.1-fast). */}
               <p className="text-[10px] mt-2" style={{ color: 'var(--color-fg-muted)' }}>
-                ≈ ${((tier === 'hd' ? 0.2 : 0.03) * duration).toFixed(2)} for this {duration}s clip
-                <span> · {tier === 'hd' ? 'HD ($0.20/s)' : 'Draft ($0.03/s)'}</span>
+                ≈ ${(((videoEngine !== 'auto' && mode === 'text-to-video' && !extraRefs.length) ? 0.1 : tier === 'hd' ? 0.2 : 0.03) * duration).toFixed(2)} for this {duration}s clip
+                <span> · {(videoEngine !== 'auto' && mode === 'text-to-video' && !extraRefs.length) ? 'Omni Flash ($0.10/s)' : tier === 'hd' ? 'HD ($0.20/s)' : 'Draft ($0.03/s)'}</span>
               </p>
             </div>
           )}

@@ -187,6 +187,80 @@ async function withRetry<T>(label: string, fn: () => Promise<T>): Promise<T> {
   throw lastErr;
 }
 
+// ─── Gemini Omni Flash video (Interactions API, REST) ─────────────────
+// The SDK (<2.0) can't speak the current Interactions schema, so this calls
+// the REST endpoint directly (same pattern as the xAI provider). Shape
+// verified live 2026-07-02: POST /v1beta/interactions returns synchronously
+// with status:"completed" and a video content item carrying a files/:download
+// URI (>4MB clips) or inline base64.
+async function omniVideo(req: VideoRequest): Promise<ProviderResult<{ url: string }>> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) throw new AiProviderError('gemini', 'video', 'GEMINI_API_KEY not set', 401);
+  const model = 'gemini-omni-flash-preview';
+  const start = Date.now();
+  const budget = Number(process.env.GEMINI_VIDEO_TOTAL_BUDGET_MS ?? 8 * 60 * 1000);
+
+  // Omni has no duration param — timing is steered in natural language.
+  const dur = req.durationSeconds ? Math.min(Math.max(Math.round(req.durationSeconds), 2), 12) : undefined;
+  const prompt = dur
+    ? `${enrichBodyPrompt(req.prompt)} The clip should be approximately ${dur} seconds long.`
+    : enrichBodyPrompt(req.prompt);
+
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/interactions?key=${key}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model,
+      input: prompt,
+      response_format: { type: 'video', aspect_ratio: req.aspectRatio || '16:9', delivery: 'uri' },
+      generation_config: { video_config: { task: 'text_to_video' } },
+    }),
+    signal: AbortSignal.timeout(budget),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new AiProviderError('gemini', 'video', `omni interactions ${res.status}: ${text.slice(0, 200)}`, res.status);
+  }
+  let inter: any = await res.json();
+
+  const videoOut = (x: any) => {
+    for (const s of x?.steps || []) {
+      if (s.type !== 'model_output') continue;
+      for (const c of s.content || []) if (c.type === 'video') return c;
+    }
+    return null;
+  };
+  let video = videoOut(inter);
+  // Usually completed synchronously; poll defensively if not.
+  while (!video && inter?.id && !/failed|cancel/i.test(inter.status || '') && Date.now() - start < budget) {
+    await new Promise(r => setTimeout(r, 6000));
+    const g = await fetch(`https://generativelanguage.googleapis.com/v1beta/interactions/${inter.id}?key=${key}`);
+    inter = await g.json();
+    video = videoOut(inter);
+  }
+  if (!video) {
+    throw new AiProviderError('gemini', 'video', `omni: no video output (status ${inter?.status}) ${JSON.stringify(inter?.error || '').slice(0, 150)}`);
+  }
+
+  let buf: Buffer;
+  if (video.data) {
+    buf = Buffer.from(video.data, 'base64');
+  } else if (video.uri) {
+    const sep = video.uri.includes('?') ? '&' : '?';
+    const alt = video.uri.includes('alt=media') ? '' : '&alt=media';
+    const dl = await fetch(`${video.uri}${sep}key=${key}${alt}`, { signal: AbortSignal.timeout(120000) });
+    if (!dl.ok) throw new AiProviderError('gemini', 'video', `omni video download ${dl.status}`, dl.status);
+    buf = Buffer.from(await dl.arrayBuffer());
+  } else {
+    throw new AiProviderError('gemini', 'video', 'omni: video content had neither data nor uri');
+  }
+  const { fileUrl } = await storageService.saveFile(buf, `omni-${Date.now()}.mp4`, 'video/mp4');
+  return {
+    provider: 'gemini', model, latencyMs: Date.now() - start, fallbackUsed: false,
+    output: { url: fileUrl },
+  };
+}
+
 export const geminiProvider: AiProvider = {
   name: 'gemini',
 
@@ -376,6 +450,14 @@ export const geminiProvider: AiProvider = {
   },
 
   async video(req: VideoRequest): Promise<ProviderResult<{ url: string }>> {
+    // Omni Flash (Interactions API) — Google's recommended default video
+    // model as of mid-2026. Verified live 2026-07-02: single synchronous
+    // request (no poll loop), returns a files/:download URI. Only wired for
+    // text→video; image-conditioned requests keep the proven Veo path even
+    // when omni is requested.
+    if (/omni/i.test(req.model || '') && !req.imageBase64 && !req.startImageBase64) {
+      return omniVideo(req);
+    }
     const ai = getAI();
     // Model ladder: try Veo Pro → Veo Fast → Veo 2 (Pro and Fast meter
     // separately; Veo 2 is older and may have leftover quota even when
