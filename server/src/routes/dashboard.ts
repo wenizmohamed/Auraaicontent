@@ -199,9 +199,12 @@ export async function dashboardRoutes(app: FastifyInstance) {
 
   // GET /api/dashboard/ai-stats — provider health, token efficiency, fallback rates
   // (telemetry is in-memory and global; per-org breakdown lands in Phase 2 via UsageEvent)
-  app.get('/dashboard/ai-stats', async (_request, reply) => {
+  app.get('/dashboard/ai-stats', async (request, reply) => {
     try {
-      const entries = getAiTelemetry();
+      // Scope the shared telemetry buffer to the caller's org (untagged
+      // entries = system/worker calls, kept visible). Fixes cross-tenant
+      // clientId/jobId exposure found in the 2026-07-03 site audit.
+      const entries = getAiTelemetry().filter(e => !e.orgId || e.orgId === request.orgId);
 
     const providers: Record<string, {
       calls: number; errors: number; totalLatency: number;

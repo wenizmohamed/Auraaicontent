@@ -105,8 +105,11 @@ export async function creativeRoutes(app: FastifyInstance) {
 
   // POST /api/creative/images/edit
   app.post('/creative/images/edit', async (request, reply) => {
-    const { prompt, imageBase64, mimeType, aspectRatio, clientId, model, provider, referenceImages, safeZone, imageSize, enhance } = request.body as any;
-    if (!prompt || !imageBase64) return reply.status(400).send({ error: 'prompt and imageBase64 are required' });
+    const { prompt: rawEditPrompt, imageBase64, mimeType, aspectRatio, clientId, model, provider, referenceImages, safeZone, imageSize, enhance } = request.body as any;
+    if (!rawEditPrompt || !imageBase64) return reply.status(400).send({ error: 'prompt and imageBase64 are required' });
+    const ev = validatePrompt(rawEditPrompt);
+    if (!ev.valid) return reply.status(400).send({ error: ev.error });
+    const prompt = sanitizePrompt(rawEditPrompt);
 
     try {
       // referenceImages = additional input frames (multi-image edit). Gemini's
@@ -177,7 +180,8 @@ export async function creativeRoutes(app: FastifyInstance) {
   // POST /api/creative/videos/generate — async via job queue
   // Supports both text-to-video AND image-to-video (when imageBase64 is provided).
   app.post('/creative/videos/generate', async (request, reply) => {
-    const {
+    // eslint-disable-next-line prefer-const
+    let {
       prompt, aspectRatio, durationSeconds, resolution, clientId,
       imageBase64, mimeType,
       // Workshop 2026-05-06 #3 (Haneen): explicit start + end frame controls
@@ -192,6 +196,11 @@ export async function creativeRoutes(app: FastifyInstance) {
       enhance,
     } = request.body as any;
     if (!prompt) return reply.status(400).send({ error: 'prompt is required' });
+    {
+      const vv = validatePrompt(prompt);
+      if (!vv.valid) return reply.status(400).send({ error: vv.error });
+    }
+    prompt = sanitizePrompt(prompt);
     // Auto pro-prompt (default ON): rewrite into Veo's cinematography-first
     // formula w/ audio directives + auto negatives; Arabic briefs translated.
     // Best-effort — failure falls back to the raw prompt.
@@ -380,12 +389,15 @@ export async function creativeRoutes(app: FastifyInstance) {
   // English-only) while in-image ad copy stays in its original language.
   // Body: { prompt, mode?, clientId?, safeZone?, hasRefs? }
   app.post('/creative/prompt/improve', async (request, reply) => {
-    const { prompt, mode, clientId, safeZone, hasRefs } = (request.body as {
+    const { prompt: rawImp, mode, clientId, safeZone, hasRefs } = (request.body as {
       prompt?: string; mode?: string; clientId?: string; safeZone?: boolean; hasRefs?: boolean;
     }) || {};
-    if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
+    if (!rawImp || typeof rawImp !== 'string' || !rawImp.trim()) {
       return reply.status(400).send({ error: 'prompt is required' });
     }
+    const iv = validatePrompt(rawImp);
+    if (!iv.valid) return reply.status(400).send({ error: iv.error });
+    const prompt = sanitizePrompt(rawImp);
     const validModes: EnhanceMode[] = ['text-to-image', 'image-edit', 'text-to-video', 'image-to-video'];
     const enhanceMode: EnhanceMode = validModes.includes(mode as EnhanceMode) ? (mode as EnhanceMode) : 'text-to-image';
 

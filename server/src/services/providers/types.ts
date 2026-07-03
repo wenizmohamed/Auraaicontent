@@ -105,6 +105,9 @@ export interface AiTelemetryEntry {
   errorType?: string;
   jobId?: string;
   clientId?: string;
+  // Org that made the call — lets /dashboard/ai-stats scope the shared
+  // in-memory buffer per tenant instead of leaking cross-org metadata.
+  orgId?: string;
   // Video cost tier ('draft' → Grok, 'hd' → Veo). Only set for video calls so
   // draft-vs-hd routing is visible in ai-stats (esp. when a tripped Grok breaker
   // silently lands drafts on veo-fast). Undefined for non-video tasks.

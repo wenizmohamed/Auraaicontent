@@ -11,6 +11,10 @@ import type { FastifyReply } from 'fastify';
 // don't.
 
 const RETRYABLE_PATTERNS = [
+  // A provider returning unparseable JSON is a provider-output defect —
+  // the next provider may well produce valid JSON. Without this the whole
+  // chain 503'd on one Gemini stray bracket (copywriting, 2026-07-03).
+  /JSON parse failed/i,
   /timeout/i,
   /ETIMEDOUT/,
   /ECONNREFUSED/,

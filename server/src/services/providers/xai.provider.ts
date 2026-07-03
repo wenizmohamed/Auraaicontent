@@ -6,6 +6,30 @@ import { runModelLadder, readLadder } from './model-chain.js';
 const BASE_URL = process.env.XAI_BASE_URL || 'https://api.x.ai/v1';
 const TIMEOUT = parseInt(process.env.XAI_TIMEOUT_MS || '180000', 10);
 
+
+// Balanced-root extraction: walks the text from the first bracket and cuts
+// where the root closes. Handles Gemini's occasional trailing garbage (e.g.
+// a stray "]\n]" after a valid array — live incident 2026-07-03 that 503'd
+// ~40% of copywriting calls because the greedy regex swallowed the junk).
+function balancedJsonSlice(text: string): string | null {
+  const start = text.search(/[\[{]/);
+  if (start < 0) return null;
+  let depth = 0, inStr = false, esc = false;
+  for (let i = start; i < text.length; i++) {
+    const c = text[i];
+    if (esc) { esc = false; continue; }
+    if (c === '\\') { esc = true; continue; }
+    if (c === '"') { inStr = !inStr; continue; }
+    if (inStr) continue;
+    if (c === '{' || c === '[') depth++;
+    else if (c === '}' || c === ']') {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
 function safeJsonParse(text: string, label: string): any {
   try {
     return JSON.parse(text);
@@ -13,6 +37,10 @@ function safeJsonParse(text: string, label: string): any {
     const match = text.match(/[\[{][\s\S]*[\]}]/);
     if (match) {
       try { return JSON.parse(match[0]); } catch {}
+    }
+    const balanced = balancedJsonSlice(text);
+    if (balanced) {
+      try { return JSON.parse(balanced); } catch {}
     }
     throw new AiProviderError('xai', label, `JSON parse failed. Response: ${text.slice(0, 200)}`);
   }
@@ -141,9 +169,10 @@ export const xaiProvider: AiProvider = {
   async video(req: VideoRequest): Promise<ProviderResult<{ url: string }>> {
     // Model ladder: grok-imagine-video → fast variant if quota tight.
     // Override via XAI_VIDEO_LADDER (colon-sep).
+    // grok-imagine-video-fast was removed by xAI (404 'does not exist' on
+    // every call, 2026-07) — dropped from the default ladder.
     const ladder = readLadder('XAI_VIDEO_LADDER', [
       process.env.XAI_VIDEO_MODEL || 'grok-imagine-video',
-      'grok-imagine-video-fast',
       'grok-imagine-video-2',
     ]);
     // Honor req.fast (drafts): pull grok-imagine-video-fast ($0.03/s) ahead of

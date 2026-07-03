@@ -248,7 +248,7 @@ async function routeCall<T>(
         promptTokens: result.promptTokens,
         completionTokens: result.completionTokens,
         totalTokens: result.totalTokens,
-        jobId: meta?.jobId, clientId: meta?.clientId,
+        jobId: meta?.jobId, clientId: meta?.clientId, orgId: meta?.orgId,
         // Surface draft-vs-hd routing in ai-stats (video only).
         ...(task === 'video' && req?.tier ? { tier: req.tier } : {}),
         timestamp: new Date().toISOString(),
@@ -277,7 +277,7 @@ async function routeCall<T>(
         provider: provider.name, model: 'unknown', task,
         latencyMs: 0, fallbackUsed,
         errorType: errMsg.slice(0, 80),
-        jobId: meta?.jobId, clientId: meta?.clientId,
+        jobId: meta?.jobId, clientId: meta?.clientId, orgId: meta?.orgId,
         ...(task === 'video' && req?.tier ? { tier: req.tier } : {}),
         timestamp: new Date().toISOString(),
       });

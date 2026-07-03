@@ -131,6 +131,30 @@ function repairTruncatedJson(text: string): string {
   return s;
 }
 
+
+// Balanced-root extraction: walks the text from the first bracket and cuts
+// where the root closes. Handles Gemini's occasional trailing garbage (e.g.
+// a stray "]\n]" after a valid array — live incident 2026-07-03 that 503'd
+// ~40% of copywriting calls because the greedy regex swallowed the junk).
+function balancedJsonSlice(text: string): string | null {
+  const start = text.search(/[\[{]/);
+  if (start < 0) return null;
+  let depth = 0, inStr = false, esc = false;
+  for (let i = start; i < text.length; i++) {
+    const c = text[i];
+    if (esc) { esc = false; continue; }
+    if (c === '\\') { esc = true; continue; }
+    if (c === '"') { inStr = !inStr; continue; }
+    if (inStr) continue;
+    if (c === '{' || c === '[') depth++;
+    else if (c === '}' || c === ']') {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
 function safeJsonParse(text: string, label: string): any {
   try {
     return JSON.parse(text);
@@ -138,6 +162,10 @@ function safeJsonParse(text: string, label: string): any {
     const match = text.match(/[\[{][\s\S]*[\]}]/);
     if (match) {
       try { return JSON.parse(match[0]); } catch {}
+    }
+    const balanced = balancedJsonSlice(text);
+    if (balanced) {
+      try { return JSON.parse(balanced); } catch {}
     }
     // Last resort: repair a truncated payload (workshop fix 2026-05-06).
     try {

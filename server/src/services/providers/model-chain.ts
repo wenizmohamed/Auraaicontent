@@ -85,8 +85,12 @@ export async function runModelLadder<T>(
       lastErr = err;
       const msg = err?.message || String(err);
       const isQuota = QUOTA_PATTERN.test(msg);
-      if (isQuota) {
-        // Cache the skip — saves the next caller from a 429 round-trip.
+      // Dead model ids (deprecated/renamed upstream) get cached too — without
+      // this every draft video paid a guaranteed 404 round-trip on the dead
+      // rung before reaching a live model (grok-imagine-video-fast, 2026-07).
+      const isDeadModel = /does not exist|not.?found|no longer available|has been deprecated/i.test(msg) && ((err as any)?.status === 404 || /404/.test(msg));
+      if (isQuota || isDeadModel) {
+        // Cache the skip — saves the next caller from a 429/404 round-trip.
         softSkipModel(entry.model, msg.slice(0, 80));
       }
       const retryable = isRetryableAiError(err);
