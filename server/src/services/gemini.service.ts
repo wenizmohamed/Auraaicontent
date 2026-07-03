@@ -61,7 +61,18 @@ export async function generateJson<T>(
 
 // ─── embedText (stays Gemini-only — no xAI embeddings) ──────────
 
+// Query-embedding cache + 429 backoff (2026-07-03 audit: the preview
+// embedding model's low RPM quota intermittently 429'd and knowledge
+// injection silently dropped to 0%). Cache repeated queries (retrieval
+// re-embeds similar prompts constantly) and retry once through the burst.
+const EMBED_CACHE = new Map<string, { vec: number[]; at: number }>();
+const EMBED_CACHE_TTL = 15 * 60 * 1000;
+const EMBED_CACHE_MAX = 500;
+
 export async function embedText(text: string): Promise<number[]> {
+  const key = text.length <= 512 ? text : text.slice(0, 256) + '\u0000' + text.length + '\u0000' + text.slice(-256);
+  const hit = EMBED_CACHE.get(key);
+  if (hit && Date.now() - hit.at < EMBED_CACHE_TTL) return hit.vec;
   let client;
   try {
     client = getClient();
@@ -69,12 +80,27 @@ export async function embedText(text: string): Promise<number[]> {
     throw new GeminiUnavailableError('Gemini API key not configured. Knowledge embedding requires Gemini.');
   }
   try {
-    const response = await client.models.embedContent({
-      model: MODELS.embedding,
-      contents: text,
-    });
+    let response;
+    for (let attempt = 0; ; attempt++) {
+      try {
+        response = await client.models.embedContent({
+          model: MODELS.embedding,
+          contents: text,
+        });
+        break;
+      } catch (err: any) {
+        const m = err?.message || String(err);
+        if (attempt < 2 && /rate.?limit|429|too many requests|quota/i.test(m)) {
+          await new Promise(r => setTimeout(r, attempt === 0 ? 800 : 2500));
+          continue;
+        }
+        throw err;
+      }
+    }
     const embedding = response.embeddings?.[0]?.values;
     if (!embedding?.length) throw new Error('Gemini returned empty embedding');
+    if (EMBED_CACHE.size >= EMBED_CACHE_MAX) EMBED_CACHE.delete(EMBED_CACHE.keys().next().value!);
+    EMBED_CACHE.set(key, { vec: embedding, at: Date.now() });
     return embedding;
   } catch (err: any) {
     if (err instanceof GeminiUnavailableError) throw err;

@@ -169,11 +169,12 @@ export const xaiProvider: AiProvider = {
   async video(req: VideoRequest): Promise<ProviderResult<{ url: string }>> {
     // Model ladder: grok-imagine-video → fast variant if quota tight.
     // Override via XAI_VIDEO_LADDER (colon-sep).
-    // grok-imagine-video-fast was removed by xAI (404 'does not exist' on
-    // every call, 2026-07) — dropped from the default ladder.
+    // Ladder matches xAI's LIVE /v1/models (checked 2026-07-03):
+    // grok-imagine-video + grok-imagine-video-1.5 exist; '-fast' and '-2'
+    // were removed upstream and 404'd on every draft call.
     const ladder = readLadder('XAI_VIDEO_LADDER', [
       process.env.XAI_VIDEO_MODEL || 'grok-imagine-video',
-      'grok-imagine-video-2',
+      'grok-imagine-video-1.5',
     ]);
     // Honor req.fast (drafts): pull grok-imagine-video-fast ($0.03/s) ahead of
     // the standard model so the cheap/fast variant runs first. Keeps the rest of

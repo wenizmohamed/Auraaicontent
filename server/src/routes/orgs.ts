@@ -30,7 +30,11 @@ function teamAdminEmails(): string[] {
   return (process.env.TEAM_ADMIN_EMAILS ?? '')
     .split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
 }
-function isTeamAdmin(email: string | undefined): boolean {
+function isTeamAdmin(email: string | undefined, orgRole?: string): boolean {
+  // Org OWNER/ADMIN always have team management — the email allowlist is an
+  // ADDITIVE escape hatch, not a lockout. (2026-07-03 audit: the real org
+  // OWNER was 403'd on GET /members because only one gmail was allowlisted.)
+  if (orgRole === 'OWNER' || orgRole === 'ADMIN') return true;
   if (!email) return false;
   const list = teamAdminEmails();
   if (list.length === 0) return true; // no allowlist configured → fall through to org-role check
@@ -51,18 +55,17 @@ async function assertOrgPrivilege(
     reply.status(401).send({ error: 'Unauthorized' });
     return null;
   }
-  // Hard email allowlist trumps role — if TEAM_ADMIN_EMAILS is set, only
-  // those addresses can manage team membership, even if they're OWNER.
-  if (!isTeamAdmin(user.email)) {
-    reply.status(403).send({ error: 'Team management is restricted.' });
-    return null;
-  }
   // Must be a member of THIS org (not just current active org) AND privileged
   const mem = await db.orgMembership.findUnique({
     where: { userId_orgId: { userId: user.userId, orgId } },
   });
   if (!mem) {
     reply.status(403).send({ error: 'Not a member of that organization' });
+    return null;
+  }
+  // OWNER/ADMIN of the org OR allowlisted email (additive, never a lockout).
+  if (!isTeamAdmin(user.email, mem.role)) {
+    reply.status(403).send({ error: 'Team management is restricted.' });
     return null;
   }
   if (!isPrivileged(mem.role)) {
@@ -77,13 +80,13 @@ export async function orgsRoutes(app: FastifyInstance) {
   app.get('/:orgId/members', { preHandler: [authGuard] }, async (request, reply) => {
     const { orgId } = request.params as { orgId: string };
     const caller = request.user as JwtPayload;
-    if (!isTeamAdmin(caller.email)) {
-      return reply.status(403).send({ error: 'Team management is restricted.' });
-    }
     const callerMem = await db.orgMembership.findUnique({
       where: { userId_orgId: { userId: caller.userId, orgId } },
     });
     if (!callerMem) return reply.status(403).send({ error: 'Not a member' });
+    if (!isTeamAdmin(caller.email, callerMem.role)) {
+      return reply.status(403).send({ error: 'Team management is restricted.' });
+    }
 
     const memberships = await db.orgMembership.findMany({
       where: { orgId },
