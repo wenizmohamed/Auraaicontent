@@ -9,6 +9,7 @@ import { searchPinterest, searchPinterestMulti, fetchPinterestImageBase64 } from
 import { historyService } from '../services/history.service.js';
 import { sanitizePrompt, validatePrompt } from '../middleware/sanitize.js';
 import { enhanceCreativePrompt, type EnhanceMode } from '../services/prompt-enhancer.service.js';
+import { getStylePack, listStylePacks } from '../services/style-packs.js';
 import type { Job } from '../workers/queue.js';
 
 // B3 — social safe-zone: appended to the prompt when the user toggles it on, so
@@ -22,10 +23,11 @@ export async function creativeRoutes(app: FastifyInstance) {
 
   // POST /api/creative/images/generate
   app.post('/creative/images/generate', async (request, reply) => {
-    const { prompt: rawPrompt, aspectRatio, clientId, quality, model, provider, safeZone, imageSize, enhance } = request.body as { prompt: string; aspectRatio?: string; clientId?: string; quality?: 'standard' | 'ultra'; model?: string; provider?: 'gemini' | 'xai' | 'dashscope'; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K'; enhance?: boolean };
+    const { prompt: rawPrompt, aspectRatio, clientId, quality, model, provider, safeZone, imageSize, enhance, stylePackId } = request.body as { prompt: string; aspectRatio?: string; clientId?: string; quality?: 'standard' | 'ultra'; model?: string; provider?: 'gemini' | 'xai' | 'dashscope'; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K'; enhance?: boolean; stylePackId?: string };
     const v = validatePrompt(rawPrompt);
     if (!v.valid) return reply.status(400).send({ error: v.error });
     const prompt = sanitizePrompt(rawPrompt);
+    const stylePack = getStylePack(stylePackId);
     // Auto pro-prompt (default ON, 2026-07-03): short user prompts are the #1
     // quality killer — expand them through the model-aware enhancer BEFORE
     // generation. Best-effort: any enhancer failure falls back to the raw
@@ -34,11 +36,14 @@ export async function creativeRoutes(app: FastifyInstance) {
     let enhancedPrompt: string | null = null;
     if (enhance !== false) {
       try {
-        const e = await enhanceCreativePrompt({ prompt, mode: 'text-to-image', clientId: clientId || undefined, orgId: request.orgId, userId: request.user?.userId, safeZone: Boolean(safeZone) });
+        const e = await enhanceCreativePrompt({ prompt, mode: 'text-to-image', clientId: clientId || undefined, orgId: request.orgId, userId: request.user?.userId, safeZone: Boolean(safeZone), stylePack });
         if (e.prompt && e.prompt.trim() && e.prompt.trim() !== prompt) enhancedPrompt = e.prompt.trim();
       } catch (e: any) { request.log.warn(`prompt-enhancer failed (image): ${e?.message}`); }
     }
-    const genPrompt = enhancedPrompt ?? (safeZone ? `${prompt}\n\n${SAFE_ZONE_HINT}` : prompt);
+    // Pack must survive enhance:false AND enhancer failure — append the raw
+    // design contract so the style still lands on the model.
+    const packTail = stylePack && !enhancedPrompt ? `\n\nArt direction (follow exactly): ${stylePack.image}` : '';
+    const genPrompt = (enhancedPrompt ?? (safeZone ? `${prompt}\n\n${SAFE_ZONE_HINT}` : prompt)) + packTail;
 
     try {
       const result = await aiRouter.image({ prompt: genPrompt, aspectRatio, quality, model, imageSize }, { orgId: request.orgId, userId: request.user?.userId, clientId, preferredProvider: provider });
@@ -177,6 +182,10 @@ export async function creativeRoutes(app: FastifyInstance) {
     }
   });
 
+  // GET /api/creative/style-packs — curated premium design directions for the
+  // FE picker (motionsites.ai-style precision looks; directives stay server-side).
+  app.get('/creative/style-packs', async () => ({ packs: listStylePacks() }));
+
   // POST /api/creative/videos/generate — async via job queue
   // Supports both text-to-video AND image-to-video (when imageBase64 is provided).
   app.post('/creative/videos/generate', async (request, reply) => {
@@ -194,6 +203,7 @@ export async function creativeRoutes(app: FastifyInstance) {
       referenceImages,
       model,
       enhance,
+      stylePackId,
     } = request.body as any;
     if (!prompt) return reply.status(400).send({ error: 'prompt is required' });
     {
@@ -201,6 +211,7 @@ export async function creativeRoutes(app: FastifyInstance) {
       if (!vv.valid) return reply.status(400).send({ error: vv.error });
     }
     prompt = sanitizePrompt(prompt);
+    const stylePack = getStylePack(stylePackId);
     // Auto pro-prompt (default ON): rewrite into Veo's cinematography-first
     // formula w/ audio directives + auto negatives; Arabic briefs translated.
     // Best-effort — failure falls back to the raw prompt.
@@ -213,12 +224,17 @@ export async function creativeRoutes(app: FastifyInstance) {
           prompt, mode: videoMode as any, clientId: clientId || undefined,
           orgId: request.orgId, userId: request.user?.userId,
           safeZone: Boolean(safeZone), hasRefs: Array.isArray(referenceImages) && referenceImages.length > 0,
+          stylePack,
         });
         if (e.prompt && e.prompt.trim() && e.prompt.trim() !== prompt) enhancedPrompt = e.prompt.trim();
         autoNegative = e.negativePrompt;
       } catch (e: any) { request.log.warn(`prompt-enhancer failed (video): ${e?.message}`); }
     }
-    const genPrompt = enhancedPrompt ?? (safeZone ? `${prompt}\n\n${SAFE_ZONE_HINT}` : prompt);
+    // Pack survives enhance:false / enhancer failure (raw design contract);
+    // pack negatives ride autoNegative when the enhancer didn't run.
+    const packTail = stylePack && !enhancedPrompt ? ` Style & ambiance: ${stylePack.video}` : '';
+    if (stylePack && !enhancedPrompt && !autoNegative) autoNegative = stylePack.negative;
+    const genPrompt = (enhancedPrompt ?? (safeZone ? `${prompt}\n\n${SAFE_ZONE_HINT}` : prompt)) + packTail;
     const mergedNegative = [autoNegative, typeof negativePrompt === 'string' ? negativePrompt : '']
       .filter(sv => sv && sv.trim()).join(', ').slice(0, 500) || undefined;
     // Veo "ingredients to video" asset refs — the subject/product stays
@@ -389,8 +405,8 @@ export async function creativeRoutes(app: FastifyInstance) {
   // English-only) while in-image ad copy stays in its original language.
   // Body: { prompt, mode?, clientId?, safeZone?, hasRefs? }
   app.post('/creative/prompt/improve', async (request, reply) => {
-    const { prompt: rawImp, mode, clientId, safeZone, hasRefs } = (request.body as {
-      prompt?: string; mode?: string; clientId?: string; safeZone?: boolean; hasRefs?: boolean;
+    const { prompt: rawImp, mode, clientId, safeZone, hasRefs, stylePackId } = (request.body as {
+      prompt?: string; mode?: string; clientId?: string; safeZone?: boolean; hasRefs?: boolean; stylePackId?: string;
     }) || {};
     if (!rawImp || typeof rawImp !== 'string' || !rawImp.trim()) {
       return reply.status(400).send({ error: 'prompt is required' });
@@ -410,6 +426,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         userId: request.user?.userId,
         safeZone: Boolean(safeZone),
         hasRefs: Boolean(hasRefs),
+        stylePack: getStylePack(stylePackId),
       });
       await historyService.record({
         orgId: request.orgId,

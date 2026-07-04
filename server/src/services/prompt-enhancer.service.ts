@@ -31,6 +31,8 @@ export interface EnhanceInput {
   safeZone?: boolean;
   /** Whether reference images are attached (changes edit phrasing). */
   hasRefs?: boolean;
+  /** Curated Style Pack (style-packs.ts) — injected as a hard design contract. */
+  stylePack?: { name: string; image: string; video: string; negative?: string };
 }
 
 export interface EnhanceResult {
@@ -103,6 +105,12 @@ export async function enhanceCreativePrompt(input: EnhanceInput): Promise<Enhanc
   if (input.safeZone) {
     notes.push('Composition constraint: keep the top ~15% and bottom ~15% of the frame free of key elements and any rendered text (platform UI bands).');
   }
+  if (input.stylePack) {
+    // The pack is a precision design contract (exact hexes, materials, light)
+    // — the motionsites.ai lesson: specificity is what makes output premium.
+    const directive = isVideo ? input.stylePack.video : input.stylePack.image;
+    notes.push(`STYLE PACK "${input.stylePack.name}" — the art direction below is a HARD constraint; weave its exact palette, materials, lighting and mood into the prompt (the user's subject stays the hero): ${directive}`);
+  }
   const brand = await brandContext(input.clientId, input.orgId);
 
   const userMsg = `${notes.length ? notes.map(n => `NOTE: ${n}`).join('\n') + '\n\n' : ''}User idea:\n"${input.prompt.trim()}"${brand}`;
@@ -115,8 +123,11 @@ export async function enhanceCreativePrompt(input: EnhanceInput): Promise<Enhanc
 
   const out = result.output as any;
   const enhanced = (typeof out?.prompt === 'string' && out.prompt.trim()) ? out.prompt.trim() : input.prompt;
-  const negative = isVideo && typeof out?.negativePrompt === 'string' && out.negativePrompt.trim()
-    ? out.negativePrompt.trim().slice(0, 400)
+  const modelNegative = isVideo && typeof out?.negativePrompt === 'string' && out.negativePrompt.trim()
+    ? out.negativePrompt.trim()
+    : undefined;
+  const negative = isVideo
+    ? [modelNegative, input.stylePack?.negative].filter(Boolean).join(', ').slice(0, 400) || undefined
     : undefined;
 
   return {

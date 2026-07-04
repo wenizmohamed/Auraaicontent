@@ -241,6 +241,11 @@ export default function CreativeTools() {
   // Auto pro-prompt: server-side model-aware enhancement on every generate.
   const [proPrompt, setProPrompt] = useState(true);
   const [lastEnhanced, setLastEnhanced] = useState('');
+  // Style Packs — curated premium looks (motionsites.ai pattern): named
+  // precision design contracts (hexes, materials, light) injected server-side.
+  const [stylePacks, setStylePacks] = useState<{ id: string; name: string; tagline: string; category: string; palette: string[] }[]>([]);
+  const [stylePackId, setStylePackId] = useState('');
+  useEffect(() => { creativeApi.stylePacks().then(r => setStylePacks(r.packs || [])).catch(() => { /* picker stays hidden */ }); }, []);
   // Video resolution: 1080p is Veo-only and requires an 8s clip; selecting it
   // auto-bumps duration to 8 (server also degrades gracefully to 720p).
   const [videoRes, setVideoRes] = useState<'720p' | '1080p'>('720p');
@@ -465,6 +470,7 @@ export default function CreativeTools() {
           clientId: selectedClientId || undefined,
           safeZone,
           enhance: proPrompt,
+          ...(stylePackId ? { stylePackId } : {}),
           ...(imageSize !== '1K' ? { imageSize } : {}),
           ...resolveImageModel(imageModel),
         };
@@ -508,6 +514,7 @@ export default function CreativeTools() {
           clientId: selectedClientId || undefined,
           safeZone,
           enhance: proPrompt,
+          ...(stylePackId ? { stylePackId } : {}),
           ...(tier === 'hd' && videoRes === '1080p' ? { resolution: '1080p' as const } : {}),
           ...(negPrompt.trim() ? { negativePrompt: negPrompt.trim() } : {}),
           // Veo asset refs: the exact product/subject stays consistent in the
@@ -616,6 +623,7 @@ export default function CreativeTools() {
         clientId: selectedClientId || undefined,
         safeZone,
         hasRefs: extraRefs.length > 0 || !!sourceBase64,
+        ...(stylePackId ? { stylePackId } : {}),
       });
       // Video modes: the enhancer also proposes shot-specific avoid-terms —
       // pre-fill the Avoid field only if the user hasn't typed their own.
@@ -1111,6 +1119,48 @@ export default function CreativeTools() {
               ))}
             </div>
           </div>
+
+          {/* Style Packs — curated premium looks (motionsites.ai teardown):
+              each pack is a precision design contract (exact hexes, materials,
+              lighting) applied server-side. Not offered on edit — edits must
+              preserve the original image's look. */}
+          {mode !== 'image-edit' && stylePacks.length > 0 && (
+            <div>
+              <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Style pack</label>
+              <div className="flex gap-2 mt-2 overflow-x-auto pb-1.5" style={{ scrollbarWidth: 'thin' }}>
+                <button
+                  type="button"
+                  onClick={() => setStylePackId('')}
+                  className={`shrink-0 self-stretch px-3 rounded-xl text-xs font-medium border transition-all ${
+                    stylePackId === '' ? '' : 'bg-white/[0.03] text-zinc-500 border-white/[0.06] hover:border-white/[0.1]'
+                  }`}
+                  style={stylePackId === ''
+                    ? { background: 'var(--color-accent-subtle)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' }
+                    : undefined}
+                >
+                  None
+                </button>
+                {stylePacks.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    title={p.tagline}
+                    onClick={() => setStylePackId(cur => (cur === p.id ? '' : p.id))}
+                    className={`shrink-0 w-32 rounded-xl border p-2 text-left transition-all ${
+                      stylePackId === p.id ? '' : 'bg-white/[0.03] border-white/[0.06] hover:border-white/[0.1]'
+                    }`}
+                    style={stylePackId === p.id
+                      ? { background: 'var(--color-accent-subtle)', borderColor: 'var(--color-accent)' }
+                      : undefined}
+                  >
+                    <div className="h-8 w-full rounded-lg mb-1.5" style={{ background: `linear-gradient(120deg, ${p.palette.join(', ')})` }} />
+                    <div className="text-[11px] font-semibold leading-tight truncate" style={stylePackId === p.id ? { color: 'var(--color-accent)' } : { color: 'var(--color-text-primary, #d4d4d8)' }}>{p.name}</div>
+                    <div className="text-[9px] text-zinc-500 leading-tight truncate">{p.tagline}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Auto pro-prompt — server-side model-aware enhancement (Veo formula,
               ad composition, Arabic→English) applied to EVERY generation. */}
