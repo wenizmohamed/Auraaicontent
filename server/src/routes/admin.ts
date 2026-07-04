@@ -17,8 +17,14 @@ async function staffGuard(request: FastifyRequest, reply: FastifyReply) {
   if (allowed.size === 0) {
     return reply.status(503).send({ error: 'Admin not enabled (set STAFF_EMAILS in env)' });
   }
-  const email = request.user?.email;
-  if (!email || !allowed.has(email)) {
+  // Older sessions carry no email claim in the JWT — resolve from the DB so
+  // an allowlisted user isn't 403'd for having a stale token (2026-07-04).
+  let email = request.user?.email;
+  if (!email && request.user?.userId) {
+    const u = await db.user.findUnique({ where: { id: request.user.userId }, select: { email: true } });
+    email = u?.email ?? undefined;
+  }
+  if (!email || !allowed.has(email.toLowerCase())) {
     return reply.status(403).send({ error: 'Staff only' });
   }
 }

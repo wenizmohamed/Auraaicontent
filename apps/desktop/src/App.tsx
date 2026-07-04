@@ -116,6 +116,34 @@ function isStaff(): boolean {
   return !!e && ADMIN_CONSOLE_EMAILS.includes(e.toLowerCase());
 }
 
+// Route guard for the email-gated pages. A cold load of /admin used to
+// evaluate isStaff() synchronously — BEFORE /auth/me had resolved — so a
+// session without a locally decodable email claim was bounced to the
+// dashboard even though the user is allowlisted (2026-07-04: "team and
+// admin both go to the dashboard"). This gate asks the server first and
+// only redirects on a settled "no".
+function EmailGate({ allow, children }: { allow: string[]; children: React.ReactNode }) {
+  const [email, setEmail] = useState<string | null>(getCallerEmail());
+  const [settled, setSettled] = useState<boolean>(!!email);
+  useEffect(() => {
+    if (settled) return;
+    let alive = true;
+    authApi.me()
+      .then((u) => {
+        if (!alive) return;
+        try { localStorage.setItem('radix_verified_email', u.email); } catch { /* private mode */ }
+        setEmail(u.email);
+        setSettled(true);
+      })
+      .catch(() => { if (alive) setSettled(true); /* unauth → AuthGate handles */ });
+    return () => { alive = false; };
+  }, [settled]);
+  if (!settled) return null;
+  return email && allow.includes(email.toLowerCase())
+    ? <>{children}</>
+    : <Navigate to="/" replace />;
+}
+
 // Premium nav motion choreography (per the AURA spec): grid/header settle, then
 // the nav groups stagger up. Runs once — Layout persists across routes, so the
 // sidebar doesn't re-animate on every navigation. Respects reduced-motion via
@@ -765,10 +793,10 @@ export default function App() {
               <Route path="/studio" element={<Studio />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/onboarding" element={<Onboarding />} />
-              <Route path="/admin" element={isStaff() ? <Admin /> : <Navigate to="/" replace />} />
+              <Route path="/admin" element={<EmailGate allow={ADMIN_CONSOLE_EMAILS}><Admin /></EmailGate>} />
               <Route path="/agent" element={<Agent />} />
               <Route path="/settings/billing" element={<Billing />} />
-              <Route path="/settings/members" element={isTeamAdmin() ? <Members /> : <Navigate to="/" replace />} />
+              <Route path="/settings/members" element={<EmailGate allow={TEAM_ADMIN_EMAILS}><Members /></EmailGate>} />
               <Route path="/invite/:token" element={<AcceptInvite />} />
               <Route path="/reset-password/:token" element={<ResetPassword />} />
               {/* Catch-all → bounce to Dashboard. Beats rendering blank for any
