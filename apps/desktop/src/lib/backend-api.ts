@@ -529,6 +529,13 @@ export const creativeApi = {
     ),
 };
 
+// ─── Changelog (What's new on Radix AI) ─────────────────────────
+
+export interface ChangelogEntry { date: string; tag: 'new' | 'improved' | 'fixed'; title: string; body: string }
+export const changelogApi = {
+  list: (limit = 5) => request<{ entries: ChangelogEntry[] }>(`/api/changelog?limit=${limit}`),
+};
+
 // ─── AI Copywriting ──────────────────────────────────────────────
 
 export const copywritingApi = {

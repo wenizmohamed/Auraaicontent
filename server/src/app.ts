@@ -17,6 +17,7 @@ import { assetRoutes } from './routes/assets.js';
 import { knowledgeRoutes } from './routes/knowledge.js';
 import { exportRoutes } from './routes/exports.js';
 import { creativeRoutes } from './routes/creative.js';
+import { changelogRoutes } from './routes/changelog.js';
 import { copywritingRoutes } from './routes/copywriting.js';
 import { researchRoutes } from './routes/research.js';
 import { aiRoutes } from './routes/ai.js';
@@ -261,6 +262,7 @@ export async function buildApp() {
   await app.register(knowledgeRoutes, { prefix: '/api' });
   await app.register(exportRoutes, { prefix: '/api' });
   await app.register(creativeRoutes, { prefix: '/api' });
+  await app.register(changelogRoutes, { prefix: '/api' });
   await app.register(copywritingRoutes, { prefix: '/api' });
   await app.register(researchRoutes, { prefix: '/api' });
   await app.register(aiRoutes, { prefix: '/api' });

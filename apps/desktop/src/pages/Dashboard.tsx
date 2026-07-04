@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Calendar, FileText, Layers, Wand2, ArrowRight, Activity, CheckCircle2, Zap, Clock, ArrowUpRight, BarChart3, Users, Database, Sparkles, TrendingUp, TrendingDown, AlertTriangle, Cpu, ShieldCheck, Gauge, ChevronDown, ChevronUp, Building2, Image as ImageIcon, Video as VideoIcon, Search, Palette, Bot, BookOpen, Radio, Bell, Lightbulb, DollarSign } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useClients } from '../lib/client-context';
-import { dashboardApi, authApi, type DashboardStats, type AiStats, type DashboardInsights, type ActivityEntry } from '../lib/backend-api';
+import { dashboardApi, authApi, changelogApi, type DashboardStats, type AiStats, type DashboardInsights, type ActivityEntry, type ChangelogEntry } from '../lib/backend-api';
 import { useTheme } from '../lib/theme-context';
 import { greeting } from '../lib/greeting';
 import { t } from '../i18n';
@@ -369,6 +369,21 @@ export default function Dashboard() {
   const [activity, setActivity] = useState<ActivityEntry[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState<string | null>(null);
+  // "What's new on Radix AI" — everyone sees the latest product updates.
+  // The NEW badge lights up until the user has seen the newest entry.
+  const [changelog, setChangelog] = useState<ChangelogEntry[]>([]);
+  const [changelogUnseen, setChangelogUnseen] = useState(false);
+  useEffect(() => {
+    changelogApi.list(4).then(({ entries }) => {
+      setChangelog(entries);
+      const newest = entries[0]?.date || '';
+      try {
+        const seen = localStorage.getItem('radix_changelog_seen') || '';
+        setChangelogUnseen(newest > seen);
+        if (newest) localStorage.setItem('radix_changelog_seen', newest);
+      } catch { /* private mode */ }
+    }).catch(() => { /* card just stays hidden */ });
+  }, []);
 
   useEffect(() => {
     if (!authenticated) return;
@@ -848,6 +863,45 @@ export default function Dashboard() {
           })()
         )}
       </div>
+
+      {/* ─── What's new on Radix AI — product changelog, visible to everyone.
+          Entries ship with each deploy (server/src/routes/changelog.ts). ─── */}
+      {changelog.length > 0 && (
+        <motion.div {...fadeUp(0.22)} className={`rounded-2xl overflow-hidden ${glassStatic}`}>
+          <div className="px-5 pt-4 pb-1 flex items-center gap-2">
+            <Sparkles className="w-4 h-4" style={{ color: 'var(--color-accent)' }} />
+            <h2 className={`text-sm font-bold ${textPrimary}`}>What's new on Radix AI</h2>
+            {changelogUnseen && (
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider"
+                style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>
+                New
+              </span>
+            )}
+          </div>
+          <div className={`px-5 pb-4 divide-y ${isDark ? 'divide-white/[0.06]' : 'divide-slate-200/70'}`}>
+            {changelog.map((e, i) => (
+              <div key={`${e.date}-${i}`} className="py-2.5 flex items-start gap-3">
+                <span className={`shrink-0 mt-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${
+                  e.tag === 'new'
+                    ? (isDark ? 'bg-emerald-500/15 text-emerald-400' : 'bg-emerald-100 text-emerald-700')
+                    : e.tag === 'fixed'
+                      ? (isDark ? 'bg-amber-500/15 text-amber-400' : 'bg-amber-100 text-amber-700')
+                      : (isDark ? 'bg-sky-500/15 text-sky-400' : 'bg-sky-100 text-sky-700')
+                }`}>
+                  {e.tag}
+                </span>
+                <div className="min-w-0">
+                  <div className="flex items-baseline gap-2 flex-wrap">
+                    <span className={`text-[13px] font-semibold ${textPrimary}`}>{e.title}</span>
+                    <span className={`text-[10px] tabular-nums ${isDark ? 'text-zinc-500' : 'text-slate-400'}`}>{e.date}</span>
+                  </div>
+                  <p className={`text-xs leading-relaxed mt-0.5 ${isDark ? 'text-zinc-400' : 'text-slate-600'}`}>{e.body}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
 
       {/* ─── ROW 2b: AI Engine (Bento layout — Tier 1 #1) ─── */}
       {aiStats && aiStats.totalCalls > 0 && (
