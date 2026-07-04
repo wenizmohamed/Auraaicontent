@@ -63,6 +63,9 @@ let refreshToken: string | null = localStorage.getItem('radix_refresh_token');
 export function setAuthToken(token: string) {
   authToken = token;
   localStorage.setItem('radix_auth_token', token);
+  // New session → drop the previous user's verified-email cache until the
+  // next /auth/me confirms who this token belongs to.
+  localStorage.removeItem('radix_verified_email');
 }
 
 export function setRefreshToken(token: string | null) {
@@ -76,6 +79,9 @@ export function clearAuthToken() {
   refreshToken = null;
   localStorage.removeItem('radix_auth_token');
   localStorage.removeItem('radix_refresh_token');
+  // Verified-email cache (admin/team gates) must not outlive the session —
+  // a stale value would grant the NEXT login's UI gates the OLD user's email.
+  localStorage.removeItem('radix_verified_email');
 }
 
 // Signal back to the app that the session is done (refresh expired / reuse

@@ -93,10 +93,18 @@ const ADMIN_CONSOLE_EMAILS = [
 ];
 
 function getCallerEmail(): string | null {
+  // Prefer the server-verified email cached by Layout's /auth/me fetch —
+  // tokens issued before the email claim (or with base64url payloads that
+  // atob can't decode) made these gates silently fail, hiding Team/Admin
+  // nav from allowlisted users (lockout incident 2026-07-04).
+  const verified = localStorage.getItem('radix_verified_email');
+  if (verified) return verified;
   try {
     const tok = localStorage.getItem('radix_auth_token');
     if (!tok) return null;
-    return JSON.parse(atob(tok.split('.')[1])).email ?? null;
+    // JWT payload segments are base64URL — swap '-'/'_' before atob.
+    const b64 = tok.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    return JSON.parse(atob(b64)).email ?? null;
   } catch { return null; }
 }
 function isTeamAdmin(): boolean {
@@ -145,7 +153,14 @@ function Layout({ children }: { children: React.ReactNode }) {
   const [me, setMe] = useState<MeRecord | null>(null);
   useEffect(() => {
     let alive = true;
-    authApi.me().then((u) => { if (alive) setMe(u); }).catch(() => { /* unauth → AuthGate handles */ });
+    authApi.me().then((u) => {
+      if (!alive) return;
+      // Cache the verified email BEFORE setMe so the re-render's
+      // isTeamAdmin()/isStaff() calls see it (fixes gates for sessions
+      // whose JWT lacks/garbles the email claim).
+      try { localStorage.setItem('radix_verified_email', u.email); } catch { /* private mode */ }
+      setMe(u);
+    }).catch(() => { /* unauth → AuthGate handles */ });
     return () => { alive = false; };
   }, []);
 
@@ -154,7 +169,7 @@ function Layout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     function decodeOrg(): string | null {
       try {
-        const token = localStorage.getItem('radix.access_token');
+        const token = localStorage.getItem('radix_auth_token');
         if (!token) return null;
         const payload = JSON.parse(atob(token.split('.')[1]));
         return payload.orgId ?? null;
