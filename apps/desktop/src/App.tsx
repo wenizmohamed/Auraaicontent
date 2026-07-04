@@ -82,11 +82,14 @@ const TEAM_ADMIN_EMAILS = [
 ];
 // Founder-only: the cross-org Admin console exposes revenue/margin, AI spend,
 // every workspace (with delete), and secret-health — so it's locked to Weni's
-// two accounts only, tighter than TEAM_ADMIN (which still gates member mgmt).
+// accounts only, tighter than TEAM_ADMIN (which still gates member mgmt).
+// ALL of Weni's login emails must be listed (lockout incident 2026-07-04:
+// the hyatt account was missing → Admin nav vanished for him).
 // Backend STAFF_EMAILS env must mirror this exactly (the real boundary).
 const ADMIN_CONSOLE_EMAILS = [
   'weni.mohamed@gmail.com',
   'mohamed.sidahmed@radixmediamena.com',
+  'mohamaed.hyatt@gmail.com',
 ];
 
 function getCallerEmail(): string | null {
