@@ -1125,9 +1125,9 @@ export default function CreativeTools() {
               lighting) applied server-side. Not offered on edit — edits must
               preserve the original image's look. */}
           {mode !== 'image-edit' && stylePacks.length > 0 && (
-            <div>
+            <div className="w-full min-w-0 basis-full">
               <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Style pack</label>
-              <div className="flex gap-2 mt-2 overflow-x-auto pb-1.5" style={{ scrollbarWidth: 'thin' }}>
+              <div className="flex gap-2 mt-2 overflow-x-auto pb-1.5 [scrollbar-width:thin]" style={{ WebkitMaskImage: 'linear-gradient(to right, black calc(100% - 24px), transparent)', maskImage: 'linear-gradient(to right, black calc(100% - 24px), transparent)' }}>
                 <button
                   type="button"
                   onClick={() => setStylePackId('')}
