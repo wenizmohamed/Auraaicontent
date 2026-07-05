@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify';
+import { errStatus, errMessage } from '../services/providers/errors.js';
 import { db } from '../db/prisma.js';
 import { authGuard } from '../middleware/auth.js';
 import { reviewService } from '../services/review.service.js';
@@ -15,8 +16,8 @@ export async function reviewRoutes(app: FastifyInstance) {
     const orgId = request.orgId!;
     try {
       await assertClientInOrg(clientId, orgId);
-    } catch (err: any) {
-      return reply.status(err.statusCode || 500).send({ error: err.message });
+    } catch (err) {
+      return reply.status(errStatus(err)).send({ error: errMessage(err) });
     }
     const { expiresInDays } = (request.body as any) || {};
     const decodedMonth = decodeURIComponent(month);

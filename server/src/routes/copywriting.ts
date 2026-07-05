@@ -1,3 +1,4 @@
+import { errStatus, errMessage } from '../services/providers/errors.js';
 import { FastifyInstance } from 'fastify';
 import { authGuard } from '../middleware/auth.js';
 import { generateCopy, type CopyType, type CopyLanguage } from '../services/copywriting.service.js';
@@ -42,8 +43,8 @@ export async function copywritingRoutes(app: FastifyInstance) {
     if (body.clientId) {
       try {
         await assertClientInOrg(body.clientId, orgId);
-      } catch (err: any) {
-        return reply.status(err.statusCode || 500).send({ error: err.message });
+      } catch (err) {
+        return reply.status(errStatus(err)).send({ error: errMessage(err) });
       }
     }
 
@@ -81,7 +82,7 @@ export async function copywritingRoutes(app: FastifyInstance) {
       }).catch(() => {});
 
       return result;
-    } catch (err: any) {
+    } catch (err) {
       return sendAiError(reply, err, 'Copywriting generation failed');
     }
   });

@@ -113,7 +113,7 @@ export async function analyzeRoutes(app: FastifyInstance) {
         provider: result.provider,
         latencyMs: result.latencyMs,
       };
-    } catch (err: any) {
+    } catch (err) {
       return sendAiError(reply, err, 'Video analysis failed');
     }
   });

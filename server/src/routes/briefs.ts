@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify';
+import { errStatus, errMessage, errCode } from '../services/providers/errors.js';
 import { briefService } from '../services/brief.service.js';
 import { clientService } from '../services/client.service.js';
 import { authGuard } from '../middleware/auth.js';
@@ -14,8 +15,8 @@ export async function briefRoutes(app: FastifyInstance) {
     const { clientId } = request.params as { clientId: string };
     try {
       await assertClientInOrg(clientId, request.orgId);
-    } catch (err: any) {
-      return reply.status(err.statusCode || 500).send({ error: err.message });
+    } catch (err) {
+      return reply.status(errStatus(err)).send({ error: errMessage(err) });
     }
     const brief = await briefService.getByClientId(request.orgId!, clientId);
     if (!brief) return reply.status(404).send({ error: 'No brief found for this client' });
@@ -27,8 +28,8 @@ export async function briefRoutes(app: FastifyInstance) {
     const { clientId } = request.params as { clientId: string };
     try {
       await assertClientInOrg(clientId, request.orgId);
-    } catch (err: any) {
-      return reply.status(err.statusCode || 500).send({ error: err.message });
+    } catch (err) {
+      return reply.status(errStatus(err)).send({ error: errMessage(err) });
     }
     // Detect create vs update by checking for an existing brief BEFORE upsert.
     const existingBefore = await briefService.getByClientId(request.orgId!, clientId).catch(() => null);
@@ -47,8 +48,8 @@ export async function briefRoutes(app: FastifyInstance) {
         },
       }).catch(() => {});
       return saved;
-    } catch (err: any) {
-      if (err?.code === 'P2003') {
+    } catch (err) {
+      if (errCode(err) === 'P2003') {
         return reply.status(404).send({ error: `Client ${clientId} no longer exists.` });
       }
       throw err;
@@ -60,8 +61,8 @@ export async function briefRoutes(app: FastifyInstance) {
     const { clientId } = request.params as { clientId: string };
     try {
       await assertClientInOrg(clientId, request.orgId);
-    } catch (err: any) {
-      return reply.status(err.statusCode || 500).send({ error: err.message });
+    } catch (err) {
+      return reply.status(errStatus(err)).send({ error: errMessage(err) });
     }
     const brief = await briefService.getByClientId(request.orgId!, clientId);
     return briefService.completeness(brief);
@@ -72,8 +73,8 @@ export async function briefRoutes(app: FastifyInstance) {
     const { clientId } = request.params as { clientId: string };
     try {
       await assertClientInOrg(clientId, request.orgId);
-    } catch (err: any) {
-      return reply.status(err.statusCode || 500).send({ error: err.message });
+    } catch (err) {
+      return reply.status(errStatus(err)).send({ error: errMessage(err) });
     }
     const client = await clientService.getById(request.orgId!, clientId);
     if (!client) return reply.status(404).send({ error: 'Client not found' });

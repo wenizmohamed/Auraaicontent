@@ -447,7 +447,7 @@ export async function assistantRoutes(app: FastifyInstance) {
         provider: providerUsed,
         latencyMs: totalLatency,
       };
-    } catch (err: any) {
+    } catch (err) {
       return sendAiError(reply, err, 'Assistant call failed');
     }
   });

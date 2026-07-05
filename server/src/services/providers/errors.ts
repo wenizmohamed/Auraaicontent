@@ -191,19 +191,51 @@ export class AllProvidersFailedError extends Error {
 }
 
 /**
+ * Extract an HTTP status from an unknown caught error (Fastify/HttpError shapes
+ * carry `.statusCode`). Lives here (services, not routes) so route handlers can
+ * stay `catch (err: unknown)` — satisfying the no-explicit-any boundary rule —
+ * without re-deriving these guards at every catch site.
+ */
+export function errStatus(err: unknown, fallback = 500): number {
+  if (err && typeof err === 'object' && 'statusCode' in err) {
+    const code = (err as { statusCode?: unknown }).statusCode;
+    if (typeof code === 'number') return code;
+  }
+  return fallback;
+}
+
+/** Extract a string error code (e.g. Prisma 'P2003') from an unknown caught error. */
+export function errCode(err: unknown): string | undefined {
+  if (err && typeof err === 'object' && 'code' in err) {
+    const c = (err as { code?: unknown }).code;
+    if (typeof c === 'string') return c;
+  }
+  return undefined;
+}
+
+/** Extract a human-readable message from an unknown caught error. */
+export function errMessage(err: unknown, fallback = 'Internal error'): string {
+  if (err instanceof Error) return err.message;
+  if (err && typeof err === 'object' && 'message' in err) {
+    const m = (err as { message?: unknown }).message;
+    if (typeof m === 'string') return m;
+  }
+  return typeof err === 'string' ? err : fallback;
+}
+
+/**
  * Send a structured AI error response. Maps AllProvidersFailedError to the correct
  * HTTP status (429 for rate-limit, 503 for unavailable) and includes per-provider
  * failure summaries. Falls back to 502 for generic errors.
  */
-export function sendAiError(reply: FastifyReply, err: any, fallbackMessage: string) {
+export function sendAiError(reply: FastifyReply, err: unknown, fallbackMessage: string) {
   if (err instanceof AllProvidersFailedError) {
     return reply.status(err.statusCode).send({
       error: err.message,
       providers: err.failures,
     });
   }
-  const status = err?.statusCode || 502;
-  return reply.status(status).send({
-    error: err?.message || fallbackMessage,
+  return reply.status(errStatus(err, 502)).send({
+    error: errMessage(err, fallbackMessage),
   });
 }

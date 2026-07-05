@@ -12,6 +12,7 @@
  * `state` token (issued during /initiate while authenticated) to recover
  * the user/org context. State is single-use + 5-min TTL.
  */
+import { errStatus, errMessage } from '../services/providers/errors.js';
 import type { FastifyInstance } from 'fastify';
 import { db } from '../db/prisma.js';
 import { authGuard } from '../middleware/auth.js';
@@ -34,8 +35,8 @@ export async function integrationsRoutes(app: FastifyInstance) {
     if (!clientId) return reply.status(400).send({ error: 'clientId required' });
     try {
       await assertClientInOrg(clientId, request.orgId!);
-    } catch (err: any) {
-      return reply.status(err.statusCode || 500).send({ error: err.message });
+    } catch (err) {
+      return reply.status(errStatus(err)).send({ error: errMessage(err) });
     }
     const rows = await db.platformConnection.findMany({
       where: { orgId: request.orgId!, clientId },
@@ -70,14 +71,14 @@ export async function integrationsRoutes(app: FastifyInstance) {
     if (!clientId) return reply.status(400).send({ error: 'clientId required' });
     try {
       await assertClientInOrg(clientId, request.orgId!);
-    } catch (err: any) {
-      return reply.status(err.statusCode || 500).send({ error: err.message });
+    } catch (err) {
+      return reply.status(errStatus(err)).send({ error: errMessage(err) });
     }
     let mod;
     try {
       mod = getPlatformModule(platform);
-    } catch (err: any) {
-      return reply.status(400).send({ error: err.message });
+    } catch (err) {
+      return reply.status(400).send({ error: errMessage(err) });
     }
     // Validate returnUrl against APP_BASE_URL host to prevent open-redirect:
     // a phishing setup that runs the user through a real Meta/TikTok/LinkedIn
@@ -135,8 +136,8 @@ export async function integrationsRoutes(app: FastifyInstance) {
     let mod;
     try {
       mod = getPlatformModule(platform);
-    } catch (err: any) {
-      return reply.status(400).send({ error: err.message });
+    } catch (err) {
+      return reply.status(400).send({ error: errMessage(err) });
     }
 
     try {
@@ -188,11 +189,11 @@ export async function integrationsRoutes(app: FastifyInstance) {
       });
 
       return reply.redirect(ctx.returnUrl);
-    } catch (err: any) {
+    } catch (err) {
       // Sanitized log — no full error spread (could capture provider tokens
       // if a future code path holds one in scope when throwing).
-      console.error('[integrations callback] error', { platform, message: err?.message });
-      return reply.status(500).send({ error: `Connect failed: ${err.message}` });
+      console.error('[integrations callback] error', { platform, message: errMessage(err) });
+      return reply.status(500).send({ error: `Connect failed: ${errMessage(err)}` });
     }
   });
 

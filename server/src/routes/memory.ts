@@ -7,6 +7,7 @@
 // All tenant-scoped via authGuard + request.orgId. Learnings are never
 // hard-deleted — DELETE archives (status='archived') so history is preserved.
 
+import { errStatus, errMessage } from '../services/providers/errors.js';
 import { FastifyInstance } from 'fastify';
 import { authGuard } from '../middleware/auth.js';
 import { db } from '../db/prisma.js';
@@ -55,8 +56,8 @@ export async function memoryRoutes(app: FastifyInstance) {
     if (body.clientId) {
       try {
         await assertClientInOrg(body.clientId, orgId);
-      } catch (err: any) {
-        return reply.status(err.statusCode || 400).send({ error: err.message });
+      } catch (err) {
+        return reply.status(errStatus(err, 400)).send({ error: errMessage(err) });
       }
     }
 

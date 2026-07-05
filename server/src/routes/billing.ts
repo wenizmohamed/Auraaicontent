@@ -6,6 +6,7 @@
 // expires the org drops to 'free' until the user completes Stripe Checkout.
 // The webhook flips the plan back up on subscription.updated.
 
+import { errStatus, errMessage } from '../services/providers/errors.js';
 import type { FastifyInstance } from 'fastify';
 import { db } from '../db/prisma.js';
 import { authGuard, requireOrgRole } from '../middleware/auth.js';
@@ -98,8 +99,8 @@ export async function billingRoutes(app: FastifyInstance) {
     let event: import('stripe').Stripe.Event;
     try {
       event = stripe.webhooks.constructEvent(rawString, sig, WEBHOOK_SECRET);
-    } catch (err: any) {
-      return reply.status(400).send({ error: `Invalid signature: ${err.message}` });
+    } catch (err) {
+      return reply.status(400).send({ error: `Invalid signature: ${errMessage(err)}` });
     }
 
     switch (event.type) {

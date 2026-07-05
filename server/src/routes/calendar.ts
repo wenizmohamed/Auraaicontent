@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify';
+import { errStatus, errMessage } from '../services/providers/errors.js';
 import { db } from '../db/prisma.js';
 import { authGuard } from '../middleware/auth.js';
 import { briefService } from '../services/brief.service.js';
@@ -22,8 +23,8 @@ export async function calendarRoutes(app: FastifyInstance) {
 
     try {
       await assertClientInOrg(clientId, orgId);
-    } catch (err: any) {
-      return reply.status(err.statusCode || 500).send({ error: err.message });
+    } catch (err) {
+      return reply.status(errStatus(err)).send({ error: errMessage(err) });
     }
 
     // Block duplicate month generation. Even soft-archived months count
@@ -71,8 +72,8 @@ export async function calendarRoutes(app: FastifyInstance) {
     const orgId = request.orgId!;
     try {
       await assertClientInOrg(clientId, orgId);
-    } catch (err: any) {
-      return reply.status(err.statusCode || 500).send({ error: err.message });
+    } catch (err) {
+      return reply.status(errStatus(err)).send({ error: errMessage(err) });
     }
     const { includeTest } = (request.query as { includeTest?: string }) || {};
     const showTest = includeTest === 'true' || includeTest === '1';
@@ -107,8 +108,8 @@ export async function calendarRoutes(app: FastifyInstance) {
     const orgId = request.orgId!;
     try {
       await assertClientInOrg(clientId, orgId);
-    } catch (err: any) {
-      return reply.status(err.statusCode || 500).send({ error: err.message });
+    } catch (err) {
+      return reply.status(errStatus(err)).send({ error: errMessage(err) });
     }
     const decodedMonth = decodeURIComponent(month);
 
@@ -136,8 +137,8 @@ export async function calendarRoutes(app: FastifyInstance) {
     const orgId = request.orgId!;
     try {
       await assertClientInOrg(clientId, orgId);
-    } catch (err: any) {
-      return reply.status(err.statusCode || 500).send({ error: err.message });
+    } catch (err) {
+      return reply.status(errStatus(err)).send({ error: errMessage(err) });
     }
     const { hard } = (request.query as { hard?: string }) || {};
     const decodedMonth = decodeURIComponent(month);
@@ -178,8 +179,8 @@ export async function calendarRoutes(app: FastifyInstance) {
     const orgId = request.orgId!;
     try {
       await assertClientInOrg(clientId, orgId);
-    } catch (err: any) {
-      return reply.status(err.statusCode || 500).send({ error: err.message });
+    } catch (err) {
+      return reply.status(errStatus(err)).send({ error: errMessage(err) });
     }
     const decodedMonth = decodeURIComponent(month);
     const all = await db.calendarMonth.findMany({ where: { orgId, clientId, month: decodedMonth, isArchived: true } });
@@ -196,8 +197,8 @@ export async function calendarRoutes(app: FastifyInstance) {
     const orgId = request.orgId!;
     try {
       await assertClientInOrg(clientId, orgId);
-    } catch (err: any) {
-      return reply.status(err.statusCode || 500).send({ error: err.message });
+    } catch (err) {
+      return reply.status(errStatus(err)).send({ error: errMessage(err) });
     }
     const months = await db.calendarMonth.findMany({
       where: { orgId, clientId, isArchived: true },
@@ -219,8 +220,8 @@ export async function calendarRoutes(app: FastifyInstance) {
     const { postId } = request.params as { postId: string };
     try {
       await assertCalendarPostInOrg(postId, request.orgId);
-    } catch (err: any) {
-      return reply.status(err.statusCode || 500).send({ error: err.message });
+    } catch (err) {
+      return reply.status(errStatus(err)).send({ error: errMessage(err) });
     }
     const PATCHABLE_FIELDS = [
       'title',
@@ -274,8 +275,8 @@ export async function calendarRoutes(app: FastifyInstance) {
     const { postId } = request.params as { postId: string };
     try {
       await assertCalendarPostInOrg(postId, request.orgId);
-    } catch (err: any) {
-      return reply.status(err.statusCode || 500).send({ error: err.message });
+    } catch (err) {
+      return reply.status(errStatus(err)).send({ error: errMessage(err) });
     }
     const existing = await db.calendarPost.findUnique({
       where: { id: postId },
@@ -302,8 +303,8 @@ export async function calendarRoutes(app: FastifyInstance) {
     const orgId = request.orgId!;
     try {
       await assertClientInOrg(clientId, orgId);
-    } catch (err: any) {
-      return reply.status(err.statusCode || 500).send({ error: err.message });
+    } catch (err) {
+      return reply.status(errStatus(err)).send({ error: errMessage(err) });
     }
     const decodedMonth = decodeURIComponent(month);
     const { count } = (request.body as { count?: number }) || {};

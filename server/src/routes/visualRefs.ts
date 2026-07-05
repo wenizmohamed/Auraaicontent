@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify';
+import { errStatus, errMessage } from '../services/providers/errors.js';
 import { authGuard } from '../middleware/auth.js';
 import { db } from '../db/prisma.js';
 import { visualSearchService } from '../services/visual-search.service.js';
@@ -56,8 +57,8 @@ export async function visualRefRoutes(app: FastifyInstance) {
     const { postId } = request.params as { postId: string };
     try {
       await assertCalendarPostInOrg(postId, request.orgId);
-    } catch (err: any) {
-      return reply.status(err.statusCode || 500).send({ error: err.message });
+    } catch (err) {
+      return reply.status(errStatus(err)).send({ error: errMessage(err) });
     }
     return db.postVisualReference.findMany({
       where: { orgId: request.orgId!, postId },
@@ -71,8 +72,8 @@ export async function visualRefRoutes(app: FastifyInstance) {
     const orgId = request.orgId!;
     try {
       await assertCalendarPostInOrg(postId, orgId);
-    } catch (err: any) {
-      return reply.status(err.statusCode || 500).send({ error: err.message });
+    } catch (err) {
+      return reply.status(errStatus(err)).send({ error: errMessage(err) });
     }
     const body = (request.body as AddRefBody) || {};
     if (!body.thumbnailUrl || !body.sourceUrl) {
@@ -145,8 +146,8 @@ export async function visualRefRoutes(app: FastifyInstance) {
     const orgId = request.orgId!;
     try {
       await assertCalendarPostInOrg(postId, orgId);
-    } catch (err: any) {
-      return reply.status(err.statusCode || 500).send({ error: err.message });
+    } catch (err) {
+      return reply.status(errStatus(err)).send({ error: errMessage(err) });
     }
     const { count } = (request.body as AutoPopulateBody) || {};
 

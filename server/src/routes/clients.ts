@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify';
+import { errStatus, errMessage } from '../services/providers/errors.js';
 import { clientService } from '../services/client.service.js';
 import { authGuard } from '../middleware/auth.js';
 import { auditService } from '../services/audit.service.js';
@@ -30,8 +31,8 @@ export async function clientRoutes(app: FastifyInstance) {
         payload: { name: client.name, industry: client.industry ?? null },
       }).catch(() => {});
       return reply.status(201).send(client);
-    } catch (err: any) {
-      if (err.statusCode === 409) return reply.status(409).send({ error: err.message });
+    } catch (err) {
+      if (errStatus(err) === 409) return reply.status(409).send({ error: errMessage(err) });
       throw err;
     }
   });
@@ -60,8 +61,8 @@ export async function clientRoutes(app: FastifyInstance) {
         payload: { fields: updatedKeys },
       }).catch(() => {});
       return updated;
-    } catch (err: any) {
-      if (err.statusCode === 404) return reply.status(404).send({ error: err.message });
+    } catch (err) {
+      if (errStatus(err) === 404) return reply.status(404).send({ error: errMessage(err) });
       throw err;
     }
   });
@@ -80,8 +81,8 @@ export async function clientRoutes(app: FastifyInstance) {
         entityId: clientId,
       }).catch(() => {});
       return { success: true };
-    } catch (err: any) {
-      if (err.statusCode === 404) return reply.status(404).send({ error: err.message });
+    } catch (err) {
+      if (errStatus(err) === 404) return reply.status(404).send({ error: errMessage(err) });
       throw err;
     }
   });

@@ -6,6 +6,7 @@
 //   - POST /api/agent/runs          kick off a run (returns immediately, stream on WS)
 //   - POST /api/agent/runs/:uid/cancel
 
+import { errStatus, errMessage } from '../services/providers/errors.js';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { randomBytes } from 'crypto';
 import { db as prisma } from '../db/prisma.js';
@@ -34,8 +35,8 @@ export async function agentRoutes(app: FastifyInstance) {
     if (clientId) {
       try {
         await assertClientInOrg(clientId, orgId);
-      } catch (err: any) {
-        return reply.status(err.statusCode || 500).send({ error: err.message });
+      } catch (err) {
+        return reply.status(errStatus(err)).send({ error: errMessage(err) });
       }
     }
 
@@ -105,8 +106,8 @@ export async function agentRoutes(app: FastifyInstance) {
     if (clientId) {
       try {
         await assertClientInOrg(clientId, orgId);
-      } catch (err: any) {
-        return reply.status(err.statusCode || 500).send({ error: err.message });
+      } catch (err) {
+        return reply.status(errStatus(err)).send({ error: errMessage(err) });
       }
     }
 

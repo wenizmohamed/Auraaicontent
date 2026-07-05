@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify';
+import { errStatus, errMessage } from '../services/providers/errors.js';
 import { authGuard } from '../middleware/auth.js';
 import { knowledgeService } from '../services/knowledge.service.js';
 import { storageService } from '../services/storage.service.js';
@@ -17,8 +18,8 @@ export async function knowledgeRoutes(app: FastifyInstance) {
     const orgId = request.orgId!;
     try {
       await assertClientInOrg(clientId, orgId);
-    } catch (err: any) {
-      return reply.status(err.statusCode || 500).send({ error: err.message });
+    } catch (err) {
+      return reply.status(errStatus(err)).send({ error: errMessage(err) });
     }
     return knowledgeService.listByClient(orgId, clientId);
   });
@@ -29,8 +30,8 @@ export async function knowledgeRoutes(app: FastifyInstance) {
     const orgId = request.orgId!;
     try {
       await assertClientInOrg(clientId, orgId);
-    } catch (err: any) {
-      return reply.status(err.statusCode || 500).send({ error: err.message });
+    } catch (err) {
+      return reply.status(errStatus(err)).send({ error: errMessage(err) });
     }
     const file = await request.file();
     if (!file) return reply.status(400).send({ error: 'No file uploaded' });
@@ -88,11 +89,12 @@ export async function knowledgeRoutes(app: FastifyInstance) {
     try {
       const result = await embedKnowledgeItem(orgId, knowledgeItemId);
       return result;
-    } catch (err: any) {
-      const status = err?.statusCode || (err?.geminiOnly ? 503 : 422);
+    } catch (err) {
+      const geminiOnly = !!(err && typeof err === 'object' && 'geminiOnly' in err && (err as { geminiOnly?: unknown }).geminiOnly);
+      const status = errStatus(err, geminiOnly ? 503 : 422);
       return reply.status(status).send({
-        error: err.message,
-        ...(err?.geminiOnly ? { geminiOnly: true } : {}),
+        error: errMessage(err),
+        ...(geminiOnly ? { geminiOnly: true } : {}),
       });
     }
   });
@@ -103,8 +105,8 @@ export async function knowledgeRoutes(app: FastifyInstance) {
     const orgId = request.orgId!;
     try {
       await assertClientInOrg(clientId, orgId);
-    } catch (err: any) {
-      return reply.status(err.statusCode || 500).send({ error: err.message });
+    } catch (err) {
+      return reply.status(errStatus(err)).send({ error: errMessage(err) });
     }
     const { q, k } = request.query as { q?: string; k?: string };
     if (!q) return { error: 'q query parameter required', chunks: [] };

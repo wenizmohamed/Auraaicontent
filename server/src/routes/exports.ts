@@ -1,3 +1,4 @@
+import { errStatus, errMessage } from '../services/providers/errors.js';
 import { FastifyInstance } from 'fastify';
 import { db } from '../db/prisma.js';
 import { authGuard } from '../middleware/auth.js';
@@ -22,8 +23,8 @@ export async function exportRoutes(app: FastifyInstance) {
 
     try {
       await assertClientInOrg(clientId, request.orgId);
-    } catch (e: any) {
-      return reply.status(e.statusCode ?? 404).send({ error: e.message });
+    } catch (e) {
+      return reply.status(errStatus(e, 404)).send({ error: errMessage(e) });
     }
 
     const calendarMonth = await db.calendarMonth.findFirst({
@@ -52,8 +53,8 @@ export async function exportRoutes(app: FastifyInstance) {
     const { clientId } = request.params as { clientId: string };
     try {
       await assertClientInOrg(clientId, request.orgId);
-    } catch (e: any) {
-      return reply.status(e.statusCode ?? 404).send({ error: e.message });
+    } catch (e) {
+      return reply.status(errStatus(e, 404)).send({ error: errMessage(e) });
     }
     const exports = await db.exportJob.findMany({
       where: { clientId, orgId: request.orgId },

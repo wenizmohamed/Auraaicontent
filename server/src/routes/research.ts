@@ -84,7 +84,7 @@ export async function researchRoutes(app: FastifyInstance) {
         provider: result.provider,
         latencyMs: result.latencyMs,
       };
-    } catch (err: any) {
+    } catch (err) {
       return sendAiError(reply, err, 'Research failed');
     }
   });
@@ -205,7 +205,7 @@ export async function researchRoutes(app: FastifyInstance) {
         metadata: { focus, clientName: client.name, inputChars, kind: 'brand-synthesis' },
       });
       return { ...parsed, provider, model, latencyMs, inputChars };
-    } catch (err: any) {
+    } catch (err) {
       return sendAiError(reply, err, 'Brand synthesis failed');
     }
   });

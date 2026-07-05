@@ -1,3 +1,4 @@
+import { errStatus, errMessage } from '../services/providers/errors.js';
 import { FastifyInstance } from 'fastify';
 import { authGuard } from '../middleware/auth.js';
 import { aiRouter, getAiTelemetry } from '../services/providers/ai-router.js';
@@ -38,7 +39,7 @@ export async function creativeRoutes(app: FastifyInstance) {
       try {
         const e = await enhanceCreativePrompt({ prompt, mode: 'text-to-image', clientId: clientId || undefined, orgId: request.orgId, userId: request.user?.userId, safeZone: Boolean(safeZone), stylePack });
         if (e.prompt && e.prompt.trim() && e.prompt.trim() !== prompt) enhancedPrompt = e.prompt.trim();
-      } catch (e: any) { request.log.warn(`prompt-enhancer failed (image): ${e?.message}`); }
+      } catch (e) { request.log.warn(`prompt-enhancer failed (image): ${errMessage(e)}`); }
     }
     // Pack must survive enhance:false AND enhancer failure — append the raw
     // design contract so the style still lands on the model.
@@ -57,7 +58,7 @@ export async function creativeRoutes(app: FastifyInstance) {
           buf = Buffer.from(result.output.base64, 'base64');
         } else if (result.output.url) {
           try { buf = Buffer.from(await (await fetch(result.output.url)).arrayBuffer()); }
-          catch (e: any) { request.log.warn(`image url fetch failed: ${e?.message}`); }
+          catch (e) { request.log.warn(`image url fetch failed: ${errMessage(e)}`); }
         }
         if (buf) {
           const { fileUrl, thumbUrl } = await storageService.saveFile(buf, `ai-gen-${Date.now()}.png`, 'image/png');
@@ -92,7 +93,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         assetUrl: finalUrl,
         enhancedPrompt,
       };
-    } catch (err: any) {
+    } catch (err) {
       await historyService.record({
         orgId: request.orgId,
         userId: request.user?.userId,
@@ -101,7 +102,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         surface: 'creative_tools',
         prompt,
         status: 'failed',
-        error: err?.message || 'unknown',
+        error: errMessage(err, 'unknown'),
         metadata: { aspectRatio, quality, mode: 'text-to-image' },
       });
       return sendAiError(reply, err, 'Image generation failed');
@@ -131,7 +132,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         try {
           const e = await enhanceCreativePrompt({ prompt, mode: 'image-edit', clientId: clientId || undefined, orgId: request.orgId, userId: request.user?.userId, safeZone: Boolean(safeZone), hasRefs: !!refs?.length });
           if (e.prompt && e.prompt.trim() && e.prompt.trim() !== prompt) enhancedPrompt = e.prompt.trim();
-        } catch (e: any) { request.log.warn(`prompt-enhancer failed (edit): ${e?.message}`); }
+        } catch (e) { request.log.warn(`prompt-enhancer failed (edit): ${errMessage(e)}`); }
       }
       const genPrompt = enhancedPrompt ?? (safeZone ? `${prompt}\n\n${SAFE_ZONE_HINT}` : prompt);
       const result = await aiRouter.image({ prompt: genPrompt, imageBase64, mimeType: mimeType || 'image/png', aspectRatio, model, referenceImages: refs, imageSize }, { orgId: request.orgId, userId: request.user?.userId, clientId, preferredProvider: provider });
@@ -166,7 +167,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         assetUrl: finalUrl,
         enhancedPrompt,
       };
-    } catch (err: any) {
+    } catch (err) {
       await historyService.record({
         orgId: request.orgId,
         userId: request.user?.userId,
@@ -175,7 +176,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         surface: 'creative_tools',
         prompt,
         status: 'failed',
-        error: err?.message || 'unknown',
+        error: errMessage(err, 'unknown'),
         metadata: { aspectRatio, mode: 'image-edit' },
       });
       return sendAiError(reply, err, 'AI operation failed');
@@ -228,7 +229,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         });
         if (e.prompt && e.prompt.trim() && e.prompt.trim() !== prompt) enhancedPrompt = e.prompt.trim();
         autoNegative = e.negativePrompt;
-      } catch (e: any) { request.log.warn(`prompt-enhancer failed (video): ${e?.message}`); }
+      } catch (e) { request.log.warn(`prompt-enhancer failed (video): ${errMessage(e)}`); }
     }
     // Pack survives enhance:false / enhancer failure (raw design contract);
     // pack negatives ride autoNegative when the enhancer didn't run.
@@ -343,7 +344,7 @@ export async function creativeRoutes(app: FastifyInstance) {
           url: result.output.url,
           enhancedPrompt: j.data.enhancedPrompt || null,
         };
-      } catch (err: any) {
+      } catch (err) {
         await historyService.record({
           orgId,
           userId,
@@ -352,7 +353,7 @@ export async function creativeRoutes(app: FastifyInstance) {
           surface: 'creative_tools',
           prompt: j.data.prompt,
           status: 'failed',
-          error: err?.message || 'unknown',
+          error: errMessage(err, 'unknown'),
           metadata: {
             aspectRatio: j.data.aspectRatio,
             mode: j.data.imageBase64 ? 'image-to-video' : 'text-to-video',
@@ -449,7 +450,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         provider: result.provider,
         latencyMs: result.latencyMs,
       };
-    } catch (err: any) {
+    } catch (err) {
       return sendAiError(reply, err, 'Prompt improver failed');
     }
   });
@@ -465,7 +466,7 @@ export async function creativeRoutes(app: FastifyInstance) {
       const lim = limit ? Math.min(parseInt(limit), 25) : 12;
       const { results, nextBookmark } = await searchPinterest(q, lim, bookmark);
       return { query: q, count: results.length, results, nextBookmark };
-    } catch (err: any) {
+    } catch (err) {
       return sendAiError(reply, err, 'AI operation failed');
     }
   });
@@ -507,13 +508,13 @@ export async function creativeRoutes(app: FastifyInstance) {
               safeForClient: true,
             },
           });
-        } catch (saveErr: any) {
-          console.error('[pinterest] Failed to save asset:', saveErr.message);
+        } catch (saveErr) {
+          console.error('[pinterest] Failed to save asset:', errMessage(saveErr));
         }
       }
 
       return { count: results.length, results, savedAsset };
-    } catch (err: any) {
+    } catch (err) {
       return sendAiError(reply, err, 'AI operation failed');
     }
   });

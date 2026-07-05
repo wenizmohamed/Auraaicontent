@@ -3,6 +3,7 @@
 // in package.json. Existing `npm run lint` (tsc --noEmit) stays intact.
 import js from '@eslint/js';
 import tsParser from '@typescript-eslint/parser';
+import tsPlugin from '@typescript-eslint/eslint-plugin';
 import jsxA11y from 'eslint-plugin-jsx-a11y';
 import reactHooks from 'eslint-plugin-react-hooks';
 
@@ -49,11 +50,18 @@ export default [
       },
     },
     plugins: {
+      '@typescript-eslint': tsPlugin,
       'jsx-a11y': jsxA11y,
       'react-hooks': reactHooks,
     },
     rules: {
       // Type-aware rules belong in tsc --noEmit (already in `npm run lint`).
+      // The @typescript-eslint plugin is registered ONLY so inline
+      // `// eslint-disable-next-line @typescript-eslint/no-explicit-any`
+      // directives resolve (otherwise ESLint 9 flat config throws
+      // "Definition for rule ... was not found"). The rule itself stays off
+      // here — explicit-any is governed by tsc + the server route boundary.
+      '@typescript-eslint/no-explicit-any': 'off',
       // This config is purely the a11y safety net.
       ...jsxA11y.configs.recommended.rules,
       // Pragmatic loosenings — Radix primitives manage their own a11y +

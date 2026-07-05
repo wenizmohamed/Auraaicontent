@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify';
+import { errStatus, errMessage } from '../services/providers/errors.js';
 import { authGuard } from '../middleware/auth.js';
 import { assetService } from '../services/asset.service.js';
 import { storageService } from '../services/storage.service.js';
@@ -48,8 +49,8 @@ export async function assetRoutes(app: FastifyInstance) {
     const orgId = request.orgId!;
     try {
       await assertClientInOrg(clientId, orgId);
-    } catch (err: any) {
-      return reply.status(err.statusCode || 500).send({ error: err.message });
+    } catch (err) {
+      return reply.status(errStatus(err)).send({ error: errMessage(err) });
     }
     return assetService.listByClient(orgId, clientId);
   });
@@ -60,8 +61,8 @@ export async function assetRoutes(app: FastifyInstance) {
     const orgId = request.orgId!;
     try {
       await assertClientInOrg(clientId, orgId);
-    } catch (err: any) {
-      return reply.status(err.statusCode || 500).send({ error: err.message });
+    } catch (err) {
+      return reply.status(errStatus(err)).send({ error: errMessage(err) });
     }
     const file = await request.file();
     if (!file) return reply.status(400).send({ error: 'No file uploaded' });
@@ -97,8 +98,8 @@ export async function assetRoutes(app: FastifyInstance) {
     try {
       const analysis = await analyzeAssetWorker(orgId, assetId, request.user?.userId);
       return { assetId, analysis };
-    } catch (err: any) {
-      return reply.status(422).send({ error: err.message });
+    } catch (err) {
+      return reply.status(422).send({ error: errMessage(err) });
     }
   });
 
@@ -109,8 +110,8 @@ export async function assetRoutes(app: FastifyInstance) {
     const { name, tags, safeForClient } = request.body as any;
     try {
       return await assetService.update(orgId, assetId, { name, tags, safeForClient });
-    } catch (err: any) {
-      if (err.statusCode === 404) return reply.status(404).send({ error: err.message });
+    } catch (err) {
+      if (errStatus(err) === 404) return reply.status(404).send({ error: errMessage(err) });
       throw err;
     }
   });

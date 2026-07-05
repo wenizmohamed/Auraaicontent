@@ -4,6 +4,7 @@
 //
 // Returns aggregate-only data (no per-row PII like calendar contents).
 
+import { errStatus, errMessage } from '../services/providers/errors.js';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { db } from '../db/prisma.js';
 import { authGuard } from '../middleware/auth.js';
@@ -298,7 +299,7 @@ export async function adminRoutes(app: FastifyInstance) {
       if (!orgId) return reply.status(400).send({ error: 'orgId required' });
       let from: Date, to: Date;
       try { ({ from, to } = parseRange(request.query)); }
-      catch (e: any) { return reply.status(400).send({ error: `Invalid ${e.message === 'BAD_FROM' ? 'from' : 'to'} date` }); }
+      catch (e) { return reply.status(400).send({ error: `Invalid ${errMessage(e) === 'BAD_FROM' ? 'from' : 'to'} date` }); }
 
       // Totals per user (raw — Prisma's groupBy on a nullable userId joined to User
       // is awkward; raw SQL is cleaner and lets us LEFT JOIN User in one shot).
@@ -404,7 +405,7 @@ export async function adminRoutes(app: FastifyInstance) {
       if (!orgId) return reply.status(400).send({ error: 'orgId required' });
       let from: Date, to: Date;
       try { ({ from, to } = parseRange(request.query, 30)); }
-      catch (e: any) { return reply.status(400).send({ error: `Invalid ${e.message === 'BAD_FROM' ? 'from' : 'to'} date` }); }
+      catch (e) { return reply.status(400).send({ error: `Invalid ${errMessage(e) === 'BAD_FROM' ? 'from' : 'to'} date` }); }
 
       const rows = await db.$queryRaw<Array<{
         day: Date; kind: string;
@@ -446,7 +447,7 @@ export async function adminRoutes(app: FastifyInstance) {
       if (!orgId) return reply.status(400).send({ error: 'orgId required' });
       let from: Date, to: Date;
       try { ({ from, to } = parseRange(request.query)); }
-      catch (e: any) { return reply.status(400).send({ error: `Invalid ${e.message === 'BAD_FROM' ? 'from' : 'to'} date` }); }
+      catch (e) { return reply.status(400).send({ error: `Invalid ${errMessage(e) === 'BAD_FROM' ? 'from' : 'to'} date` }); }
 
       const CAP = 10000;
       const rows = await db.$queryRaw<Array<{
@@ -512,7 +513,7 @@ export async function adminRoutes(app: FastifyInstance) {
     if (!orgId) return reply.status(400).send({ error: 'orgId required' });
     let from: Date, to: Date;
     try { ({ from, to } = parseRange(request.query)); }
-    catch (e: any) { return reply.status(400).send({ error: `Invalid ${e.message === 'BAD_FROM' ? 'from' : 'to'} date` }); }
+    catch (e) { return reply.status(400).send({ error: `Invalid ${errMessage(e) === 'BAD_FROM' ? 'from' : 'to'} date` }); }
 
     const lim = Math.min(1000, Math.max(1, Number(request.query.limit ?? 100) || 100));
 
@@ -585,7 +586,7 @@ export async function adminRoutes(app: FastifyInstance) {
       const { orgId } = request.query;
       let from: Date, to: Date;
       try { ({ from, to } = parseRange(request.query)); }
-      catch (e: any) { return reply.status(400).send({ error: `Invalid ${e.message === 'BAD_FROM' ? 'from' : 'to'} date` }); }
+      catch (e) { return reply.status(400).send({ error: `Invalid ${errMessage(e) === 'BAD_FROM' ? 'from' : 'to'} date` }); }
 
       // Top-line totals + per-kind breakdown.
       const kindRows = await db.$queryRaw<Array<{

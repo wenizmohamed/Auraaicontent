@@ -135,7 +135,7 @@ export async function designRoutes(app: FastifyInstance) {
         provider: result.provider,
         latencyMs: result.latencyMs,
       };
-    } catch (err: any) {
+    } catch (err) {
       return sendAiError(reply, err, 'Design brief failed');
     }
   });
