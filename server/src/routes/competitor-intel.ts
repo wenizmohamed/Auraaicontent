@@ -1,4 +1,4 @@
-// Social-listening / competitor-intelligence MVP (T3#14). Native, in-house.
+// Competitor Intel MVP (T3#14). Native, in-house.
 //
 // Honest scope: given a competitor (name + optional website), fetch the page when
 // provided and run the AI router to extract content themes, tone/positioning,
@@ -27,11 +27,11 @@ async function fetchPageText(url: string, timeoutMs = 8000): Promise<string | nu
   } catch { return null; }
 }
 
-export async function socialListeningRoutes(app: FastifyInstance) {
+export async function competitorIntelRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authGuard);
 
-  // POST /api/social-listening/analyze { competitor, website?, clientId? }
-  app.post('/social-listening/analyze', async (request, reply) => {
+  // POST /api/competitor-intel/analyze { competitor, website?, clientId? }
+  app.post('/competitor-intel/analyze', async (request, reply) => {
     try {
       const { competitor, website, clientId } = (request.body as { competitor?: string; website?: string; clientId?: string }) || {};
       if (!competitor?.trim()) return reply.status(400).send({ error: 'competitor is required' });

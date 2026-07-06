@@ -18,7 +18,7 @@ const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-07-06',
     tag: 'new',
-    title: 'Social Listening — read a competitor, find your opening',
+    title: 'Competitor Intel — read a competitor, find your opening',
     body: 'New Strategy tool: drop in any competitor (brand, handle or website) and Radix reads their content strategy — themes, tone, posting cadence, what they do well. Pick a client and it turns their playbook into concrete gaps that client can exploit. Grounds the read on the competitor\'s real site when you paste a URL.',
   },
   {

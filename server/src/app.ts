@@ -20,7 +20,7 @@ import { creativeRoutes } from './routes/creative.js';
 import { changelogRoutes } from './routes/changelog.js';
 import { searchRoutes } from './routes/search.js';
 import { galleryShareRoutes } from './routes/gallery-share.js';
-import { socialListeningRoutes } from './routes/social-listening.js';
+import { competitorIntelRoutes } from './routes/competitor-intel.js';
 import { copywritingRoutes } from './routes/copywriting.js';
 import { researchRoutes } from './routes/research.js';
 import { aiRoutes } from './routes/ai.js';
@@ -268,7 +268,7 @@ export async function buildApp() {
   await app.register(changelogRoutes, { prefix: '/api' });
   await app.register(searchRoutes, { prefix: '/api' });
   await app.register(galleryShareRoutes, { prefix: '/api' });
-  await app.register(socialListeningRoutes, { prefix: '/api' });
+  await app.register(competitorIntelRoutes, { prefix: '/api' });
   await app.register(copywritingRoutes, { prefix: '/api' });
   await app.register(researchRoutes, { prefix: '/api' });
   await app.register(aiRoutes, { prefix: '/api' });

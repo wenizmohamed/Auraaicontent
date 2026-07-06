@@ -1,0 +1,659 @@
+{
+  "version": "1.0",
+  "skills": {
+    "route-tester": {
+      "type": "domain",
+      "enforcement": "suggest",
+      "priority": "medium",
+      "promptTriggers": {
+        "keywords": [
+          "test route",
+          "test routes",
+          "test api",
+          "test endpoint",
+          "test endpoints",
+          "api testing",
+          "route testing",
+          "endpoint testing",
+          "test authentication",
+          "test auth",
+          "integration test",
+          "integration testing",
+          "api test",
+          "http test",
+          "rest test",
+          "test request",
+          "test response"
+        ],
+        "intentPatterns": [
+          "test.*(route|endpoint|api)",
+          "(route|endpoint|api).*test",
+          "(test|testing).*(authentication|auth)",
+          "(integration|e2e).*(test|testing).*(api|route|endpoint)",
+          "write.*(test|tests).*(api|route|endpoint)"
+        ]
+      }
+    },
+    "skill-developer": {
+      "type": "domain",
+      "enforcement": "suggest",
+      "priority": "high",
+      "description": "Meta-skill for creating and managing Claude Code skills",
+      "promptTriggers": {
+        "keywords": [
+          "skill system",
+          "create skill",
+          "add skill",
+          "skill triggers",
+          "skill rules",
+          "hook system",
+          "skill development",
+          "skill-rules.json"
+        ],
+        "intentPatterns": [
+          "(how do|how does|explain).*?skill",
+          "(create|add|modify|build).*?skill",
+          "skill.*?(work|trigger|activate|system)"
+        ]
+      }
+    },
+    "shadcn": {
+      "type": "domain",
+      "enforcement": "suggest",
+      "priority": "high",
+      "promptTriggers": {
+        "keywords": [
+          "shadcn",
+          "shadcn/ui",
+          "npx shadcn",
+          "@/components/ui",
+          "table component",
+          "form component",
+          "dialog component",
+          "card component",
+          "button component"
+        ],
+        "intentPatterns": [
+          "create.*(table|form|dialog|card|button)",
+          "add.*(table|form|dialog|card|button).*component",
+          "add.*shadcn.*component",
+          "install.*shadcn.*component",
+          "style.*component.*shadcn",
+          "use.*shadcn"
+        ]
+      },
+      "fileTriggers": {
+        "pathPatterns": [
+          "**/components/ui/**",
+          "**/components.json"
+        ]
+      }
+    },
+    "nodejs": {
+      "type": "domain",
+      "enforcement": "suggest",
+      "priority": "medium",
+      "promptTriggers": {
+        "keywords": [
+          "node.js",
+          "nodejs",
+          "process.env",
+          "process.argv",
+          "process.cwd",
+          "require(",
+          "module.exports",
+          "__dirname",
+          "__filename",
+          "fs.readFile",
+          "fs.writeFile",
+          "fs.promises",
+          "path.join",
+          "path.resolve",
+          "http.createServer",
+          "https.createServer",
+          "EventEmitter",
+          "Buffer",
+          "stream.Readable",
+          "stream.Writable",
+          "child_process",
+          "os.platform",
+          "crypto.createHash",
+          "util.promisify"
+        ],
+        "intentPatterns": [
+          "create.*node.*server",
+          "read.*file.*node",
+          "write.*file.*node",
+          "use.*node.*fs",
+          "create.*node.*stream",
+          "spawn.*child.*process",
+          "use.*buffer",
+          "create.*http.*server",
+          "use.*path.*module",
+          "handle.*process.*events",
+          "use.*node.*(fs|path|http|crypto|stream)"
+        ]
+      },
+      "fileTriggers": {
+        "pathPatterns": [
+          "**/services/**/*.ts",
+          "**/services/**/*.js",
+          "**/utils/**/*.ts",
+          "**/utils/**/*.js",
+          "**/lib/**/*.ts",
+          "**/lib/**/*.js",
+          "**/scripts/**/*.js",
+          "**/scripts/**/*.ts"
+        ],
+        "contentPatterns": [
+          "import.*fs.*from 'fs'",
+          "import.*path.*from 'path'",
+          "import.*http.*from 'http'",
+          "require\\('fs'\\)",
+          "require\\('path'\\)",
+          "require\\('http'\\)",
+          "process\\.env",
+          "__dirname",
+          "__filename",
+          "Buffer\\.",
+          "createServer\\(",
+          "EventEmitter"
+        ]
+      }
+    },
+    "react": {
+      "type": "domain",
+      "enforcement": "suggest",
+      "priority": "medium",
+      "promptTriggers": {
+        "keywords": [
+          "react",
+          "useState",
+          "useEffect",
+          "useCallback",
+          "useMemo",
+          "useRef",
+          "useContext",
+          "useReducer",
+          "useTransition",
+          "useDeferredValue",
+          "useId",
+          "useSyncExternalStore",
+          "useImperativeHandle",
+          "useLayoutEffect",
+          "React.lazy",
+          "React.memo",
+          "React.forwardRef",
+          "React.createContext",
+          "createContext",
+          "forwardRef",
+          "Suspense",
+          "ErrorBoundary",
+          "StrictMode",
+          "startTransition",
+          "flushSync",
+          "createPortal",
+          "cloneElement"
+        ],
+        "intentPatterns": [
+          "use.*react.*hook",
+          "implement.*(useState|useEffect|useCallback|useMemo|useContext|useReducer)",
+          "add.*react.*(lazy|suspense|memo)",
+          "create.*react.*context",
+          "optimize.*react.*component",
+          "memoize.*react.*component",
+          "use.*(useTransition|useDeferredValue)",
+          "create.*error.*boundary",
+          "implement.*react.*(forwardRef|memo)",
+          "add.*react.*portal"
+        ]
+      },
+      "fileTriggers": {
+        "pathPatterns": [
+          "**/*.tsx",
+          "**/*.jsx",
+          "**/components/**/*.ts",
+          "**/features/**/*.tsx",
+          "**/hooks/**/*.ts",
+          "**/hooks/**/*.tsx"
+        ],
+        "contentPatterns": [
+          "import.*from ['\"]react['\"]",
+          "import.*React.*from ['\"]react['\"]",
+          "useState\\(",
+          "useEffect\\(",
+          "useCallback\\(",
+          "useMemo\\(",
+          "useContext\\(",
+          "useReducer\\(",
+          "React\\.memo\\(",
+          "React\\.lazy\\(",
+          "forwardRef\\("
+        ]
+      }
+    },
+    "tanstack-router": {
+      "type": "domain",
+      "enforcement": "suggest",
+      "priority": "high",
+      "promptTriggers": {
+        "keywords": [
+          "tanstack router",
+          "@tanstack/react-router",
+          "createFileRoute",
+          "createRootRoute",
+          "createRoute",
+          "createRouter",
+          "RouterProvider",
+          "useNavigate",
+          "useParams",
+          "useSearch",
+          "useLoaderData",
+          "useRouter",
+          "useMatches",
+          "useMatch",
+          "useLocation",
+          "route loader",
+          "Route.lazy",
+          "beforeLoad",
+          "validateSearch",
+          "Link",
+          "Outlet",
+          "Navigate",
+          "redirect",
+          "notFound"
+        ],
+        "intentPatterns": [
+          "create.*tanstack.*route",
+          "add.*tanstack.*route",
+          "setup.*tanstack.*router",
+          "implement.*file.*based.*routing",
+          "create.*route.*loader",
+          "add.*route.*validation",
+          "use.*tanstack.*navigation",
+          "create.*lazy.*route",
+          "implement.*route.*guard",
+          "add.*search.*params.*validation",
+          "create.*router.*tanstack"
+        ]
+      },
+      "fileTriggers": {
+        "pathPatterns": [
+          "**/routes/**/*.tsx",
+          "**/routes/**/*.ts",
+          "**/routes/**/*.lazy.tsx",
+          "**/routes/**/*.lazy.ts",
+          "**/__root.tsx"
+        ],
+        "contentPatterns": [
+          "createFileRoute\\(",
+          "createRootRoute\\(",
+          "createRoute\\(",
+          "createRouter\\(",
+          "import.*@tanstack/react-router",
+          "from '@tanstack/react-router'",
+          "RouterProvider",
+          "useNavigate\\(\\)",
+          "useParams\\(\\)",
+          "useSearch\\(\\)",
+          "Route\\.lazy"
+        ]
+      }
+    },
+    "tailwindcss": {
+      "type": "domain",
+      "enforcement": "suggest",
+      "priority": "medium",
+      "promptTriggers": {
+        "keywords": [
+          "tailwind",
+          "tailwindcss",
+          "utility classes",
+          "@apply",
+          "tailwind.config",
+          "dark mode"
+        ],
+        "intentPatterns": [
+          "style.*with.*tailwind",
+          "add.*tailwind.*classes",
+          "configure.*tailwind",
+          "setup.*tailwind",
+          "customize.*theme",
+          "add.*dark.*mode"
+        ]
+      },
+      "fileTriggers": {
+        "pathPatterns": [
+          "**/tailwind.config.js",
+          "**/tailwind.config.ts",
+          "**/globals.css",
+          "**/*.css"
+        ],
+        "contentPatterns": [
+          "className=['\"].*flex",
+          "className=['\"].*grid",
+          "className=['\"].*bg-",
+          "@apply"
+        ]
+      }
+    },
+    "tanstack-query": {
+      "type": "domain",
+      "enforcement": "suggest",
+      "priority": "high",
+      "promptTriggers": {
+        "keywords": [
+          "tanstack query",
+          "react query",
+          "@tanstack/react-query",
+          "useQuery",
+          "useMutation",
+          "useSuspenseQuery",
+          "useInfiniteQuery",
+          "useQueries",
+          "useQueryClient",
+          "useIsFetching",
+          "useIsMutating",
+          "useMutationState",
+          "QueryClient",
+          "QueryClientProvider",
+          "queryKey",
+          "queryFn",
+          "mutationFn",
+          "invalidateQueries",
+          "setQueryData",
+          "getQueryData",
+          "removeQueries",
+          "resetQueries",
+          "staleTime",
+          "cacheTime",
+          "refetchInterval",
+          "refetchOnWindowFocus",
+          "refetchOnReconnect",
+          "isLoading",
+          "isError",
+          "isFetching",
+          "isSuccess",
+          "queryCache",
+          "mutationCache"
+        ],
+        "intentPatterns": [
+          "use.*tanstack.*query",
+          "use.*react.*query",
+          "create.*tanstack.*(query|mutation)",
+          "invalidate.*query.*cache",
+          "invalidate.*tanstack.*queries",
+          "prefetch.*query",
+          "setup.*query.*client",
+          "configure.*tanstack.*query",
+          "use.*(useQuery|useMutation|useInfiniteQuery)",
+          "implement.*query.*invalidation",
+          "add.*query.*key",
+          "set.*query.*data"
+        ]
+      },
+      "fileTriggers": {
+        "pathPatterns": [
+          "**/api/**/*.ts",
+          "**/api/**/*.tsx",
+          "**/queries/**/*.ts",
+          "**/queries/**/*.tsx",
+          "**/hooks/**/*.ts",
+          "**/hooks/**/*.tsx",
+          "**/mutations/**/*.ts",
+          "**/mutations/**/*.tsx"
+        ],
+        "contentPatterns": [
+          "useQuery\\(",
+          "useMutation\\(",
+          "useSuspenseQuery\\(",
+          "useInfiniteQuery\\(",
+          "useQueryClient\\(",
+          "queryClient\\.",
+          "import.*@tanstack/react-query",
+          "from '@tanstack/react-query'",
+          "QueryClientProvider",
+          "new QueryClient\\(",
+          "invalidateQueries\\(",
+          "setQueryData\\(",
+          "queryKey:",
+          "queryFn:"
+        ]
+      }
+    },
+    "prisma": {
+      "type": "domain",
+      "enforcement": "suggest",
+      "priority": "high",
+      "promptTriggers": {
+        "keywords": [
+          "prisma",
+          "prisma client",
+          "prisma schema",
+          "prisma migrate",
+          "prisma studio",
+          "@prisma/client",
+          "PrismaClient",
+          "prisma.create",
+          "prisma.findMany",
+          "prisma.findUnique",
+          "prisma.update",
+          "prisma.delete",
+          "prisma.upsert",
+          "prisma.$transaction",
+          "@id",
+          "@default",
+          "@unique",
+          "@relation",
+          "@map",
+          "schema.prisma",
+          "generator client",
+          "datasource db",
+          "findFirst",
+          "findUnique",
+          "findMany",
+          "include",
+          "select",
+          "where",
+          "orderBy"
+        ],
+        "intentPatterns": [
+          "create.*prisma.*model",
+          "add.*prisma.*schema",
+          "create.*prisma.*migration",
+          "update.*prisma.*schema",
+          "query.*with.*prisma",
+          "setup.*prisma.*client",
+          "define.*prisma.*relation",
+          "add.*prisma.*field",
+          "prisma.*transaction",
+          "prisma.*(findMany|findUnique|create|update|delete)",
+          "create.*database.*model.*prisma"
+        ]
+      },
+      "fileTriggers": {
+        "pathPatterns": [
+          "**/prisma/schema.prisma",
+          "**/prisma/**/*.prisma",
+          "**/repositories/**/*.ts",
+          "**/repositories/**/*.js",
+          "**/db/**/*.ts",
+          "**/db/**/*.js",
+          "**/prisma/**/*.ts"
+        ],
+        "contentPatterns": [
+          "import.*@prisma/client",
+          "from '@prisma/client'",
+          "new PrismaClient\\(\\)",
+          "prisma\\.(create|findMany|findUnique|findFirst|update|delete|upsert)",
+          "prisma\\.\\$transaction",
+          "model\\s+\\w+\\s*\\{",
+          "generator client",
+          "datasource db",
+          "@id",
+          "@relation"
+        ]
+      }
+    },
+    "backend-dev-guidelines": {
+      "type": "domain",
+      "enforcement": "suggest",
+      "priority": "high",
+      "description": "Backend development patterns for Node.js/Express/TypeScript",
+      "promptTriggers": {
+        "keywords": [
+          "backend",
+          "backend development",
+          "microservice",
+          "controller",
+          "service",
+          "repository",
+          "route",
+          "routing",
+          "express",
+          "API",
+          "endpoint",
+          "middleware",
+          "validation",
+          "Zod",
+          "Prisma",
+          "database access",
+          "BaseController",
+          "dependency injection",
+          "unifiedConfig",
+          "configuration"
+        ],
+        "intentPatterns": [
+          "(create|add|implement|build).*?(route|endpoint|API|controller|service|repository)",
+          "(fix|handle|debug).*?(error|exception|backend)",
+          "(add|implement).*?(middleware|validation|error.*?handling)",
+          "(organize|structure|refactor).*?(backend|service|API)",
+          "(how to|best practice).*?(backend|route|controller|service)"
+        ]
+      },
+      "fileTriggers": {
+        "pathPatterns": [
+          "blog-api/src/**/*.ts",
+          "auth-service/src/**/*.ts",
+          "notifications-service/src/**/*.ts",
+          "backend/**/*.ts",
+          "api/**/*.ts",
+          "server/**/*.ts",
+          "services/**/*.ts"
+        ],
+        "pathExclusions": [
+          "**/*.test.ts",
+          "**/*.spec.ts"
+        ],
+        "contentPatterns": [
+          "router\\.",
+          "app\\.(get|post|put|delete|patch)",
+          "export.*Controller",
+          "export.*Service",
+          "prisma\\."
+        ]
+      }
+    },
+    "frontend-dev-guidelines": {
+      "type": "guardrail",
+      "enforcement": "block",
+      "priority": "high",
+      "description": "React/TypeScript best practices including MUI v7 compatibility",
+      "promptTriggers": {
+        "keywords": [
+          "component",
+          "react component",
+          "UI",
+          "interface",
+          "page",
+          "modal",
+          "dialog",
+          "form",
+          "MUI",
+          "Material-UI",
+          "Grid",
+          "styling",
+          "frontend",
+          "React"
+        ],
+        "intentPatterns": [
+          "(create|add|make|build|update|modify|edit).*?(component|UI|page|modal|dialog|form)",
+          "(how to|best practice).*?(component|react|MUI)",
+          "(style|design|layout).*?(component|UI)"
+        ]
+      },
+      "fileTriggers": {
+        "pathPatterns": [
+          "frontend/src/**/*.tsx",
+          "frontend/src/**/*.ts",
+          "client/src/**/*.tsx",
+          "client/src/**/*.ts",
+          "src/**/*.tsx"
+        ],
+        "pathExclusions": [
+          "**/*.test.tsx",
+          "**/*.test.ts",
+          "**/*.spec.tsx",
+          "**/*.spec.ts",
+          "**/*.styles.ts",
+          "**/vite.config.ts",
+          "**/tsconfig.json"
+        ],
+        "contentPatterns": [
+          "from '@mui/material';",
+          "import.*Grid.*from.*@mui",
+          "<Grid ",
+          "Grid2",
+          "Unstable_Grid",
+          "makeStyles",
+          "@material-ui/core"
+        ]
+      },
+      "blockMessage": "\u26a0\ufe0f BLOCKED - Frontend Best Practices Required\n\n\ud83d\udccb REQUIRED ACTION:\n1. Use Skill tool: 'frontend-dev-guidelines'\n2. Review MUI v7 patterns (Grid uses size={{}} prop, NOT xs/sm props)\n3. Check React/TypeScript best practices\n4. Use proper styling patterns\n5. Then retry this edit\n\nReason: Enforce MUI v7 compatibility and React best practices\nFile: {file_path}\n\n\ud83d\udca1 TIP: Add '// @skip-validation' comment to skip future checks",
+      "skipConditions": {
+        "sessionSkillUsed": true,
+        "fileMarkers": [
+          "@skip-validation"
+        ],
+        "envOverride": "SKIP_FRONTEND_GUIDELINES"
+      }
+    },
+    "error-tracking": {
+      "type": "domain",
+      "enforcement": "suggest",
+      "priority": "high",
+      "description": "Sentry error tracking and performance monitoring patterns",
+      "promptTriggers": {
+        "keywords": [
+          "error handling",
+          "exception",
+          "sentry",
+          "error tracking",
+          "captureException",
+          "monitoring",
+          "performance tracking"
+        ],
+        "intentPatterns": [
+          "(add|create|implement|setup).*?(error handling|sentry|error tracking)",
+          "(fix|handle|catch).*?(error|exception)",
+          "(how to|best practice).*?(error|sentry|monitoring)"
+        ]
+      },
+      "fileTriggers": {
+        "pathPatterns": [
+          "**/instrument.ts",
+          "**/sentry*.ts",
+          "**/*Controller.ts",
+          "**/*Service.ts"
+        ],
+        "contentPatterns": [
+          "@sentry",
+          "Sentry\\.",
+          "captureException",
+          "captureMessage"
+        ]
+      }
+    }
+  },
+  "agents": {}
+}

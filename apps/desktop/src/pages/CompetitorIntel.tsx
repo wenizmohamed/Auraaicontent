@@ -1,4 +1,4 @@
-// Social Listening — competitor intelligence MVP (T3#14). Enter a competitor
+// Competitor Intel — competitor intelligence MVP (T3#14). Enter a competitor
 // (+ optional website); the AI router analyzes their content strategy and, when
 // a client is selected, surfaces concrete gaps that client can exploit.
 import { useState } from 'react';
@@ -6,10 +6,10 @@ import { motion } from 'framer-motion';
 import { Radar, Search, Sparkles, Target, TrendingUp, Lightbulb, Loader2 } from 'lucide-react';
 import { useClients } from '../lib/client-context';
 import { useToast } from '../lib/toast-context';
-import { socialListeningApi, type CompetitorAnalysis } from '../lib/backend-api';
+import { competitorIntelApi, type CompetitorAnalysis } from '../lib/backend-api';
 import { motionBase } from '../lib/motion';
 
-export default function SocialListening() {
+export default function CompetitorIntel() {
   const { currentClient } = useClients();
   const { error: toastErr } = useToast();
   const [competitor, setCompetitor] = useState('');
@@ -21,7 +21,7 @@ export default function SocialListening() {
     if (!competitor.trim()) return;
     setLoading(true); setResult(null);
     try {
-      const r = await socialListeningApi.analyze({ competitor: competitor.trim(), website: website.trim() || undefined, clientId: currentClient?.id });
+      const r = await competitorIntelApi.analyze({ competitor: competitor.trim(), website: website.trim() || undefined, clientId: currentClient?.id });
       setResult(r);
     } catch (e) {
       toastErr(e instanceof Error ? e.message : 'Analysis failed');
@@ -38,7 +38,7 @@ export default function SocialListening() {
     <div className="max-w-4xl mx-auto space-y-6">
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={motionBase}>
         <p className="text-[11px] uppercase tracking-[0.14em] font-semibold text-fg-subtle flex items-center gap-2"><Radar className="w-3.5 h-3.5" /> Strategy</p>
-        <h1 className="font-display text-3xl sm:text-4xl font-bold tracking-tight text-fg">Social Listening</h1>
+        <h1 className="font-display text-3xl sm:text-4xl font-bold tracking-tight text-fg">Competitor Intel</h1>
         <p className="text-sm mt-1 text-fg-muted">
           Read a competitor's content strategy{currentClient ? <> and find gaps <b>{currentClient.name}</b> can exploit</> : ' (select a client to get gap analysis)'}.
         </p>

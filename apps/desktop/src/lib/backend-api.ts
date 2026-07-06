@@ -563,14 +563,14 @@ export const galleryShareApi = {
   downloadUrl: (fileUrl: string) => (fileUrl.startsWith('http') ? fileUrl : `${API_URL}${fileUrl}`),
 };
 
-// ─── Social listening / competitor intelligence ─────────────────
+// ─── Competitor Intel ────────────────────────────────────────────
 export interface CompetitorAnalysis {
   competitor: string; website: string | null; grounded: boolean; provider: string;
   analysis: { summary: string; themes: string[]; tone: string; cadenceSignals: string; strengths: string[]; opportunities: string[] };
 }
-export const socialListeningApi = {
+export const competitorIntelApi = {
   analyze: (body: { competitor: string; website?: string; clientId?: string }) =>
-    request<CompetitorAnalysis>('/api/social-listening/analyze', { method: 'POST', body: JSON.stringify(body) }, { timeoutMs: 90000 }),
+    request<CompetitorAnalysis>('/api/competitor-intel/analyze', { method: 'POST', body: JSON.stringify(body) }, { timeoutMs: 90000 }),
 };
 
 // ─── AI Copywriting ──────────────────────────────────────────────
