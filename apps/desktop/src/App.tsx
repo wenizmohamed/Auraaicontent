@@ -22,6 +22,7 @@ const Login             = lazy(() => import('./pages/Login'));
 const Onboarding        = lazy(() => import('./pages/Onboarding'));
 const VideoAnalysis     = lazy(() => import('./pages/VideoAnalysis'));
 const Research          = lazy(() => import('./pages/Research'));
+const SocialListening    = lazy(() => import('./pages/SocialListening'));
 const Profile           = lazy(() => import('./pages/Profile'));
 const Studio            = lazy(() => import('./pages/Studio'));
 const RadixAssistant    = lazy(() => import('./pages/RadixAssistant'));
@@ -288,6 +289,7 @@ function Layout({ children }: { children: React.ReactNode }) {
         { name: t('nav.brandKit'),  href: '/brand-kit',   icon: Palette,   prefetch: () => import('./pages/BrandKit') },
         { name: t('nav.memory'),    href: '/memory',      icon: Brain,     prefetch: () => import('./pages/AIMemory') },
         { name: t('nav.research'),  href: '/research',    icon: Telescope, prefetch: () => import('./pages/Research') },
+        { name: t('nav.socialListening'), href: '/social-listening', icon: Radio, prefetch: () => import('./pages/SocialListening') },
         { name: t('nav.topics'),    href: '/topics',      icon: Compass,   prefetch: () => import('./pages/TopicDesk') },
       ],
     },
@@ -815,6 +817,7 @@ export default function App() {
               <Route path="/gallery" element={<Gallery />} />
               <Route path="/video" element={<VideoAnalysis />} />
               <Route path="/research" element={<Research />} />
+              <Route path="/social-listening" element={<SocialListening />} />
               <Route path="/studio" element={<Studio />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/onboarding" element={<Onboarding />} />

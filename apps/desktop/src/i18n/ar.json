@@ -1,178 +1,179 @@
 {
-  "cmdk.placeholder": "ابحث أو انتقل إلى…",
-  "cmdk.trigger": "ابحث أو اسأل راديكس…",
-  "cmdk.empty": "لا توجد نتائج. جرّب «الجدول»، «دعوة»، أو «المظهر».",
-  "nav.dashboard": "لوحة التحكم",
-  "nav.workspace": "مساحة العمل",
-  "nav.clients": "العملاء",
-  "nav.calendar": "الجدول",
-  "nav.brief": "موجز جديد",
-  "nav.review": "المراجعة",
-  "nav.assets": "الأصول",
-  "nav.gallery": "المعرض",
-  "nav.studio": "الاستوديو",
-  "nav.settings": "الإعدادات",
-  "nav.creative": "أدوات الإبداع",
-  "nav.copywriting": "كتابة المحتوى بالذكاء الاصطناعي",
-  "nav.billing": "الفوترة",
-  "nav.brandKit": "هوية العلامة",
-  "nav.knowledge": "قاعدة المعرفة",
-  "nav.learnings": "رؤى الذكاء الاصطناعي",
-  "nav.memory": "ذاكرة الذكاء الاصطناعي",
-  "nav.research": "البحث",
-  "nav.topics": "مكتب المواضيع",
-  "nav.pieces": "قطع المحتوى",
-  "nav.aiDesign": "التصميم بالذكاء الاصطناعي",
-  "nav.references": "المراجع البصرية",
-  "nav.video": "تحليل الفيديو",
-  "nav.integrations": "التكاملات",
-  "nav.history": "السجل",
-  "nav.profile": "الملف الشخصي",
-  "nav.admin": "الإدارة",
-  "nav.group.today": "اليوم",
-  "nav.group.strategy": "الاستراتيجية",
-  "nav.group.plan": "التخطيط",
-  "nav.group.create": "الإنشاء",
-  "nav.group.library": "المكتبة",
-  "nav.group.distribute": "النشر",
-  "nav.group.settings": "الإعدادات",
+  "cmdk.placeholder": "Ø§Ø¨Ø­Ø« Ø£Ù Ø§ÙØªÙÙ Ø¥ÙÙâ¦",
+  "cmdk.trigger": "Ø§Ø¨Ø­Ø« Ø£Ù Ø§Ø³Ø£Ù Ø±Ø§Ø¯ÙÙØ³â¦",
+  "cmdk.empty": "ÙØ§ ØªÙØ¬Ø¯ ÙØªØ§Ø¦Ø¬. Ø¬Ø±ÙØ¨ Â«Ø§ÙØ¬Ø¯ÙÙÂ»Ø Â«Ø¯Ø¹ÙØ©Â»Ø Ø£Ù Â«Ø§ÙÙØ¸ÙØ±Â».",
+  "nav.dashboard": "ÙÙØ­Ø© Ø§ÙØªØ­ÙÙ",
+  "nav.workspace": "ÙØ³Ø§Ø­Ø© Ø§ÙØ¹ÙÙ",
+  "nav.clients": "Ø§ÙØ¹ÙÙØ§Ø¡",
+  "nav.calendar": "Ø§ÙØ¬Ø¯ÙÙ",
+  "nav.brief": "ÙÙØ¬Ø² Ø¬Ø¯ÙØ¯",
+  "nav.review": "Ø§ÙÙØ±Ø§Ø¬Ø¹Ø©",
+  "nav.assets": "Ø§ÙØ£ØµÙÙ",
+  "nav.gallery": "Ø§ÙÙØ¹Ø±Ø¶",
+  "nav.studio": "Ø§ÙØ§Ø³ØªÙØ¯ÙÙ",
+  "nav.settings": "Ø§ÙØ¥Ø¹Ø¯Ø§Ø¯Ø§Øª",
+  "nav.creative": "Ø£Ø¯ÙØ§Øª Ø§ÙØ¥Ø¨Ø¯Ø§Ø¹",
+  "nav.copywriting": "ÙØªØ§Ø¨Ø© Ø§ÙÙØ­ØªÙÙ Ø¨Ø§ÙØ°ÙØ§Ø¡ Ø§ÙØ§ØµØ·ÙØ§Ø¹Ù",
+  "nav.billing": "Ø§ÙÙÙØªØ±Ø©",
+  "nav.brandKit": "ÙÙÙØ© Ø§ÙØ¹ÙØ§ÙØ©",
+  "nav.knowledge": "ÙØ§Ø¹Ø¯Ø© Ø§ÙÙØ¹Ø±ÙØ©",
+  "nav.learnings": "Ø±Ø¤Ù Ø§ÙØ°ÙØ§Ø¡ Ø§ÙØ§ØµØ·ÙØ§Ø¹Ù",
+  "nav.memory": "Ø°Ø§ÙØ±Ø© Ø§ÙØ°ÙØ§Ø¡ Ø§ÙØ§ØµØ·ÙØ§Ø¹Ù",
+  "nav.research": "Ø§ÙØ¨Ø­Ø«",
+  "nav.socialListening": "الاستماع الاجتماعي",
+  "nav.topics": "ÙÙØªØ¨ Ø§ÙÙÙØ§Ø¶ÙØ¹",
+  "nav.pieces": "ÙØ·Ø¹ Ø§ÙÙØ­ØªÙÙ",
+  "nav.aiDesign": "Ø§ÙØªØµÙÙÙ Ø¨Ø§ÙØ°ÙØ§Ø¡ Ø§ÙØ§ØµØ·ÙØ§Ø¹Ù",
+  "nav.references": "Ø§ÙÙØ±Ø§Ø¬Ø¹ Ø§ÙØ¨ØµØ±ÙØ©",
+  "nav.video": "ØªØ­ÙÙÙ Ø§ÙÙÙØ¯ÙÙ",
+  "nav.integrations": "Ø§ÙØªÙØ§ÙÙØ§Øª",
+  "nav.history": "Ø§ÙØ³Ø¬Ù",
+  "nav.profile": "Ø§ÙÙÙÙ Ø§ÙØ´Ø®ØµÙ",
+  "nav.admin": "Ø§ÙØ¥Ø¯Ø§Ø±Ø©",
+  "nav.group.today": "Ø§ÙÙÙÙ",
+  "nav.group.strategy": "Ø§ÙØ§Ø³ØªØ±Ø§ØªÙØ¬ÙØ©",
+  "nav.group.plan": "Ø§ÙØªØ®Ø·ÙØ·",
+  "nav.group.create": "Ø§ÙØ¥ÙØ´Ø§Ø¡",
+  "nav.group.library": "Ø§ÙÙÙØªØ¨Ø©",
+  "nav.group.distribute": "Ø§ÙÙØ´Ø±",
+  "nav.group.settings": "Ø§ÙØ¥Ø¹Ø¯Ø§Ø¯Ø§Øª",
 
-  "page.dashboard.title": "لوحة التحكم",
-  "page.dashboard.subtitle": "نظرة عامة على النشاط واستخدام الذكاء الاصطناعي والأعمال الحديثة",
-  "page.calendar.title": "جدول المحتوى",
-  "page.clients.title": "العملاء",
-  "page.brief.title": "موجز جديد",
-  "page.review.title": "مراجعة المحتوى",
-  "page.gallery.title": "المعرض",
-  "page.creative.title": "أدوات الإبداع",
-  "page.billing.title": "الفوترة",
-  "page.admin.title": "الإدارة · المؤشرات بين المؤسسات",
-  "page.dashboard.no_clients_title": "لا يوجد عملاء بعد",
-  "page.dashboard.no_clients_body": "أنشئ أول عميل لك لتبدأ توليد المحتوى المدعوم بالذكاء الاصطناعي.",
-  "page.dashboard.how_radix_works": "كيف يعمل Radix",
-  "page.dashboard.needs_attention": "بحاجة إلى انتباهك",
-  "page.dashboard.smart_insights": "رؤى ذكية",
-  "page.dashboard.smart_insights_sub": "مكتشفة تلقائياً من بياناتك",
-  "page.dashboard.upload_briefs": "ارفع الموجزات وأدلة العلامة التجارية لتخصيص الذكاء الاصطناعي",
-  "page.dashboard.no_activity": "لا يوجد نشاط بعد",
-  "page.dashboard.no_activity_sub": "ولّد أول شهر لتراه هنا",
-  "page.dashboard.no_activity_short": "لا يوجد نشاط بعد — ابدأ بتوليد المحتوى",
-  "page.dashboard.no_posts": "لا توجد منشورات بعد",
-  "page.dashboard.total_posts": "إجمالي المنشورات المُنشأة",
-  "page.dashboard.total_calls": "إجمالي طلبات API",
-  "page.dashboard.label_tokens": "رموز",
-  "page.dashboard.label_cost": "التكلفة التقديرية",
-  "page.dashboard.label_success": "النجاح",
-  "page.dashboard.label_latency": "زمن الاستجابة",
-  "page.dashboard.label_latest": "الأحدث",
+  "page.dashboard.title": "ÙÙØ­Ø© Ø§ÙØªØ­ÙÙ",
+  "page.dashboard.subtitle": "ÙØ¸Ø±Ø© Ø¹Ø§ÙØ© Ø¹ÙÙ Ø§ÙÙØ´Ø§Ø· ÙØ§Ø³ØªØ®Ø¯Ø§Ù Ø§ÙØ°ÙØ§Ø¡ Ø§ÙØ§ØµØ·ÙØ§Ø¹Ù ÙØ§ÙØ£Ø¹ÙØ§Ù Ø§ÙØ­Ø¯ÙØ«Ø©",
+  "page.calendar.title": "Ø¬Ø¯ÙÙ Ø§ÙÙØ­ØªÙÙ",
+  "page.clients.title": "Ø§ÙØ¹ÙÙØ§Ø¡",
+  "page.brief.title": "ÙÙØ¬Ø² Ø¬Ø¯ÙØ¯",
+  "page.review.title": "ÙØ±Ø§Ø¬Ø¹Ø© Ø§ÙÙØ­ØªÙÙ",
+  "page.gallery.title": "Ø§ÙÙØ¹Ø±Ø¶",
+  "page.creative.title": "Ø£Ø¯ÙØ§Øª Ø§ÙØ¥Ø¨Ø¯Ø§Ø¹",
+  "page.billing.title": "Ø§ÙÙÙØªØ±Ø©",
+  "page.admin.title": "Ø§ÙØ¥Ø¯Ø§Ø±Ø© Â· Ø§ÙÙØ¤Ø´Ø±Ø§Øª Ø¨ÙÙ Ø§ÙÙØ¤Ø³Ø³Ø§Øª",
+  "page.dashboard.no_clients_title": "ÙØ§ ÙÙØ¬Ø¯ Ø¹ÙÙØ§Ø¡ Ø¨Ø¹Ø¯",
+  "page.dashboard.no_clients_body": "Ø£ÙØ´Ø¦ Ø£ÙÙ Ø¹ÙÙÙ ÙÙ ÙØªØ¨Ø¯Ø£ ØªÙÙÙØ¯ Ø§ÙÙØ­ØªÙÙ Ø§ÙÙØ¯Ø¹ÙÙ Ø¨Ø§ÙØ°ÙØ§Ø¡ Ø§ÙØ§ØµØ·ÙØ§Ø¹Ù.",
+  "page.dashboard.how_radix_works": "ÙÙÙ ÙØ¹ÙÙ Radix",
+  "page.dashboard.needs_attention": "Ø¨Ø­Ø§Ø¬Ø© Ø¥ÙÙ Ø§ÙØªØ¨Ø§ÙÙ",
+  "page.dashboard.smart_insights": "Ø±Ø¤Ù Ø°ÙÙØ©",
+  "page.dashboard.smart_insights_sub": "ÙÙØªØ´ÙØ© ØªÙÙØ§Ø¦ÙØ§Ù ÙÙ Ø¨ÙØ§ÙØ§ØªÙ",
+  "page.dashboard.upload_briefs": "Ø§Ø±ÙØ¹ Ø§ÙÙÙØ¬Ø²Ø§Øª ÙØ£Ø¯ÙØ© Ø§ÙØ¹ÙØ§ÙØ© Ø§ÙØªØ¬Ø§Ø±ÙØ© ÙØªØ®ØµÙØµ Ø§ÙØ°ÙØ§Ø¡ Ø§ÙØ§ØµØ·ÙØ§Ø¹Ù",
+  "page.dashboard.no_activity": "ÙØ§ ÙÙØ¬Ø¯ ÙØ´Ø§Ø· Ø¨Ø¹Ø¯",
+  "page.dashboard.no_activity_sub": "ÙÙÙØ¯ Ø£ÙÙ Ø´ÙØ± ÙØªØ±Ø§Ù ÙÙØ§",
+  "page.dashboard.no_activity_short": "ÙØ§ ÙÙØ¬Ø¯ ÙØ´Ø§Ø· Ø¨Ø¹Ø¯ â Ø§Ø¨Ø¯Ø£ Ø¨ØªÙÙÙØ¯ Ø§ÙÙØ­ØªÙÙ",
+  "page.dashboard.no_posts": "ÙØ§ ØªÙØ¬Ø¯ ÙÙØ´ÙØ±Ø§Øª Ø¨Ø¹Ø¯",
+  "page.dashboard.total_posts": "Ø¥Ø¬ÙØ§ÙÙ Ø§ÙÙÙØ´ÙØ±Ø§Øª Ø§ÙÙÙÙØ´Ø£Ø©",
+  "page.dashboard.total_calls": "Ø¥Ø¬ÙØ§ÙÙ Ø·ÙØ¨Ø§Øª API",
+  "page.dashboard.label_tokens": "Ø±ÙÙØ²",
+  "page.dashboard.label_cost": "Ø§ÙØªÙÙÙØ© Ø§ÙØªÙØ¯ÙØ±ÙØ©",
+  "page.dashboard.label_success": "Ø§ÙÙØ¬Ø§Ø­",
+  "page.dashboard.label_latency": "Ø²ÙÙ Ø§ÙØ§Ø³ØªØ¬Ø§Ø¨Ø©",
+  "page.dashboard.label_latest": "Ø§ÙØ£Ø­Ø¯Ø«",
 
-  "page.brief.ph_campaign_name": "اسم الحملة",
-  "page.brief.ph_audience": "الجمهور المستهدف",
-  "page.brief.ph_product": "المنتج / الخدمة",
-  "page.brief.ph_objective": "هدف الحملة",
-  "page.brief.ph_core_message": "الرسالة الأساسية لهذه الحملة",
-  "page.brief.ph_occasion": "اسم المناسبة",
-  "page.brief.ph_extra_notes": "اختياري: ملاحظات إضافية للنبرة أو التوجيه (مثلاً: 'أكثر عفوية هذا الشهر'، 'التركيز على رسائل رمضان')...",
+  "page.brief.ph_campaign_name": "Ø§Ø³Ù Ø§ÙØ­ÙÙØ©",
+  "page.brief.ph_audience": "Ø§ÙØ¬ÙÙÙØ± Ø§ÙÙØ³ØªÙØ¯Ù",
+  "page.brief.ph_product": "Ø§ÙÙÙØªØ¬ / Ø§ÙØ®Ø¯ÙØ©",
+  "page.brief.ph_objective": "ÙØ¯Ù Ø§ÙØ­ÙÙØ©",
+  "page.brief.ph_core_message": "Ø§ÙØ±Ø³Ø§ÙØ© Ø§ÙØ£Ø³Ø§Ø³ÙØ© ÙÙØ°Ù Ø§ÙØ­ÙÙØ©",
+  "page.brief.ph_occasion": "Ø§Ø³Ù Ø§ÙÙÙØ§Ø³Ø¨Ø©",
+  "page.brief.ph_extra_notes": "Ø§Ø®ØªÙØ§Ø±Ù: ÙÙØ§Ø­Ø¸Ø§Øª Ø¥Ø¶Ø§ÙÙØ© ÙÙÙØ¨Ø±Ø© Ø£Ù Ø§ÙØªÙØ¬ÙÙ (ÙØ«ÙØ§Ù: 'Ø£ÙØ«Ø± Ø¹ÙÙÙØ© ÙØ°Ø§ Ø§ÙØ´ÙØ±'Ø 'Ø§ÙØªØ±ÙÙØ² Ø¹ÙÙ Ø±Ø³Ø§Ø¦Ù Ø±ÙØ¶Ø§Ù')...",
 
-  "page.clients.no_clients_title": "لا يوجد عملاء بعد",
-  "page.clients.create_first": "أنشئ أول عميل لك",
-  "page.clients.create_btn": "إنشاء عميل",
-  "page.clients.ph_name": "اسم العميل *",
-  "page.clients.ph_industry": "القطاع",
-  "page.clients.ph_website": "الموقع الإلكتروني",
-  "page.clients.ph_instagram": "حساب إنستغرام",
-  "page.clients.ph_color": "اللون الأساسي (#RRGGBB)",
-  "page.clients.auth_failed": "فشلت المصادقة مع الخادم",
+  "page.clients.no_clients_title": "ÙØ§ ÙÙØ¬Ø¯ Ø¹ÙÙØ§Ø¡ Ø¨Ø¹Ø¯",
+  "page.clients.create_first": "Ø£ÙØ´Ø¦ Ø£ÙÙ Ø¹ÙÙÙ ÙÙ",
+  "page.clients.create_btn": "Ø¥ÙØ´Ø§Ø¡ Ø¹ÙÙÙ",
+  "page.clients.ph_name": "Ø§Ø³Ù Ø§ÙØ¹ÙÙÙ *",
+  "page.clients.ph_industry": "Ø§ÙÙØ·Ø§Ø¹",
+  "page.clients.ph_website": "Ø§ÙÙÙÙØ¹ Ø§ÙØ¥ÙÙØªØ±ÙÙÙ",
+  "page.clients.ph_instagram": "Ø­Ø³Ø§Ø¨ Ø¥ÙØ³ØªØºØ±Ø§Ù",
+  "page.clients.ph_color": "Ø§ÙÙÙÙ Ø§ÙØ£Ø³Ø§Ø³Ù (#RRGGBB)",
+  "page.clients.auth_failed": "ÙØ´ÙØª Ø§ÙÙØµØ§Ø¯ÙØ© ÙØ¹ Ø§ÙØ®Ø§Ø¯Ù",
 
-  "page.review.no_content_title": "لا يوجد محتوى للمراجعة",
-  "page.review.no_generated_title": "لم يتم إنشاء محتوى بعد",
-  "page.review.no_generated_body": "هذا الموجز لا يحتوي على عناصر مُنشأة للمراجعة.",
-  "page.review.ph_search": "ابحث في النصوص أو الوسوم...",
-  "page.review.all_platforms": "جميع المنصات",
-  "page.review.all_statuses": "جميع الحالات",
-  "page.review.all_campaigns": "جميع الحملات",
-  "page.review.all_approved": "جميع المنشورات معتمدة — جاهزة للتصدير ✓",
-  "page.review.section.art_direction": "التوجيه الفني",
-  "page.review.section.copy": "النص",
-  "page.review.section.key_message": "الرسالة الرئيسية (على التصميم)",
-  "page.review.section.caption": "النص التوضيحي",
-  "page.review.section.cta": "دعوة لاتخاذ إجراء",
-  "page.review.section.hashtags": "الوسوم",
-  "page.review.col.platform": "المنصة",
-  "page.review.col.campaign": "الحملة",
-  "page.review.col.caption": "النص",
-  "page.review.col.chars": "أحرف",
-  "page.review.col.date": "التاريخ",
-  "page.review.col.status": "الحالة",
-  "page.review.col.actions": "إجراءات",
+  "page.review.no_content_title": "ÙØ§ ÙÙØ¬Ø¯ ÙØ­ØªÙÙ ÙÙÙØ±Ø§Ø¬Ø¹Ø©",
+  "page.review.no_generated_title": "ÙÙ ÙØªÙ Ø¥ÙØ´Ø§Ø¡ ÙØ­ØªÙÙ Ø¨Ø¹Ø¯",
+  "page.review.no_generated_body": "ÙØ°Ø§ Ø§ÙÙÙØ¬Ø² ÙØ§ ÙØ­ØªÙÙ Ø¹ÙÙ Ø¹ÙØ§ØµØ± ÙÙÙØ´Ø£Ø© ÙÙÙØ±Ø§Ø¬Ø¹Ø©.",
+  "page.review.ph_search": "Ø§Ø¨Ø­Ø« ÙÙ Ø§ÙÙØµÙØµ Ø£Ù Ø§ÙÙØ³ÙÙ...",
+  "page.review.all_platforms": "Ø¬ÙÙØ¹ Ø§ÙÙÙØµØ§Øª",
+  "page.review.all_statuses": "Ø¬ÙÙØ¹ Ø§ÙØ­Ø§ÙØ§Øª",
+  "page.review.all_campaigns": "Ø¬ÙÙØ¹ Ø§ÙØ­ÙÙØ§Øª",
+  "page.review.all_approved": "Ø¬ÙÙØ¹ Ø§ÙÙÙØ´ÙØ±Ø§Øª ÙØ¹ØªÙØ¯Ø© â Ø¬Ø§ÙØ²Ø© ÙÙØªØµØ¯ÙØ± â",
+  "page.review.section.art_direction": "Ø§ÙØªÙØ¬ÙÙ Ø§ÙÙÙÙ",
+  "page.review.section.copy": "Ø§ÙÙØµ",
+  "page.review.section.key_message": "Ø§ÙØ±Ø³Ø§ÙØ© Ø§ÙØ±Ø¦ÙØ³ÙØ© (Ø¹ÙÙ Ø§ÙØªØµÙÙÙ)",
+  "page.review.section.caption": "Ø§ÙÙØµ Ø§ÙØªÙØ¶ÙØ­Ù",
+  "page.review.section.cta": "Ø¯Ø¹ÙØ© ÙØ§ØªØ®Ø§Ø° Ø¥Ø¬Ø±Ø§Ø¡",
+  "page.review.section.hashtags": "Ø§ÙÙØ³ÙÙ",
+  "page.review.col.platform": "Ø§ÙÙÙØµØ©",
+  "page.review.col.campaign": "Ø§ÙØ­ÙÙØ©",
+  "page.review.col.caption": "Ø§ÙÙØµ",
+  "page.review.col.chars": "Ø£Ø­Ø±Ù",
+  "page.review.col.date": "Ø§ÙØªØ§Ø±ÙØ®",
+  "page.review.col.status": "Ø§ÙØ­Ø§ÙØ©",
+  "page.review.col.actions": "Ø¥Ø¬Ø±Ø§Ø¡Ø§Øª",
 
-  "page.members.title": "أعضاء الفريق",
-  "page.members.subtitle": "ادعُ زملاءك، عيّن الصلاحيات، وأدِر الدعوات المعلّقة لهذه المؤسسة.",
-  "members.invite_heading": "دعوة زميل",
+  "page.members.title": "Ø£Ø¹Ø¶Ø§Ø¡ Ø§ÙÙØ±ÙÙ",
+  "page.members.subtitle": "Ø§Ø¯Ø¹Ù Ø²ÙÙØ§Ø¡ÙØ Ø¹ÙÙÙ Ø§ÙØµÙØ§Ø­ÙØ§ØªØ ÙØ£Ø¯ÙØ± Ø§ÙØ¯Ø¹ÙØ§Øª Ø§ÙÙØ¹ÙÙÙØ© ÙÙØ°Ù Ø§ÙÙØ¤Ø³Ø³Ø©.",
+  "members.invite_heading": "Ø¯Ø¹ÙØ© Ø²ÙÙÙ",
   "members.email_placeholder": "name@company.com",
-  "members.role_admin": "مشرف",
-  "members.role_editor": "محرر",
-  "members.role_viewer": "مشاهد",
-  "members.send_invite": "إرسال الدعوة",
-  "members.sending": "جارٍ الإرسال…",
-  "members.pending_heading": "الدعوات المعلّقة",
-  "members.no_pending": "لا توجد دعوات معلّقة.",
-  "members.expires_at": "تنتهي في",
-  "members.copy_link": "نسخ الرابط",
-  "members.copied": "تم النسخ!",
-  "members.revoke": "إلغاء الدعوة",
-  "members.members_heading": "الأعضاء",
-  "members.remove": "إزالة العضو",
-  "members.remove_confirm": "إزالة {name} من هذه المؤسسة؟ سيفقد الوصول فوراً.",
-  "members.cannot_remove_self_owner": "أنت المالك الوحيد — رقّ عضواً آخر أولاً.",
-  "members.you": "أنت",
-  "nav.members": "الفريق",
+  "members.role_admin": "ÙØ´Ø±Ù",
+  "members.role_editor": "ÙØ­Ø±Ø±",
+  "members.role_viewer": "ÙØ´Ø§ÙØ¯",
+  "members.send_invite": "Ø¥Ø±Ø³Ø§Ù Ø§ÙØ¯Ø¹ÙØ©",
+  "members.sending": "Ø¬Ø§Ø±Ù Ø§ÙØ¥Ø±Ø³Ø§Ùâ¦",
+  "members.pending_heading": "Ø§ÙØ¯Ø¹ÙØ§Øª Ø§ÙÙØ¹ÙÙÙØ©",
+  "members.no_pending": "ÙØ§ ØªÙØ¬Ø¯ Ø¯Ø¹ÙØ§Øª ÙØ¹ÙÙÙØ©.",
+  "members.expires_at": "ØªÙØªÙÙ ÙÙ",
+  "members.copy_link": "ÙØ³Ø® Ø§ÙØ±Ø§Ø¨Ø·",
+  "members.copied": "ØªÙ Ø§ÙÙØ³Ø®!",
+  "members.revoke": "Ø¥ÙØºØ§Ø¡ Ø§ÙØ¯Ø¹ÙØ©",
+  "members.members_heading": "Ø§ÙØ£Ø¹Ø¶Ø§Ø¡",
+  "members.remove": "Ø¥Ø²Ø§ÙØ© Ø§ÙØ¹Ø¶Ù",
+  "members.remove_confirm": "Ø¥Ø²Ø§ÙØ© {name} ÙÙ ÙØ°Ù Ø§ÙÙØ¤Ø³Ø³Ø©Ø Ø³ÙÙÙØ¯ Ø§ÙÙØµÙÙ ÙÙØ±Ø§Ù.",
+  "members.cannot_remove_self_owner": "Ø£ÙØª Ø§ÙÙØ§ÙÙ Ø§ÙÙØ­ÙØ¯ â Ø±ÙÙ Ø¹Ø¶ÙØ§Ù Ø¢Ø®Ø± Ø£ÙÙØ§Ù.",
+  "members.you": "Ø£ÙØª",
+  "nav.members": "Ø§ÙÙØ±ÙÙ",
 
-  "action.generate": "إنشاء",
-  "action.save": "حفظ",
-  "action.cancel": "إلغاء",
-  "action.delete": "حذف",
-  "action.archive": "أرشفة",
-  "action.restore": "استعادة",
-  "action.export": "تصدير",
-  "action.send_to_whatsapp": "أرسل عبر واتساب",
-  "action.invite_member": "دعوة عضو",
-  "action.switch_org": "تبديل المؤسسة",
+  "action.generate": "Ø¥ÙØ´Ø§Ø¡",
+  "action.save": "Ø­ÙØ¸",
+  "action.cancel": "Ø¥ÙØºØ§Ø¡",
+  "action.delete": "Ø­Ø°Ù",
+  "action.archive": "Ø£Ø±Ø´ÙØ©",
+  "action.restore": "Ø§Ø³ØªØ¹Ø§Ø¯Ø©",
+  "action.export": "ØªØµØ¯ÙØ±",
+  "action.send_to_whatsapp": "Ø£Ø±Ø³Ù Ø¹Ø¨Ø± ÙØ§ØªØ³Ø§Ø¨",
+  "action.invite_member": "Ø¯Ø¹ÙØ© Ø¹Ø¶Ù",
+  "action.switch_org": "ØªØ¨Ø¯ÙÙ Ø§ÙÙØ¤Ø³Ø³Ø©",
 
-  "status.draft": "مسودة",
-  "status.approved": "معتمد",
-  "status.changes_requested": "بحاجة لتعديلات",
+  "status.draft": "ÙØ³ÙØ¯Ø©",
+  "status.approved": "ÙØ¹ØªÙØ¯",
+  "status.changes_requested": "Ø¨Ø­Ø§Ø¬Ø© ÙØªØ¹Ø¯ÙÙØ§Øª",
 
-  "calendar.month_view": "عرض الشهر",
-  "calendar.list_view": "عرض القائمة",
-  "calendar.hijri_dates": "إظهار التاريخ الهجري",
-  "calendar.archive_confirm": "هل تريد أرشفة هذا الجدول؟ يمكنك استعادته لاحقاً.",
-  "calendar.delete_confirm": "حذف الجدول بشكل نهائي؟ لا يمكن التراجع.",
+  "calendar.month_view": "Ø¹Ø±Ø¶ Ø§ÙØ´ÙØ±",
+  "calendar.list_view": "Ø¹Ø±Ø¶ Ø§ÙÙØ§Ø¦ÙØ©",
+  "calendar.hijri_dates": "Ø¥Ø¸ÙØ§Ø± Ø§ÙØªØ§Ø±ÙØ® Ø§ÙÙØ¬Ø±Ù",
+  "calendar.archive_confirm": "ÙÙ ØªØ±ÙØ¯ Ø£Ø±Ø´ÙØ© ÙØ°Ø§ Ø§ÙØ¬Ø¯ÙÙØ ÙÙÙÙÙ Ø§Ø³ØªØ¹Ø§Ø¯ØªÙ ÙØ§Ø­ÙØ§Ù.",
+  "calendar.delete_confirm": "Ø­Ø°Ù Ø§ÙØ¬Ø¯ÙÙ Ø¨Ø´ÙÙ ÙÙØ§Ø¦ÙØ ÙØ§ ÙÙÙÙ Ø§ÙØªØ±Ø§Ø¬Ø¹.",
 
-  "brief.locale": "اللغة",
-  "brief.dialect": "اللهجة",
-  "brief.dialect.msa": "الفصحى الحديثة",
-  "brief.dialect.khaleeji": "خليجية",
-  "brief.dialect.egyptian": "مصرية",
-  "brief.dialect.levantine": "شامية",
+  "brief.locale": "Ø§ÙÙØºØ©",
+  "brief.dialect": "Ø§ÙÙÙØ¬Ø©",
+  "brief.dialect.msa": "Ø§ÙÙØµØ­Ù Ø§ÙØ­Ø¯ÙØ«Ø©",
+  "brief.dialect.khaleeji": "Ø®ÙÙØ¬ÙØ©",
+  "brief.dialect.egyptian": "ÙØµØ±ÙØ©",
+  "brief.dialect.levantine": "Ø´Ø§ÙÙØ©",
 
-  "billing.upgrade": "ترقية الباقة",
-  "billing.manage": "إدارة الاشتراك",
-  "billing.trial_ends": "تنتهي الفترة التجريبية خلال {days} أيام",
-  "billing.over_quota": "لقد بلغت الحد الأقصى الشهري لباقة {plan}.",
+  "billing.upgrade": "ØªØ±ÙÙØ© Ø§ÙØ¨Ø§ÙØ©",
+  "billing.manage": "Ø¥Ø¯Ø§Ø±Ø© Ø§ÙØ§Ø´ØªØ±Ø§Ù",
+  "billing.trial_ends": "ØªÙØªÙÙ Ø§ÙÙØªØ±Ø© Ø§ÙØªØ¬Ø±ÙØ¨ÙØ© Ø®ÙØ§Ù {days} Ø£ÙØ§Ù",
+  "billing.over_quota": "ÙÙØ¯ Ø¨ÙØºØª Ø§ÙØ­Ø¯ Ø§ÙØ£ÙØµÙ Ø§ÙØ´ÙØ±Ù ÙØ¨Ø§ÙØ© {plan}.",
 
-  "invite.eyebrow": "تمت دعوتك",
-  "invite.title": "انضم إلى مؤسسة على Radix",
-  "invite.loading": "جارٍ تحميل الدعوة…",
-  "invite.for": "للبريد",
-  "invite.join_as": "ستنضم بصلاحية",
-  "invite.expires": "تنتهي الدعوة في",
-  "invite.accept": "قبول الدعوة",
-  "invite.accepting": "جارٍ الانضمام…",
-  "invite.signin_prompt": "للقبول، استخدم {email} — أنشئ حسابًا أو سجّل الدخول.",
-  "invite.signin": "تسجيل الدخول",
-  "invite.create_account": "إنشاء حساب والانضمام",
-  "invite.have_account": "لديّ حساب بالفعل",
-  "invite.joined": "تم الانضمام إلى {org}. جارٍ التحويل…",
-  "invite.replay_failed": "تعذّر الانضمام تلقائيًا — قد لا يطابق بريد حسابك الدعوة."
+  "invite.eyebrow": "ØªÙØª Ø¯Ø¹ÙØªÙ",
+  "invite.title": "Ø§ÙØ¶Ù Ø¥ÙÙ ÙØ¤Ø³Ø³Ø© Ø¹ÙÙ Radix",
+  "invite.loading": "Ø¬Ø§Ø±Ù ØªØ­ÙÙÙ Ø§ÙØ¯Ø¹ÙØ©â¦",
+  "invite.for": "ÙÙØ¨Ø±ÙØ¯",
+  "invite.join_as": "Ø³ØªÙØ¶Ù Ø¨ØµÙØ§Ø­ÙØ©",
+  "invite.expires": "ØªÙØªÙÙ Ø§ÙØ¯Ø¹ÙØ© ÙÙ",
+  "invite.accept": "ÙØ¨ÙÙ Ø§ÙØ¯Ø¹ÙØ©",
+  "invite.accepting": "Ø¬Ø§Ø±Ù Ø§ÙØ§ÙØ¶ÙØ§Ùâ¦",
+  "invite.signin_prompt": "ÙÙÙØ¨ÙÙØ Ø§Ø³ØªØ®Ø¯Ù {email} â Ø£ÙØ´Ø¦ Ø­Ø³Ø§Ø¨ÙØ§ Ø£Ù Ø³Ø¬ÙÙ Ø§ÙØ¯Ø®ÙÙ.",
+  "invite.signin": "ØªØ³Ø¬ÙÙ Ø§ÙØ¯Ø®ÙÙ",
+  "invite.create_account": "Ø¥ÙØ´Ø§Ø¡ Ø­Ø³Ø§Ø¨ ÙØ§ÙØ§ÙØ¶ÙØ§Ù",
+  "invite.have_account": "ÙØ¯ÙÙ Ø­Ø³Ø§Ø¨ Ø¨Ø§ÙÙØ¹Ù",
+  "invite.joined": "ØªÙ Ø§ÙØ§ÙØ¶ÙØ§Ù Ø¥ÙÙ {org}. Ø¬Ø§Ø±Ù Ø§ÙØªØ­ÙÙÙâ¦",
+  "invite.replay_failed": "ØªØ¹Ø°ÙØ± Ø§ÙØ§ÙØ¶ÙØ§Ù ØªÙÙØ§Ø¦ÙÙØ§ â ÙØ¯ ÙØ§ ÙØ·Ø§Ø¨Ù Ø¨Ø±ÙØ¯ Ø­Ø³Ø§Ø¨Ù Ø§ÙØ¯Ø¹ÙØ©."
 }
