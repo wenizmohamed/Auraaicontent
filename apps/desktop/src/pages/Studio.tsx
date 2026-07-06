@@ -1,4 +1,4 @@
-import { useState, DragEvent } from 'react';
+import { useState, useEffect, DragEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -40,6 +40,14 @@ export default function Studio() {
 
   // Modal state
   const [selectedItem, setSelectedItem] = useState<PipelineItem | null>(null);
+
+  // a11y: Escape closes the detail modal (keyboard parity with the ✕ button).
+  useEffect(() => {
+    if (!selectedItem) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSelectedItem(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selectedItem]);
 
   // Search State
   const [searchQuery, setSearchQuery] = useState('');
@@ -93,7 +101,7 @@ export default function Studio() {
       <div className="space-y-4">
         <div className="flex justify-between items-center">
           <div className="relative w-64">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <div className="absolute inset-y-0 start-0 ps-3 flex items-center pointer-events-none">
               <Search className="h-4 w-4 text-zinc-400" />
             </div>
             <input
@@ -101,14 +109,14 @@ export default function Studio() {
               placeholder="Filter by client, title, or platform..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="block w-full pl-10 pr-3 py-2 border border-white/10 rounded-xl bg-black/40 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-fuchsia-500 focus:border-fuchsia-500 transition-colors"
+              className="block w-full ps-10 pe-3 py-2 border border-white/10 rounded-xl bg-black/40 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-fuchsia-500 focus:border-fuchsia-500 transition-colors"
             />
           </div>
           <button
             onClick={() => navigate('/calendar')}
             className="inline-flex items-center px-4 py-2 bg-fuchsia-600 hover:bg-fuchsia-500 text-white rounded-xl text-sm font-medium transition-colors shadow-lg shadow-fuchsia-500/20"
           >
-            <Plus className="w-4 h-4 mr-2" />
+            <Plus className="w-4 h-4 me-2" />
             New content
           </button>
         </div>
@@ -147,7 +155,7 @@ export default function Studio() {
                     {items.length}
                   </span>
                 </div>
-                <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+                <div className="flex-1 overflow-y-auto space-y-3 pe-2 custom-scrollbar">
                   {items.map(item => (
                     <div 
                       key={item.id} 
@@ -175,12 +183,12 @@ export default function Studio() {
                       <div className="flex items-center justify-between mt-4">
                         <div className="flex items-center gap-3 text-xs text-zinc-500">
                           <div className="flex items-center" title="Due Date">
-                            <CalendarIcon className="w-3 h-3 mr-1" />
+                            <CalendarIcon className="w-3 h-3 me-1" />
                             {fmtDate(item.dueDate)}
                           </div>
                           {item.comments.length > 0 && (
                             <div className="flex items-center" title="Comments">
-                              <MessageSquare className="w-3 h-3 mr-1" />
+                              <MessageSquare className="w-3 h-3 me-1" />
                               {item.comments.length}
                             </div>
                           )}
@@ -191,7 +199,7 @@ export default function Studio() {
                       </div>
                       {col.id === 'published' && (
                         <button className="mt-4 w-full py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs font-medium text-zinc-300 transition-colors flex items-center justify-center">
-                          <Eye className="w-3 h-3 mr-1.5" />
+                          <Eye className="w-3 h-3 me-1.5" />
                           View Post
                         </button>
                       )}
@@ -244,14 +252,14 @@ export default function Studio() {
                           {item.platform}
                         </span>
                         <span className="text-xs text-zinc-500 flex items-center">
-                          <Clock className="w-3 h-3 mr-1" />
+                          <Clock className="w-3 h-3 me-1" />
                           Due: {fmtDate(item.dueDate, { year: 'numeric', month: 'short', day: 'numeric' })}
                         </span>
                       </div>
                       <h4 className="text-lg font-medium text-white">{item.title}</h4>
                       <p className="text-sm text-zinc-400 mt-1">{item.description}</p>
                     </div>
-                    <div className="text-right">
+                    <div className="text-end">
                       <div className="text-sm font-medium text-zinc-300">{item.assignee}</div>
                       <div className="text-xs text-zinc-500">Author</div>
                     </div>
@@ -285,7 +293,7 @@ export default function Studio() {
         <div>
           <h3 className="text-lg font-display font-bold text-white mb-6">Approval History</h3>
           <div className="bg-white/5 rounded-3xl p-6 border border-white/10 max-h-[600px] overflow-y-auto custom-scrollbar">
-            <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-white/10 before:to-transparent">
+            <div className="space-y-6 relative before:absolute before:inset-0 before:ms-5 before:-translate-x-px before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-white/10 before:to-transparent">
               {historyLog.map((log) => (
                 <div key={log.id} className="relative flex items-start gap-4">
                   <div className={`flex items-center justify-center w-10 h-10 rounded-full border-4 border-[#0a0a0a] bg-white/5 shrink-0 z-10 ${
@@ -370,7 +378,7 @@ export default function Studio() {
             animate={{ opacity: 1, y: 0 }}
             className="bg-white/5 rounded-2xl p-6 border border-white/10 relative overflow-hidden group"
           >
-            <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-white/5 to-transparent rounded-bl-full -z-10 opacity-50 group-hover:opacity-100 transition-opacity" />
+            <div className="absolute top-0 end-0 w-24 h-24 bg-gradient-to-br from-white/5 to-transparent rounded-bl-full -z-10 opacity-50 group-hover:opacity-100 transition-opacity" />
             <div className="w-10 h-10 rounded-xl bg-[color:var(--color-info-subtle)] text-[color:var(--color-info)] flex items-center justify-center mb-4">
               <LayoutDashboard className="w-5 h-5" />
             </div>
@@ -384,7 +392,7 @@ export default function Studio() {
             transition={{ ...motionUI, delay: 0.1 }}
             className="bg-white/5 rounded-2xl p-6 border border-white/10 relative overflow-hidden group"
           >
-            <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-white/5 to-transparent rounded-bl-full -z-10 opacity-50 group-hover:opacity-100 transition-opacity" />
+            <div className="absolute top-0 end-0 w-24 h-24 bg-gradient-to-br from-white/5 to-transparent rounded-bl-full -z-10 opacity-50 group-hover:opacity-100 transition-opacity" />
             <div className="w-10 h-10 rounded-xl bg-[color:var(--color-success-subtle)] text-[color:var(--color-success)] flex items-center justify-center mb-4">
               <CheckCircle2 className="w-5 h-5" />
             </div>
@@ -398,7 +406,7 @@ export default function Studio() {
             transition={{ ...motionUI, delay: 0.2 }}
             className="bg-white/5 rounded-2xl p-6 border border-white/10 relative overflow-hidden group"
           >
-            <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-white/5 to-transparent rounded-bl-full -z-10 opacity-50 group-hover:opacity-100 transition-opacity" />
+            <div className="absolute top-0 end-0 w-24 h-24 bg-gradient-to-br from-white/5 to-transparent rounded-bl-full -z-10 opacity-50 group-hover:opacity-100 transition-opacity" />
             <div className="w-10 h-10 rounded-xl bg-[color:var(--color-accent-subtle)] text-[color:var(--color-accent)] flex items-center justify-center mb-4">
               <Clock className="w-5 h-5" />
             </div>
@@ -412,7 +420,7 @@ export default function Studio() {
             transition={{ ...motionUI, delay: 0.3 }}
             className="bg-white/5 rounded-2xl p-6 border border-white/10 relative overflow-hidden group"
           >
-            <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-white/5 to-transparent rounded-bl-full -z-10 opacity-50 group-hover:opacity-100 transition-opacity" />
+            <div className="absolute top-0 end-0 w-24 h-24 bg-gradient-to-br from-white/5 to-transparent rounded-bl-full -z-10 opacity-50 group-hover:opacity-100 transition-opacity" />
             <div className="w-10 h-10 rounded-xl bg-pink-500/20 text-pink-400 flex items-center justify-center mb-4">
               <CalendarIcon className="w-5 h-5" />
             </div>
@@ -542,11 +550,19 @@ export default function Studio() {
       {/* Detail Modal */}
       <AnimatePresence>
         {selectedItem && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            onClick={() => setSelectedItem(null)}
+          >
             <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-label={`Post: ${selectedItem.title}`}
+              onClick={(e) => e.stopPropagation()}
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
+              transition={motionUI}
               className="bg-slate-900 rounded-3xl border border-slate-800 w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col"
             >
               <div className="p-6 border-b border-white/10 flex justify-between items-start bg-white/5 shrink-0">
@@ -564,7 +580,7 @@ export default function Studio() {
                   </div>
                   <h2 className="text-2xl font-display font-bold text-white">{selectedItem.title}</h2>
                 </div>
-                <button onClick={() => setSelectedItem(null)} className="text-zinc-400 hover:text-white transition-colors p-1 bg-black/40 rounded-full">
+                <button aria-label="Close" onClick={() => setSelectedItem(null)} className="text-zinc-400 hover:text-white transition-colors p-1 bg-black/40 rounded-full focus-visible:ring-2 focus-visible:ring-fuchsia-500/60 focus-visible:outline-none">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -597,7 +613,7 @@ export default function Studio() {
 
                 <div className="border-t border-white/10 pt-6">
                   <h4 className="text-sm font-medium text-white mb-3 flex items-center">
-                    <MessageSquare className="w-4 h-4 mr-2 text-zinc-400" />
+                    <MessageSquare className="w-4 h-4 me-2 text-zinc-400" />
                     Comments &amp; Activity
                   </h4>
                   <div className="bg-black/40 rounded-xl p-4 border border-white/5">
@@ -617,7 +633,8 @@ export default function Studio() {
                       updateItemStatus(selectedItem.id, e.target.value as PipelineStatus);
                       setSelectedItem({...selectedItem, status: e.target.value as PipelineStatus});
                     }}
-                    className="bg-white/10 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none [&>option]:bg-slate-900"
+                    aria-label="Move post to status"
+                    className="bg-white/10 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-500/60 [&>option]:bg-slate-900"
                   >
                     {COLUMNS.map(c => <option key={c.id} value={c.id}>Move to {c.label}</option>)}
                   </select>
