@@ -546,6 +546,23 @@ export const searchApi = {
   query: (q: string) => request<SearchResults>(`/api/search?q=${encodeURIComponent(q)}`),
 };
 
+// ─── Client collaboration gallery (shareable) ───────────────────
+export interface GalleryShareLinkRec { id: string; token: string; title: string | null; expiresAt: string | null; isActive: boolean; createdAt: string }
+export interface ShareAsset { id: string; name: string; fileUrl: string; thumbUrl: string | null; mimeType: string; createdAt: string }
+export interface AssetFeedbackRec { id: string; assetId: string; authorName: string; comment: string | null; decision: string | null; createdAt: string }
+export const galleryShareApi = {
+  create: (clientId: string, title?: string, expiresInDays?: number) =>
+    request<{ token: string; url: string; expiresAt: string | null }>(`/api/clients/${clientId}/gallery-share`, { method: 'POST', body: JSON.stringify({ title, expiresInDays }) }),
+  list: (clientId: string) =>
+    request<{ links: GalleryShareLinkRec[]; feedback: AssetFeedbackRec[] }>(`/api/clients/${clientId}/gallery-share`),
+  // public (no auth) — used by the /g/:token page
+  publicGet: (token: string) =>
+    request<{ title: string; clientName: string; assets: ShareAsset[]; feedback: AssetFeedbackRec[] }>(`/api/gallery/${token}`),
+  publicFeedback: (token: string, assetId: string, body: { authorName: string; comment?: string; decision?: 'approved' | 'changes' }) =>
+    request<{ ok: boolean; id: string }>(`/api/gallery/${token}/assets/${assetId}/feedback`, { method: 'POST', body: JSON.stringify(body) }),
+  downloadUrl: (fileUrl: string) => (fileUrl.startsWith('http') ? fileUrl : `${API_URL}${fileUrl}`),
+};
+
 // ─── AI Copywriting ──────────────────────────────────────────────
 
 export const copywritingApi = {

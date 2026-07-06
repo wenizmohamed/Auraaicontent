@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Image as ImageIcon, Video as VideoIcon, X, Download, Trash2, Calendar, Building2, Loader2, Sparkles, Filter } from 'lucide-react';
+import { Search, Image as ImageIcon, Video as VideoIcon, X, Download, Trash2, Calendar, Building2, Loader2, Sparkles, Filter , Share2} from 'lucide-react';
 import { useTheme } from '../lib/theme-context';
 import { useClients } from '../lib/client-context';
-import { galleryApi, assetsApi, type GalleryAsset } from '../lib/backend-api';
+import { galleryApi, assetsApi, galleryShareApi, type GalleryAsset } from '../lib/backend-api';
 import { useToast } from '../lib/toast-context';
 import { Skeleton, SkeletonAnnouncer } from '../components/ui/Skeleton';
 import { motionUI, motionBase, motionInstant } from '../lib/motion';
@@ -37,6 +37,20 @@ export default function Gallery() {
   const [filterClient, setFilterClient] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [preview, setPreview] = useState<GalleryAsset | null>(null);
+  const [sharing, setSharing] = useState(false);
+
+  // Create a client-facing collaboration gallery link + copy it to clipboard.
+  const handleShare = async () => {
+    if (!currentClient) { toastErr('Select a client first'); return; }
+    setSharing(true);
+    try {
+      const { url } = await galleryShareApi.create(currentClient.id, `${currentClient.name} — gallery`);
+      try { await navigator.clipboard.writeText(url); toastOk('Share link copied — send it to your client'); }
+      catch { toastOk(`Share link: ${url}`); }
+    } catch (e) {
+      toastErr(e instanceof Error ? e.message : 'Could not create share link');
+    } finally { setSharing(false); }
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -107,10 +121,21 @@ export default function Gallery() {
             All generated images and videos across your clients
           </p>
         </div>
-        <div className={`flex items-center gap-2 px-3 py-2 rounded-xl ${cardBg} border`}>
-          <Sparkles className={`w-4 h-4 ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />
-          <span className={`text-sm font-semibold tabular-nums ${textPrimary}`}>{counts.all}</span>
-          <span className={`text-xs ${textMuted}`}>assets</span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleShare}
+            disabled={sharing || !currentClient}
+            title={currentClient ? `Create a shareable review link for ${currentClient.name}` : 'Select a client to share'}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium bg-amber-600 hover:bg-amber-500 disabled:opacity-40 text-white transition-colors"
+          >
+            <Share2 className="w-4 h-4" />
+            {sharing ? 'Creating…' : 'Share with client'}
+          </button>
+          <div className={`flex items-center gap-2 px-3 py-2 rounded-xl ${cardBg} border`}>
+            <Sparkles className={`w-4 h-4 ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />
+            <span className={`text-sm font-semibold tabular-nums ${textPrimary}`}>{counts.all}</span>
+            <span className={`text-xs ${textMuted}`}>assets</span>
+          </div>
         </div>
       </motion.div>
 

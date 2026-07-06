@@ -569,6 +569,36 @@ model ReviewLink {
   @@index([clientId])
 }
 
+// Client collaboration gallery — a token-gated, client-wide view of the client's
+// generated assets for external feedback (comment / approve). Scalar-only (no
+// relations) to keep the table standalone; tables added via idempotent SQL.
+model GalleryShareLink {
+  id        String    @id @default(cuid())
+  orgId     String
+  clientId  String
+  token     String    @unique
+  title     String?
+  expiresAt DateTime?
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+
+  @@index([clientId])
+}
+
+model AssetFeedback {
+  id         String   @id @default(cuid())
+  orgId      String
+  assetId    String
+  shareToken String
+  authorName String
+  comment    String?
+  decision   String?  // approved | changes
+  createdAt  DateTime @default(now())
+
+  @@index([assetId])
+  @@index([shareToken])
+}
+
 model ExportJob {
   id              String   @id @default(cuid())
   orgId           String

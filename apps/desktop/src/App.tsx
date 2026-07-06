@@ -43,6 +43,7 @@ const Billing           = lazy(() => import('./pages/Billing'));
 const Members           = lazy(() => import('./pages/Members'));
 const AcceptInvite      = lazy(() => import('./pages/AcceptInvite'));
 const ResetPassword     = lazy(() => import('./pages/ResetPassword'));
+const PublicGallery     = lazy(() => import('./pages/PublicGallery'));
 const Workspace         = lazy(() => import('./pages/Workspace'));
 const Agent             = lazy(() => import('./pages/Agent'));
 const Integrations      = lazy(() => import('./pages/Integrations'));
@@ -706,6 +707,15 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     return (
       <Suspense fallback={<ShellSkeleton />}>
         <Routes><Route path="/reset-password/:token" element={<ResetPassword />} /></Routes>
+      </Suspense>
+    );
+  }
+
+  // Client collaboration gallery — a shared link the client opens with no login.
+  if (location.pathname.startsWith('/g/')) {
+    return (
+      <Suspense fallback={<ShellSkeleton />}>
+        <Routes><Route path="/g/:token" element={<PublicGallery />} /></Routes>
       </Suspense>
     );
   }
