@@ -109,6 +109,11 @@ const PROVIDERS: Record<AiProviderName, AiProvider> = {
 const CHAIN: Record<string, AiProviderName[]> = {
   text: ['gemini', 'xai', 'dashscope'],
   image: ['gemini', 'xai', 'dashscope'],
+  // image_edit SKIPS xai: xAI's /images/edits returns 403 permission-denied for
+  // this team, and 403 is non-retryable → it used to HALT the ladder before
+  // DashScope (Qwen edit), so edits failed whenever Gemini was capped/down.
+  // gemini → dashscope only; both can actually edit. (2026-07-06 T0#3 fix.)
+  image_edit: ['gemini', 'dashscope'],
   analysis: ['gemini', 'xai', 'dashscope'],
   video: ['gemini', 'xai', 'dashscope'],  // dashscope = Wan t2v (text-only; 503s image-conditioned)
 };
@@ -130,7 +135,9 @@ function providerAvailable(name: AiProviderName): boolean {
 // for THIS call only. The rest of the task's CHAIN follows as fallbacks.
 function orderedProviders(task: string, preferredPrimary?: AiProviderName): AiProvider[] {
   const normalizedTask = task === 'image_edit' ? 'image' : task;
-  const base = CHAIN[normalizedTask] || ['gemini', 'xai'];
+  // Prefer a task-specific chain (image_edit has its own that skips xai);
+  // fall back to the normalized-task chain for everything else.
+  const base = CHAIN[task] || CHAIN[normalizedTask] || ['gemini', 'xai'];
   const primary = preferredPrimary || PRIMARY[normalizedTask] || 'gemini';
   // primary first, then the rest of the chain (deduped), filtered to available.
   const ordered = [primary, ...base.filter((p) => p !== primary)].filter(providerAvailable);
