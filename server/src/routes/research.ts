@@ -170,6 +170,7 @@ export async function researchRoutes(app: FastifyInstance) {
         // Without meta these long-context Kimi calls were fully untracked
         // (design 2026-06-03 B2). orgId/userId from authGuard.
         meta: { orgId: request.orgId, userId: request.user?.userId, clientId },
+        enrich: true, // ground the brand-synthesis in the client's KB + learned memory
       });
       const stripped = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
       let parsed: any = null;

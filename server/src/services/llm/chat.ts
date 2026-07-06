@@ -34,8 +34,47 @@ import type {
 import { db } from '../../db/prisma.js';
 import { computeCostUsd, isPriced } from '../../lib/ai-pricing.js';
 import { assertOrgBudget } from '../../lib/budget.js';
+import { enrichWithKnowledge } from '../../lib/knowledge-enricher.js';
+import { enrichWithMemory } from '../../lib/memory-enricher.js';
+import { enrichWithBrandKit } from '../../lib/brand-kit-enricher.js';
+import { filterAvailable, recordSuccess, recordFailure } from '../providers/circuit-breaker.js';
+import { isRetryableAiError, isSafetyBlock } from '../providers/errors.js';
 
 export type ProviderName = 'gemini' | 'xai' | 'moonshot';
+
+// RAG grounding for the chat stack. ai-router already enriches creative/text
+// generation with the client's knowledge base + learned memory + brand kit;
+// chat.ts (assistant/agent/research) did NOT — so the assistant, the app's
+// most-used surface and the persistent-memory USP, answered ungrounded. This
+// enriches the LAST user turn with the same three sources when a caller opts in
+// (enrich:true) and an org+client are present. Best-effort: each enricher is a
+// no-op when the client has no KB / the org has no learnings / no brand kit, so
+// this can never make a message worse — only more grounded.
+async function enrichLastUserTurn(
+  messages: ChatCompletionCreateParamsNonStreaming['messages'],
+  meta: UsageMeta | undefined,
+): Promise<ChatCompletionCreateParamsNonStreaming['messages']> {
+  if (!meta?.orgId || !meta?.clientId) return messages;
+  // find the last user message with plain-string content (skip multimodal)
+  let idx = -1;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === 'user' && typeof messages[i].content === 'string') { idx = i; break; }
+  }
+  if (idx === -1) return messages;
+  const original = messages[idx].content as string;
+  if (!original.trim()) return messages;
+  try {
+    let enriched = await enrichWithKnowledge(original, meta.orgId, meta.clientId, original, {});
+    enriched = await enrichWithMemory(enriched, meta.orgId, meta.clientId, original, {});
+    enriched = await enrichWithBrandKit(enriched, meta.clientId, {});
+    if (enriched === original) return messages; // nothing added → leave untouched
+    const clone = messages.slice();
+    clone[idx] = { ...clone[idx], content: enriched } as typeof clone[number];
+    return clone;
+  } catch {
+    return messages; // enrichment must never break the chat path
+  }
+}
 
 // Usage tracking — mirrors ai-router.persistUsage so the chatText/chatStream
 // path (assistant chatbot + agent loop + 4 agent tools) writes UsageEvent
@@ -174,16 +213,27 @@ export async function withFallback<T>(
   fn: (ctx: ProviderClient) => Promise<T>,
   options: { chain?: ProviderName[]; chainEnv?: string } = {},
 ): Promise<FallbackResult<T>> {
-  const chain = resolveChain(options.chainEnv, options.chain ?? DEFAULT_CHAIN);
+  const resolved = resolveChain(options.chainEnv, options.chain ?? DEFAULT_CHAIN);
+  // Shared circuit-breaker (unified with ai-router): drop providers whose 'text'
+  // breaker is open so a capped/down provider (e.g. gemini hitting its monthly
+  // spend cap) isn't re-hit on every assistant/agent/research call — and so a
+  // trip observed here also protects the ai-router stack, and vice-versa.
+  // filterAvailable guarantees ≥1 provider even if every breaker is open.
+  const chain = filterAvailable(resolved.map((name) => ({ name })), 'text').map((p) => p.name as ProviderName);
   const attempts: Array<{ provider: ProviderName; error: string }> = [];
   for (let i = 0; i < chain.length; i++) {
     const p = chain[i];
     try {
       const result = await tryWithBackoff(p, fn);
       const ctx = clientFor(p);
+      recordSuccess(p, 'text');
       return { result, provider: ctx.provider, model: ctx.model, fallbackUsed: i > 0, attempts };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
+      // Only trip the breaker for real provider-down errors (rate-limit / 5xx /
+      // spend-cap). A 400/401 bad-request or a safety block is not the provider
+      // being unhealthy — recording it would wrongly open the shared breaker.
+      if (isRetryableAiError(err) && !isSafetyBlock(msg)) recordFailure(p, 'text', msg);
       attempts.push({ provider: p, error: msg.slice(0, 300) });
       console.error(`[llm-fallback] ${p} failed (${i + 1}/${chain.length}): ${msg.slice(0, 200)}`);
     }
@@ -206,14 +256,18 @@ export interface ChatTextResult {
 
 export async function chatText(
   params: Omit<ChatCompletionCreateParamsNonStreaming, 'model' | 'stream'>,
-  options?: { chain?: ProviderName[]; chainEnv?: string; meta?: UsageMeta },
+  options?: { chain?: ProviderName[]; chainEnv?: string; meta?: UsageMeta; enrich?: boolean },
 ): Promise<ChatTextResult> {
   // Spend gate — mirror ai-router so the chat stack (assistant/agent/research)
   // honours the same monthly org budget cap. No-op when orgId/budget absent.
   await assertOrgBudget(options?.meta?.orgId);
   const start = Date.now();
+  // RAG grounding (opt-in): enrich the user's turn with KB + memory + brand kit.
+  const messages = options?.enrich
+    ? await enrichLastUserTurn(params.messages, options.meta)
+    : params.messages;
   const out = await withFallback(async ({ client, model }) => {
-    const r: ChatCompletion = await client.chat.completions.create({ ...params, model, stream: false });
+    const r: ChatCompletion = await client.chat.completions.create({ ...params, messages, model, stream: false });
     const choice = r.choices?.[0]?.message as
       | { content?: string | null; reasoning_content?: string | null }
       | undefined;
