@@ -16,6 +16,30 @@ export interface ChangelogEntry {
 
 const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-07-06',
+    tag: 'new',
+    title: 'Social Listening — read a competitor, find your opening',
+    body: 'New Strategy tool: drop in any competitor (brand, handle or website) and Radix reads their content strategy — themes, tone, posting cadence, what they do well. Pick a client and it turns their playbook into concrete gaps that client can exploit. Grounds the read on the competitor\'s real site when you paste a URL.',
+  },
+  {
+    date: '2026-07-06',
+    tag: 'new',
+    title: 'Share client galleries with a public link',
+    body: 'From the Gallery, hit "Share with client" to get a clean, branded review page — no login needed. Your client browses the work, downloads finals, and leaves per-asset approve / request-changes feedback that lands straight back in Radix. Links are private-by-token and scoped to your org.',
+  },
+  {
+    date: '2026-07-06',
+    tag: 'new',
+    title: 'Search everything with ⌘K',
+    body: 'The command bar now searches across every client, calendar and content piece in your org at once — start typing to jump straight to anything. It also lists quick actions (Generate calendar, New brief, switch theme…) so the whole app is one keystroke away.',
+  },
+  {
+    date: '2026-07-06',
+    tag: 'fixed',
+    title: 'Studio now shows every client — and never overwrites work',
+    body: 'The production pipeline (Studio) pulls live posts across ALL your clients into one board, each card labelled with its client, and status changes save straight back to the calendar. Reorganised navigation into Plan · Create · Library so features are easier to find, with full keyboard, screen-reader and right-to-left support throughout.',
+  },
+  {
     date: '2026-07-04',
     tag: 'new',
     title: 'Style Packs — 14 premium looks for images & video',
