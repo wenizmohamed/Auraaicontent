@@ -293,7 +293,7 @@ function WalkthroughSection({ isDark, glass, glassStatic, textPrimary, textSecon
           className={`w-full flex items-center justify-between p-6 text-start cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] rounded-2xl ${isDark ? 'hover:bg-white/[0.02]' : 'hover:bg-slate-50'}`}
         >
           <div className="flex items-center gap-3">
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${isDark ? 'bg-amber-500/10' : 'bg-amber-50'}`}>
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${'bg-[color:var(--color-warning-subtle)]'}`}>
               <BookOpen className="w-4 h-4 text-amber-500" />
             </div>
             <div>
@@ -574,8 +574,8 @@ export default function Dashboard() {
             ) : (
               <>
                 <div className="flex items-center justify-between mb-3">
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${isDark ? 'bg-amber-500/10' : 'bg-amber-100'}`}>
-                    <Zap className={`w-4 h-4 ${isDark ? 'text-amber-500' : 'text-amber-600'}`} />
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${'bg-[color:var(--color-warning-subtle)]'}`}>
+                    <Zap className={`w-4 h-4 ${'text-[color:var(--color-warning)]'}`} />
                   </div>
                   {stats.content.totalMonths > 0 && (
                     <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">
@@ -621,8 +621,8 @@ export default function Dashboard() {
               return (
                 <>
                   <div className="flex items-center justify-between mb-3">
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${isDark ? 'bg-blue-500/10' : 'bg-blue-100'}`}>
-                      <Activity className={`w-4 h-4 ${isDark ? 'text-blue-400' : 'text-blue-700'}`} />
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${'bg-[color:var(--color-info-subtle)]'}`}>
+                      <Activity className={`w-4 h-4 ${'text-[color:var(--color-info)]'}`} />
                     </div>
                     <span className={`text-[10px] uppercase tracking-wider font-semibold ${textMuted}`}>{t('page.dashboard.label_latest')}</span>
                   </div>
@@ -647,19 +647,19 @@ export default function Dashboard() {
             {insights.actionCenter.totalActions > 0 && (
               <div className={`col-span-12 ${insights.insights.length > 0 ? 'lg:col-span-5' : ''} rounded-2xl p-5 border ${isDark ? 'bg-amber-500/[0.04] border-amber-500/20' : 'bg-amber-50 border-amber-300'}`}>
                 <div className="flex items-center gap-2 mb-4">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isDark ? 'bg-amber-500/15' : 'bg-amber-100'}`}>
-                    <Bell className={`w-4 h-4 ${isDark ? 'text-amber-400' : 'text-amber-700'}`} />
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${'bg-[color:var(--color-warning-subtle)]'}`}>
+                    <Bell className={`w-4 h-4 ${'text-[color:var(--color-warning)]'}`} />
                   </div>
                   <div>
                     <h3 className={`text-sm font-semibold ${textPrimary}`}>{t('page.dashboard.needs_attention')}</h3>
-                    <p className={`text-[11px] ${isDark ? 'text-amber-400/70' : 'text-amber-700/80'}`}>{insights.actionCenter.totalActions} item{insights.actionCenter.totalActions !== 1 ? 's' : ''}</p>
+                    <p className={`text-[11px] ${'text-[color:var(--color-warning)]'}`}>{insights.actionCenter.totalActions} item{insights.actionCenter.totalActions !== 1 ? 's' : ''}</p>
                   </div>
                 </div>
                 <div className="space-y-2">
                   {insights.actionCenter.pendingReview > 0 && (
                     <Link to="/content-review" className={`flex items-center justify-between p-3 rounded-lg transition-colors ${isDark ? 'bg-white/[0.03] hover:bg-white/[0.06]' : 'bg-white hover:bg-amber-50/50'} border ${isDark ? 'border-white/[0.04]' : 'border-amber-200'} cursor-pointer group`}>
                       <div className="flex items-center gap-2">
-                        <Layers className={`w-4 h-4 ${isDark ? 'text-amber-400' : 'text-amber-700'}`} />
+                        <Layers className={`w-4 h-4 ${'text-[color:var(--color-warning)]'}`} />
                         <span className={`text-sm ${textPrimary}`}>{insights.actionCenter.pendingReview} post{insights.actionCenter.pendingReview !== 1 ? 's' : ''} need revision</span>
                       </div>
                       <ArrowRight className={`w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform ${isDark ? 'text-zinc-500' : 'text-amber-700'}`} />
@@ -668,7 +668,7 @@ export default function Dashboard() {
                   {insights.actionCenter.draftsStuck > 0 && (
                     <Link to="/content-review?filter=draft" className={`flex items-center justify-between p-3 rounded-lg transition-colors ${isDark ? 'bg-white/[0.03] hover:bg-white/[0.06]' : 'bg-white hover:bg-amber-50/50'} border ${isDark ? 'border-white/[0.04]' : 'border-amber-200'} cursor-pointer group`}>
                       <div className="flex items-center gap-2">
-                        <Clock className={`w-4 h-4 ${isDark ? 'text-amber-400' : 'text-amber-700'}`} />
+                        <Clock className={`w-4 h-4 ${'text-[color:var(--color-warning)]'}`} />
                         <span className={`text-sm ${textPrimary}`}>{insights.actionCenter.draftsStuck} draft{insights.actionCenter.draftsStuck !== 1 ? 's' : ''} stuck 7+ days</span>
                       </div>
                       <ArrowRight className={`w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform ${isDark ? 'text-zinc-500' : 'text-amber-700'}`} />
@@ -693,9 +693,9 @@ export default function Dashboard() {
                 <motion.div className="space-y-2" variants={{ animate: { transition: { staggerChildren: 0.06 } } }} initial="initial" animate="animate">
                   {insights.insights.map((ins) => {
                     const colors = {
-                      positive: { dot: 'bg-emerald-500', text: isDark ? 'text-emerald-400' : 'text-emerald-700', bg: isDark ? 'bg-emerald-500/[0.04]' : 'bg-emerald-50', border: isDark ? 'border-emerald-500/15' : 'border-emerald-200' },
-                      warning: { dot: 'bg-amber-500', text: isDark ? 'text-amber-400' : 'text-amber-700', bg: isDark ? 'bg-amber-500/[0.04]' : 'bg-amber-50', border: isDark ? 'border-amber-500/15' : 'border-amber-200' },
-                      info: { dot: 'bg-blue-500', text: isDark ? 'text-blue-400' : 'text-blue-700', bg: isDark ? 'bg-blue-500/[0.04]' : 'bg-blue-50', border: isDark ? 'border-blue-500/15' : 'border-blue-200' },
+                      positive: { dot: 'bg-emerald-500', text: 'text-[color:var(--color-success)]', bg: 'bg-[color:var(--color-success-subtle)]', border: 'border-[color:var(--color-success-subtle)]' },
+                      warning: { dot: 'bg-amber-500', text: 'text-[color:var(--color-warning)]', bg: 'bg-[color:var(--color-warning-subtle)]', border: 'border-[color:var(--color-warning-subtle)]' },
+                      info: { dot: 'bg-blue-500', text: 'text-[color:var(--color-info)]', bg: 'bg-[color:var(--color-info-subtle)]', border: 'border-[color:var(--color-info-subtle)]' },
                     }[ins.type];
                     const Icon = ins.type === 'positive' ? TrendingUp : ins.type === 'warning' ? AlertTriangle : Sparkles;
                     return (
@@ -883,10 +883,10 @@ export default function Dashboard() {
               <div key={`${e.date}-${i}`} className="py-2.5 flex items-start gap-3">
                 <span className={`shrink-0 mt-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${
                   e.tag === 'new'
-                    ? (isDark ? 'bg-emerald-500/15 text-emerald-400' : 'bg-emerald-100 text-emerald-700')
+                    ? ('bg-[color:var(--color-success-subtle)] text-[color:var(--color-success)]')
                     : e.tag === 'fixed'
-                      ? (isDark ? 'bg-amber-500/15 text-amber-400' : 'bg-amber-100 text-amber-700')
-                      : (isDark ? 'bg-sky-500/15 text-sky-400' : 'bg-sky-100 text-sky-700')
+                      ? ('bg-[color:var(--color-warning-subtle)] text-[color:var(--color-warning)]')
+                      : ('bg-[color:var(--color-info-subtle)] text-[color:var(--color-info)]')
                 }`}>
                   {e.tag}
                 </span>
@@ -926,15 +926,15 @@ export default function Dashboard() {
                     <p className={`text-[10px] font-medium ${isDark ? 'text-zinc-500' : 'text-slate-600'}`}>Tokens</p>
                   </div>
                   <div className={`rounded-xl p-3 border ${isDark ? 'bg-emerald-500/[0.05] border-emerald-500/15' : 'bg-emerald-50 border-emerald-300'}`}>
-                    <div className={`text-base font-bold tabular-nums flex items-center gap-0.5 ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
+                    <div className={`text-base font-bold tabular-nums flex items-center gap-0.5 ${'text-[color:var(--color-success)]'}`}>
                       <DollarSign className="w-3 h-3" />
                       <span>{formatUsd(estimateCostUsd(aiStats.providers)).replace('$', '')}</span>
                     </div>
-                    <p className={`text-[10px] font-medium ${isDark ? 'text-emerald-400/70' : 'text-emerald-700/80'}`}>Est. cost</p>
+                    <p className={`text-[10px] font-medium ${'text-[color:var(--color-success)]'}`}>Est. cost</p>
                   </div>
                   <div className={`rounded-xl p-3 border ${isDark ? 'bg-white/[0.03] border-white/[0.04]' : 'bg-slate-100 border-slate-300'}`}>
                     <div className={`text-base font-bold tabular-nums flex items-center gap-1 ${textPrimary}`}>
-                      {aiStats.totalErrors > 0 && <AlertTriangle className={`w-3 h-3 ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />}
+                      {aiStats.totalErrors > 0 && <AlertTriangle className={`w-3 h-3 ${'text-[color:var(--color-warning)]'}`} />}
                       {aiStats.totalCalls > 0
                         ? Math.round(((aiStats.totalCalls - aiStats.totalErrors) / aiStats.totalCalls) * 100)
                         : 100}%
@@ -988,7 +988,7 @@ export default function Dashboard() {
                       </div>
                       <div className="flex justify-between text-[11px]">
                         <span className={isDark ? 'text-zinc-500' : 'text-slate-600'}>Success</span>
-                        <span className={`font-mono font-semibold ${p.successRate >= 80 ? (isDark ? 'text-emerald-400' : 'text-emerald-600') : (isDark ? 'text-amber-400' : 'text-amber-600')}`}>{p.successRate}%</span>
+                        <span className={`font-mono font-semibold ${p.successRate >= 80 ? ('text-[color:var(--color-success)]') : ('text-[color:var(--color-warning)]')}`}>{p.successRate}%</span>
                       </div>
                     </div>
 
@@ -1109,13 +1109,13 @@ export default function Dashboard() {
                           <Icon className="w-3.5 h-3.5" style={{ color: 'var(--color-accent)' }} /> {label}
                         </span>
                         {e.failed > 0 ? (
-                          <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded ${isDark ? 'text-red-400 bg-red-500/10' : 'text-red-700 bg-red-100'}`}>
+                          <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded ${'text-[color:var(--color-danger)] bg-[color:var(--color-danger-subtle)]'}`}>
                             <AlertTriangle className="w-2.5 h-2.5" /> {e.failed} failed
                           </span>
                         ) : idle ? (
                           <span className={`text-[10px] ${textMuted}`}>idle</span>
                         ) : (
-                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${isDark ? 'text-emerald-400 bg-emerald-500/10' : 'text-emerald-700 bg-emerald-100'}`}>healthy</span>
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${'text-[color:var(--color-success)] bg-[color:var(--color-success-subtle)]'}`}>healthy</span>
                         )}
                       </div>
                       <div className="flex items-end gap-4">
@@ -1328,7 +1328,7 @@ export default function Dashboard() {
                   className={`rounded-xl p-4 transition-all duration-200 cursor-pointer group ${isDark ? 'bg-white/[0.02] border border-white/[0.05] hover:border-white/[0.12] hover:bg-white/[0.04]' : 'bg-slate-50 border border-slate-200 hover:border-slate-300 hover:bg-white'}`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-bold ${isDark ? 'bg-amber-500/10 text-amber-400' : 'bg-amber-50 text-amber-600'}`}>
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-bold ${'bg-[color:var(--color-warning-subtle)] text-[color:var(--color-warning)]'}`}>
                       {c.name.charAt(0)}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -1425,11 +1425,11 @@ export default function Dashboard() {
                   </div>
                   <div className="flex items-center gap-1">
                     {insights.trends.postsTrend >= 0 ? (
-                      <TrendingUp className={`w-3.5 h-3.5 ${insights.trends.postsTrend > 0 ? (isDark ? 'text-emerald-400' : 'text-emerald-600') : textMuted}`} />
+                      <TrendingUp className={`w-3.5 h-3.5 ${insights.trends.postsTrend > 0 ? ('text-[color:var(--color-success)]') : textMuted}`} />
                     ) : (
-                      <TrendingDown className={`w-3.5 h-3.5 ${isDark ? 'text-red-400' : 'text-red-600'}`} />
+                      <TrendingDown className={`w-3.5 h-3.5 ${'text-[color:var(--color-danger)]'}`} />
                     )}
-                    <span className={`text-xs font-semibold ${insights.trends.postsTrend > 0 ? (isDark ? 'text-emerald-400' : 'text-emerald-600') : insights.trends.postsTrend < 0 ? (isDark ? 'text-red-400' : 'text-red-600') : textMuted}`}>
+                    <span className={`text-xs font-semibold ${insights.trends.postsTrend > 0 ? ('text-[color:var(--color-success)]') : insights.trends.postsTrend < 0 ? ('text-[color:var(--color-danger)]') : textMuted}`}>
                       {insights.trends.postsTrend > 0 ? '+' : ''}{insights.trends.postsTrend}%
                     </span>
                   </div>
