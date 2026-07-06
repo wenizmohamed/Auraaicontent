@@ -338,7 +338,7 @@ function WalkthroughSection({ isDark, glass, glassStatic, textPrimary, textSecon
                             <p className={`text-sm font-semibold mb-1 transition-colors ${isDark ? 'text-zinc-200 group-hover:text-white' : 'text-slate-900 group-hover:text-slate-950'}`}>
                               {step.title}
                             </p>
-                            <p className={`text-xs leading-relaxed mb-2 ${isDark ? 'text-zinc-400' : 'text-slate-600'}`}>
+                            <p className={`text-xs leading-relaxed mb-2 ${'text-fg-muted'}`}>
                               {step.description}
                             </p>
                             <span className={`inline-flex items-center gap-1 text-[11px] font-semibold ${step.color(isDark)} transition-all`}>
@@ -422,10 +422,10 @@ export default function Dashboard() {
     ? 'bg-white/[0.03] backdrop-blur-xl border border-white/[0.06]'
     : 'bg-white border border-slate-200 shadow-sm';
 
-  const textPrimary = isDark ? 'text-white' : 'text-slate-900';
-  const textSecondary = isDark ? 'text-zinc-400' : 'text-slate-600';
-  const textMuted = isDark ? 'text-zinc-600' : 'text-slate-500';
-  const textDim = isDark ? 'text-zinc-700' : 'text-slate-400';
+  const textPrimary = 'text-fg';
+  const textSecondary = 'text-fg-muted';
+  const textMuted = 'text-fg-subtle';
+  const textDim = 'text-fg-subtle';
 
   // Skeleton loader — delegates to the token-driven primitive so theme
   // cycling (dark / light / studio) works without per-class overrides.
@@ -895,7 +895,7 @@ export default function Dashboard() {
                     <span className={`text-[13px] font-semibold ${textPrimary}`}>{e.title}</span>
                     <span className={`text-[10px] tabular-nums ${isDark ? 'text-zinc-500' : 'text-slate-400'}`}>{e.date}</span>
                   </div>
-                  <p className={`text-xs leading-relaxed mt-0.5 ${isDark ? 'text-zinc-400' : 'text-slate-600'}`}>{e.body}</p>
+                  <p className={`text-xs leading-relaxed mt-0.5 ${'text-fg-muted'}`}>{e.body}</p>
                 </div>
               </div>
             ))}
@@ -975,7 +975,7 @@ export default function Dashboard() {
                     </div>
 
                     <div className={`text-xl font-bold tabular-nums ${textPrimary}`}>{p.calls}</div>
-                    <p className={`text-[11px] mb-3 ${isDark ? 'text-zinc-600' : 'text-slate-500'}`}>calls</p>
+                    <p className={`text-[11px] mb-3 ${'text-fg-subtle'}`}>calls</p>
 
                     <div className="space-y-2">
                       <div className="flex justify-between text-[11px]">
@@ -1164,8 +1164,8 @@ export default function Dashboard() {
                 </div>
                 <div className={`text-lg font-bold tabular-nums ${textPrimary}`}>{formatTokens(t.totalTokens)}</div>
                 <div className="flex flex-wrap justify-between gap-2 mt-1">
-                  <span className={`text-[11px] ${isDark ? 'text-zinc-600' : 'text-slate-500'}`}>{t.calls} calls</span>
-                  <span className={`text-[11px] font-mono ${isDark ? 'text-zinc-600' : 'text-slate-500'}`}>{t.avgLatencyMs}ms</span>
+                  <span className={`text-[11px] ${'text-fg-subtle'}`}>{t.calls} calls</span>
+                  <span className={`text-[11px] font-mono ${'text-fg-subtle'}`}>{t.avgLatencyMs}ms</span>
                 </div>
               </div>
             ))}
