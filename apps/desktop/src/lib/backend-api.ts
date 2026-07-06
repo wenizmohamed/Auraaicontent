@@ -536,6 +536,16 @@ export const changelogApi = {
   list: (limit = 5) => request<{ entries: ChangelogEntry[] }>(`/api/changelog?limit=${limit}`),
 };
 
+// ─── Federated content search (⌘K palette) ──────────────────────
+export interface SearchResults {
+  clients: { id: string; name: string; slug: string; industry?: string | null }[];
+  posts: { id: string; title: string; platform: string; status: string; clientId: string | null; month: string | null }[];
+  pieces: { id: string; title: string; clientId: string; status: string; type: string }[];
+}
+export const searchApi = {
+  query: (q: string) => request<SearchResults>(`/api/search?q=${encodeURIComponent(q)}`),
+};
+
 // ─── AI Copywriting ──────────────────────────────────────────────
 
 export const copywritingApi = {

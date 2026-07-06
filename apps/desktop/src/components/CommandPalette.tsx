@@ -10,6 +10,8 @@ import {
   Plug, History as HistoryIcon, Bot, Telescope, RotateCcw
 } from 'lucide-react';
 import { useTheme } from '../lib/theme-context';
+import { useClients } from '../lib/client-context';
+import { searchApi, type SearchResults } from '../lib/backend-api';
 import { t, getLocale, setLocale } from '../i18n';
 
 type Item = {
@@ -30,7 +32,28 @@ interface Props {
 export function CommandPalette({ open, onOpenChange }: Props) {
   const navigate = useNavigate();
   const { theme, setTheme } = useTheme();
+  const { setSelectedClientId } = useClients();
   const [search, setSearch] = useState('');
+  const [results, setResults] = useState<SearchResults | null>(null);
+
+  // Federated content search — debounced. Queries the org's clients / calendar
+  // posts / content pieces so ⌘K can FIND content, not just jump to pages.
+  useEffect(() => {
+    const q = search.trim();
+    if (q.length < 2) { setResults(null); return; }
+    let alive = true;
+    const h = setTimeout(() => {
+      searchApi.query(q).then(r => { if (alive) setResults(r); }).catch(() => { if (alive) setResults(null); });
+    }, 180);
+    return () => { alive = false; clearTimeout(h); };
+  }, [search]);
+
+  // Deep-link into a result: switch to its client, then route.
+  const goResult = (path: string, clientId?: string | null) => {
+    if (clientId) { setSelectedClientId(clientId); }
+    navigate(path);
+    onOpenChange(false);
+  };
 
   const items = useMemo<Item[]>(() => {
     const go = (path: string) => () => { navigate(path); onOpenChange(false); };
@@ -120,13 +143,23 @@ export function CommandPalette({ open, onOpenChange }: Props) {
         hint: 'Switch UI to Arabic (RTL)', icon: Settings,
         perform: () => { if (getLocale() !== 'ar') { setLocale('ar'); window.location.reload(); } onOpenChange(false); }
       },
+
+      // ── Actions (do, don't just jump) ──────────────────────────────
+      { id: 'do-gen-calendar', group: 'Actions', label: 'Generate content calendar', hint: 'Plan a month of posts', icon: Calendar,   perform: go('/calendar'),     keywords: ['create','month','generate','plan','new'] },
+      { id: 'do-new-brief',    group: 'Actions', label: 'New brief',                 hint: 'Start a strategy brief',  icon: FileText,   perform: go('/brief'),        keywords: ['create','strategy','new'] },
+      { id: 'do-new-brand',    group: 'Actions', label: 'New brand / client',        hint: 'Add a client',            icon: Building2,  perform: go('/clients'),      keywords: ['create','add','account','new'] },
+      { id: 'do-connect',      group: 'Actions', label: 'Connect an integration',    hint: 'Meta / TikTok / LinkedIn',icon: Plug,       perform: go('/integrations'), keywords: ['oauth','publish','link','connect','new'] },
+      { id: 'do-ai-design',    group: 'Actions', label: 'New AI design',             hint: 'Generate a layout',       icon: Lightbulb,  perform: go('/ai-design'),    keywords: ['create','layout','generate','new'] },
+      { id: 'do-creative',     group: 'Actions', label: 'Generate an image or video',hint: 'Open Creative Tools',     icon: Wand2,      perform: go('/creative'),     keywords: ['create','image','video','generate','new'] },
     ];
     // theme is intentionally outside deps — items only depend on closures, not values
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate, setTheme]);
 
   // Reset query when palette closes
-  useEffect(() => { if (!open) setSearch(''); }, [open]);
+  useEffect(() => { if (!open) { setSearch(''); setResults(null); } }, [open]);
+
+  const hasResults = !!results && (results.clients.length + results.posts.length + results.pieces.length) > 0;
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -186,6 +219,38 @@ export function CommandPalette({ open, onOpenChange }: Props) {
               >
                 No matches. Try “calendar”, “invite”, or “theme”.
               </Command.Empty>
+
+              {hasResults && (() => {
+                const grpCls = "mb-1 [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pt-3 [&_[cmdk-group-heading]]:pb-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-bold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.18em]";
+                const itemCls = "group flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm aria-selected:bg-[color:var(--color-surface-hover)] data-[selected=true]:bg-[color:var(--color-surface-hover)]";
+                const iconWrap = "flex h-7 w-7 items-center justify-center rounded-md";
+                const R = (key: string, Icon: typeof Building2, label: string, sub: string, onSel: () => void) => (
+                  <Command.Item key={key} value={`${search} ${label} ${sub}`} onSelect={onSel} className={itemCls} style={{ color: 'var(--color-fg)' }}>
+                    <span className={iconWrap} style={{ background: 'var(--color-surface)', color: 'var(--color-fg-muted)' }}><Icon size={14} /></span>
+                    <span className="flex-1 truncate font-medium">{label}</span>
+                    <span className="hidden sm:inline truncate text-xs" style={{ color: 'var(--color-fg-subtle)' }}>{sub}</span>
+                  </Command.Item>
+                );
+                return (
+                  <>
+                    {results!.clients.length > 0 && (
+                      <Command.Group heading="Clients" className={grpCls}>
+                        {results!.clients.map(c => R('c-' + c.id, Building2, c.name, c.industry || 'Client', () => goResult('/calendar', c.id)))}
+                      </Command.Group>
+                    )}
+                    {results!.posts.length > 0 && (
+                      <Command.Group heading="Calendar posts" className={grpCls}>
+                        {results!.posts.map(p => R('p-' + p.id, Calendar, p.title, `${p.platform} · ${p.status}`, () => goResult('/content-review', p.clientId)))}
+                      </Command.Group>
+                    )}
+                    {results!.pieces.length > 0 && (
+                      <Command.Group heading="Content pieces" className={grpCls}>
+                        {results!.pieces.map(pc => R('pc-' + pc.id, FolderOpen, pc.title, `${pc.type} · ${pc.status}`, () => goResult('/pieces', pc.clientId)))}
+                      </Command.Group>
+                    )}
+                  </>
+                );
+              })()}
 
               {Array.from(new Set(items.map(i => i.group))).map(group => (
                 <Command.Group
