@@ -39,6 +39,10 @@ function markCompleted(orgId: string) {
 
 export function runOnboardingTour({ orgId, force = false }: RunOpts) {
   if (!force && alreadyCompleted(orgId)) return;
+  // Collision guard: don't fire over the full-page /onboarding wizard — the two
+  // first-run systems used to stack. GuideWidget (persistent checklist) is the
+  // primary; this driver.js tour is the on-demand deep-dive.
+  if (!force && typeof window !== 'undefined' && window.location.pathname.startsWith('/onboarding')) return;
 
   const d = driver({
     showProgress: true,
@@ -57,37 +61,23 @@ export function runOnboardingTour({ orgId, force = false }: RunOpts) {
         },
       },
       {
-        element: 'nav[aria-label="Primary"]',
-        popover: {
-          title: 'Sidebar — grouped',
-          description: 'Five groups: <b>Today</b> (dashboard + workspace), <b>Strategy</b> (clients, briefs, brand kit, knowledge, research), <b>Create</b> (calendar, all generation tools, gallery), <b>Distribute</b> (integrations + history), <b>Settings</b>. Click any group header to collapse.',
-        },
-      },
-      {
         element: 'a[href="/clients"]',
         popover: {
-          title: 'Strategy → 1. Add a brand',
-          description: 'Each client keeps its own brief, knowledge base, brand kit, and asset library.',
-        },
-      },
-      {
-        element: 'a[href="/brand-kit"]',
-        popover: {
-          title: 'Strategy → 2. Brand Kit',
-          description: 'Logos, colors, fonts, voice rules — feeds every AI generation so output is on-brand by default.',
+          title: 'Strategy → Add a brand',
+          description: 'Each client keeps its own brief, knowledge base, brand kit (logos, colors, voice — feeds every AI generation), and asset library.',
         },
       },
       {
         element: 'a[href="/brief"]',
         popover: {
-          title: 'Strategy → 3. Write the brief',
+          title: 'Strategy → Write the brief',
           description: 'Voice, channels, products, approvers. Richer brief = smarter generations.',
         },
       },
       {
         element: 'a[href="/calendar"]',
         popover: {
-          title: 'Create → 4. Generate a calendar',
+          title: 'Plan → Generate a calendar',
           description: 'One click → a full month of posts across your channels. Hijri + Gregorian dual-display, GCC holidays auto-flagged.',
         },
       },
@@ -95,7 +85,7 @@ export function runOnboardingTour({ orgId, force = false }: RunOpts) {
         element: 'a[href="/creative"], a[href="/ai-design"]',
         popover: {
           title: 'Create → AI tools',
-          description: 'Creative Tools (image + video), AI Design (layouts), Copywriting, Visual References, Gallery — all in the Create group.',
+          description: 'Creative Tools (image + video), AI Design, Copywriting, Studio. Gallery + References live under Library.',
         },
       },
       {
@@ -109,7 +99,7 @@ export function runOnboardingTour({ orgId, force = false }: RunOpts) {
         element: '[aria-label="Search or ask Radix…"], button[title*="Search"]',
         popover: {
           title: 'Pro tip — ⌘K everywhere',
-          description: 'Press <b>⌘K</b> (Ctrl+K) anywhere to jump between any of the 30+ surfaces, switch theme, change locale, or restart this tour. <b>?</b> shows all keyboard shortcuts.',
+          description: 'Press <b>⌘K</b> (Ctrl+K) to <b>search your content</b> — find any client, post, or piece by name — plus jump between surfaces, run actions, switch theme/locale. <b>?</b> shows all shortcuts.',
         },
       },
     ],
