@@ -291,19 +291,34 @@ function Layout({ children }: { children: React.ReactNode }) {
       ],
     },
     {
-      id: 'create',
-      label: t('nav.group.create'),
+      // Plan: the content-workflow surfaces (was mixed into an overloaded
+      // 10-item "Create" group — IA audit 2026-07-05 flagged AI Design/Studio
+      // as buried. Split into Plan / Create / Library so nothing exceeds ~7).
+      id: 'plan',
+      label: t('nav.group.plan'),
       items: [
         { name: t('nav.calendar'),    href: '/calendar',       icon: Calendar,    prefetch: () => import('./pages/ContentCalendar') },
         { name: t('nav.review'),      href: '/content-review', icon: Layers,      prefetch: () => import('./pages/ContentReview') },
         { name: t('nav.pieces'),      href: '/pieces',         icon: FolderOpen,  prefetch: () => import('./pages/ContentPieces') },
+      ],
+    },
+    {
+      id: 'create',
+      label: t('nav.group.create'),
+      items: [
         { name: t('nav.creative'),    href: '/creative',       icon: Wand2,       prefetch: () => import('./pages/CreativeTools') },
         { name: t('nav.aiDesign'),    href: '/ai-design',      icon: Lightbulb,   prefetch: () => import('./pages/AIDesignGenerator') },
         { name: t('nav.copywriting'), href: '/copywriting',    icon: PenLine,     prefetch: () => import('./pages/Copywriting') },
-        { name: t('nav.references'),  href: '/references',     icon: ImagePlus,   prefetch: () => import('./pages/VisualReferences') },
-        { name: t('nav.gallery'),     href: '/gallery',        icon: ImageIcon,   prefetch: () => import('./pages/Gallery') },
         { name: t('nav.studio'),      href: '/studio',         icon: Sparkles,    prefetch: () => import('./pages/Studio') },
         { name: t('nav.video'),       href: '/video',          icon: Video,       prefetch: () => import('./pages/VideoAnalysis') },
+      ],
+    },
+    {
+      id: 'library',
+      label: t('nav.group.library'),
+      items: [
+        { name: t('nav.references'),  href: '/references',     icon: ImagePlus,   prefetch: () => import('./pages/VisualReferences') },
+        { name: t('nav.gallery'),     href: '/gallery',        icon: ImageIcon,   prefetch: () => import('./pages/Gallery') },
       ],
     },
     {

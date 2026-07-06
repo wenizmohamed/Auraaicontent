@@ -66,7 +66,7 @@ export function CommandPalette({ open, onOpenChange }: Props) {
       { id: 'nav-clients',    group: 'Strategy',   label: 'Clients',           hint: 'Brand list + management',      icon: Building2,       perform: go('/clients'),           keywords: ['brands','accounts'] },
       { id: 'nav-brief',      group: 'Strategy',   label: 'Brief',             hint: 'Strategy + brand input',       icon: FileText,        perform: go('/brief'),             keywords: ['strategy','positioning'] },
       { id: 'nav-brand-kit',  group: 'Strategy',   label: 'Brand Kit',         hint: 'Logos, colors, fonts, voice',  icon: Palette,         perform: go('/brand-kit'),         keywords: ['identity','tokens','style guide'] },
-      { id: 'nav-knowledge',  group: 'Strategy',   label: 'Knowledge',         hint: 'Brand knowledge base',         icon: Brain,           perform: go('/knowledge'),         keywords: ['rag','docs','context'] },
+      { id: 'nav-knowledge',  group: 'Strategy',   label: 'Memory',            hint: 'Brand knowledge + learnings',  icon: Brain,           perform: go('/memory'),            keywords: ['rag','docs','context','knowledge','learnings'] },
       { id: 'nav-research',   group: 'Strategy',   label: 'Research',          hint: 'Web + market research',        icon: Telescope,       perform: go('/research'),          keywords: ['intel','web','sources'] },
       { id: 'nav-topics',     group: 'Strategy',   label: 'Topic Desk',        hint: 'Trending topics + ideas',      icon: Compass,         perform: go('/topics'),            keywords: ['trends','ideation'] },
 

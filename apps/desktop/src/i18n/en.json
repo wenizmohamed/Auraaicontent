@@ -31,7 +31,9 @@
   "nav.admin": "Admin",
   "nav.group.today": "Today",
   "nav.group.strategy": "Strategy",
+  "nav.group.plan": "Plan",
   "nav.group.create": "Create",
+  "nav.group.library": "Library",
   "nav.group.distribute": "Distribute",
   "nav.group.settings": "Settings",
 
