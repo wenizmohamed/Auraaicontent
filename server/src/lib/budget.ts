@@ -12,6 +12,7 @@
  * /api/dashboard/ai-stats route surfaces it to the UI.
  */
 import { db } from '../db/prisma.js';
+import { env } from '../config/env.js';
 
 export interface BudgetState {
   orgId: string;
@@ -71,4 +72,38 @@ export async function assertOrgBudget(orgId?: string): Promise<BudgetState | nul
   const state = await getOrgBudgetState(orgId);
   if (state.exceeded) throw new OrgBudgetExceededError(state);
   return state;
+}
+
+export class VideoDailyCapError extends Error {
+  readonly statusCode = 402;
+  readonly code = 'video_daily_cap';
+  constructor(public readonly usedToday: number, public readonly cap: number) {
+    super(`Daily video budget reached ($${usedToday.toFixed(2)} / $${cap.toFixed(2)}). Resets at 00:00 UTC.`);
+    this.name = 'VideoDailyCapError';
+  }
+}
+
+/**
+ * Video-spend guardrail. Video is the dominant cost line and can 5x in a month.
+ * Sums the org's ai.video spend since 00:00 UTC today; logs a WARN past the soft
+ * threshold (the watchdog sentinel greps these) and — only when a HARD cap is
+ * configured (>0) — throws VideoDailyCapError to stop further video gen for the
+ * day. No-op when orgId absent or SOFT<=0. Call BEFORE kicking off a video gen.
+ */
+export async function assertVideoDailyGuardrail(orgId?: string): Promise<void> {
+  if (!orgId) return;
+  const soft = Number(env.VIDEO_DAILY_SOFT_USD) || 0;
+  const hard = Number(env.VIDEO_DAILY_HARD_USD) || 0;
+  if (soft <= 0 && hard <= 0) return;
+  const start = new Date();
+  start.setUTCHours(0, 0, 0, 0);
+  const agg = await db.usageEvent.aggregate({
+    where: { orgId, kind: 'ai.video', createdAt: { gte: start } },
+    _sum: { costUsd: true },
+  });
+  const used = Number(agg._sum.costUsd ?? 0);
+  if (hard > 0 && used >= hard) throw new VideoDailyCapError(used, hard);
+  if (soft > 0 && used >= soft) {
+    console.warn(`[video-guardrail] org ${orgId} video spend $${used.toFixed(2)} today ≥ soft cap $${soft.toFixed(2)}`);
+  }
 }

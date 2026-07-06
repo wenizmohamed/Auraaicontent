@@ -50,6 +50,11 @@ export const env = {
   AI_TEXT_PRIMARY: optional('AI_TEXT_PRIMARY', 'gemini'),
   AI_IMAGE_PRIMARY: optional('AI_IMAGE_PRIMARY', 'gemini'),
   AI_VIDEO_PRIMARY: optional('AI_VIDEO_PRIMARY', 'gemini'),
+  // Video is ~97% of AI spend and volume 5x'd in a month — daily guardrail.
+  // SOFT logs a WARN (watchdog sentinel alerts on it); HARD (0 = off) blocks
+  // further video gen for that org for the rest of the UTC day.
+  VIDEO_DAILY_SOFT_USD: optional('VIDEO_DAILY_SOFT_USD', '40'),
+  VIDEO_DAILY_HARD_USD: optional('VIDEO_DAILY_HARD_USD', '0'),
   AI_ANALYSIS_PRIMARY: optional('AI_ANALYSIS_PRIMARY', 'gemini'),
   AI_ENABLE_FALLBACK: optional('AI_ENABLE_FALLBACK', 'true'),
 

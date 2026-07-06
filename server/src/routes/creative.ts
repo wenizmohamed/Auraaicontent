@@ -11,6 +11,7 @@ import { historyService } from '../services/history.service.js';
 import { sanitizePrompt, validatePrompt } from '../middleware/sanitize.js';
 import { enhanceCreativePrompt, type EnhanceMode } from '../services/prompt-enhancer.service.js';
 import { getStylePack, listStylePacks } from '../services/style-packs.js';
+import { assertVideoDailyGuardrail } from '../lib/budget.js';
 import type { Job } from '../workers/queue.js';
 
 // B3 — social safe-zone: appended to the prompt when the user toggles it on, so
@@ -212,6 +213,13 @@ export async function creativeRoutes(app: FastifyInstance) {
       if (!vv.valid) return reply.status(400).send({ error: vv.error });
     }
     prompt = sanitizePrompt(prompt);
+    // Video spend guardrail — video is ~97% of AI cost. Soft cap logs a WARN
+    // (watchdog alerts); hard cap (if configured) blocks for the rest of the day.
+    try {
+      await assertVideoDailyGuardrail(request.orgId);
+    } catch (e) {
+      return reply.status(errStatus(e, 402)).send({ error: errMessage(e) });
+    }
     const stylePack = getStylePack(stylePackId);
     // Auto pro-prompt (default ON): rewrite into Veo's cinematography-first
     // formula w/ audio directives + auto negatives; Arabic briefs translated.
