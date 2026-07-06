@@ -96,7 +96,7 @@ export async function embedKnowledgeItem(orgId: string, knowledgeItemId: string)
   for (let i = 0; i < textChunks.length; i++) {
     const chunkText = textChunks[i];
     try {
-      const embedding = await embedText(chunkText);
+      const embedding = await embedText(chunkText, { orgId });
       await db.knowledgeChunk.create({
         data: {
           orgId,

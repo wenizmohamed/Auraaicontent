@@ -61,7 +61,7 @@ export async function recordMemory(input: RecordMemoryInput): Promise<string | n
 
   let embedding: number[] | null = null;
   try {
-    embedding = await embedText(input.content.slice(0, 8000));
+    embedding = await embedText(input.content.slice(0, 8000), { orgId: input.orgId, userId: input.userId, clientId: input.clientId });
   } catch (err: any) {
     // Embedding unavailable (rate-limit / no key) — keep the lesson anyway.
     console.warn('[memory] embed failed, storing without embedding:', err?.message || err);
@@ -106,7 +106,7 @@ export async function retrieveMemories(
 
   let queryVector: number[];
   try {
-    queryVector = await embedText(query.slice(0, 8000));
+    queryVector = await embedText(query.slice(0, 8000), { orgId });
   } catch {
     return [];
   }

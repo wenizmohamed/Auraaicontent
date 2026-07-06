@@ -1,5 +1,38 @@
 import { GoogleGenAI } from '@google/genai';
 import { env } from '../config/env.js';
+import { db } from '../db/prisma.js';
+import { computeCostUsd, isPriced } from '../lib/ai-pricing.js';
+
+// Tenant context for cost attribution on embedding calls. Optional so callers
+// without an org (there shouldn't be any in prod) still work — they just skip
+// the UsageEvent write rather than crash.
+export interface EmbedContext { orgId?: string | null; userId?: string | null; clientId?: string | null }
+
+// Record an embedding call in the UsageEvent meter. Fire-and-forget: embedding
+// spend was previously invisible (never metered) — this closes that blind spot.
+// The preview embedContent API doesn't return a token count, so we estimate at
+// ~4 chars/token (Gemini's rough ratio); good enough for cost attribution.
+function recordEmbedUsage(text: string, ctx?: EmbedContext): void {
+  if (!ctx?.orgId) return;
+  const model = MODELS.embedding;
+  const promptTokens = Math.max(1, Math.ceil(text.length / 4));
+  const priced = isPriced(model);
+  void db.usageEvent.create({
+    data: {
+      orgId: ctx.orgId,
+      userId: ctx.userId ?? null,
+      kind: 'embedding',
+      units: promptTokens,
+      costUsd: computeCostUsd(model, promptTokens, 0, 1),
+      ref: ctx.clientId ?? null,
+      metadata: {
+        model, task: 'embedding', provider: 'gemini', priced,
+        promptTokens, completionTokens: 0,
+        ...(priced ? {} : { unpricedModel: model }),
+      },
+    },
+  }).catch(() => { /* metering must never break the embed path */ });
+}
 
 // ─── Client singleton ────────────────────────────────────────────
 
@@ -69,7 +102,7 @@ const EMBED_CACHE = new Map<string, { vec: number[]; at: number }>();
 const EMBED_CACHE_TTL = 15 * 60 * 1000;
 const EMBED_CACHE_MAX = 500;
 
-export async function embedText(text: string): Promise<number[]> {
+export async function embedText(text: string, ctx?: EmbedContext): Promise<number[]> {
   const key = text.length <= 512 ? text : text.slice(0, 256) + '\u0000' + text.length + '\u0000' + text.slice(-256);
   const hit = EMBED_CACHE.get(key);
   if (hit && Date.now() - hit.at < EMBED_CACHE_TTL) return hit.vec;
@@ -101,6 +134,7 @@ export async function embedText(text: string): Promise<number[]> {
     if (!embedding?.length) throw new Error('Gemini returned empty embedding');
     if (EMBED_CACHE.size >= EMBED_CACHE_MAX) EMBED_CACHE.delete(EMBED_CACHE.keys().next().value!);
     EMBED_CACHE.set(key, { vec: embedding, at: Date.now() });
+    recordEmbedUsage(text, ctx); // meter the (real, non-cached) embedding call
     return embedding;
   } catch (err: any) {
     if (err instanceof GeminiUnavailableError) throw err;

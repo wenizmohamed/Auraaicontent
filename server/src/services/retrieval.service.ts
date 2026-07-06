@@ -6,7 +6,7 @@ import { embedText } from './gemini.service.js';
 // TEMPORARY FALLBACK: cosine similarity computed in-memory (no pgvector yet)
 //
 // How it works:
-// 1. embedText(query) → get query vector from Gemini
+// 1. embedText(query, { orgId, clientId }) → get query vector from Gemini
 // 2. Fetch all chunks for client (with cached embeddings in metadata.embedding)
 // 3. Compute cosine similarity in JS
 // 4. Return top-K
@@ -42,7 +42,7 @@ export async function retrieveContext(
 ): Promise<{ text: string; score: number; knowledgeItemId: string }[]> {
 
   // 1. Embed query
-  const queryVector = await embedText(query);
+  const queryVector = await embedText(query, { orgId, clientId });
 
   // 2. Get all chunks for this client that have cached embeddings
   const items = await db.knowledgeItem.findMany({
