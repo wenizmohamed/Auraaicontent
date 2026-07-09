@@ -28,6 +28,16 @@ import { db } from '../db/prisma.js';
 
 export type EnhanceMode = 'text-to-image' | 'image-edit' | 'text-to-video' | 'image-to-video';
 
+// Enhancer depth dial (2026-07-09, research technique #4 — Krea/MJ --raw).
+// Replaces the blind binary enhance:true/false toggle:
+//  - raw     → do NOT rewrite the user's wording; only translate to English if
+//              needed and (video) still emit a negativePrompt. For brand-exact
+//              claims/copy where the writer means EXACTLY what they typed.
+//  - low     → light polish: fix clarity, add minimal missing camera/lighting.
+//  - medium  → default: full model-aware rewrite (legacy enhance:true behavior).
+//  - high    → medium + push specificity of composition/lighting/palette harder.
+export type EnhanceDepth = 'raw' | 'low' | 'medium' | 'high';
+
 export interface EnhanceInput {
   prompt: string;
   mode: EnhanceMode;
@@ -35,6 +45,8 @@ export interface EnhanceInput {
   engine?: 'gemini' | 'xai' | 'dashscope';
   /** Exact model id when the user picked one — sharper dialect than engine. */
   model?: string;
+  /** How aggressively to rewrite. Defaults to 'medium' (legacy behavior). */
+  depth?: EnhanceDepth;
   clientId?: string;
   orgId?: string;
   userId?: string;
@@ -67,12 +79,24 @@ Rules:
 - START with the camera: shot type, lens/framing, and one clear camera movement (e.g. "Slow dolly push-in, 35mm, shallow depth of field").
 - Then the subject and its defining visual details, then exactly what happens during the shot, then the setting, then style/mood/color grade.
 - ALWAYS write in English. If the user's idea is in Arabic or any other language, translate the intent faithfully (do NOT transliterate).
-- Present tense, concrete visual language. One shot only — no cuts, no "scene 2".
+- Present tense, concrete visual language. Default to ONE shot with ONE dominant camera move — no cuts. EXCEPTION: if the user explicitly asks for multiple beats/shots, sequence them inline with timestamps ("[00:00] wide establishing … [00:03] medium push-in … [00:06] close hero") — Veo 3.1 parses timestamped beats; keep it to 3 beats max and one clear move per beat.
 - End the prompt with audio as plain sentences in the SAME single line: "SFX: <sound effects>. Ambient noise: <background soundscape>." Include spoken dialogue in double quotes ONLY if the user asked for speech; for Arabic-market ads keep any dialogue in the user's language.
 - 90–140 words total. The whole prompt must be ONE single-line string — no literal line breaks. No markdown, no lists, no camera jargon soup — every term must be purposeful.
 - This is a social-media AD: keep the subject hero-lit and the message readable at a glance.
 Also produce a comma-separated negativePrompt of shot-specific things to avoid (styles, objects, artifacts — plain nouns/phrases, never "no X").
 Return ONLY compact single-line JSON (no literal newlines inside strings): {"prompt": "...", "negativePrompt": "..."}`;
+
+// Raw mode (depth='raw'): translate-only, never reinterpret. Keeps brand-exact
+// wording intact while still giving Veo an English prompt + a negativePrompt.
+const RAW_VIDEO_SYSTEM = `You are a faithful translator for an AI video model (Google Veo 3.1). Do NOT rewrite, embellish, or reinterpret the user's idea — preserve their exact intent and wording. ONLY translate to English if it is in another language (translate faithfully, never transliterate), and format as ONE single-line string. Also produce a short comma-separated negativePrompt of obvious artifacts to avoid (plain nouns, never "no X"). Return ONLY compact single-line JSON: {"prompt": "...", "negativePrompt": "..."}`;
+const RAW_IMAGE_SYSTEM = `You are a faithful translator for an AI image model. Do NOT rewrite, embellish, or reinterpret — preserve the user's exact intent and wording, including any text to render in-image (quote it exactly in its original language). ONLY translate the description to English if needed (faithfully, never transliterate). Return ONLY JSON: {"prompt": "..."}`;
+
+// Depth directives appended to the (non-raw) system prompt.
+const DEPTH_NOTES: Record<Exclude<EnhanceDepth, 'raw'>, string> = {
+  low: '\nDEPTH = LOW: light touch only — fix clarity and add at most the single most important missing detail (camera OR lighting). Stay close to the user\'s original wording and length.',
+  medium: '',
+  high: '\nDEPTH = HIGH: maximize art-direction specificity — every one of composition, lighting, color palette and finish must be named precisely and vividly, at the upper word bound. Never generic.',
+};
 
 const IMAGE_SYSTEM = `You are a creative director writing prompts for an AI image model producing premium social-media ad creative.
 Rewrite the user's idea into ONE production-grade prompt with this flow:
@@ -123,14 +147,26 @@ QUALITY GATE — before answering, silently draft the prompt, then verify: (1) t
 async function brandContext(clientId?: string, orgId?: string): Promise<string> {
   if (!clientId || !orgId) return '';
   try {
-    const client = await db.client.findUnique({
-      where: { id: clientId, orgId },
-      include: { brief: { select: { tone: true, visualLookFeel: true } } },
-    });
+    // Client (name/industry/primaryColor/brief) + BrandKit palette in parallel.
+    const [client, kit] = await Promise.all([
+      db.client.findUnique({
+        where: { id: clientId, orgId },
+        include: { brief: { select: { tone: true, visualLookFeel: true } } },
+      }),
+      db.brandKit.findFirst({
+        where: { clientId, orgId },
+        select: { primaryColor: true, secondaryColor: true, accentColor: true },
+      }).catch(() => null),
+    ]);
     if (!client) return '';
     const bits: string[] = [`Brand: ${client.name}`];
     if (client.industry) bits.push(`industry: ${client.industry}`);
-    if (client.primaryColor) bits.push(`primary brand color: ${client.primaryColor} (use it deliberately in the palette)`);
+    // Palette conditioning (technique #3): give the model the client's EXACT
+    // hex list — measurably steers the palette instead of a vague color word.
+    const hexes = [kit?.primaryColor || client.primaryColor, kit?.secondaryColor, kit?.accentColor]
+      .filter((h): h is string => !!h && /^#?[0-9a-fA-F]{3,8}$/.test(h))
+      .map((h) => (h.startsWith('#') ? h : `#${h}`));
+    if (hexes.length) bits.push(`dominant brand palette — weave these EXACT hexes into the color story: ${[...new Set(hexes)].join(', ')}`);
     if (client.brief?.tone) bits.push(`brand tone: ${client.brief.tone}`);
     if (client.brief?.visualLookFeel) bits.push(`visual look & feel: ${client.brief.visualLookFeel.slice(0, 300)}`);
     return `\n\nBrand context (respect it): ${bits.join('; ')}.`;
@@ -166,13 +202,24 @@ async function describeReference(input: EnhanceInput): Promise<string> {
 
 export async function enhanceCreativePrompt(input: EnhanceInput): Promise<EnhanceResult> {
   const isVideo = input.mode === 'text-to-video' || input.mode === 'image-to-video';
-  const base = isVideo ? VIDEO_SYSTEM : (input.mode === 'image-edit' ? EDIT_SYSTEM : IMAGE_SYSTEM);
-  const dialect = engineDialect(input.mode, input.engine, input.model);
-  const system = `${base}${dialect ? `\n${dialect}` : ''}${QUALITY_GATE}`;
+  const depth: EnhanceDepth = input.depth || 'medium';
+
+  // Raw depth: translate-only, no creative rewrite (brand-exact copy safety).
+  let system: string;
+  if (depth === 'raw') {
+    system = isVideo ? RAW_VIDEO_SYSTEM : RAW_IMAGE_SYSTEM;
+  } else {
+    const base = isVideo ? VIDEO_SYSTEM : (input.mode === 'image-edit' ? EDIT_SYSTEM : IMAGE_SYSTEM);
+    const dialect = engineDialect(input.mode, input.engine, input.model);
+    system = `${base}${dialect ? `\n${dialect}` : ''}${DEPTH_NOTES[depth]}${QUALITY_GATE}`;
+  }
 
   const notes: string[] = [];
   if (input.mode === 'image-to-video') {
-    notes.push('The shot animates FROM a provided still image: describe motion, camera work and audio that bring that exact frame to life — do not re-describe or replace the subject.');
+    // Motion-first hard switch (technique #1 / G2 prompt-half): the attached
+    // frame IS the subject — re-describing it is what makes the model reinvent
+    // the product. Describe ONLY motion/camera/timing.
+    notes.push('HARD RULE — the shot animates FROM a provided still image that IS frame one. Describe ONLY the motion, camera movement, pacing and audio. Do NOT re-describe, restyle, or replace the subject/product — it already exists in the frame and must stay pixel-identical. If you name the subject at all, name it only to say what it DOES, never what it looks like.');
   }
   if (input.hasRefs) {
     notes.push('Reference images of the exact product/subject are attached — the output must keep that subject identical; never invent a substitute.');

@@ -26,7 +26,7 @@ export async function creativeRoutes(app: FastifyInstance) {
 
   // POST /api/creative/images/generate
   app.post('/creative/images/generate', async (request, reply) => {
-    const { prompt: rawPrompt, aspectRatio, clientId, quality, model, provider, safeZone, imageSize, enhance, stylePackId } = request.body as { prompt: string; aspectRatio?: string; clientId?: string; quality?: 'standard' | 'ultra'; model?: string; provider?: 'gemini' | 'xai' | 'dashscope'; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K'; enhance?: boolean; stylePackId?: string };
+    const { prompt: rawPrompt, aspectRatio, clientId, quality, model, provider, safeZone, imageSize, enhance, depth, stylePackId } = request.body as { prompt: string; aspectRatio?: string; clientId?: string; quality?: 'standard' | 'ultra'; model?: string; provider?: 'gemini' | 'xai' | 'dashscope'; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K'; enhance?: boolean; depth?: 'raw' | 'low' | 'medium' | 'high'; stylePackId?: string };
     const v = validatePrompt(rawPrompt);
     if (!v.valid) return reply.status(400).send({ error: v.error });
     const prompt = sanitizePrompt(rawPrompt);
@@ -39,7 +39,7 @@ export async function creativeRoutes(app: FastifyInstance) {
     let enhancedPrompt: string | null = null;
     if (enhance !== false) {
       try {
-        const e = await enhanceCreativePrompt({ prompt, mode: 'text-to-image', engine: provider, model, clientId: clientId || undefined, orgId: request.orgId, userId: request.user?.userId, safeZone: Boolean(safeZone), stylePack });
+        const e = await enhanceCreativePrompt({ prompt, mode: 'text-to-image', engine: provider, model, depth, clientId: clientId || undefined, orgId: request.orgId, userId: request.user?.userId, safeZone: Boolean(safeZone), stylePack });
         if (e.prompt && e.prompt.trim() && e.prompt.trim() !== prompt) enhancedPrompt = e.prompt.trim();
       } catch (e) { request.log.warn(`prompt-enhancer failed (image): ${errMessage(e)}`); }
     }
@@ -113,7 +113,7 @@ export async function creativeRoutes(app: FastifyInstance) {
 
   // POST /api/creative/images/edit
   app.post('/creative/images/edit', async (request, reply) => {
-    const { prompt: rawEditPrompt, imageBase64, mimeType, aspectRatio, clientId, model, provider, referenceImages, safeZone, imageSize, enhance } = request.body as any;
+    const { prompt: rawEditPrompt, imageBase64, mimeType, aspectRatio, clientId, model, provider, referenceImages, safeZone, imageSize, enhance, depth } = request.body as any;
     if (!rawEditPrompt || !imageBase64) return reply.status(400).send({ error: 'prompt and imageBase64 are required' });
     const ev = validatePrompt(rawEditPrompt);
     if (!ev.valid) return reply.status(400).send({ error: ev.error });
@@ -134,7 +134,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         try {
           // Vision→prompt: the edit source image is described by the analysis
           // model so the instruction grounds in what's ACTUALLY in the image.
-          const e = await enhanceCreativePrompt({ prompt, mode: 'image-edit', engine: provider, model, clientId: clientId || undefined, orgId: request.orgId, userId: request.user?.userId, safeZone: Boolean(safeZone), hasRefs: !!refs?.length, refImageBase64: imageBase64, refImageMime: mimeType || 'image/png' });
+          const e = await enhanceCreativePrompt({ prompt, mode: 'image-edit', engine: provider, model, depth, clientId: clientId || undefined, orgId: request.orgId, userId: request.user?.userId, safeZone: Boolean(safeZone), hasRefs: !!refs?.length, refImageBase64: imageBase64, refImageMime: mimeType || 'image/png' });
           if (e.prompt && e.prompt.trim() && e.prompt.trim() !== prompt) enhancedPrompt = e.prompt.trim();
         } catch (e) { request.log.warn(`prompt-enhancer failed (edit): ${errMessage(e)}`); }
       }
@@ -238,6 +238,7 @@ export async function creativeRoutes(app: FastifyInstance) {
       referenceImages,
       model,
       enhance,
+      depth,
       stylePackId,
     } = request.body as any;
     if (!prompt) return reply.status(400).send({ error: 'prompt is required' });
@@ -271,7 +272,7 @@ export async function creativeRoutes(app: FastifyInstance) {
     if (enhance !== false) {
       try {
         const e = await enhanceCreativePrompt({
-          prompt, mode: videoMode as any, engine: enhEngine, model,
+          prompt, mode: videoMode as any, engine: enhEngine, model, depth,
           clientId: clientId || undefined,
           orgId: request.orgId, userId: request.user?.userId,
           safeZone: Boolean(safeZone), hasRefs: hasVideoRefs,
