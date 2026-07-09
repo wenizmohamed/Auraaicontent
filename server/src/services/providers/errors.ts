@@ -91,9 +91,21 @@ export function isSafetyBlock(msg: string): boolean {
   return /safety|blocked|content.?filter|policy|prohibited|child|photorealistic/i.test(msg);
 }
 
+// Provider billing exhaustion (credits gone / monthly spend cap hit) is a
+// QUOTA condition, not an auth failure — the next provider in the chain can
+// still serve the request. MUST be checked BEFORE the non-retryable list,
+// because these messages usually arrive wrapped in a 403 (which that list
+// hard-blocks). Real case 2026-07-09: xAI "Your team ... has either used all
+// available credits or reached its monthly spending limit" 403 halted the
+// image ladder before gemini/dashscope could answer.
+const BILLING_EXHAUSTION = /used all (available )?credits|spending (limit|cap)|out of credits|insufficient.?(credit|balance|funds)|payment.?required/i;
+
 export function isRetryableAiError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err);
   const status = (err as any)?.status || (err as any)?.statusCode;
+
+  // Billing/credits exhaustion → always fall through to the next provider.
+  if (BILLING_EXHAUSTION.test(msg)) return true;
 
   // Explicit non-retryable text check first (e.g. malformed payload).
   if (NON_RETRYABLE_PATTERNS.some(p => p.test(msg))) return false;
