@@ -98,7 +98,7 @@ export function isSafetyBlock(msg: string): boolean {
 // hard-blocks). Real case 2026-07-09: xAI "Your team ... has either used all
 // available credits or reached its monthly spending limit" 403 halted the
 // image ladder before gemini/dashscope could answer.
-const BILLING_EXHAUSTION = /used all (available )?credits|spending (limit|cap)|out of credits|insufficient.?(credit|balance|funds)|payment.?required/i;
+const BILLING_EXHAUSTION = /used all (available )?credits|spending (limit|cap)|out of credits|insufficient.?(credit|balance|funds)|exhausted balance|user is locked|top ?up your balance|quota exceeded|payment.?required/i;
 
 export function isRetryableAiError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err);
