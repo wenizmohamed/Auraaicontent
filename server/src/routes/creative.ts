@@ -11,6 +11,7 @@ import { historyService } from '../services/history.service.js';
 import { sanitizePrompt, validatePrompt } from '../middleware/sanitize.js';
 import { enhanceCreativePrompt, type EnhanceMode } from '../services/prompt-enhancer.service.js';
 import { getStylePack, listStylePacks } from '../services/style-packs.js';
+import { recordMemory } from '../services/memory.service.js';
 import { assertVideoDailyGuardrail } from '../lib/budget.js';
 import type { Job } from '../workers/queue.js';
 
@@ -38,7 +39,7 @@ export async function creativeRoutes(app: FastifyInstance) {
     let enhancedPrompt: string | null = null;
     if (enhance !== false) {
       try {
-        const e = await enhanceCreativePrompt({ prompt, mode: 'text-to-image', clientId: clientId || undefined, orgId: request.orgId, userId: request.user?.userId, safeZone: Boolean(safeZone), stylePack });
+        const e = await enhanceCreativePrompt({ prompt, mode: 'text-to-image', engine: provider, model, clientId: clientId || undefined, orgId: request.orgId, userId: request.user?.userId, safeZone: Boolean(safeZone), stylePack });
         if (e.prompt && e.prompt.trim() && e.prompt.trim() !== prompt) enhancedPrompt = e.prompt.trim();
       } catch (e) { request.log.warn(`prompt-enhancer failed (image): ${errMessage(e)}`); }
     }
@@ -131,7 +132,9 @@ export async function creativeRoutes(app: FastifyInstance) {
       let enhancedPrompt: string | null = null;
       if (enhance !== false) {
         try {
-          const e = await enhanceCreativePrompt({ prompt, mode: 'image-edit', clientId: clientId || undefined, orgId: request.orgId, userId: request.user?.userId, safeZone: Boolean(safeZone), hasRefs: !!refs?.length });
+          // Vision→prompt: the edit source image is described by the analysis
+          // model so the instruction grounds in what's ACTUALLY in the image.
+          const e = await enhanceCreativePrompt({ prompt, mode: 'image-edit', engine: provider, model, clientId: clientId || undefined, orgId: request.orgId, userId: request.user?.userId, safeZone: Boolean(safeZone), hasRefs: !!refs?.length, refImageBase64: imageBase64, refImageMime: mimeType || 'image/png' });
           if (e.prompt && e.prompt.trim() && e.prompt.trim() !== prompt) enhancedPrompt = e.prompt.trim();
         } catch (e) { request.log.warn(`prompt-enhancer failed (edit): ${errMessage(e)}`); }
       }
@@ -188,6 +191,36 @@ export async function creativeRoutes(app: FastifyInstance) {
   // FE picker (motionsites.ai-style precision looks; directives stay server-side).
   app.get('/creative/style-packs', async () => ({ packs: listStylePacks() }));
 
+  // POST /api/creative/feedback — thumbs up/down on a generation (SOTA pass
+  // 2026-07-09). Writes the lesson into the Memory table so the memory-enricher
+  // feeds it back into every future enhancement/generation for this client —
+  // the same learn-from-feedback USP loop as copywriting (C1), now closing on
+  // the creative surface. Enhanced prompt (when present) beats the raw one as
+  // the exemplar since it's what the model actually saw.
+  app.post('/creative/feedback', async (request, reply) => {
+    const { generationId, liked } = request.body as { generationId?: string; liked?: boolean };
+    if (!generationId || typeof liked !== 'boolean') {
+      return reply.status(400).send({ error: 'generationId and liked (boolean) are required' });
+    }
+    const gen = await db.generation.findFirst({ where: { id: generationId, orgId: request.orgId! } });
+    if (!gen) return reply.status(404).send({ error: 'Generation not found' });
+    const styled = ((gen.metadata as any)?.enhancedPrompt as string | undefined) || gen.prompt;
+    const memoryId = await recordMemory({
+      orgId: request.orgId!,
+      clientId: gen.clientId,
+      userId: request.user?.userId,
+      kind: liked ? 'preference' : 'correction',
+      source: 'explicit',
+      content: liked
+        ? `Creative ${gen.type} WIN — the team liked the output of this prompt; reuse its structure, lighting and composition vocabulary for this client: "${styled.slice(0, 400)}"`
+        : `Creative ${gen.type} MISS — the team disliked the output of this prompt; avoid this direction for this client: "${styled.slice(0, 300)}"`,
+      context: `creative feedback · generation ${gen.id} · model ${gen.model || 'n/a'}`,
+      weight: liked ? 1.2 : 1.4, // misses weigh slightly heavier — repeat-avoidance beats repeat-success
+      metadata: { surface: 'creative', generationId: gen.id, liked },
+    });
+    return { ok: true, memoryId };
+  });
+
   // POST /api/creative/videos/generate — async via job queue
   // Supports both text-to-video AND image-to-video (when imageBase64 is provided).
   app.post('/creative/videos/generate', async (request, reply) => {
@@ -225,14 +258,27 @@ export async function creativeRoutes(app: FastifyInstance) {
     // formula w/ audio directives + auto negatives; Arabic briefs translated.
     // Best-effort — failure falls back to the raw prompt.
     const videoMode = imageBase64 || startImageBase64 ? 'image-to-video' : 'text-to-video';
+    // Engine hint for the enhancer dialect — mirrors the router's actual
+    // dispatch: wan→dashscope, grok→xai, draft text-only→Grok-primary,
+    // everything image-conditioned / hd / omni → Veo (gemini).
+    const hasVideoRefs = Array.isArray(referenceImages) && referenceImages.length > 0;
+    const enhEngine = model && /wan/i.test(model) ? ('dashscope' as const)
+      : model && /grok/i.test(model) ? ('xai' as const)
+      : (videoMode === 'text-to-video' && tier !== 'hd' && !model && !hasVideoRefs) ? ('xai' as const)
+      : ('gemini' as const);
     let enhancedPrompt: string | null = null;
     let autoNegative: string | undefined;
     if (enhance !== false) {
       try {
         const e = await enhanceCreativePrompt({
-          prompt, mode: videoMode as any, clientId: clientId || undefined,
+          prompt, mode: videoMode as any, engine: enhEngine, model,
+          clientId: clientId || undefined,
           orgId: request.orgId, userId: request.user?.userId,
-          safeZone: Boolean(safeZone), hasRefs: Array.isArray(referenceImages) && referenceImages.length > 0,
+          safeZone: Boolean(safeZone), hasRefs: hasVideoRefs,
+          // Vision→prompt: describe the start frame so motion directions
+          // reference the real subject, not the user's thin description.
+          refImageBase64: imageBase64 || startImageBase64 || undefined,
+          refImageMime: (imageBase64 ? mimeType : startMimeType) || 'image/png',
           stylePack,
         });
         if (e.prompt && e.prompt.trim() && e.prompt.trim() !== prompt) enhancedPrompt = e.prompt.trim();

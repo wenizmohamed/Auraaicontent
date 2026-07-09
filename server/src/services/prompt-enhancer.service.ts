@@ -1,4 +1,6 @@
 // Model-aware prompt enhancer for the Creative Studio (2026-07-02).
+// SOTA prompting pass 2026-07-09: per-engine dialects, silent draft→critique
+// quality gate, and vision→prompt reference grounding.
 //
 // Replaces the generic "make it vivid" rewriter with per-engine templates
 // built from triple-verified research (deep-research run wf_5e37c63e):
@@ -10,9 +12,16 @@
 //    translated in this layer, never passed through raw.
 //  - Image ads want explicit composition/negative-space-for-copy, lighting,
 //    and EXACT quoted text when copy must render in-image.
+//  - Engines read prompts differently (2026-07-09): nano-banana wants flowing
+//    narrative + quoted typography; Qwen-Image wants fully-specified poster
+//    layouts (and renders Arabic text well); Grok wants short and punchy;
+//    Wan is visual-only (audio lines are wasted words). The dialect block
+//    tunes the SAME creative brief to the engine that will actually run it.
 //
-// Runs through aiRouter.text so the fallback chain + enrichers apply. Uses a
-// cheap/fast model tier — enhancement must feel instant next to generation.
+// Runs through aiRouter.text so the fallback chain + enrichers apply — which
+// also means learned Memory preferences (creative thumbs-up/down feedback)
+// are auto-injected into every enhancement for this client. Uses a cheap/fast
+// model tier — enhancement must feel instant next to generation.
 
 import { aiRouter } from './providers/ai-router.js';
 import { db } from '../db/prisma.js';
@@ -24,6 +33,8 @@ export interface EnhanceInput {
   mode: EnhanceMode;
   /** Engine hint from the FE picker — shapes vocabulary + constraints. */
   engine?: 'gemini' | 'xai' | 'dashscope';
+  /** Exact model id when the user picked one — sharper dialect than engine. */
+  model?: string;
   clientId?: string;
   orgId?: string;
   userId?: string;
@@ -31,6 +42,11 @@ export interface EnhanceInput {
   safeZone?: boolean;
   /** Whether reference images are attached (changes edit phrasing). */
   hasRefs?: boolean;
+  /** Primary attached image (edit source / i2v start frame) — vision→prompt:
+   *  described by the analysis model so the prompt grounds in what is ACTUALLY
+   *  in the image instead of the user's (often thin) description of it. */
+  refImageBase64?: string;
+  refImageMime?: string;
   /** Curated Style Pack (style-packs.ts) — injected as a hard design contract. */
   stylePack?: { name: string; image: string; video: string; negative?: string };
 }
@@ -72,6 +88,38 @@ Rewrite the user's request into ONE precise edit instruction: what changes, what
 Write in English (translate if needed), except text to render in-image — quote that exactly in its original language. 40–90 words, prose only.
 Return ONLY JSON: {"prompt": "..."}`;
 
+// ─── Per-engine dialects (2026-07-09) ────────────────────────────
+// Same brief, different phrasing per engine. Short blocks by design —
+// they steer vocabulary without bloating the system prompt.
+
+const NANO_IMAGE_NOTES = `ENGINE NOTES (Gemini nano-banana): this model reads flowing narrative sentences far better than keyword lists — describe the scene as one coherent paragraph. It renders in-image typography exceptionally well: put any required copy in double quotes with font style, weight and placement. Photorealism responds to explicit camera + lens + lighting language (e.g. 85mm, f/2.8, softbox key).`;
+
+const QWEN_IMAGE_NOTES = `ENGINE NOTES (Qwen-Image): strongest at poster-style layouts and dense, accurate text rendering — including Arabic script (keep Arabic in-image text in Arabic). Spell out any text EXACTLY in double quotes, with font style and position. Fully specify the layout: name every major element and where it sits in the frame. Text-heavy ads, flat design and infographics are this engine's sweet spot.`;
+
+const GROK_IMAGE_NOTES = `ENGINE NOTES (Grok Imagine): favors concise, punchy, subject-first prompts — lead with the hero subject in the first clause and stay near the LOWER word bound. Bold stylization lands well; long meandering prose drifts.`;
+
+const WAN_VIDEO_NOTES = `ENGINE NOTES (Wan text-to-video): VISUAL-ONLY engine — omit the SFX/Ambient/dialogue sentences entirely and spend those words on motion instead. One continuous scene: explicit motion verbs for the subject AND one clear camera move. 60–100 words.`;
+
+const GROK_VIDEO_NOTES = `ENGINE NOTES (Grok Imagine video): favors short, high-energy cinematic beats — 60–90 words, one bold camera move, strong stylization. Keep the SFX and Ambient clauses to a few words each.`;
+
+function engineDialect(mode: EnhanceMode, engine?: string, model?: string): string {
+  const m = (model || '').toLowerCase();
+  const isVideo = mode === 'text-to-video' || mode === 'image-to-video';
+  if (isVideo) {
+    if (m.includes('wan') || (!m && engine === 'dashscope')) return WAN_VIDEO_NOTES;
+    if (m.includes('grok') || (!m && engine === 'xai')) return GROK_VIDEO_NOTES;
+    return ''; // Veo / omni — VIDEO_SYSTEM is already Veo-native
+  }
+  if (m.includes('qwen') || m.includes('wan') || (!m && engine === 'dashscope')) return QWEN_IMAGE_NOTES;
+  if (m.includes('grok') || (!m && engine === 'xai')) return GROK_IMAGE_NOTES;
+  return NANO_IMAGE_NOTES; // gemini default (nano-banana)
+}
+
+// Silent self-critique before output — one call, zero extra round-trips.
+// The named filler words are the measurable AI-tells that make output generic.
+const QUALITY_GATE = `
+QUALITY GATE — before answering, silently draft the prompt, then verify: (1) the product/subject is unmistakably the hero; (2) every adjective is concrete and purposeful; (3) composition, lighting and palette are EACH explicitly specified; (4) zero generic filler ("stunning", "breathtaking", "masterpiece", "8k", "ultra-realistic", "high quality", "award-winning"); (5) every NOTE and brand constraint is honored. Fix every failure, then output ONLY the final JSON.`;
+
 async function brandContext(clientId?: string, orgId?: string): Promise<string> {
   if (!clientId || !orgId) return '';
   try {
@@ -91,9 +139,36 @@ async function brandContext(clientId?: string, orgId?: string): Promise<string> 
   }
 }
 
+// Vision→prompt: describe the attached image so the rewrite grounds in what
+// is ACTUALLY in it (exact product, colors, lighting) instead of the user's
+// often-thin description. Best-effort; adds one cheap analysis call, only
+// when an image is attached.
+async function describeReference(input: EnhanceInput): Promise<string> {
+  if (!input.refImageBase64) return '';
+  try {
+    const r = await aiRouter.analysis(
+      {
+        prompt: 'Describe this image for a prompt writer in at most 60 words: the exact subject (product/brand identity as visible), its colors and materials, the lighting, and the overall photographic style. Return ONLY JSON: {"description":"..."}',
+        imageBase64: input.refImageBase64,
+        mimeType: input.refImageMime || 'image/png',
+      },
+      { orgId: input.orgId, userId: input.userId, clientId: input.clientId },
+    );
+    const out = r.output as any;
+    const desc = typeof out === 'string' ? out : typeof out?.description === 'string' ? out.description : '';
+    return desc.trim()
+      ? `\n\nAttached image contents (ground the prompt in what is ACTUALLY in it — subject identity is non-negotiable): ${desc.trim().slice(0, 400)}`
+      : '';
+  } catch {
+    return ''; // best-effort — vision context must never fail enhancement
+  }
+}
+
 export async function enhanceCreativePrompt(input: EnhanceInput): Promise<EnhanceResult> {
   const isVideo = input.mode === 'text-to-video' || input.mode === 'image-to-video';
-  const system = isVideo ? VIDEO_SYSTEM : (input.mode === 'image-edit' ? EDIT_SYSTEM : IMAGE_SYSTEM);
+  const base = isVideo ? VIDEO_SYSTEM : (input.mode === 'image-edit' ? EDIT_SYSTEM : IMAGE_SYSTEM);
+  const dialect = engineDialect(input.mode, input.engine, input.model);
+  const system = `${base}${dialect ? `\n${dialect}` : ''}${QUALITY_GATE}`;
 
   const notes: string[] = [];
   if (input.mode === 'image-to-video') {
@@ -111,9 +186,14 @@ export async function enhanceCreativePrompt(input: EnhanceInput): Promise<Enhanc
     const directive = isVideo ? input.stylePack.video : input.stylePack.image;
     notes.push(`STYLE PACK "${input.stylePack.name}" — the art direction below is a HARD constraint; weave its exact palette, materials, lighting and mood into the prompt (the user's subject stays the hero): ${directive}`);
   }
-  const brand = await brandContext(input.clientId, input.orgId);
+  // Brand lookup + reference-image vision run in PARALLEL — enhancement must
+  // stay fast even when both are needed.
+  const [brand, refContext] = await Promise.all([
+    brandContext(input.clientId, input.orgId),
+    describeReference(input),
+  ]);
 
-  const userMsg = `${notes.length ? notes.map(n => `NOTE: ${n}`).join('\n') + '\n\n' : ''}User idea:\n"${input.prompt.trim()}"${brand}`;
+  const userMsg = `${notes.length ? notes.map(n => `NOTE: ${n}`).join('\n') + '\n\n' : ''}User idea:\n"${input.prompt.trim()}"${brand}${refContext}`;
 
   const result = await aiRouter.text(
     // Flash tier: enhancement must feel instant next to a 30-180s generation.
