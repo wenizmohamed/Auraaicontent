@@ -1262,7 +1262,9 @@ export default function CreativeTools() {
 
           {/* Prompt boost dial — how much the server-side enhancer may rewrite.
               Raw answers "the enhancer completely changed my prompt": it ONLY
-              translates (Arabic→English for Veo) and never reinterprets. */}
+              translates (Arabic→English for Veo) and never reinterprets.
+              Hidden in Upscale mode (no prompt). */}
+          {mode !== 'upscale' && (
           <div>
             <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Prompt boost</label>
             <div className="flex items-center gap-2 mt-2">
@@ -1289,8 +1291,11 @@ export default function CreativeTools() {
               ))}
             </div>
           </div>
+          )}
 
-          {/* B3 — social safe-zone toggle: keep platform-UI bands clear */}
+          {/* B3 — social safe-zone toggle: keep platform-UI bands clear.
+              Hidden in Upscale mode. */}
+          {mode !== 'upscale' && (
           <div>
             <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Social safe zone</label>
             <div className="mt-2">
@@ -1309,6 +1314,7 @@ export default function CreativeTools() {
               </button>
             </div>
           </div>
+          )}
 
           {/* B2 — generate several at once (text-to-image) to compare */}
           {mode === 'text-to-image' && (
@@ -1335,9 +1341,11 @@ export default function CreativeTools() {
             </div>
           )}
 
-          {!isVideoMode && (
+          {/* Engine picker — in Upscale mode only relevant when AI detail is on
+              (it selects which model does the AI enhance pass). */}
+          {!isVideoMode && (mode !== 'upscale' || upscaleAi) && (
             <div>
-              <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Engine</label>
+              <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">{mode === 'upscale' ? 'AI enhance engine' : 'Engine'}</label>
               <div className="flex items-center gap-2 mt-2">
                 {IMAGE_MODELS.map(im => (
                   <button
@@ -1360,8 +1368,9 @@ export default function CreativeTools() {
           )}
 
           {/* Image output resolution — nano-banana renders natively at 1K/2K/4K
-              (Imagen clamps 4K→2K; Grok/DashScope ignore). */}
-          {!isVideoMode && (
+              (Imagen clamps 4K→2K; Grok/DashScope ignore). Hidden in Upscale
+              mode — Target size (up to 16K) replaces it there. */}
+          {!isVideoMode && mode !== 'upscale' && (
             <div>
               <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Resolution</label>
               <div className="flex items-center gap-2 mt-2">
