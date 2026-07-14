@@ -60,21 +60,35 @@ export async function suggestTopics(
   context?: string,
   provider: AIProvider = 'gemini'
 ): Promise<{ title: string; description: string; audience: string }[]> {
-  const prompt = `You are a content strategist for a media company. Suggest 5 fresh content topics for the ${station} station.
+  const prompt = `You are a content strategist for a media company. Suggest 5 fresh content topics for the ${station} market/desk.
 ${context ? `Context: ${context}` : ''}
 
-The station focuses on: ${
-  station === 'Lebanon' ? 'Lebanese news, culture, politics, economy' :
-  station === 'Abu Dhabi' ? 'UAE business, luxury, development, innovation' :
-  station === 'Investigations' ? 'Investigative journalism, exposés, deep dives' :
-  'Short-form clips, viral content, social media trends'
-}
+The focus is: ${MARKET_FOCUS[station] || `${station} — local news, culture, business and social trends relevant to that market`}
 
+Ground topics in what is currently relevant to that specific market/audience.
 Return a JSON array:
 [{"title": "...", "description": "one sentence", "audience": "target audience"}]`;
 
   return await generateJSON(prompt, provider);
 }
+
+// Market/desk focus (2026-07-14, Habiba): expanded beyond Lebanon to the full
+// GCC + MENA set so Topic Desk isn't Lebanon-only. Content-type desks
+// (Investigations/Clips) keep their editorial focus.
+export const MARKET_FOCUS: Record<string, string> = {
+  'Oman': 'Oman (Muscat) — local news, Vision 2040, tourism, culture, business',
+  'Saudi Arabia': 'Saudi Arabia (Riyadh/Jeddah) — Vision 2030, giga-projects, entertainment, business, culture',
+  'UAE': 'UAE (Dubai/Abu Dhabi) — business, luxury, innovation, real estate, lifestyle',
+  'Abu Dhabi': 'UAE business, luxury, development, innovation',
+  'Qatar': 'Qatar (Doha) — business, sports, culture, energy, development',
+  'Kuwait': 'Kuwait — politics, business, culture, youth trends',
+  'Bahrain': 'Bahrain — finance, culture, motorsport, lifestyle',
+  'Egypt': 'Egypt (Cairo) — news, culture, entertainment, economy, youth trends',
+  'Lebanon': 'Lebanese news, culture, politics, economy',
+  'Jordan': 'Jordan (Amman) — news, culture, tourism, business',
+  'Investigations': 'Investigative journalism, exposés, deep dives',
+  'Clips': 'Short-form clips, viral content, social media trends',
+};
 
 export async function generateTopicOutline(
   title: string,

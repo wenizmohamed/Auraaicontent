@@ -159,6 +159,10 @@ export default function BriefInput() {
   const [customOccasionDate, setCustomOccasionDate] = useState('');
   const [conflict, setConflict] = useState<{ month: string; clientId: string } | null>(null);
   const [conflictAction, setConflictAction] = useState<'idle' | 'deleting' | 'regenerating'>('idle');
+  // Brief-per-month (2026-07-14): when this month has no dedicated brief we
+  // start BLANK (so a new month is an independent plan, not an inherited one)
+  // and offer to copy the most recent brief on demand.
+  const [copyableBrief, setCopyableBrief] = useState<{ month: string; brief: any } | null>(null);
 
   // ─── Handlers ────────────────────────────────────────────────────
 
@@ -170,14 +174,52 @@ export default function BriefInput() {
   // Load saved brief for the selected client. Resets the form on every client
   // switch so leftover state from another client (e.g. Al Fardan campaigns)
   // doesn't bleed into a fresh client like GE Healthcare.
+  // Apply a saved brief object into the form (reused by month-load + "copy
+  // last month"). Pure setter — no fetch.
+  const hydrateFromBrief = useCallback((brief: any) => {
+    const blankAll = () => {
+      setCampaigns([blankCampaign()]);
+      setOccasions(DEFAULT_OCCASIONS.map(o => ({ ...o, enabled: false })));
+      setSelectedPlatforms(['Instagram', 'TikTok', 'LinkedIn']);
+      setToneNotes('');
+      setLookFeel('');
+    };
+    if (!brief) { blankAll(); return; }
+    const savedCampaigns: any[] = Array.isArray(brief.campaigns) ? brief.campaigns : [];
+    if (savedCampaigns.length > 0) {
+      setCampaigns(savedCampaigns.map((c) => ({
+        name: c.name || '', productFocus: c.productFocus || '', targetAudience: c.targetAudience || '',
+        objective: c.objective || '', keyMessage: c.keyMessage || '',
+      })));
+    } else {
+      const pillars: string[] = Array.isArray(brief.pillars) ? brief.pillars : [];
+      const products: string[] = Array.isArray(brief.products) ? brief.products : [];
+      setCampaigns(pillars.length > 0
+        ? pillars.map((name, i) => ({ name, productFocus: products[i] || '', targetAudience: brief.audience || '', objective: brief.objective || '', keyMessage: brief.objective || '' }))
+        : [blankCampaign()]);
+    }
+    if (Array.isArray(brief.campaignMoments) && brief.campaignMoments.length > 0) {
+      const savedNames = new Set(brief.campaignMoments.map((m: any) => m.name));
+      setOccasions(DEFAULT_OCCASIONS.map(o => ({ ...o, enabled: savedNames.has(o.name) })));
+    } else {
+      setOccasions(DEFAULT_OCCASIONS.map(o => ({ ...o, enabled: false })));
+    }
+    setSelectedPlatforms(Array.isArray(brief.channels) && brief.channels.length > 0 ? brief.channels : ['Instagram', 'TikTok', 'LinkedIn']);
+    setToneNotes(typeof brief.tone === 'string' && brief.tone !== 'Professional' ? brief.tone : '');
+    setLookFeel(typeof brief.visualLookFeel === 'string' ? brief.visualLookFeel : '');
+  }, []);
+
+  // Brief-per-month: load THIS (client, month)'s brief. Draft (unsaved edits)
+  // for this exact client+month wins; else the dedicated brief for this month;
+  // else BLANK — a new month starts as an independent plan, never inheriting an
+  // earlier month's campaigns (Habiba's fix). If another month has a brief we
+  // stash it so the user can explicitly "copy last month".
   useEffect(() => {
-    if (!selectedClientId) return;
+    if (!selectedClientId || !selectedMonth) return;
     let cancelled = false;
-    // 1. Restore an in-progress DRAFT first (survives tab switch / refresh) so
-    //    typed-but-not-yet-generated campaigns are never lost. Only a draft with
-    //    real content wins; a blank/default draft falls through to the saved brief.
+    const draftKey = `radix.draft.bi.${selectedClientId}.${selectedMonth}`;
     try {
-      const raw = localStorage.getItem(`radix.draft.bi.${selectedClientId}`);
+      const raw = localStorage.getItem(draftKey);
       if (raw) {
         const d = JSON.parse(raw);
         const hasContent = Array.isArray(d?.campaigns) && d.campaigns.some((c: any) => c?.name?.trim());
@@ -187,70 +229,46 @@ export default function BriefInput() {
           if (Array.isArray(d.selectedPlatforms)) setSelectedPlatforms(d.selectedPlatforms);
           if (typeof d.toneNotes === 'string') setToneNotes(d.toneNotes);
           if (typeof d.lookFeel === 'string') setLookFeel(d.lookFeel);
-          if (typeof d.selectedMonth === 'string' && d.selectedMonth) setSelectedMonth(d.selectedMonth);
-          return; // keep the draft — do NOT overwrite with the saved backend brief
+          setCopyableBrief(null);
+          return;
         }
       }
-    } catch { /* corrupt draft — ignore, fall through to backend brief */ }
-    // 2. No draft → reset to defaults, then hydrate from the saved backend brief.
+    } catch { /* corrupt draft — fall through */ }
     (async () => {
-      setCampaigns([blankCampaign()]);
-      setOccasions(DEFAULT_OCCASIONS.map(o => ({ ...o, enabled: false })));
-      setSelectedPlatforms(['Instagram', 'TikTok', 'LinkedIn']);
-      setToneNotes('');
-      setLookFeel('');
       try {
-        const brief = await briefsApi.get(selectedClientId);
-        if (cancelled || !brief) return;
-        // Prefer the full per-campaign array (new format) so each campaign keeps
-        // its OWN audience/objective/keyMessage. Fall back to the legacy
-        // pillars+products reconstruction only for old briefs without `campaigns`.
-        const savedCampaigns: any[] = Array.isArray((brief as any).campaigns) ? (brief as any).campaigns : [];
-        if (savedCampaigns.length > 0) {
-          setCampaigns(savedCampaigns.map((c) => ({
-            name: c.name || '',
-            productFocus: c.productFocus || '',
-            targetAudience: c.targetAudience || '',
-            objective: c.objective || '',
-            keyMessage: c.keyMessage || '',
-          })));
+        const all = await briefsApi.list(selectedClientId).catch(() => [] as any[]);
+        if (cancelled) return;
+        const exact = Array.isArray(all) ? all.find((b: any) => (b.month || '') === selectedMonth) : null;
+        // legacy default brief (month='') counts as this month's brief only when
+        // the client has no dedicated per-month briefs yet (back-compat: existing
+        // single-brief clients keep seeing their brief).
+        const legacyDefault = Array.isArray(all) ? all.find((b: any) => (b.month || '') === '') : null;
+        const onlyLegacy = Array.isArray(all) && all.length > 0 && all.every((b: any) => (b.month || '') === '');
+        if (exact) {
+          hydrateFromBrief(exact);
+          setCopyableBrief(null);
+        } else if (onlyLegacy && legacyDefault) {
+          hydrateFromBrief(legacyDefault);
+          setCopyableBrief(null);
         } else {
-          const pillars: string[] = Array.isArray(brief.pillars) ? brief.pillars : [];
-          const products: string[] = Array.isArray(brief.products) ? brief.products : [];
-          if (pillars.length > 0) {
-            setCampaigns(pillars.map((name, i) => ({
-              name,
-              productFocus: products[i] || '',
-              targetAudience: brief.audience || '',
-              objective: brief.objective || '',
-              keyMessage: brief.objective || '',
-            })));
-          }
+          // new independent month → blank, offer to copy the most recent brief
+          hydrateFromBrief(null);
+          const others = (all || []).filter((b: any) => (b.month || '') !== selectedMonth);
+          setCopyableBrief(others.length ? { month: others[0].month || 'previous', brief: others[0] } : null);
         }
-        if (Array.isArray(brief.campaignMoments) && brief.campaignMoments.length > 0) {
-          const savedNames = new Set(brief.campaignMoments.map((m: any) => m.name));
-          setOccasions(prev => prev.map(o => ({ ...o, enabled: savedNames.has(o.name) })));
-        }
-        if (Array.isArray(brief.channels) && brief.channels.length > 0) {
-          setSelectedPlatforms(brief.channels);
-        }
-        if (typeof brief.tone === 'string' && brief.tone !== 'Professional') {
-          setToneNotes(brief.tone);
-        }
-        if (typeof (brief as any).visualLookFeel === 'string') setLookFeel((brief as any).visualLookFeel);
       } catch {
-        // 404 / no brief yet — leave form empty for the user to fill in
+        hydrateFromBrief(null);
       }
     })();
     return () => { cancelled = true; };
-  }, [selectedClientId]);
+  }, [selectedClientId, selectedMonth, hydrateFromBrief]);
 
-  // Persist the in-progress form per client (debounced) so switching tabs or
-  // refreshing never wipes typed campaigns (A2 fix). Only writes when there's
-  // real content; a blank form clears the draft so it can't shadow a saved brief.
+  // Persist the in-progress form per (client, month) so switching tab/month/
+  // refresh never wipes typed campaigns AND a draft for one month never bleeds
+  // into another (A2 fix, now month-scoped).
   useEffect(() => {
-    if (!selectedClientId) return;
-    const draftKey = `radix.draft.bi.${selectedClientId}`;
+    if (!selectedClientId || !selectedMonth) return;
+    const draftKey = `radix.draft.bi.${selectedClientId}.${selectedMonth}`;
     const t = setTimeout(() => {
       try {
         const hasContent = campaigns.some(c => c.name.trim()) || toneNotes.trim().length > 0 || lookFeel.trim().length > 0;
@@ -262,7 +280,7 @@ export default function BriefInput() {
       } catch { /* storage unavailable — in-memory only */ }
     }, 400);
     return () => clearTimeout(t);
-  }, [selectedClientId, campaigns, occasions, selectedPlatforms, toneNotes, selectedMonth, lookFeel]);
+  }, [selectedClientId, selectedMonth, campaigns, occasions, selectedPlatforms, toneNotes, lookFeel]);
 
   const updateCampaign = useCallback((index: number, field: keyof CampaignEntry, value: string) => {
     setCampaigns(prev => prev.map((c, i) => (i === index ? { ...c, [field]: value } : c)));
@@ -415,10 +433,10 @@ export default function BriefInput() {
         campaignMoments: enabledOccasions,
         channels: selectedPlatforms,
         approvers: [],
-      });
-      // Brief is now persisted server-side — drop the local draft so future
-      // loads hydrate from the saved brief, not a stale draft.
-      try { localStorage.removeItem(`radix.draft.bi.${selectedClientId}`); } catch { /* noop */ }
+      }, selectedMonth); // brief-per-month: save under THIS month
+      // Brief is now persisted server-side under this month — drop the local
+      // (client, month) draft so future loads hydrate from the saved brief.
+      try { localStorage.removeItem(`radix.draft.bi.${selectedClientId}.${selectedMonth}`); } catch { /* noop */ }
 
       // 2. Generate + poll (shared helper)
       step = 'generate';
@@ -683,6 +701,17 @@ export default function BriefInput() {
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
               </div>
+              {/* Brief-per-month: this month starts blank; one-click copy the
+                  most recent brief as a starting point (explicit, not automatic). */}
+              {copyableBrief && (
+                <button
+                  type="button"
+                  onClick={() => { hydrateFromBrief(copyableBrief.brief); setCopyableBrief(null); }}
+                  className="mt-2 text-xs text-violet-300 hover:text-violet-200 underline underline-offset-2"
+                >
+                  This is a fresh plan for this month. Copy {copyableBrief.month}'s brief as a starting point?
+                </button>
+              )}
             </div>
           </motion.div>
 

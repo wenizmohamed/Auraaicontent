@@ -286,10 +286,15 @@ export const clientsApi = {
 // ─── Briefs ──────────────────────────────────────────────────────
 
 export const briefsApi = {
-  get: (clientId: string) => request<any>(`/api/clients/${clientId}/brief`),
-  save: (clientId: string, data: any) =>
-    request<any>(`/api/clients/${clientId}/brief`, { method: 'PUT', body: JSON.stringify(data) }),
-  completeness: (clientId: string) => request<any>(`/api/clients/${clientId}/brief/completeness`),
+  // Brief-per-month (2026-07-14): pass month to target that month's brief;
+  // omit for the client's default brief.
+  get: (clientId: string, month?: string) =>
+    request<any>(`/api/clients/${clientId}/brief${month ? `?month=${encodeURIComponent(month)}` : ''}`),
+  // All briefs for a client (for "copy last month" + history).
+  list: (clientId: string) => request<any[]>(`/api/clients/${clientId}/briefs`),
+  save: (clientId: string, data: any, month?: string) =>
+    request<any>(`/api/clients/${clientId}/brief${month ? `?month=${encodeURIComponent(month)}` : ''}`, { method: 'PUT', body: JSON.stringify(data) }),
+  completeness: (clientId: string, month?: string) => request<any>(`/api/clients/${clientId}/brief/completeness${month ? `?month=${encodeURIComponent(month)}` : ''}`),
   promptPack: (clientId: string) => request<any>(`/api/clients/${clientId}/brief/prompt-pack`),
 };
 

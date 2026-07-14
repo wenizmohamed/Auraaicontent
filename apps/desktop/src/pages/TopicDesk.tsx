@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   FileText, Plus, Filter, Columns, Grid, Download, Tag, Users,
   MessageSquare, X, ChevronRight, ChevronDown, Hash, Mic, Search,
-  GripVertical, Radio, Tv, Newspaper, Film, MoreHorizontal, Trash2, Edit3,
+  GripVertical, Radio, Newspaper, Film, MoreHorizontal, Trash2, Edit3,
   Sparkles, Link as LinkIcon, Paperclip, AlignLeft, Loader2, Wand2, Lightbulb, ExternalLink,
   Link2, Palette
 } from 'lucide-react';
@@ -54,21 +54,30 @@ interface Topic {
 
 const STORAGE_KEY = 'radix_topics';
 
-const STATIONS = ['Lebanon', 'Abu Dhabi', 'Investigations', 'Clips'] as const;
+// Markets/desks (2026-07-14, Habiba): expanded from Lebanon-only to the full
+// GCC + MENA set + the two editorial desks. Focus text lives in ai.ts MARKET_FOCUS.
+const STATIONS = ['Oman', 'Saudi Arabia', 'UAE', 'Qatar', 'Kuwait', 'Bahrain', 'Egypt', 'Lebanon', 'Jordan', 'Investigations', 'Clips'] as const;
 
+const DEFAULT_STATION_COLOR = { bg: 'bg-teal-500/15', text: 'text-teal-400', border: 'border-teal-500/20' };
 const STATION_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  Oman:           { bg: 'bg-red-500/15',     text: 'text-red-400',     border: 'border-red-500/20' },
+  'Saudi Arabia': { bg: 'bg-green-500/15',   text: 'text-green-400',   border: 'border-green-500/20' },
+  UAE:            { bg: 'bg-sky-500/15',     text: 'text-sky-400',     border: 'border-sky-500/20' },
+  Qatar:          { bg: 'bg-purple-500/15',  text: 'text-purple-400',  border: 'border-purple-500/20' },
+  Kuwait:         { bg: 'bg-cyan-500/15',    text: 'text-cyan-400',    border: 'border-cyan-500/20' },
+  Bahrain:        { bg: 'bg-rose-500/15',    text: 'text-rose-400',    border: 'border-rose-500/20' },
+  Egypt:          { bg: 'bg-yellow-500/15',  text: 'text-yellow-400',  border: 'border-yellow-500/20' },
   Lebanon:        { bg: 'bg-emerald-500/15', text: 'text-emerald-400', border: 'border-emerald-500/20' },
-  'Abu Dhabi':    { bg: 'bg-sky-500/15',     text: 'text-sky-400',     border: 'border-sky-500/20' },
+  Jordan:         { bg: 'bg-indigo-500/15',  text: 'text-indigo-400',  border: 'border-indigo-500/20' },
   Investigations: { bg: 'bg-amber-500/15',   text: 'text-amber-400',   border: 'border-amber-500/20' },
-  Clips:          { bg: 'bg-fuchsia-500/15',  text: 'text-fuchsia-400', border: 'border-fuchsia-500/20' },
+  Clips:          { bg: 'bg-fuchsia-500/15', text: 'text-fuchsia-400', border: 'border-fuchsia-500/20' },
 };
 
 const STATION_ICONS: Record<string, React.ReactNode> = {
-  Lebanon:        <Tv className="w-3 h-3" />,
-  'Abu Dhabi':    <Radio className="w-3 h-3" />,
   Investigations: <Newspaper className="w-3 h-3" />,
   Clips:          <Film className="w-3 h-3" />,
 };
+const DEFAULT_STATION_ICON = <Radio className="w-3 h-3" />;
 
 const KANBAN_COLUMNS: { id: TopicStatus; label: string; color: string; dot: string }[] = [
   { id: 'draft',         label: 'Draft',          color: 'text-zinc-400',    dot: 'bg-zinc-500' },
@@ -353,7 +362,7 @@ export default function TopicDesk() {
       </div>
       {['All', ...STATIONS].map(station => {
         const isActive = stationFilter === station;
-        const sc = station !== 'All' ? STATION_COLORS[station] : null;
+        const sc = station !== 'All' ? (STATION_COLORS[station] || DEFAULT_STATION_COLOR) : null;
         return (
           <button
             key={station}
@@ -366,7 +375,7 @@ export default function TopicDesk() {
                 : 'bg-white/5 text-zinc-500 border-white/5 hover:bg-white/10 hover:text-zinc-300'
             }`}
           >
-            {station !== 'All' && STATION_ICONS[station]}
+            {station !== 'All' && (STATION_ICONS[station] || DEFAULT_STATION_ICON)}
             {station !== 'All' && <span className="ml-1.5">{station}</span>}
             {station === 'All' && 'All Stations'}
           </button>
@@ -420,7 +429,7 @@ export default function TopicDesk() {
                 </div>
               )}
               {items.map(topic => {
-                const sc = STATION_COLORS[topic.station] || STATION_COLORS.Lebanon;
+                const sc = STATION_COLORS[topic.station] || DEFAULT_STATION_COLOR;
                 return (
                   <motion.div
                     key={topic.id}
@@ -433,7 +442,7 @@ export default function TopicDesk() {
                     <div className="p-4">
                       <div className="flex items-start justify-between mb-2.5">
                         <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${sc.bg} ${sc.text} ${sc.border}`}>
-                          {STATION_ICONS[topic.station]}
+                          {STATION_ICONS[topic.station] || DEFAULT_STATION_ICON}
                           {topic.station}
                         </span>
                         <button
@@ -653,7 +662,7 @@ export default function TopicDesk() {
                       </td>
                       <td className="p-4">
                         {assigned ? (
-                          <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${STATION_COLORS[assigned.station]?.bg} ${STATION_COLORS[assigned.station]?.text} ${STATION_COLORS[assigned.station]?.border}`}>
+                          <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${(STATION_COLORS[assigned.station]||DEFAULT_STATION_COLOR).bg} ${(STATION_COLORS[assigned.station]||DEFAULT_STATION_COLOR).text} ${(STATION_COLORS[assigned.station]||DEFAULT_STATION_COLOR).border}`}>
                             {assigned.station}
                           </span>
                         ) : (
