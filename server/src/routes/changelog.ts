@@ -16,6 +16,48 @@ export interface ChangelogEntry {
 
 const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-07-14',
+    tag: 'new',
+    title: 'A separate brief for every month',
+    body: 'Each month now keeps its own brief — plan August without it changing September, and older briefs are never overwritten. New months start on a clean slate, with a one-click option to copy last month\'s brief as a starting point.',
+  },
+  {
+    date: '2026-07-14',
+    tag: 'new',
+    title: 'Check compliance on any post',
+    body: 'On the Review page, hit Compliance on a post and Radix audits the caption against that client\'s brief rules — flagging risky claims, missing disclaimers and sensitive wording by severity, each with a suggested fix. Built for financial, fraud-awareness and other regulated content.',
+  },
+  {
+    date: '2026-07-14',
+    tag: 'new',
+    title: 'Score your content — and know how to improve it',
+    body: 'Score any post to rate it on clarity, relevance, tone-of-voice, platform fit and engagement potential, plus the single highest-impact edit to make. Recommendations, not just generation.',
+  },
+  {
+    date: '2026-07-14',
+    tag: 'new',
+    title: 'Quick notes & teach-the-AI thumbs',
+    body: 'Leave a quick note on any post for your team, and thumbs-up / thumbs-down any generated image or video so Radix learns each client\'s taste and leans that way next time.',
+  },
+  {
+    date: '2026-07-14',
+    tag: 'improved',
+    title: 'Prompt Boost dial in Creative Tools',
+    body: 'Choose how much AI reshapes your prompt: Off sends your exact words, Raw only translates for the engine, Pro rewrites it production-grade, Max pushes art direction furthest — so the enhancer never hijacks a prompt you meant literally.',
+  },
+  {
+    date: '2026-07-14',
+    tag: 'improved',
+    title: 'Richer visual references + more image models',
+    body: 'Reference search now pulls from Behance, Dribbble and your own approved assets, finds motion references for Reels/Videos, and the Creative Tools engine picker adds more image models. Research sources are now verified — dead or irrelevant links are dropped.',
+  },
+  {
+    date: '2026-07-14',
+    tag: 'improved',
+    title: 'Excel uploads + more markets on Topic Desk',
+    body: 'Upload Excel/CSV files to a client\'s Knowledge base to feed brand context, and Topic Desk now covers Oman, Saudi Arabia, UAE, Qatar, Kuwait, Bahrain, Egypt, Lebanon and Jordan — not just one market.',
+  },
+  {
     date: '2026-07-06',
     tag: 'new',
     title: 'Competitor Intel — read a competitor, find your opening',
