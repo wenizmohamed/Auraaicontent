@@ -17,6 +17,7 @@ import { Skeleton as TokenSkeleton } from '../components/ui/Skeleton';
 import { BentoGrid, BentoTile } from '../components/ui/BentoGrid';
 import { AIProviderRouter } from '../components/insights/AIProviderRouter';
 import { AnimatedGradientBorder } from '../components/ui/AnimatedGradientBorder';
+import UpdatesTicker from '../components/UpdatesTicker';
 
 // Synth a smoothly-rising 12-point sparkline that ends at `target`.
 // Used until per-stat time-series is wired into the backend dashboard API.
@@ -435,6 +436,9 @@ export default function Dashboard() {
 
   return (
     <div className="max-w-[1400px] mx-auto space-y-5">
+
+      {/* ─── Updates ticker — scrolling ribbon of latest updates/improvements ─── */}
+      <UpdatesTicker />
 
       {/* ─── ROW 1: Hero CTA + Welcome ─── */}
       <div className="grid grid-cols-12 gap-5">

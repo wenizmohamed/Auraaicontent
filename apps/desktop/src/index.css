@@ -744,3 +744,21 @@ html:not(.light):not(.theme-studio) .bg-white\/\[0\.06\] {
   --color-info-subtle:    rgba(59, 130, 246, 0.16);
   --color-danger-subtle:  rgba(239, 68, 68, 0.15);
 }
+
+/* ── Updates ticker (stock-market-style scrolling ribbon, 2026-07-14) ──
+   Two identical track copies translate -50% for a seamless loop. Pauses on
+   hover; disabled entirely under reduced-motion (content stays readable). */
+@keyframes radix-ticker {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(-50%, 0, 0); }
+}
+.radix-ticker-track {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  animation: radix-ticker 60s linear infinite;
+  will-change: transform;
+}
+.radix-ticker-viewport:hover .radix-ticker-track { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) {
+  .radix-ticker-track { animation: none; }
+}
