@@ -17,6 +17,7 @@
 
 import sharp from 'sharp';
 import { storageService } from './storage.service.js';
+import { aiRouter } from './providers/ai-router.js';
 
 export const MAX_LONG_EDGE = 16384; // "16K"
 
@@ -39,9 +40,11 @@ export interface UpscaleResult {
   width: number;
   height: number;
   scale: number;               // effective long-edge multiplier applied
-  provider: 'sharp' | 'fal';
+  provider: 'sharp' | 'fal' | 'gemini' | 'xai' | 'dashscope';
   format: 'png' | 'jpeg';
   bytes: number;
+  /** true when an AI model added detail (vs pure interpolation). */
+  aiEnhanced?: boolean;
 }
 
 async function loadSource(input: UpscaleInput): Promise<Buffer> {
@@ -102,9 +105,61 @@ async function upscaleSharp(buf: Buffer, input: UpscaleInput): Promise<UpscaleRe
   return { fileUrl, thumbUrl: thumbUrl ?? undefined, width: tw, height: th, scale: Math.round(scale * 100) / 100, provider: 'sharp', format: fmt, bytes: out.length };
 }
 
-/** AI tier — fal.ai super-resolution. Only when configured + funded; otherwise
- *  the caller catches and we fall back to fast. Kept behind env so an unverified
- *  model id / dry balance never breaks the feature. */
+/** Resample an already-in-memory buffer to the requested target long edge with
+ *  Lanczos3, then persist. Used to pad an AI-enhanced result (capped ~4K by the
+ *  model) up to the requested size (up to 16K). */
+async function padToTarget(buf: Buffer, input: UpscaleInput): Promise<{ fileUrl: string; thumbUrl?: string; width: number; height: number; format: 'png' | 'jpeg'; bytes: number }> {
+  const meta = await sharp(buf, { limitInputPixels: 500_000_000 }).metadata();
+  const { tw, th } = computeTarget(meta.width || 0, meta.height || 0, input);
+  const longEdge = Math.max(tw, th);
+  const fmt: 'png' | 'jpeg' = input.format === 'png' ? 'png' : input.format === 'jpeg' ? 'jpeg' : (longEdge > 4096 ? 'jpeg' : 'png');
+  let pipe = sharp(buf, { limitInputPixels: 500_000_000 }).resize(tw, th, { kernel: sharp.kernel.lanczos3, fit: 'fill', withoutEnlargement: false });
+  pipe = fmt === 'jpeg' ? pipe.jpeg({ quality: 92, mozjpeg: true }) : pipe.png({ compressionLevel: 9 });
+  const out = await pipe.toBuffer();
+  const name = `upscaled-ai-${Date.now()}.${fmt === 'jpeg' ? 'jpg' : 'png'}`;
+  const { fileUrl, thumbUrl } = await storageService.saveFile(out, name, fmt === 'jpeg' ? 'image/jpeg' : 'image/png');
+  return { fileUrl, thumbUrl: thumbUrl ?? undefined, width: tw, height: th, format: fmt, bytes: out.length };
+}
+
+/** AI tier using the models we ALREADY have (Gemini nano-banana → DashScope
+ *  Qwen via the router's image_edit chain). Regenerates the exact image at up to
+ *  4K adding real detail/sharpness, then Lanczos-pads to the requested target
+ *  (up to 16K). No fal, no extra key — rides the universal fallback + metering. */
+async function upscaleAiModels(buf: Buffer, input: UpscaleInput): Promise<UpscaleResult> {
+  const meta = await sharp(buf, { limitInputPixels: 500_000_000 }).metadata();
+  const { tw, th } = computeTarget(meta.width || 0, meta.height || 0, input);
+  const aiLong = Math.max(tw, th);
+  const imageSize: '1K' | '2K' | '4K' = aiLong >= 4096 ? '4K' : aiLong >= 2048 ? '2K' : '1K';
+  const prompt = 'Upscale and enhance this exact image to maximum resolution and clarity. Add fine, realistic detail, texture and sharpness. Keep the composition, subject, framing, colors and ANY text 100% identical — do not add, remove, restyle or reinterpret anything. Output a crisp high-resolution version of the same image.';
+
+  const result = await aiRouter.image(
+    { prompt, imageBase64: buf.toString('base64'), mimeType: input.mimeType || 'image/png', imageSize },
+    { orgId: input.orgId, userId: input.userId, clientId: input.clientId },
+  );
+  // Pull the model output into a buffer (Gemini → base64, DashScope → url).
+  let aiBuf: Buffer | null = null;
+  if (result.output.base64) aiBuf = Buffer.from(result.output.base64, 'base64');
+  else if (result.output.url) aiBuf = Buffer.from(await (await fetch(result.output.url, { signal: AbortSignal.timeout(30000) })).arrayBuffer());
+  if (!aiBuf) throw new Error('AI enhance returned no image');
+
+  const provider = (result.provider as UpscaleResult['provider']) || 'gemini';
+  const aiMeta = await sharp(aiBuf).metadata();
+  const aiW = aiMeta.width || 0, aiH = aiMeta.height || 0;
+
+  // If the model already met/exceeded the target, save as-is; else Lanczos-pad up.
+  if (Math.max(aiW, aiH) >= aiLong) {
+    const fmt: 'png' | 'jpeg' = aiLong > 4096 ? 'jpeg' : 'png';
+    const outBuf = fmt === 'jpeg' ? await sharp(aiBuf).jpeg({ quality: 92, mozjpeg: true }).toBuffer() : aiBuf;
+    const name = `upscaled-ai-${Date.now()}.${fmt === 'jpeg' ? 'jpg' : 'png'}`;
+    const { fileUrl, thumbUrl } = await storageService.saveFile(outBuf, name, fmt === 'jpeg' ? 'image/jpeg' : 'image/png');
+    return { fileUrl, thumbUrl: thumbUrl ?? undefined, width: aiW, height: aiH, scale: Math.round((Math.max(aiW, aiH) / Math.max(meta.width || 1, meta.height || 1)) * 100) / 100, provider, format: fmt, bytes: outBuf.length, aiEnhanced: true };
+  }
+  const padded = await padToTarget(aiBuf, input);
+  return { ...padded, scale: Math.round((Math.max(padded.width, padded.height) / Math.max(meta.width || 1, meta.height || 1)) * 100) / 100, provider, aiEnhanced: true };
+}
+
+/** Optional premium tier — fal.ai super-resolution. Only when explicitly
+ *  configured (FAL_UPSCALE_MODEL) + funded; caller catches + falls back. */
 async function upscaleFal(buf: Buffer, input: UpscaleInput): Promise<UpscaleResult> {
   const key = process.env.FAL_KEY;
   const model = process.env.FAL_UPSCALE_MODEL; // e.g. 'fal-ai/clarity-upscaler'
@@ -130,8 +185,13 @@ async function upscaleFal(buf: Buffer, input: UpscaleInput): Promise<UpscaleResu
 export async function upscaleImage(input: UpscaleInput): Promise<UpscaleResult> {
   const buf = await loadSource(input);
   if (input.mode === 'ai') {
-    try { return await upscaleFal(buf, input); }
-    catch { /* fall through to fast — feature never hard-fails */ }
+    // Premium fal tier ONLY if explicitly configured (topaz/seedvr, needs funded
+    // balance); otherwise use the AI models we already have (Gemini/DashScope).
+    if (process.env.FAL_UPSCALE_MODEL && process.env.FAL_KEY) {
+      try { return await upscaleFal(buf, input); } catch { /* fall through */ }
+    }
+    try { return await upscaleAiModels(buf, input); }
+    catch { /* AI models unavailable — fall back to fast Lanczos, never hard-fail */ }
   }
   return upscaleSharp(buf, input);
 }

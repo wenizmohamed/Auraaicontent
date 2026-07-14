@@ -252,7 +252,10 @@ export default function CreativeTools() {
   const [voted, setVoted] = useState<'up' | 'down' | null>(null);
   // Upscaler (up to 16K). Runs on the current result URL.
   const [upscaling, setUpscaling] = useState<number | null>(null); // active target long-edge
-  const [upscaled, setUpscaled] = useState<{ url: string; width: number; height: number; bytes: number } | null>(null);
+  const [upscaled, setUpscaled] = useState<{ url: string; width: number; height: number; bytes: number; aiEnhanced?: boolean } | null>(null);
+  // AI-detail mode: regenerate with real added detail via our models (Gemini
+  // nano-banana / DashScope) before scaling. Off = fast Lanczos interpolation.
+  const [upscaleAi, setUpscaleAi] = useState(false);
   // Style Packs — curated premium looks (motionsites.ai pattern): named
   // precision design contracts (hexes, materials, light) injected server-side.
   const [stylePacks, setStylePacks] = useState<{ id: string; name: string; tagline: string; category: string; palette: string[] }[]>([]);
@@ -1655,6 +1658,19 @@ export default function CreativeTools() {
               <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold mr-1">Upscale</span>
+                  <button
+                    type="button"
+                    disabled={upscaling !== null}
+                    onClick={() => setUpscaleAi(v => !v)}
+                    title={upscaleAi ? 'AI detail: regenerates with real added detail via our models (Gemini/Qwen), then scales — slower, sharper' : 'Fast: instant Lanczos resample (no new detail)'}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all disabled:opacity-50 ${
+                      upscaleAi ? '' : 'bg-white/[0.03] text-zinc-400 border-white/[0.06] hover:border-white/[0.12]'
+                    }`}
+                    style={upscaleAi ? { background: 'var(--color-accent-subtle)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' } : undefined}
+                  >
+                    {upscaleAi ? '✨ AI detail ON' : 'AI detail off'}
+                  </button>
+                  <span className="w-px h-4 bg-white/[0.08] mx-0.5" />
                   {([
                     { label: '2×', scale: 2 as const },
                     { label: '4×', scale: 4 as const },
@@ -1675,9 +1691,10 @@ export default function CreativeTools() {
                             const r = await creativeApi.upscale({
                               sourceUrl: resultUrl,
                               ...(o.target ? { targetLongEdge: o.target } : { scale: o.scale }),
+                              mode: upscaleAi ? 'ai' : 'fast',
                               clientId: selectedClientId || undefined,
                             });
-                            setUpscaled({ url: r.assetUrl || r.fileUrl, width: r.width, height: r.height, bytes: r.bytes });
+                            setUpscaled({ url: r.assetUrl || r.fileUrl, width: r.width, height: r.height, bytes: r.bytes, aiEnhanced: (r as any).aiEnhanced });
                           } catch (e: any) {
                             setError(e?.message || 'Upscale failed');
                           } finally { setUpscaling(null); }
@@ -1691,7 +1708,7 @@ export default function CreativeTools() {
                       </button>
                     );
                   })}
-                  {upscaling !== null && <span className="text-[11px] text-zinc-500">Upscaling… large sizes take a few seconds</span>}
+                  {upscaling !== null && <span className="text-[11px] text-zinc-500">{upscaleAi ? 'AI-enhancing then scaling… ~30s' : 'Upscaling… a few seconds'}</span>}
                   {upscaled && (
                     <a
                       href={upscaled.url}
@@ -1701,7 +1718,7 @@ export default function CreativeTools() {
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
                       style={{ background: 'var(--color-accent)', color: 'var(--color-fg-on-accent)' }}
                     >
-                      <Download className="w-3 h-3" /> {upscaled.width}×{upscaled.height} · {(upscaled.bytes / 1024 / 1024).toFixed(1)}MB
+                      <Download className="w-3 h-3" /> {upscaled.aiEnhanced ? '✨ ' : ''}{upscaled.width}×{upscaled.height} · {(upscaled.bytes / 1024 / 1024).toFixed(1)}MB
                     </a>
                   )}
                 </div>
