@@ -18,6 +18,18 @@ const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-07-14',
     tag: 'new',
+    title: 'Upscale images up to 16K',
+    body: 'New Upscale tab in Creative Tools: drop in any image (or upscale one you just generated) and enlarge it up to 16K. "Fast" is instant; "AI detail" re-renders it with real added sharpness and texture using our own models, then scales. Great for print, billboards and hero banners.',
+  },
+  {
+    date: '2026-07-14',
+    tag: 'improved',
+    title: 'A clearer Workspace',
+    body: 'The all-in-one Workspace now has a labelled navigator (Plan · Make · Track · Manage), a description on every surface, and one-click actions on empty states — so it\'s obvious where everything lives.',
+  },
+  {
+    date: '2026-07-14',
+    tag: 'new',
     title: 'A separate brief for every month',
     body: 'Each month now keeps its own brief — plan August without it changing September, and older briefs are never overwritten. New months start on a clean slate, with a one-click option to copy last month\'s brief as a starting point.',
   },
