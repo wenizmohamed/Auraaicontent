@@ -8,15 +8,19 @@ function slugify(name: string): string {
 // agencies can both have a client called "Acme" without collision.
 export const clientService = {
   async list(orgId: string) {
-    return db.client.findMany({
+    // brief-per-month: fetch the default ('') brief first, alias to `brief` so
+    // the FE response shape (client.brief) is unchanged.
+    const rows = await db.client.findMany({
       where: { orgId },
       orderBy: { createdAt: 'desc' },
-      include: { brief: { select: { id: true } } },
+      include: { briefs: { select: { id: true }, orderBy: { month: 'asc' }, take: 1 } },
     });
+    return rows.map((c: any) => ({ ...c, brief: c.briefs?.[0] ?? null }));
   },
 
   async getById(orgId: string, id: string) {
-    const client = await db.client.findUnique({ where: { id, orgId }, include: { brief: true } });
+    const client = await db.client.findUnique({ where: { id, orgId }, include: { briefs: { orderBy: { month: 'asc' }, take: 1 } } });
+    if (client) (client as any).brief = (client as any).briefs?.[0] ?? null;
     return client ?? null;
   },
 

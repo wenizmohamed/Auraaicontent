@@ -51,8 +51,9 @@ export async function calendarRoutes(app: FastifyInstance) {
       return { jobId: inflight.id, deduped: true };
     }
 
-    // Validate brief completeness
-    const brief = await briefService.getByClientId(orgId, clientId);
+    // Validate brief completeness — prefer this month's dedicated brief, falling
+    // back to the client default (brief-per-month, 2026-07-14).
+    const brief = await briefService.getByClientId(orgId, clientId, month);
     const { score } = briefService.completeness(brief);
     if (score < 50) {
       return reply.status(422).send({ error: `Brief completeness too low (${score}%). Need at least 50%.` });

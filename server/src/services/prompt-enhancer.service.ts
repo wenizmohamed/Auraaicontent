@@ -151,7 +151,7 @@ async function brandContext(clientId?: string, orgId?: string): Promise<string> 
     const [client, kit] = await Promise.all([
       db.client.findUnique({
         where: { id: clientId, orgId },
-        include: { brief: { select: { tone: true, visualLookFeel: true } } },
+        include: { briefs: { select: { tone: true, visualLookFeel: true }, orderBy: { month: 'asc' }, take: 1 } },
       }),
       db.brandKit.findFirst({
         where: { clientId, orgId },
@@ -159,6 +159,7 @@ async function brandContext(clientId?: string, orgId?: string): Promise<string> 
       }).catch(() => null),
     ]);
     if (!client) return '';
+    const brief = (client as any).briefs?.[0];
     const bits: string[] = [`Brand: ${client.name}`];
     if (client.industry) bits.push(`industry: ${client.industry}`);
     // Palette conditioning (technique #3): give the model the client's EXACT
@@ -167,8 +168,8 @@ async function brandContext(clientId?: string, orgId?: string): Promise<string> 
       .filter((h): h is string => !!h && /^#?[0-9a-fA-F]{3,8}$/.test(h))
       .map((h) => (h.startsWith('#') ? h : `#${h}`));
     if (hexes.length) bits.push(`dominant brand palette — weave these EXACT hexes into the color story: ${[...new Set(hexes)].join(', ')}`);
-    if (client.brief?.tone) bits.push(`brand tone: ${client.brief.tone}`);
-    if (client.brief?.visualLookFeel) bits.push(`visual look & feel: ${client.brief.visualLookFeel.slice(0, 300)}`);
+    if (brief?.tone) bits.push(`brand tone: ${brief.tone}`);
+    if (brief?.visualLookFeel) bits.push(`visual look & feel: ${brief.visualLookFeel.slice(0, 300)}`);
     return `\n\nBrand context (respect it): ${bits.join('; ')}.`;
   } catch {
     return ''; // best-effort — enhancement must never fail on brand lookup

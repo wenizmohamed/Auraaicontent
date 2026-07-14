@@ -312,19 +312,20 @@ export async function assistantRoutes(app: FastifyInstance) {
     let clientContext = '';
     if (clientId) {
       try {
-        const client = await db.client.findUnique({ where: { id: clientId, orgId }, include: { brief: true } });
+        const client = await db.client.findUnique({ where: { id: clientId, orgId }, include: { briefs: { orderBy: { month: 'asc' }, take: 1 } } });
         if (client) {
+          const cb: any = (client as any).briefs?.[0] ?? null;
           clientContext = `\n\nCURRENT CLIENT: ${client.name}`;
           if (client.industry) clientContext += ` (${client.industry})`;
-          if (client.brief?.objective) clientContext += `\nObjective: ${client.brief.objective}`;
-          if (client.brief?.audience) clientContext += `\nAudience: ${client.brief.audience}`;
-          if (client.brief?.tone) clientContext += `\nTone: ${client.brief.tone}`;
-          if (client.brief?.channels) {
-            const ch = typeof client.brief.channels === 'string' ? JSON.parse(client.brief.channels) : client.brief.channels;
+          if (cb?.objective) clientContext += `\nObjective: ${cb.objective}`;
+          if (cb?.audience) clientContext += `\nAudience: ${cb.audience}`;
+          if (cb?.tone) clientContext += `\nTone: ${cb.tone}`;
+          if (cb?.channels) {
+            const ch = typeof cb.channels === 'string' ? JSON.parse(cb.channels) : cb.channels;
             if (Array.isArray(ch)) clientContext += `\nChannels: ${ch.join(', ')}`;
           }
-          if (client.brief?.pillars) clientContext += `\nContent Pillars: ${client.brief.pillars}`;
-          if (client.brief?.products) clientContext += `\nProducts/Services: ${client.brief.products}`;
+          if (cb?.pillars) clientContext += `\nContent Pillars: ${cb.pillars}`;
+          if (cb?.products) clientContext += `\nProducts/Services: ${cb.products}`;
           // Add calendar stats
           const calStats = await db.calendarMonth.findMany({
             where: { orgId, clientId },

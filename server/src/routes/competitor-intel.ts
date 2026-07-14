@@ -41,11 +41,12 @@ export async function competitorIntelRoutes(app: FastifyInstance) {
       if (clientId) {
         const client = await db.client.findFirst({
           where: { id: clientId, orgId: request.orgId! },
-          select: { name: true, industry: true, brief: { select: { audience: true, objective: true, tone: true } } },
+          select: { name: true, industry: true, briefs: { select: { audience: true, objective: true, tone: true }, orderBy: { month: 'asc' }, take: 1 } },
         });
         if (client) {
+          const cb = (client as any).briefs?.[0];
           clientContext = `\n\nOUR CLIENT (find gaps THEY can exploit):\n- Brand: ${client.name}${client.industry ? ` (${client.industry})` : ''}` +
-            (client.brief ? `\n- Audience: ${client.brief.audience ?? '—'}\n- Objective: ${client.brief.objective ?? '—'}\n- Tone: ${client.brief.tone ?? '—'}` : '');
+            (cb ? `\n- Audience: ${cb.audience ?? '—'}\n- Objective: ${cb.objective ?? '—'}\n- Tone: ${cb.tone ?? '—'}` : '');
         }
       }
 

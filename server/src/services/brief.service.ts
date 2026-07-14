@@ -10,23 +10,37 @@ const REQUIRED_ARRAYS = [
 ] as const;
 
 export const briefService = {
-  async getByClientId(orgId: string, clientId: string) {
-    // clientId is unique on ClientBrief (1-to-1), so we filter by it then
-    // verify orgId.  findFirst lets us include orgId in the where without
-    // needing a composite unique index.
-    return db.clientBrief.findFirst({ where: { clientId, orgId } });
+  // Brief-per-month (2026-07-14). A client can have many briefs keyed by month;
+  // month='' is the legacy/default brief. getByClientId(orgId, clientId, month?)
+  //  - with month: that month's brief, falling back to the '' default so
+  //    generation for a month with no dedicated brief still works.
+  //  - without month: the default ('') brief if present, else the most recent —
+  //    so every context consumer (assistant/design/research/etc.) keeps getting
+  //    "the client's brief" exactly as before.
+  async getByClientId(orgId: string, clientId: string, month?: string) {
+    if (month != null && month !== '') {
+      const exact = await db.clientBrief.findFirst({ where: { clientId, orgId, month } });
+      if (exact) return exact;
+      // fall back to the default brief for months without a dedicated one
+      return db.clientBrief.findFirst({ where: { clientId, orgId, month: '' } });
+    }
+    const def = await db.clientBrief.findFirst({ where: { clientId, orgId, month: '' } });
+    if (def) return def;
+    return db.clientBrief.findFirst({ where: { clientId, orgId }, orderBy: { updatedAt: 'desc' } });
   },
 
-  // Upsert — create if missing, update if exists. orgId required because
-  // ClientBrief.orgId is NOT NULL post-migration.
-  async upsert(orgId: string, clientId: string, data: any) {
-    const { id, clientId: _, orgId: __, createdAt, updatedAt, client, ...briefData } = data;
-    // ClientBrief has @@unique([clientId]) — we can upsert by clientId and
-    // include orgId in create.  Existing rows already carry the right orgId
-    // from the multi-tenancy migration backfill.
+  // All briefs for a client, newest first (for "copy last month" + history UI).
+  async list(orgId: string, clientId: string) {
+    return db.clientBrief.findMany({ where: { clientId, orgId }, orderBy: [{ month: 'desc' }, { updatedAt: 'desc' }] });
+  },
+
+  // Upsert keyed on (clientId, month). Create if that month's brief is missing,
+  // update it if it exists. month defaults to '' (the legacy default brief).
+  async upsert(orgId: string, clientId: string, data: any, month = '') {
+    const { id, clientId: _, orgId: __, month: ___, createdAt, updatedAt, client, ...briefData } = data;
     return db.clientBrief.upsert({
-      where: { clientId },
-      create: { clientId, orgId, ...briefData },
+      where: { clientId_month: { clientId, month } },
+      create: { clientId, orgId, month, ...briefData },
       update: briefData,
     });
   },

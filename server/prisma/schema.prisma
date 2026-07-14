@@ -173,7 +173,7 @@ model Client {
   updatedAt       DateTime @updatedAt
 
   org             Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  brief           ClientBrief?
+  briefs          ClientBrief[]
   brandKit        BrandKit?
   assets          Asset[]
   productRefs     ProductReference[]
@@ -250,7 +250,11 @@ model ContentPiece {
 model ClientBrief {
   id                  String   @id @default(cuid())
   orgId               String
-  clientId            String   @unique
+  clientId            String
+  // Brief-per-month (2026-07-14): a client can have MANY independent briefs,
+  // one per month. Legacy/default brief uses month='' (back-compat). Migration
+  // (idempotent SQL) swapped @unique(clientId) → @@unique([clientId, month]).
+  month               String   @default("")
   objective           String
   audience            String
   tone                String
@@ -282,6 +286,7 @@ model ClientBrief {
   org    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   client Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
+  @@unique([clientId, month])
   @@index([orgId])
 }
 

@@ -14,20 +14,25 @@ export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: 
   updateJob(job.id, { progress: 10 });
   const client = await db.client.findUnique({
     where: { id: clientId, orgId },
-    include: { brief: true, assets: { take: 10 } },
+    include: { assets: { take: 10 } },
   });
   if (!client) throw new Error('Client not found or does not belong to this organization');
-  if (!client.brief) throw new Error('Client brief is missing — cannot generate');
+  // Brief-per-month (2026-07-14): use THIS month's dedicated brief, falling back
+  // to the client default (month=''). Fixes new months silently inheriting an
+  // old month's brief.
+  const brief = await briefService.getByClientId(orgId, clientId, month);
+  if (!brief) throw new Error('Client brief is missing — cannot generate');
+  (client as any).brief = brief;
 
   // 2. Check brief completeness
-  const { score } = briefService.completeness(client.brief);
+  const { score } = briefService.completeness(brief);
   if (score < 50) throw new Error(`Brief completeness too low (${score}%). Need at least 50%.`);
 
   // 2b. Retrieve brand knowledge context (best-effort — generation continues without it)
   let knowledgeContext: { text: string; score: number }[] = [];
-  if (client.brief.objective) {
+  if (brief.objective) {
     try {
-      const chunks = await retrieveContext(orgId, clientId, client.brief.objective, 5);
+      const chunks = await retrieveContext(orgId, clientId, brief.objective, 5);
       knowledgeContext = chunks.map(c => ({ text: c.text, score: c.score }));
       if (knowledgeContext.length > 0) {
         console.log(`[generateMonth] Retrieved ${knowledgeContext.length} knowledge chunks for ${client.name} (top score: ${knowledgeContext[0].score.toFixed(3)})`);
@@ -72,7 +77,7 @@ export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: 
   updateJob(job.id, { progress: 20 });
   const prompt = buildPlanningPrompt({
     client: { name: client.name, industry: client.industry || undefined, website: client.website || undefined, instagramHandle: client.instagramHandle || undefined },
-    brief: client.brief,
+    brief: brief,
     assets: client.assets || [],
     month,
     pieceCount: pieceCount || 18,
@@ -100,7 +105,7 @@ export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: 
   // 4b. Defense in depth: enforce that every generated post uses an ALLOWED platform
   // from the saved brief. If the AI ignores the prompt restriction (happens rarely),
   // we coerce stray platforms back into the allowed set rather than accept the drift.
-  const allowedChannels = parseBriefChannels(client.brief.channels);
+  const allowedChannels = parseBriefChannels(brief.channels);
   const fallbackPlatform = allowedChannels[0] || 'Instagram';
   const allowedSet = new Set(allowedChannels.length > 0 ? allowedChannels : ['Instagram']);
 

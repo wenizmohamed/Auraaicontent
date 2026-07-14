@@ -33,12 +33,13 @@ export async function designRoutes(app: FastifyInstance) {
     let clientContext = '';
     if (clientId) {
       try {
-        const client = await db.client.findUnique({ where: { id: clientId, orgId: request.orgId }, include: { brief: true } });
+        const client = await db.client.findUnique({ where: { id: clientId, orgId: request.orgId }, include: { briefs: { orderBy: { month: 'asc' }, take: 1 } } });
         if (client) {
+          const brief = (client as any).briefs?.[0];
           clientContext += `\nClient: ${client.name}`;
           if (client.industry) clientContext += ` (${client.industry})`;
           if (client.primaryColor) clientContext += `\nBrand color: ${client.primaryColor}`;
-          if (client.brief?.tone) clientContext += `\nBrand tone: ${client.brief.tone}`;
+          if (brief?.tone) clientContext += `\nBrand tone: ${brief.tone}`;
         }
       } catch {
         // best effort

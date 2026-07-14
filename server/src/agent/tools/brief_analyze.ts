@@ -61,13 +61,12 @@ export const tool = defineTool<Args, Result>({
 
     const client = await ctx.prisma.client.findUnique({
       where: { id: args.clientId, orgId: ctx.orgId },
-      include: { brief: true, knowledgeItems: { include: { chunks: true } } },
+      include: { briefs: { orderBy: { month: 'asc' }, take: 1 }, knowledgeItems: { include: { chunks: true } } },
     });
 
     if (!client) {
       throw new Error(`Client ${args.clientId} not found`);
     }
-
     await ctx.emit('agent:thought', {
       text: `Reading brief for ${client.name}\u2026`,
       at: now(),
@@ -75,7 +74,7 @@ export const tool = defineTool<Args, Result>({
 
     assertNotAborted(ctx.signal);
 
-    const briefRow = client.brief;
+    const briefRow = (client as any).briefs?.[0] ?? null;
     if (!briefRow) {
       throw new Error(`Client ${client.name} has no ClientBrief row`);
     }

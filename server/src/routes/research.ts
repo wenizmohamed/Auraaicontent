@@ -6,6 +6,7 @@ import { callKimiLong } from '../services/providers/kimi.provider.js';
 import { chatText } from '../services/llm/chat.js';
 import { db } from '../db/prisma.js';
 import { historyService } from '../services/history.service.js';
+import { verifySources } from '../services/source-verify.service.js';
 
 interface ResearchBody {
   query?: string;
@@ -43,7 +44,7 @@ export async function researchRoutes(app: FastifyInstance) {
       `  ]`,
       `}`,
       ``,
-      `If you do not have a grounded source, invent a plausible one based on what you know — that is acceptable for this v1.`,
+      `CRITICAL: Only cite URLs you are highly confident actually exist. NEVER invent, guess, or approximate a URL. Prefer well-known primary sources (official sites, major publications, reports). If you cannot ground a claim in a real source, omit the source rather than fabricate one — an empty sources array is acceptable.`,
       `Return ONLY the JSON, no commentary.`,
     ].join('\n');
 
@@ -54,7 +55,7 @@ export async function researchRoutes(app: FastifyInstance) {
       // Tolerate non-conforming outputs
       const summary = typeof out?.summary === 'string' ? out.summary : (typeof out === 'string' ? out : '');
       const keyPoints = Array.isArray(out?.keyPoints) ? out.keyPoints.filter((s: any) => typeof s === 'string') : [];
-      const sources = Array.isArray(out?.sources)
+      const rawSources = Array.isArray(out?.sources)
         ? out.sources
             .filter((s: any) => s && typeof s === 'object')
             .map((s: any) => ({
@@ -64,6 +65,13 @@ export async function researchRoutes(app: FastifyInstance) {
             }))
             .filter((s: any) => s.url)
         : [];
+      // Habiba 2026-07-14: verify every source URL actually resolves before
+      // returning it — drops dead/hallucinated links so users never see a
+      // broken or fake citation. Best-effort; on verifier failure keep raw.
+      let sources = rawSources;
+      try {
+        sources = await verifySources(rawSources, { timeoutMs: 4000, concurrency: 5, dropDead: true });
+      } catch { /* keep raw sources if the verifier itself fails */ }
 
       await historyService.record({
         orgId: request.orgId,
@@ -103,7 +111,7 @@ export async function researchRoutes(app: FastifyInstance) {
     const client = await db.client.findUnique({
       where: { id: clientId, orgId: request.orgId },
       include: {
-        brief: true,
+        briefs: { orderBy: { month: 'asc' }, take: 1 },
         knowledgeItems: { select: { title: true, type: true, textContent: true }, take: 40 },
         calendarMonths: {
           orderBy: { createdAt: 'desc' },
@@ -113,9 +121,10 @@ export async function researchRoutes(app: FastifyInstance) {
       },
     });
     if (!client) return reply.status(404).send({ error: 'client not found' });
+    const cb: any = (client as any).briefs?.[0] ?? null;
 
-    const briefBlock = client.brief
-      ? `BRIEF\n  objective: ${client.brief.objective}\n  audience: ${client.brief.audience}\n  tone: ${client.brief.tone}\n  pillars: ${JSON.stringify(client.brief.pillars)}\n  products: ${JSON.stringify(client.brief.products)}\n  do: ${client.brief.brandDo}\n  don't: ${client.brief.brandDont}\n  compliance: ${client.brief.complianceNotes || '(none)'}\n`
+    const briefBlock = cb
+      ? `BRIEF\n  objective: ${cb.objective}\n  audience: ${cb.audience}\n  tone: ${cb.tone}\n  pillars: ${JSON.stringify(cb.pillars)}\n  products: ${JSON.stringify(cb.products)}\n  do: ${cb.brandDo}\n  don't: ${cb.brandDont}\n  compliance: ${cb.complianceNotes || '(none)'}\n`
       : '(no brief)';
 
     const knowledgeBlock = client.knowledgeItems.length

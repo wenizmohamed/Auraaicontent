@@ -82,11 +82,12 @@ export const tool = defineTool<Args, SwitchResult>({
 
     checkAbort(ctx.signal);
 
+    const briefsInclude = { briefs: { orderBy: { month: 'asc' as const }, take: 1 } };
     const client = hasId
       ? await ctx.prisma.client.findUnique({
           where: { id: args.clientId as string, orgId: ctx.orgId },
           include: {
-            brief: true,
+            ...briefsInclude,
             calendarMonths: {
               orderBy: { updatedAt: 'desc' },
               take: 3,
@@ -97,7 +98,7 @@ export const tool = defineTool<Args, SwitchResult>({
       : await ctx.prisma.client.findUnique({
           where: { orgId_slug: { orgId: ctx.orgId, slug: args.clientSlug as string } },
           include: {
-            brief: true,
+            ...briefsInclude,
             calendarMonths: {
               orderBy: { updatedAt: 'desc' },
               take: 3,
@@ -110,16 +111,18 @@ export const tool = defineTool<Args, SwitchResult>({
       const which = hasSlug ? args.clientSlug : args.clientId;
       throw new Error(`Client not found: ${which}`);
     }
+    // brief-per-month: the default brief is the first of the briefs array.
+    const cb: any = (client as any).briefs?.[0] ?? null;
 
-    const brief: ClientBriefSummary | null = client.brief
+    const brief: ClientBriefSummary | null = cb
       ? {
-          objective: client.brief.objective,
-          audience: client.brief.audience,
-          tone: client.brief.tone,
-          brandDo: client.brief.brandDo,
-          brandDont: client.brief.brandDont,
-          channels: client.brief.channels,
-          cadence: client.brief.cadence,
+          objective: cb.objective,
+          audience: cb.audience,
+          tone: cb.tone,
+          brandDo: cb.brandDo,
+          brandDont: cb.brandDont,
+          channels: cb.channels,
+          cadence: cb.cadence,
         }
       : null;
 
