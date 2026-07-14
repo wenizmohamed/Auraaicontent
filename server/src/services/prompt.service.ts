@@ -220,6 +220,7 @@ function buildEnglishPrompt(p: BuildArgs): string {
 
   s.push(`\n=== TASK ===\nGenerate exactly ${p.pieceCount} content pieces for ${p.month} as JSON.`);
   s.push('Return: {"strategySummary":{"overview":"...","themes":[...],"channelFocus":{...}},"posts":[{"date":"...","title":"...","pillar":"...","platform":"...","format":"...","hook":"...","keyMessage":"...","caption":"...","cta":"...","hashtags":[...],"visualDirection":"...","referenceSearchQuery":"...","ideaRationale":"...","timing":"..."}]}');
+  s.push('referenceSearchQuery: 3-6 English keywords describing the VISUAL aesthetic to find inspiration for (style, medium, mood, industry) — not the caption. For Reel/Video/Story format posts, include motion words (e.g. "kinetic typography animation", "product reveal motion graphics", "cinemagraph transition"). Keep it English even on Arabic content so image search returns results.');
   const allowedList = channels.length > 0 ? channels.join('|') : 'Instagram';
   s.push(`\nRULES:
 1. Every post.platform MUST be one of: ${allowedList}. No other platforms allowed.

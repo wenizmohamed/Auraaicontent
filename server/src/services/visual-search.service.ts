@@ -10,6 +10,7 @@
 import crypto from 'crypto';
 import { aiRouter } from './providers/ai-router.js';
 import { searchPinterest, type PinterestImage } from './pinterest.service.js';
+import { db } from '../db/prisma.js';
 
 // ─── Wikimedia Commons search ────────────────────────────────────
 
@@ -148,10 +149,47 @@ export interface VisualSearchResult {
   thumbnailUrl: string;
   sourceUrl: string;
   sourceDomain: string;
-  sourceType: 'pinterest' | 'web' | 'manual' | 'placeholder';
+  sourceType: 'pinterest' | 'web' | 'manual' | 'placeholder' | 'internal';
   title?: string;
   description?: string;
   pinId?: string;
+}
+
+// ─── Internal lane (Tamer, 2026-07-14): previously-approved client assets +
+// past successful generations as reference material. "Brand libraries /
+// previous approved assets" — grounds refs in the client's OWN work, which
+// no external source can. Best-effort; never throws.
+async function searchInternalAssets(orgId: string, clientId: string, query: string, limit: number): Promise<VisualSearchResult[]> {
+  const terms = query.toLowerCase().split(/\s+/).filter(w => w.length > 3).slice(0, 6);
+  try {
+    const [assets, gens] = await Promise.all([
+      db.asset.findMany({
+        where: {
+          orgId, clientId, mimeType: { startsWith: 'image/' },
+          // tags is Json (not a scalar array) so we match on name; no terms →
+          // fall back to most-recent approved assets.
+          ...(terms.length ? { OR: terms.map((t) => ({ name: { contains: t, mode: 'insensitive' as const } })) } : {}),
+        },
+        select: { fileUrl: true, thumbUrl: true, name: true },
+        orderBy: { createdAt: 'desc' }, take: limit,
+      }).catch(() => []),
+      db.generation.findMany({
+        where: { orgId, clientId, type: 'image', status: 'succeeded', outputUrl: { not: null } },
+        select: { outputUrl: true, thumbnailUrl: true, prompt: true },
+        orderBy: { createdAt: 'desc' }, take: limit,
+      }).catch(() => []),
+    ]);
+    const out: VisualSearchResult[] = [];
+    for (const a of assets) {
+      const url = a.thumbUrl || a.fileUrl;
+      if (url) out.push({ thumbnailUrl: url, sourceUrl: a.fileUrl, sourceDomain: 'radix (approved asset)', sourceType: 'internal', title: a.name || undefined, description: 'Your approved brand asset' });
+    }
+    for (const g of gens) {
+      const url = g.thumbnailUrl || g.outputUrl;
+      if (url) out.push({ thumbnailUrl: url, sourceUrl: g.outputUrl!, sourceDomain: 'radix (past generation)', sourceType: 'internal', title: (g.prompt || '').slice(0, 60) || undefined, description: 'Previously generated for this client' });
+    }
+    return out.slice(0, limit);
+  } catch { return []; }
 }
 
 function hashSeed(input: string): string {
@@ -232,13 +270,16 @@ export const visualSearchService = {
   async search(
     query: string,
     count: number = 8,
-    meta?: { orgId?: string; userId?: string; clientId?: string; jobId?: string },
+    meta?: { orgId?: string; userId?: string; clientId?: string; jobId?: string; format?: string },
   ): Promise<{ results: VisualSearchResult[]; provider: string }> {
     const safeCount = Math.max(1, Math.min(20, count));
     const trimmedQuery = (query || '').trim();
     if (!trimmedQuery) {
       return { results: [], provider: 'noop' };
     }
+
+    // Dri (2026-07-14): motion references for video/reel posts, not stills.
+    const isMotion = /reel|video|animation|motion|gif/i.test(meta?.format || '');
 
     // Strategy: half from Pinterest (designer-aesthetic), half from
     // "various" (Bing/DDG, Openverse/Flickr, Wikimedia) for diversity.
@@ -247,26 +288,42 @@ export const visualSearchService = {
     const half = Math.ceil(safeCount / 2);
 
     // D1: bias the broad web search toward marketing/social aesthetics so results
-    // read as ad/campaign creative rather than encyclopedic stock photos. Pinterest
-    // is already designer-leaning, so it keeps the raw query.
-    const adQuery = `${trimmedQuery} advertising campaign social media creative design`;
+    // read as ad/campaign creative rather than encyclopedic stock photos. For
+    // motion posts, bias toward animation/motion-design references instead.
+    const adQuery = isMotion
+      ? `${trimmedQuery} motion design animation reel transition kinetic`
+      : `${trimmedQuery} advertising campaign social media creative design`;
+
+    // Tamer (2026-07-14): wider engine — add Behance + Dribbble design lanes
+    // (via the existing free DDG site-filter pattern, no new API) + an INTERNAL
+    // lane (client's approved assets + past generations) when clientId is known.
+    const behanceQuery = `${trimmedQuery} ${isMotion ? 'motion animation' : 'campaign'} site:behance.net`;
+    const dribbbleQuery = `${trimmedQuery} ${isMotion ? 'animation' : 'design'} site:dribbble.com`;
 
     // All sources fire in parallel. Pinterest path: Firecrawl (best quality,
     // costs 2 credits) → DDG site:pinterest.com (free, 4 results) as fallback.
-    const [pinFcResult, pinDdgResult, ddgResult, openverseResult, wikiResult] = await Promise.allSettled([
+    const [pinFcResult, pinDdgResult, ddgResult, behanceResult, dribbbleResult, openverseResult, wikiResult, internalResult] = await Promise.allSettled([
       searchPinterestViaFirecrawl(trimmedQuery, half),
       searchPinterestViaDDG(trimmedQuery, half),
       searchDuckDuckGo(adQuery, safeCount),
+      searchDuckDuckGo(behanceQuery, half, 'Behance'),
+      searchDuckDuckGo(dribbbleQuery, half, 'Dribbble'),
       searchOpenverse(trimmedQuery, safeCount),
       searchWikimedia(trimmedQuery, safeCount),
+      (meta?.orgId && meta?.clientId) ? searchInternalAssets(meta.orgId, meta.clientId, trimmedQuery, half) : Promise.resolve([]),
     ]);
     const pinFc = pinFcResult.status === 'fulfilled' ? pinFcResult.value : [];
     const pinDdg = pinDdgResult.status === 'fulfilled' ? pinDdgResult.value : [];
     // Prefer Firecrawl results, fill remaining Pinterest slots from DDG
     const pin = [...pinFc, ...pinDdg.filter(d => !pinFc.some(f => f.thumbnailUrl === d.thumbnailUrl))];
-    const ddg = ddgResult.status === 'fulfilled' ? ddgResult.value : [];
+    const ddgWeb = ddgResult.status === 'fulfilled' ? ddgResult.value : [];
+    const behance = behanceResult.status === 'fulfilled' ? behanceResult.value : [];
+    const dribbble = dribbbleResult.status === 'fulfilled' ? dribbbleResult.value : [];
+    // Behance + Dribbble ride alongside the generic ad-web lane, design sources first.
+    const ddg = [...behance, ...dribbble, ...ddgWeb];
     const openverse = openverseResult.status === 'fulfilled' ? openverseResult.value : [];
     const wiki = wikiResult.status === 'fulfilled' ? wikiResult.value : [];
+    const internal = internalResult.status === 'fulfilled' ? internalResult.value : [];
 
     const merged: VisualSearchResult[] = [];
     const seen = new Set<string>();
@@ -279,7 +336,17 @@ export const visualSearchService = {
       return true;
     };
 
-    // First: take up to `half` from Pinterest (highest aesthetic priority)
+    // First: the client's OWN approved assets / past generations (Tamer) — cap
+    // at ~a third so external inspiration still dominates, but on-brand refs
+    // lead. Nothing external can match the client's real brand material.
+    const internalCap = Math.max(1, Math.floor(safeCount / 3));
+    let internalTaken = 0;
+    for (const r of internal) {
+      if (internalTaken >= internalCap) break;
+      if (tryAdd(r)) internalTaken++;
+    }
+
+    // Then: take up to `half` from Pinterest (highest aesthetic priority)
     let pinTaken = 0;
     for (const r of pin) {
       if (pinTaken >= half) break;

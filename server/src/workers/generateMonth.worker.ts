@@ -140,7 +140,7 @@ export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: 
 
   // 6. Save CalendarPosts
   updateJob(job.id, { progress: 80 });
-  const createdPostIds: { id: string; referenceQuery: string | null }[] = [];
+  const createdPostIds: { id: string; referenceQuery: string | null; format: string | null }[] = [];
   for (const post of parsed.posts) {
     const created = await db.calendarPost.create({
       data: {
@@ -161,7 +161,7 @@ export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: 
         rationale: post.ideaRationale || null,
         timing: post.timing || null,
       },
-      select: { id: true, referenceQuery: true },
+      select: { id: true, referenceQuery: true, format: true },
     });
     createdPostIds.push(created);
   }
@@ -174,7 +174,7 @@ export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: 
     createdPostIds
       .filter(p => p.referenceQuery && p.referenceQuery.trim())
       .map(async (p) => {
-        const { results } = await visualSearchService.search(p.referenceQuery!, 6, { orgId, userId, clientId, jobId: job.id });
+        const { results } = await visualSearchService.search(p.referenceQuery!, 6, { orgId, userId, clientId, jobId: job.id, format: p.format || undefined });
         // Bulk-insert all references for this post in a single createMany call
         if (results.length === 0) return 0;
         await db.postVisualReference.createMany({

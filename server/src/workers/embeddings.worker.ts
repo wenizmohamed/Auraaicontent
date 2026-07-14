@@ -40,8 +40,37 @@ async function extractText(fileUrl: string, mimeType: string): Promise<string> {
     }
   }
 
-  // Fallback
-  return fs.readFileSync(absPath, 'utf-8');
+  // XLSX / XLS — SheetJS (Asya 2026-07-14). Flatten every sheet to labelled
+  // rows so brand data in spreadsheets (product lists, tone matrices, plans)
+  // becomes searchable RAG text. Match on mime OR extension (Windows sends
+  // application/octet-stream for .xlsx sometimes).
+  if (mimeType.includes('spreadsheetml') || mimeType.includes('ms-excel') || /\.xlsx?$/i.test(absPath)) {
+    try {
+      const XLSX = await import('xlsx');
+      const wb = XLSX.read(fs.readFileSync(absPath), { type: 'buffer' });
+      const parts: string[] = [];
+      for (const name of wb.SheetNames) {
+        const csv = XLSX.utils.sheet_to_csv(wb.Sheets[name]);
+        if (csv.trim()) parts.push(`# Sheet: ${name}\n${csv}`);
+      }
+      const text = parts.join('\n\n').trim();
+      if (text) return text;
+      throw new Error('empty workbook');
+    } catch {
+      throw new Error('Unsupported or unreadable spreadsheet');
+    }
+  }
+
+  // Fallback — but GUARD against silently embedding binary garbage (a renamed
+  // .xls, an image, a zip). If the decoded text is mostly non-printable, fail
+  // loudly instead of poisoning the client's RAG corpus with noise.
+  const raw = fs.readFileSync(absPath, 'utf-8');
+  const sample = raw.slice(0, 4000);
+  const nonPrintable = (sample.match(/[�\x00-\x08\x0E-\x1F]/g) || []).length;
+  if (sample.length > 0 && nonPrintable / sample.length > 0.1) {
+    throw new Error(`Unsupported file type for text extraction (mime: ${mimeType})`);
+  }
+  return raw;
 }
 
 // ─── Chunking ────────────────────────────────────────────────────
