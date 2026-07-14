@@ -113,3 +113,27 @@
 ---
 
 **Sequencing note:** Week 1 = G1 credits + Rank 1–2 (bug-killing r2v + GA migration, zero new adapters, before the 2026-08-17 Imagen deadline). Week 2 = fal adapter + Arabic lane + draft ladders (Ranks 3–5). Weeks 3–4 = Grok 1.5, Omni Flash video-edit, and the UX top-3 (draft-grid finalize, @entities, prompt reveal). Everything above routes through ai-router — universal-fallback and cost-meter exact-string rules apply to every new id.
+---
+
+## Upscaler — AI tier activation guide (model-hunt wf_4a932629, 2026-07-14)
+
+SHIPPED NOW: sharp/libvips Lanczos to 16K (free, `mode:'fast'`, no key). Verified
+2752×1536 → 16384×9145. AI tier (`mode:'ai'`) is wired behind env, auto-falls
+back to sharp until fal is funded. All true AI super-resolution is fal-only
+(Gemini/DashScope/Moonshot have no SR endpoint; xAI billing dead).
+
+**To activate the AI tier: top up fal.ai balance, then set env**
+`FAL_UPSCALE_MODEL=<one of the ids below>` on /opt/radix-v2/server/.env + pm2 restart.
+(Verify the request param shape against the funded endpoint first — upscale.service
+currently sends `{image_url, scale}`; Topaz/SeedVR may want `upscale_factor`.)
+
+| Tier | fal model id | Max | Price | Notes for MENA ad creative |
+|------|-------------|-----|-------|----------------------------|
+| **Premium / true 16K** | `fal-ai/topaz/upscale/image` | 16384px single pass (512MP) | $1.36 @16K | ONLY native 16K-with-real-detail path. Faces can look synthetic — great for product/scene |
+| **Everyday AI** | `fal-ai/seedvr/upscale/image` | ~10K | $0.001/MP (~$0.06) | Cheapest real detail; slightly smooths — pad 10K→16K with our Lanczos |
+| **Natural texture / faces** | `fal-ai/aura-sr` | fixed 4× (4096→16384 one pass) | ~cents ($0.001/compute-s) | Best-preserved skin/grain; nice 4096→16K button |
+| **Text/product fidelity** | `fal-ai/recraft/upscale/creative` | generative | $0.25/img | Most faithful to text+product in fal's bake-off |
+| **Creative reimagine (opt-in only)** | `fal-ai/clarity-upscaler` | 2–4× | $0.03/MP | HALLUCINATES Arabic text + logos — warn users, low-creativity default |
+| ~~skip~~ | `fal-ai/esrgan` | — | ~free | Barely above our free Lanczos — not worth a paid tier |
+
+Recommended default when funded: **Topaz** for the 16K button, **SeedVR** for 2×/4×/8×.
