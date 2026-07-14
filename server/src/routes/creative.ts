@@ -12,6 +12,7 @@ import { sanitizePrompt, validatePrompt } from '../middleware/sanitize.js';
 import { enhanceCreativePrompt, type EnhanceMode } from '../services/prompt-enhancer.service.js';
 import { getStylePack, listStylePacks } from '../services/style-packs.js';
 import { recordMemory } from '../services/memory.service.js';
+import { upscaleImage } from '../services/upscale.service.js';
 import { assertVideoDailyGuardrail } from '../lib/budget.js';
 import type { Job } from '../workers/queue.js';
 
@@ -194,6 +195,43 @@ export async function creativeRoutes(app: FastifyInstance) {
   // GET /api/creative/style-packs — curated premium design directions for the
   // FE picker (motionsites.ai-style precision looks; directives stay server-side).
   app.get('/creative/style-packs', async () => ({ packs: listStylePacks() }));
+
+  // ─── Upscaler (Weni 2026-07-14): scale an image up to 16K ───────
+  // POST /api/creative/images/upscale — source = base64 or sourceUrl (an
+  // existing asset/generation). Fast tier (sharp Lanczos) by default; ai tier
+  // (fal) when configured, else transparently falls back to fast.
+  app.post('/creative/images/upscale', async (request, reply) => {
+    const { imageBase64, mimeType, sourceUrl, scale, targetLongEdge, format, mode, clientId } = (request.body as any) || {};
+    if (!imageBase64 && !sourceUrl) return reply.status(400).send({ error: 'imageBase64 or sourceUrl is required' });
+    try {
+      const result = await upscaleImage({
+        base64: imageBase64, mimeType, sourceUrl,
+        scale: scale === 2 || scale === 4 || scale === 8 ? scale : undefined,
+        targetLongEdge: typeof targetLongEdge === 'number' ? targetLongEdge : undefined,
+        format: format === 'png' || format === 'jpeg' ? format : 'auto',
+        mode: mode === 'ai' ? 'ai' : 'fast',
+        orgId: request.orgId, userId: request.user?.userId, clientId: clientId || undefined,
+      });
+      // Persist to the client's assets so it lands in the gallery.
+      let savedAsset = null;
+      if (clientId && request.orgId) {
+        savedAsset = await db.asset.create({
+          data: { orgId: request.orgId, clientId, name: `upscaled-${result.width}x${result.height}.${result.format === 'jpeg' ? 'jpg' : 'png'}`, mimeType: result.format === 'jpeg' ? 'image/jpeg' : 'image/png', fileUrl: result.fileUrl, thumbUrl: result.thumbUrl || null, tags: ['ai-generated', 'upscaled'], safeForClient: true },
+        });
+      }
+      await historyService.record({
+        orgId: request.orgId, userId: request.user?.userId, clientId: clientId || undefined,
+        type: 'image', surface: 'creative_tools',
+        prompt: `Upscale → ${result.width}×${result.height} (${result.scale}×, ${result.provider})`,
+        outputUrl: result.fileUrl, thumbnailUrl: result.thumbUrl || result.fileUrl,
+        provider: result.provider, model: result.provider === 'sharp' ? 'lanczos3' : 'fal-upscale',
+        metadata: { mode: 'upscale', width: result.width, height: result.height, scale: result.scale, bytes: result.bytes, assetId: savedAsset?.id || null },
+      });
+      return { ...result, assetId: savedAsset?.id || null, assetUrl: savedAsset?.fileUrl || result.fileUrl };
+    } catch (err) {
+      return sendAiError(reply, err, 'Upscale failed');
+    }
+  });
 
   // POST /api/creative/feedback — thumbs up/down on a generation (SOTA pass
   // 2026-07-09). Writes the lesson into the Memory table so the memory-enricher
