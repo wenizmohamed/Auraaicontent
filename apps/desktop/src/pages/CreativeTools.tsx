@@ -250,6 +250,9 @@ export default function CreativeTools() {
   // client's taste (memory loop). genId comes back from every generation.
   const [genId, setGenId] = useState<string | null>(null);
   const [voted, setVoted] = useState<'up' | 'down' | null>(null);
+  // Upscaler (up to 16K). Runs on the current result URL.
+  const [upscaling, setUpscaling] = useState<number | null>(null); // active target long-edge
+  const [upscaled, setUpscaled] = useState<{ url: string; width: number; height: number; bytes: number } | null>(null);
   // Style Packs — curated premium looks (motionsites.ai pattern): named
   // precision design contracts (hexes, materials, light) injected server-side.
   const [stylePacks, setStylePacks] = useState<{ id: string; name: string; tagline: string; category: string; palette: string[] }[]>([]);
@@ -329,7 +332,7 @@ export default function CreativeTools() {
     setResultUrl('');
     setSavedAssetId(null);
     setExtraResults([]); setLastEnhanced('');
-    setGenId(null); setVoted(null);
+    setGenId(null); setVoted(null); setUpscaled(null); setUpscaling(null);
     setProvider('');
     setProgress(0);
     // If the next mode doesn't need an image, clear the source so the upload box collapses
@@ -450,7 +453,7 @@ export default function CreativeTools() {
     setResultUrl('');
     setSavedAssetId(null);
     setExtraResults([]); setLastEnhanced('');
-    setGenId(null); setVoted(null);
+    setGenId(null); setVoted(null); setUpscaled(null); setUpscaling(null);
     setProvider('');
     setProgress(0);
 
@@ -1646,6 +1649,64 @@ export default function CreativeTools() {
                 <video src={resultUrl} controls className="w-full h-auto" />
               )}
             </div>
+
+            {/* Upscaler — scale the result up to 16K (image results only) */}
+            {modeDef.outputType === 'image' && (
+              <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold mr-1">Upscale</span>
+                  {([
+                    { label: '2×', scale: 2 as const },
+                    { label: '4×', scale: 4 as const },
+                    { label: '8×', scale: 8 as const },
+                    { label: '16K', target: 16384 },
+                  ]).map((o: any) => {
+                    const active = upscaling === (o.target || o.scale);
+                    return (
+                      <button
+                        key={o.label}
+                        type="button"
+                        disabled={upscaling !== null}
+                        title={o.target ? 'Scale the long edge to 16384px' : `Upscale ${o.label}`}
+                        onClick={async () => {
+                          const tag = o.target || o.scale;
+                          setUpscaling(tag); setUpscaled(null);
+                          try {
+                            const r = await creativeApi.upscale({
+                              sourceUrl: resultUrl,
+                              ...(o.target ? { targetLongEdge: o.target } : { scale: o.scale }),
+                              clientId: selectedClientId || undefined,
+                            });
+                            setUpscaled({ url: r.assetUrl || r.fileUrl, width: r.width, height: r.height, bytes: r.bytes });
+                          } catch (e: any) {
+                            setError(e?.message || 'Upscale failed');
+                          } finally { setUpscaling(null); }
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all disabled:opacity-50 ${
+                          active ? '' : 'bg-white/[0.03] text-zinc-400 border-white/[0.06] hover:border-white/[0.12]'
+                        }`}
+                        style={active ? { background: 'var(--color-accent-subtle)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' } : undefined}
+                      >
+                        {active ? <Loader2 className="w-3 h-3 animate-spin" /> : o.label}
+                      </button>
+                    );
+                  })}
+                  {upscaling !== null && <span className="text-[11px] text-zinc-500">Upscaling… large sizes take a few seconds</span>}
+                  {upscaled && (
+                    <a
+                      href={upscaled.url}
+                      download
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
+                      style={{ background: 'var(--color-accent)', color: 'var(--color-fg-on-accent)' }}
+                    >
+                      <Download className="w-3 h-3" /> {upscaled.width}×{upscaled.height} · {(upscaled.bytes / 1024 / 1024).toFixed(1)}MB
+                    </a>
+                  )}
+                </div>
+              </div>
+            )}
           </motion.div>
         )}
 
