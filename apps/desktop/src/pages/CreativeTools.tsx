@@ -17,7 +17,7 @@ import {
   Wand2, ImageIcon, Image as ImageLucide, Edit3, Video, Film, Loader2,
   Sparkles, X, Upload, Download, AlertCircle, CheckCircle2,
   FileSearch, Palette, Bot, ArrowRight, PenTool, ChevronDown, ChevronUp,
-  Link2, Copy, Clock, ThumbsUp, ThumbsDown,
+  Link2, Copy, Clock, ThumbsUp, ThumbsDown, Maximize2,
 } from 'lucide-react';
 import { creativeApi } from '../lib/backend-api';
 import { useClients } from '../lib/client-context';
@@ -78,7 +78,7 @@ function pushRecentAsset(asset: RecentAsset) {
 
 // ─── Types ─────────────────────────────────────────────────────────
 
-type Mode = 'text-to-image' | 'image-edit' | 'text-to-video' | 'image-to-video';
+type Mode = 'text-to-image' | 'image-edit' | 'text-to-video' | 'image-to-video' | 'upscale';
 
 interface ModeDef {
   id: Mode;
@@ -126,6 +126,15 @@ const MODES: ModeDef[] = [
     icon: Film,
     needsImage: true,
     outputType: 'video',
+  },
+  {
+    id: 'upscale',
+    label: 'Upscale',
+    shortLabel: 'Upscale',
+    description: 'Enlarge an image up to 16K — fast, or AI-enhanced with real detail.',
+    icon: Maximize2,
+    needsImage: true,
+    outputType: 'image',
   },
 ];
 
@@ -256,6 +265,8 @@ export default function CreativeTools() {
   // AI-detail mode: regenerate with real added detail via our models (Gemini
   // nano-banana / DashScope) before scaling. Off = fast Lanczos interpolation.
   const [upscaleAi, setUpscaleAi] = useState(false);
+  // Target for the dedicated Upscale mode (long-edge px; 16384 = 16K).
+  const [upscaleTarget, setUpscaleTarget] = useState(16384);
   // Style Packs — curated premium looks (motionsites.ai pattern): named
   // precision design contracts (hexes, materials, light) injected server-side.
   const [stylePacks, setStylePacks] = useState<{ id: string; name: string; tagline: string; category: string; palette: string[] }[]>([]);
@@ -443,6 +454,33 @@ export default function CreativeTools() {
   };
 
   const handleGenerate = async () => {
+    // Dedicated Upscale mode — no prompt; scales the uploaded source up to 16K.
+    if (mode === 'upscale') {
+      if (!sourceBase64) { setError('Upload an image to upscale first.'); return; }
+      cancelledRef.current = false;
+      setLoading(true); setError(''); setErrorCode(null);
+      setResultUrl(''); setSavedAssetId(null); setExtraResults([]); setLastEnhanced('');
+      setGenId(null); setVoted(null); setUpscaled(null); setProvider(''); setProgress(0);
+      const ticker = setInterval(() => { if (!cancelledRef.current) setProgress(p => Math.min(90, +(p + 3).toFixed(1))); }, upscaleAi ? 1200 : 400);
+      try {
+        const r = await creativeApi.upscale({
+          imageBase64: sourceBase64, mimeType: sourceMime,
+          targetLongEdge: upscaleTarget,
+          mode: upscaleAi ? 'ai' : 'fast',
+          ...(upscaleAi ? resolveImageModel(imageModel) : {}),
+          clientId: selectedClientId || undefined,
+        });
+        clearInterval(ticker); setProgress(100);
+        setResultUrl(r.assetUrl || r.fileUrl);
+        setSavedAssetId(r.assetId || null);
+        setProvider(r.provider || 'sharp');
+        setUpscaled({ url: r.assetUrl || r.fileUrl, width: r.width, height: r.height, bytes: r.bytes, aiEnhanced: (r as any).aiEnhanced });
+      } catch (e: any) {
+        clearInterval(ticker);
+        setError(e?.message || 'Upscale failed');
+      } finally { setLoading(false); }
+      return;
+    }
     if (!prompt.trim()) return;
     if (modeDef.needsImage && !sourceBase64) {
       setError('Upload a source image first.');
@@ -697,7 +735,7 @@ export default function CreativeTools() {
             <p className="text-[11px] uppercase tracking-[0.14em] font-semibold" style={{ color: 'var(--color-fg-subtle)' }}>Create</p>
             <h1 className="font-display text-3xl sm:text-4xl font-bold tracking-tight" style={{ color: 'var(--color-fg)' }}>{t('page.creative.title')}</h1>
             <p className="text-sm text-zinc-500 mt-0.5">
-              The four primary creative modes.
+              Generate, edit, animate & upscale.
               {currentClient && <span className="ml-1" style={{ color: 'var(--color-accent)' }}>Current client: {currentClient.name}</span>}
             </p>
           </div>
@@ -876,7 +914,43 @@ export default function CreativeTools() {
           </div>
         )}
 
+        {/* Upscale mode — dedicated controls (no prompt). Size + AI toggle;
+            engine picker below drives the AI-detail pass. */}
+        {mode === 'upscale' && (
+          <div className="space-y-3">
+            <div>
+              <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Target size</label>
+              <div className="flex gap-2 mt-2 flex-wrap">
+                {[{ label: '4K', v: 4096 }, { label: '8K', v: 8192 }, { label: '12K', v: 12288 }, { label: '16K', v: 16384 }].map((o) => {
+                  const active = upscaleTarget === o.v;
+                  return (
+                    <button key={o.label} type="button"
+                      onClick={() => setUpscaleTarget(o.v)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${active ? '' : 'bg-white/[0.03] text-zinc-400 border-white/[0.06] hover:border-white/[0.12]'}`}
+                      style={active ? { background: 'var(--color-accent-subtle)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' } : undefined}
+                    >{o.label}</button>
+                  );
+                })}
+                <span className="text-[11px] text-zinc-500 self-center">→ {upscaleTarget}px long edge</span>
+              </div>
+            </div>
+            <div>
+              <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Detail</label>
+              <div className="flex gap-2 mt-2">
+                <button type="button" onClick={() => setUpscaleAi(false)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${!upscaleAi ? '' : 'bg-white/[0.03] text-zinc-400 border-white/[0.06]'}`}
+                  style={!upscaleAi ? { background: 'var(--color-accent-subtle)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' } : undefined}>Fast (instant)</button>
+                <button type="button" onClick={() => setUpscaleAi(true)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${upscaleAi ? '' : 'bg-white/[0.03] text-zinc-400 border-white/[0.06]'}`}
+                  style={upscaleAi ? { background: 'var(--color-accent-subtle)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' } : undefined}>✨ AI detail (~30s)</button>
+              </div>
+              <p className="text-[10px] text-zinc-600 mt-1.5">{upscaleAi ? 'Regenerates with real added detail via the selected engine below, then scales.' : 'Sharp Lanczos resample — instant, no new detail. Great for clean AI images.'}</p>
+            </div>
+          </div>
+        )}
+
         {/* Prompt */}
+        {mode !== 'upscale' && (
         <div>
           <div className="flex items-center justify-between mb-2">
             <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">
@@ -940,6 +1014,7 @@ export default function CreativeTools() {
             </button>
           </div>
         </div>
+        )}
 
         {/* Improve-with-AI preview banner — non-destructive (workshop fix 2026-05-06) */}
         <AnimatePresence>
@@ -1515,15 +1590,15 @@ export default function CreativeTools() {
         <div className="flex items-center gap-2 pt-2 border-t border-white/[0.04]">
           <button
             onClick={handleGenerate}
-            disabled={loading || !prompt.trim() || (modeDef.needsImage && !sourceBase64)}
+            disabled={loading || (mode === 'upscale' ? !sourceBase64 : (!prompt.trim() || (modeDef.needsImage && !sourceBase64)))}
             className="flex items-center gap-2 bg-white text-black px-6 py-3 rounded-xl text-sm font-bold hover:bg-zinc-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
             {loading
               ? <Loader2 className="w-4 h-4 animate-spin" />
-              : <Sparkles className="w-4 h-4" />}
+              : mode === 'upscale' ? <Maximize2 className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
             {loading
-              ? `Generating... ${Math.round(progress)}%`
-              : `Generate ${isVideoMode ? 'Video' : 'Image'}`}
+              ? (mode === 'upscale' ? `Upscaling... ${Math.round(progress)}%` : `Generating... ${Math.round(progress)}%`)
+              : mode === 'upscale' ? 'Upscale' : `Generate ${isVideoMode ? 'Video' : 'Image'}`}
           </button>
           {loading && (
             <button
