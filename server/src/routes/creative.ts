@@ -201,7 +201,7 @@ export async function creativeRoutes(app: FastifyInstance) {
   // existing asset/generation). Fast tier (sharp Lanczos) by default; ai tier
   // (fal) when configured, else transparently falls back to fast.
   app.post('/creative/images/upscale', async (request, reply) => {
-    const { imageBase64, mimeType, sourceUrl, scale, targetLongEdge, format, mode, clientId } = (request.body as any) || {};
+    const { imageBase64, mimeType, sourceUrl, scale, targetLongEdge, format, mode, model, provider, clientId } = (request.body as any) || {};
     if (!imageBase64 && !sourceUrl) return reply.status(400).send({ error: 'imageBase64 or sourceUrl is required' });
     try {
       const result = await upscaleImage({
@@ -210,6 +210,8 @@ export async function creativeRoutes(app: FastifyInstance) {
         targetLongEdge: typeof targetLongEdge === 'number' ? targetLongEdge : undefined,
         format: format === 'png' || format === 'jpeg' ? format : 'auto',
         mode: mode === 'ai' ? 'ai' : 'fast',
+        model: typeof model === 'string' ? model : undefined,
+        provider: provider === 'gemini' || provider === 'xai' || provider === 'dashscope' ? provider : undefined,
         orgId: request.orgId, userId: request.user?.userId, clientId: clientId || undefined,
       });
       // Persist to the client's assets so it lands in the gallery.

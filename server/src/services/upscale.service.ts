@@ -29,6 +29,11 @@ export interface UpscaleInput {
   targetLongEdge?: number;     // explicit target for the long edge, px (capped at 16384)
   format?: 'png' | 'jpeg' | 'auto';
   mode?: 'fast' | 'ai';
+  /** Which image model does the AI enhance pass (mode:'ai'). Any of our
+   *  image-capable models: gemini nano-banana, qwen-image-2.0(-pro),
+   *  wan2.7-image(-pro). Falls back through the router chain if omitted. */
+  model?: string;
+  provider?: 'gemini' | 'xai' | 'dashscope';
   orgId?: string;
   userId?: string;
   clientId?: string;
@@ -133,8 +138,8 @@ async function upscaleAiModels(buf: Buffer, input: UpscaleInput): Promise<Upscal
   const prompt = 'Upscale and enhance this exact image to maximum resolution and clarity. Add fine, realistic detail, texture and sharpness. Keep the composition, subject, framing, colors and ANY text 100% identical — do not add, remove, restyle or reinterpret anything. Output a crisp high-resolution version of the same image.';
 
   const result = await aiRouter.image(
-    { prompt, imageBase64: buf.toString('base64'), mimeType: input.mimeType || 'image/png', imageSize },
-    { orgId: input.orgId, userId: input.userId, clientId: input.clientId },
+    { prompt, imageBase64: buf.toString('base64'), mimeType: input.mimeType || 'image/png', imageSize, ...(input.model ? { model: input.model } : {}) },
+    { orgId: input.orgId, userId: input.userId, clientId: input.clientId, ...(input.provider ? { preferredProvider: input.provider } : {}) },
   );
   // Pull the model output into a buffer (Gemini → base64, DashScope → url).
   let aiBuf: Buffer | null = null;

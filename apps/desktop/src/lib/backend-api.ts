@@ -514,7 +514,7 @@ export const creativeApi = {
     request<{ ok: boolean; memoryId: string | null }>('/api/creative/feedback', { method: 'POST', body: JSON.stringify({ generationId, liked }) }),
   // Upscaler up to 16K (2026-07-14). Source = a saved result URL (assetUrl/url)
   // or base64. Fast (sharp Lanczos) by default; ai tier when funded.
-  upscale: (data: { sourceUrl?: string; imageBase64?: string; mimeType?: string; scale?: 2 | 4 | 8; targetLongEdge?: number; format?: 'png' | 'jpeg' | 'auto'; mode?: 'fast' | 'ai'; clientId?: string }) =>
+  upscale: (data: { sourceUrl?: string; imageBase64?: string; mimeType?: string; scale?: 2 | 4 | 8; targetLongEdge?: number; format?: 'png' | 'jpeg' | 'auto'; mode?: 'fast' | 'ai'; model?: string; provider?: 'gemini' | 'xai' | 'dashscope'; clientId?: string }) =>
     request<{ assetUrl: string; fileUrl: string; width: number; height: number; scale: number; provider: string; format: string; bytes: number; assetId: string | null }>('/api/creative/images/upscale', { method: 'POST', body: JSON.stringify(data) }, { timeoutMs: 150000 }),
   generateVideo: (data: {
     prompt: string;

@@ -1692,6 +1692,9 @@ export default function CreativeTools() {
                               sourceUrl: resultUrl,
                               ...(o.target ? { targetLongEdge: o.target } : { scale: o.scale }),
                               mode: upscaleAi ? 'ai' : 'fast',
+                              // AI-detail pass uses whichever engine is selected in the picker
+                              // (nano-banana / Qwen / Wan) — falls back through the chain.
+                              ...(upscaleAi ? resolveImageModel(imageModel) : {}),
                               clientId: selectedClientId || undefined,
                             });
                             setUpscaled({ url: r.assetUrl || r.fileUrl, width: r.width, height: r.height, bytes: r.bytes, aiEnhanced: (r as any).aiEnhanced });
