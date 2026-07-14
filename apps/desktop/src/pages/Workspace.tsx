@@ -9,7 +9,7 @@
  * any big-bang refactor risk.
  */
 import { useEffect, useState, lazy, Suspense, type ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import {
   Calendar as CalIcon, Layers, FileText, Wand2, BarChart3, Settings as SettingsIcon,
   Loader2,
@@ -183,9 +183,10 @@ function ContentList({ activeId, onPick }: { activeId?: string; onPick: (id: str
       <div className="p-4">
         <EmptyState
           icon={Layers}
-          title="No content pieces"
-          description="Open the legacy pieces editor to create one."
+          title="No content pieces yet"
+          description="Content pieces are long-form deliverables — articles, scripts, threads."
           compact
+          primary={<Link to="/pieces" className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-[13px] font-semibold" style={{ background: 'var(--color-accent)', color: 'var(--color-fg-on-accent)' }}>+ New content piece</Link>}
         />
       </div>
     );
@@ -244,8 +245,9 @@ function CalendarList({ activeId, onPick }: { activeId?: string; onPick: (month:
         <EmptyState
           icon={CalIcon}
           title="No calendar months"
-          description="Generate a month from the legacy /calendar editor."
+          description="Turn a brief into a full month of on-brand posts."
           compact
+          primary={<Link to="/brief" className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-[13px] font-semibold" style={{ background: 'var(--color-accent)', color: 'var(--color-fg-on-accent)' }}>+ Generate a month</Link>}
         />
       </div>
     );
@@ -580,6 +582,7 @@ export default function Workspace() {
     {
       id: 'content',
       label: 'Content',
+      description: 'Draft, edit & generate content pieces',
       icon: Layers,
       group: 'Plan',
       list: <ContentList activeId={itemId} onPick={(id) => navigate(`/workspace/content/${id}`)} />,
@@ -616,6 +619,7 @@ export default function Workspace() {
     {
       id: 'calendar',
       label: 'Calendar',
+      description: 'Monthly content calendars per client',
       icon: CalIcon,
       group: 'Plan',
       list: <CalendarList activeId={itemId} onPick={(month) => navigate(`/workspace/calendar/${encodeURIComponent(month)}`)} />,
@@ -652,6 +656,7 @@ export default function Workspace() {
     {
       id: 'strategy',
       label: 'Strategy',
+      description: 'Briefs & brand knowledge',
       icon: FileText,
       group: 'Plan',
       list: <StrategyList activeId={itemId} onPick={(slug) => navigate(`/workspace/strategy/${encodeURIComponent(slug)}`)} />,
@@ -688,6 +693,7 @@ export default function Workspace() {
     {
       id: 'studio',
       label: 'Studio',
+      description: 'Generate images & video',
       icon: Wand2,
       group: 'Make',
       list: <StudioList activeId={itemId} onPick={(id) => navigate(`/workspace/studio/${id}`)} />,
@@ -724,6 +730,7 @@ export default function Workspace() {
     {
       id: 'insights',
       label: 'Insights',
+      description: 'Usage, performance & analytics',
       icon: BarChart3,
       group: 'Track',
       list: <InsightsList activeId={itemId} onPick={(slug) => navigate(`/workspace/insights/${slug}`)} />,
@@ -760,6 +767,7 @@ export default function Workspace() {
     {
       id: 'settings',
       label: 'Settings',
+      description: 'Profile, members, billing & integrations',
       icon: SettingsIcon,
       group: 'Manage',
       list: <SettingsList activeId={itemId} onPick={(slug) => navigate(`/workspace/settings/${slug}`)} />,

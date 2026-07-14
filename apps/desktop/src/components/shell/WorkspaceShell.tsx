@@ -40,6 +40,8 @@ export interface SurfaceDef {
   /** Optional grouping label — surfaces that share the same group render under
    *  one section header in the rail. Surfaces with no group fall under "Other". */
   group?: string;
+  /** One-line description shown under the surface title in the list-pane header. */
+  description?: string;
   /** Optional badge: a number renders as a count pill, 'dot' renders a single
    *  accent dot, anything else is ignored. */
   badge?: number | 'dot';
@@ -87,20 +89,20 @@ export function WorkspaceShell({ surfaces, activeSurface, activeItemId }: Worksp
         color: 'var(--color-fg)',
       }}
     >
-      {/* Left rail — grouped surface switcher with optional badges */}
+      {/* Left rail — labeled, grouped surface navigator. Icon + label so each
+          surface is legible at a glance (icon-only was cryptic); left-aligned
+          group headers, active row gets an accent inset rail. */}
       <nav
         aria-label="Workspace surfaces"
-        className="flex shrink-0 flex-col items-stretch border-r p-2"
-        style={{ width: 56, borderColor: 'var(--color-border-subtle)', background: 'var(--color-bg-elevated)' }}
+        className="flex shrink-0 flex-col items-stretch overflow-y-auto border-r px-2 py-3"
+        style={{ width: 200, borderColor: 'var(--color-border-subtle)', background: 'var(--color-bg-elevated)' }}
       >
         {grouped.map((g, gi) => (
-          <div key={g.name} className={gi > 0 ? 'mt-3 border-t pt-3' : undefined} style={gi > 0 ? { borderColor: 'var(--color-border-subtle)' } : undefined}>
+          <div key={g.name} className={gi > 0 ? 'mt-4' : undefined}>
             {showHeaders && (
               <p
-                className="mb-1.5 text-center text-[8px] font-bold uppercase tracking-[0.06em] leading-tight"
+                className="mb-1 px-2 text-[9px] font-bold uppercase tracking-[0.12em]"
                 style={{ color: 'var(--color-fg-subtle)' }}
-                aria-hidden
-                title={g.name}
               >
                 {g.name}
               </p>
@@ -113,32 +115,31 @@ export function WorkspaceShell({ surfaces, activeSurface, activeItemId }: Worksp
                 <Link
                   key={s.id}
                   to={`/workspace/${s.id}`}
-                  title={typeof s.badge === 'number' ? `${s.label} (${s.badge})` : s.label}
+                  title={s.description || s.label}
                   className={cn(
-                    'relative mb-1 flex h-10 items-center justify-center rounded-lg transition-colors',
+                    'relative mb-0.5 flex h-9 items-center gap-2.5 rounded-lg pl-3 pr-2 transition-colors',
                     isActive
                       ? 'bg-[color:var(--color-surface-hover)] text-[color:var(--color-fg)]'
-                      : 'text-[color:var(--color-fg-subtle)] hover:bg-[color:var(--color-surface-hover)] hover:text-[color:var(--color-fg)]'
+                      : 'text-[color:var(--color-fg-muted)] hover:bg-[color:var(--color-surface-hover)] hover:text-[color:var(--color-fg)]'
                   )}
                   aria-current={isActive ? 'page' : undefined}
                   aria-label={typeof s.badge === 'number' && s.badge > 0 ? `${s.label} (${s.badge} unread)` : s.label}
                 >
-                  <Icon size={16} />
+                  {/* active inset rail */}
+                  <span
+                    aria-hidden
+                    className="absolute inset-y-1.5 left-0 w-[2px] rounded-full transition-opacity"
+                    style={{ background: 'var(--color-accent)', opacity: isActive ? 1 : 0 }}
+                  />
+                  <Icon size={16} className="shrink-0" />
+                  <span className="flex-1 truncate text-[13px] font-medium">{s.label}</span>
                   {badgeLabel != null && (
                     s.badge === 'dot' ? (
-                      <span
-                        className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full"
-                        style={{ background: 'var(--color-accent)' }}
-                        aria-hidden
-                      />
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: 'var(--color-accent)' }} aria-hidden />
                     ) : (
                       <span
-                        className="absolute -right-0.5 -top-0.5 flex min-w-[16px] items-center justify-center rounded-full px-1 text-[9px] font-bold tabular-nums leading-[14px]"
-                        style={{
-                          background: 'var(--color-accent)',
-                          color: 'var(--color-fg-on-accent)',
-                          boxShadow: '0 0 0 2px var(--color-bg-elevated)',
-                        }}
+                        className="flex min-w-[16px] shrink-0 items-center justify-center rounded-full px-1 text-[9px] font-bold tabular-nums leading-[14px]"
+                        style={{ background: 'var(--color-accent)', color: 'var(--color-fg-on-accent)' }}
                         aria-hidden
                       >
                         {(s.badge as number) > 99 ? '99+' : badgeLabel}
@@ -158,10 +159,22 @@ export function WorkspaceShell({ surfaces, activeSurface, activeItemId }: Worksp
         <Panel defaultSize={32} minSize={15} maxSize={60} className="overflow-hidden">
           <div className="flex h-full flex-col">
             <div
-              className="flex items-center justify-between border-b px-4 py-3"
+              className="flex items-center gap-2.5 border-b px-4 py-3"
               style={{ borderColor: 'var(--color-border-subtle)' }}
             >
-              <h2 className="font-display text-[14px] font-bold tracking-tight">{surface.label}</h2>
+              <span
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
+                style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}
+                aria-hidden
+              >
+                <surface.icon size={15} />
+              </span>
+              <div className="min-w-0">
+                <h2 className="font-display text-[14px] font-bold leading-tight tracking-tight">{surface.label}</h2>
+                {surface.description && (
+                  <p className="truncate text-[11px] leading-tight" style={{ color: 'var(--color-fg-subtle)' }}>{surface.description}</p>
+                )}
+              </div>
             </div>
             <div className="flex-1 overflow-y-auto">{surface.list}</div>
           </div>
