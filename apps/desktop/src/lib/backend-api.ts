@@ -333,6 +333,22 @@ export const calendarApi = {
     }),
   deletePost: (postId: string) =>
     request<{ success: boolean; deletedId: string }>(`/api/calendar-posts/${postId}`, { method: 'DELETE' }),
+  // Manual add-post outside the generated plan (Habiba 2026-07-14) + backs
+  // Asya's "duplicate to another platform" (FE passes an existing post's fields
+  // with a different platform).
+  addPost: (clientId: string, month: string, data: Record<string, unknown>) =>
+    request<any>(`/api/clients/${clientId}/calendar/${encodeURIComponent(month)}/posts`, { method: 'POST', body: JSON.stringify(data) }),
+  // Per-post compliance audit + content score (Tamer 2026-07-14). Both persist
+  // to the post's metadata and return the structured result.
+  complianceCheck: (postId: string) =>
+    request<{ passed: boolean; issues: { severity: string; quote: string; rule_violated: string; suggestion: string }[]; checkedAt: string }>(`/api/calendar-posts/${postId}/compliance-check`, { method: 'POST' }, { timeoutMs: 90000 }),
+  scorePost: (postId: string) =>
+    request<{ overall: number; dimensions: Record<string, { score: number; note: string }>; topRecommendation: string; scoredAt: string }>(`/api/calendar-posts/${postId}/score`, { method: 'POST' }, { timeoutMs: 90000 }),
+  // Per-post team notes (Asya 2026-07-14) via PostComment.
+  listComments: (postId: string) =>
+    request<{ comments: { id: string; authorName: string; source: string; comment: string; status: string | null; createdAt: string }[] }>(`/api/calendar-posts/${postId}/comments`),
+  addComment: (postId: string, comment: string) =>
+    request<any>(`/api/calendar-posts/${postId}/comments`, { method: 'POST', body: JSON.stringify({ comment }) }),
   // Soft archive (reversible) — Manus-style history preservation.
   archiveMonth: (clientId: string, month: string) =>
     request<{ success: boolean; mode: 'archive'; archived: number; month: string; archivedAt: string }>(

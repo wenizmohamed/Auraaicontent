@@ -6,7 +6,7 @@ import {
   ArrowLeft, Search, LayoutGrid, List, CheckCircle2, XCircle, Edit3,
   RefreshCw, ChevronDown, Printer, Hash, Calendar, Eye, Users,
   Filter, CheckSquare, Square, Image as ImageIcon, Sparkles, X,
-  Download, Loader2,
+  Download, Loader2, ShieldCheck, Gauge, MessageSquarePlus, AlertTriangle,
 } from 'lucide-react';
 import { useStore, ContentBrief } from '../lib/store';
 import { validateCaption, PLATFORM_LIMITS } from '../lib/platform-limits';
@@ -17,6 +17,106 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { motionUI, motionInstant, motionBase } from '../lib/motion';
 import VisualRefGrid from '../components/VisualRefGrid';
 import { PublishButton } from '../components/calendar/PublishButton';
+
+// Per-post quality tools (team feedback 2026-07-14): compliance audit (Tamer —
+// financial/regulated content), content score (Tamer), and a quick team note
+// (Asya). Self-contained so it drops into each card without threading state
+// through the 1200-line page. Reads cached results from post.metadata; only
+// hits the API on demand (each call is a metered AI generation).
+const SEV_COLOR: Record<string, string> = { high: 'var(--color-danger)', med: 'var(--color-warning)', low: 'var(--color-fg-subtle)' };
+function PostQualityTools({ piece }: { piece: any }) {
+  const backendId: string | undefined = typeof piece.id === 'string' && piece.id.length > 20 ? piece.id : undefined;
+  const [compliance, setCompliance] = useState<any>(piece?.metadata?.compliance ?? null);
+  const [score, setScore] = useState<any>(piece?.metadata?.score ?? null);
+  const [busy, setBusy] = useState<'' | 'compliance' | 'score' | 'note'>('');
+  const [err, setErr] = useState('');
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [noteText, setNoteText] = useState('');
+  const [noteSaved, setNoteSaved] = useState(false);
+
+  if (!backendId) return null; // only backend-persisted posts support these
+
+  const runCompliance = async () => {
+    setBusy('compliance'); setErr('');
+    try { setCompliance(await calendarApi.complianceCheck(backendId)); }
+    catch (e: any) { setErr(e?.message || 'Compliance check failed'); }
+    finally { setBusy(''); }
+  };
+  const runScore = async () => {
+    setBusy('score'); setErr('');
+    try { setScore(await calendarApi.scorePost(backendId)); }
+    catch (e: any) { setErr(e?.message || 'Scoring failed'); }
+    finally { setBusy(''); }
+  };
+  const saveNote = async () => {
+    if (!noteText.trim()) return;
+    setBusy('note'); setErr('');
+    try { await calendarApi.addComment(backendId, noteText.trim()); setNoteText(''); setNoteSaved(true); setNoteOpen(false); }
+    catch (e: any) { setErr(e?.message || 'Could not save note'); }
+    finally { setBusy(''); }
+  };
+
+  const scoreColor = (n: number) => n >= 80 ? 'var(--color-success)' : n >= 60 ? 'var(--color-warning)' : 'var(--color-danger)';
+
+  return (
+    <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-3 space-y-2">
+      <div className="flex items-center gap-2 flex-wrap">
+        <button type="button" onClick={runCompliance} disabled={!!busy}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border border-white/[0.08] hover:border-white/20 disabled:opacity-50 [color:var(--color-fg-muted)]">
+          {busy === 'compliance' ? <Loader2 className="w-3 h-3 animate-spin" /> : <ShieldCheck className="w-3 h-3" />} Compliance
+        </button>
+        <button type="button" onClick={runScore} disabled={!!busy}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border border-white/[0.08] hover:border-white/20 disabled:opacity-50 [color:var(--color-fg-muted)]">
+          {busy === 'score' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Gauge className="w-3 h-3" />} Score
+        </button>
+        <button type="button" onClick={() => setNoteOpen(o => !o)} disabled={!!busy}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border border-white/[0.08] hover:border-white/20 disabled:opacity-50 [color:var(--color-fg-muted)]">
+          <MessageSquarePlus className="w-3 h-3" /> Note{noteSaved ? ' ✓' : ''}
+        </button>
+        {/* result chips */}
+        {compliance && (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border"
+            style={{ color: compliance.passed ? 'var(--color-success)' : 'var(--color-danger)', borderColor: compliance.passed ? 'var(--color-success)' : 'var(--color-danger)', background: compliance.passed ? 'var(--color-success-subtle)' : 'var(--color-danger-subtle)' }}>
+            {compliance.passed ? 'Compliant' : `${compliance.issues?.length || 0} flag${(compliance.issues?.length || 0) === 1 ? '' : 's'}`}
+          </span>
+        )}
+        {score && (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border"
+            style={{ color: scoreColor(score.overall), borderColor: scoreColor(score.overall), background: 'var(--color-bg-subtle)' }}>
+            Score {score.overall}
+          </span>
+        )}
+      </div>
+
+      {err && <p className="text-[11px]" style={{ color: 'var(--color-danger)' }}>{err}</p>}
+
+      {noteOpen && (
+        <div className="flex items-center gap-2">
+          <input value={noteText} onChange={e => setNoteText(e.target.value)} placeholder="Quick note for the team…"
+            onKeyDown={e => { if (e.key === 'Enter') saveNote(); }}
+            className="flex-1 text-xs rounded-lg bg-white/[0.03] border border-white/[0.08] px-2.5 py-1.5 [color:var(--color-fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20" />
+          <button type="button" onClick={saveNote} disabled={busy === 'note' || !noteText.trim()}
+            className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-white/[0.08] disabled:opacity-50 [color:var(--color-accent)]">Save</button>
+        </div>
+      )}
+
+      {compliance && !compliance.passed && (compliance.issues || []).length > 0 && (
+        <ul className="space-y-1 pt-1">
+          {compliance.issues.slice(0, 4).map((iss: any, i: number) => (
+            <li key={i} className="flex items-start gap-1.5 text-[11px] [color:var(--color-fg-muted)]">
+              <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" style={{ color: SEV_COLOR[iss.severity] || SEV_COLOR.low }} />
+              <span><b style={{ color: SEV_COLOR[iss.severity] || SEV_COLOR.low }}>{iss.rule_violated}</b> — {iss.suggestion}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {score?.topRecommendation && (
+        <p className="text-[11px] [color:var(--color-fg-muted)] pt-0.5"><b>Tip:</b> {score.topRecommendation}</p>
+      )}
+    </div>
+  );
+}
 
 /** Map the brief's free-form platform label to our PlatformConnection.platform key. */
 function mapPlatformToConnector(label: string): 'meta_ig' | 'tiktok' | 'linkedin' | null {
@@ -153,6 +253,10 @@ export default function ContentReview() {
         status: backendMonth.status,
         pieces: (backendMonth.posts || []).map((p: any) => ({
           ...p,
+          // Campaign categorization (Asya 2026-07-14): generated posts store the
+          // campaign name in `pillar` (the A1 fix). Map it into campaignTheme so
+          // the existing campaign filter + badge + list column light up.
+          campaignTheme: p.campaignTheme ?? p.pillar ?? '',
           // Keep `visualRefs` and `assets` straight from the backend for VisualRefGrid.
           // visualRefImages is the legacy local-store shape — derive it from assets so
           // any code path that still reads it gets a non-empty array.
@@ -855,6 +959,9 @@ export default function ContentReview() {
                       </span>
                     )}
                   </div>
+
+                  {/* Compliance + Score + Note (team feedback 2026-07-14) */}
+                  <PostQualityTools piece={piece} />
 
                   {/* Creative Copy */}
                   <div>
