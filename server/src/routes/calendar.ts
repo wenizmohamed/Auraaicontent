@@ -8,6 +8,8 @@ import { createJob, processJob, findInflightGenerateJob } from '../workers/queue
 import { generateMonthWorker } from '../workers/generateMonth.worker.js';
 import { visualRefsBackfillWorker } from '../workers/visualRefsBackfill.worker.js';
 import { assertClientInOrg, assertCalendarPostInOrg } from '../lib/tenant.js';
+import { runComplianceCheck, scorePost } from '../services/content-quality.service.js';
+import { reviewService } from '../services/review.service.js';
 
 export async function calendarRoutes(app: FastifyInstance) {
 
@@ -234,10 +236,12 @@ export async function calendarRoutes(app: FastifyInstance) {
       'referenceQuery',
       'pillar',
       'format',
-      'notes',
       'scheduledAt',
       'platformConnectionId',
-      'position',
+      // NOTE: 'notes' and 'position' removed 2026-07-14 — neither is a column
+      // on CalendarPost, so a PATCH including them threw Prisma "Unknown
+      // argument" → 500 on the whole update. Per-post notes now live in
+      // PostComment (see /calendar-posts/:postId/comments below).
     ] as const;
     const updates = request.body as Record<string, unknown>;
     const data: Record<string, unknown> = {};
@@ -293,6 +297,130 @@ export async function calendarRoutes(app: FastifyInstance) {
       payload: { calendarMonthId: (existing as any)?.calendarMonthId ?? null },
     }).catch(() => {});
     return { success: true, deletedId: postId };
+  });
+
+  // ─── Manual post add (Habiba + Asya, 2026-07-14) ────────────────
+  // POST /api/clients/:clientId/calendar/:month/posts — add a custom post
+  // OUTSIDE the generated plan. Also backs Asya's "duplicate to another
+  // platform" (FE clones an existing post's fields with a new platform).
+  app.post('/clients/:clientId/calendar/:month/posts', async (request, reply) => {
+    const { clientId, month } = request.params as { clientId: string; month: string };
+    const orgId = request.orgId!;
+    try {
+      await assertClientInOrg(clientId, orgId);
+    } catch (err) {
+      return reply.status(errStatus(err)).send({ error: errMessage(err) });
+    }
+    const decodedMonth = decodeURIComponent(month);
+    const cm = await db.calendarMonth.findFirst({ where: { orgId, clientId, month: decodedMonth }, select: { id: true } });
+    if (!cm) return reply.status(404).send({ error: `No calendar exists for "${decodedMonth}". Generate it first, then add custom posts.` });
+    const b = (request.body as any) || {};
+    if (!b.platform || typeof b.platform !== 'string') return reply.status(400).send({ error: 'platform is required' });
+    const created = await db.calendarPost.create({
+      data: {
+        orgId,
+        calendarMonthId: cm.id,
+        date: typeof b.date === 'string' ? b.date : '',
+        title: (b.title || 'Untitled post').toString().slice(0, 300),
+        pillar: (b.pillar || '').toString(),
+        platform: b.platform,
+        format: (b.format || 'Static').toString(),
+        hook: b.hook ? String(b.hook) : null,
+        keyMessage: b.keyMessage ? String(b.keyMessage) : null,
+        caption: (b.caption || '').toString(),
+        cta: b.cta ? String(b.cta) : null,
+        hashtags: Array.isArray(b.hashtags) ? b.hashtags : [],
+        visualDirection: b.visualDirection ? String(b.visualDirection) : null,
+        referenceQuery: b.referenceQuery ? String(b.referenceQuery) : null,
+        timing: b.timing ? String(b.timing) : null,
+        status: 'draft',
+      },
+    });
+    auditService.log({ orgId, userId: request.user?.userId, clientId, action: 'post.manual-add', entityType: 'CalendarPost', entityId: created.id, payload: { month: decodedMonth, platform: created.platform } }).catch(() => {});
+    return created;
+  });
+
+  // ─── Per-post compliance check (Tamer, 2026-07-14) ──────────────
+  // POST /api/calendar-posts/:postId/compliance-check — audit the caption
+  // against the client's brief rules; persist to metadata.compliance so the
+  // Review page shows the badge on reload.
+  app.post('/calendar-posts/:postId/compliance-check', async (request, reply) => {
+    const { postId } = request.params as { postId: string };
+    try {
+      await assertCalendarPostInOrg(postId, request.orgId);
+    } catch (err) {
+      return reply.status(errStatus(err)).send({ error: errMessage(err) });
+    }
+    const post = await db.calendarPost.findFirst({
+      where: { id: postId, orgId: request.orgId! },
+      select: { caption: true, title: true, hook: true, cta: true, metadata: true, calendarMonth: { select: { clientId: true } } },
+    });
+    if (!post) return reply.status(404).send({ error: 'Post not found' });
+    const clientId = post.calendarMonth?.clientId;
+    if (!clientId) return reply.status(400).send({ error: 'Post is not linked to a client' });
+    const text = [post.title, post.hook, post.caption, post.cta].filter(Boolean).join('\n');
+    try {
+      const result = await runComplianceCheck(request.orgId!, clientId, text, { userId: request.user?.userId });
+      const existing = (post.metadata && typeof post.metadata === 'object' && !Array.isArray(post.metadata)) ? post.metadata as Record<string, unknown> : {};
+      await db.calendarPost.update({ where: { id: postId, orgId: request.orgId! }, data: { metadata: JSON.parse(JSON.stringify({ ...existing, compliance: result })) } });
+      return result;
+    } catch (err) {
+      return reply.status(errStatus(err, 502)).send({ error: errMessage(err, 'Compliance check failed') });
+    }
+  });
+
+  // ─── Per-post content score (Tamer, 2026-07-14) ─────────────────
+  // POST /api/calendar-posts/:postId/score — rate clarity/relevance/TOV/
+  // platform-fit/engagement + one improvement tip; persist to metadata.score.
+  app.post('/calendar-posts/:postId/score', async (request, reply) => {
+    const { postId } = request.params as { postId: string };
+    try {
+      await assertCalendarPostInOrg(postId, request.orgId);
+    } catch (err) {
+      return reply.status(errStatus(err)).send({ error: errMessage(err) });
+    }
+    try {
+      const { score } = await scorePost(request.orgId!, postId, request.user?.userId);
+      const post = await db.calendarPost.findFirst({ where: { id: postId, orgId: request.orgId! }, select: { metadata: true } });
+      const existing = (post?.metadata && typeof post.metadata === 'object' && !Array.isArray(post.metadata)) ? post.metadata as Record<string, unknown> : {};
+      await db.calendarPost.update({ where: { id: postId, orgId: request.orgId! }, data: { metadata: JSON.parse(JSON.stringify({ ...existing, score })) } });
+      return score;
+    } catch (err) {
+      return reply.status(errStatus(err, 502)).send({ error: errMessage(err, 'Scoring failed') });
+    }
+  });
+
+  // ─── Per-post quick notes (Asya, 2026-07-14) ────────────────────
+  // Internal team notes on a post — reuses the PostComment model (threaded,
+  // attributed, and already feeds the learn-from-feedback memory loop).
+  app.get('/calendar-posts/:postId/comments', async (request, reply) => {
+    const { postId } = request.params as { postId: string };
+    try {
+      await assertCalendarPostInOrg(postId, request.orgId);
+    } catch (err) {
+      return reply.status(errStatus(err)).send({ error: errMessage(err) });
+    }
+    const comments = await db.postComment.findMany({
+      where: { orgId: request.orgId!, postId },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, authorName: true, source: true, comment: true, status: true, createdAt: true },
+    });
+    return { comments };
+  });
+
+  app.post('/calendar-posts/:postId/comments', async (request, reply) => {
+    const { postId } = request.params as { postId: string };
+    try {
+      await assertCalendarPostInOrg(postId, request.orgId);
+    } catch (err) {
+      return reply.status(errStatus(err)).send({ error: errMessage(err) });
+    }
+    const { comment, status } = (request.body as { comment?: string; status?: string }) || {};
+    if (!comment || !comment.trim()) return reply.status(400).send({ error: 'comment is required' });
+    const authorName = request.user?.email || 'Team';
+    // reuse the review service so the note also feeds the memory learn-loop
+    const created = await reviewService.addComment(request.orgId!, postId, authorName, comment.trim(), status || 'note');
+    return created;
   });
 
   // POST /api/clients/:clientId/calendar/:month/visual-refs/backfill → { jobId }
