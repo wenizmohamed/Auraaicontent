@@ -17,7 +17,7 @@ import {
   Wand2, ImageIcon, Image as ImageLucide, Edit3, Video, Film, Loader2,
   Sparkles, X, Upload, Download, AlertCircle, CheckCircle2,
   FileSearch, Palette, Bot, ArrowRight, PenTool, ChevronDown, ChevronUp,
-  Link2, Copy, Clock,
+  Link2, Copy, Clock, ThumbsUp, ThumbsDown,
 } from 'lucide-react';
 import { creativeApi } from '../lib/backend-api';
 import { useClients } from '../lib/client-context';
@@ -168,6 +168,8 @@ const IMAGE_MODELS: { value: string; label: string; provider?: 'gemini' | 'xai' 
   { value: 'grok', label: 'Grok Imagine', provider: 'xai' },
   { value: 'qwen-image-2.0-pro', label: 'Qwen Image 2.0 Pro', provider: 'dashscope', model: 'qwen-image-2.0-pro' },
   { value: 'wan2.7-image-pro', label: 'Wan 2.7 Image Pro', provider: 'dashscope', model: 'wan2.7-image-pro' },
+  // Cheap draft rung (half the Pro price) — verified live 2026-07-14.
+  { value: 'wan2.7-image', label: 'Wan 2.7 · Fast', provider: 'dashscope', model: 'wan2.7-image' },
 ];
 function resolveImageModel(value: string): { provider?: 'gemini' | 'xai' | 'dashscope'; model?: string } {
   const m = IMAGE_MODELS.find((x) => x.value === value);
@@ -238,9 +240,16 @@ export default function CreativeTools() {
   // Image output resolution (nano native; 2K default — same per-image price
   // as 1K on the meter, visibly better detail for ad creative).
   const [imageSize, setImageSize] = useState<'1K' | '2K' | '4K'>('2K');
-  // Auto pro-prompt: server-side model-aware enhancement on every generate.
-  const [proPrompt, setProPrompt] = useState(true);
+  // Prompt boost dial (2026-07-14, Dri's feedback "enhancer completely changed
+  // my prompt"): replaces the binary auto-enhance toggle. 'raw' = translate
+  // only, never reinterprets wording; 'medium' = full model-aware rewrite
+  // (old ON); 'high' = max art direction; 'off' = send exact words untouched.
+  const [promptBoost, setPromptBoost] = useState<'off' | 'raw' | 'medium' | 'high'>('medium');
   const [lastEnhanced, setLastEnhanced] = useState('');
+  // Thumbs on the result → POST /creative/feedback → the AI learns this
+  // client's taste (memory loop). genId comes back from every generation.
+  const [genId, setGenId] = useState<string | null>(null);
+  const [voted, setVoted] = useState<'up' | 'down' | null>(null);
   // Style Packs — curated premium looks (motionsites.ai pattern): named
   // precision design contracts (hexes, materials, light) injected server-side.
   const [stylePacks, setStylePacks] = useState<{ id: string; name: string; tagline: string; category: string; palette: string[] }[]>([]);
@@ -320,6 +329,7 @@ export default function CreativeTools() {
     setResultUrl('');
     setSavedAssetId(null);
     setExtraResults([]); setLastEnhanced('');
+    setGenId(null); setVoted(null);
     setProvider('');
     setProgress(0);
     // If the next mode doesn't need an image, clear the source so the upload box collapses
@@ -440,6 +450,7 @@ export default function CreativeTools() {
     setResultUrl('');
     setSavedAssetId(null);
     setExtraResults([]); setLastEnhanced('');
+    setGenId(null); setVoted(null);
     setProvider('');
     setProgress(0);
 
@@ -469,7 +480,8 @@ export default function CreativeTools() {
           aspectRatio,
           clientId: selectedClientId || undefined,
           safeZone,
-          enhance: proPrompt,
+          enhance: promptBoost !== 'off',
+          ...(promptBoost !== 'off' ? { depth: promptBoost } : {}),
           ...(stylePackId ? { stylePackId } : {}),
           ...(imageSize !== '1K' ? { imageSize } : {}),
           ...resolveImageModel(imageModel),
@@ -485,6 +497,7 @@ export default function CreativeTools() {
         setSavedAssetId(first.assetId || null);
         setProvider(first.provider || '');
         setLastEnhanced(first.enhancedPrompt || '');
+        setGenId(first.generationId || null);
         setExtraResults(ok.slice(1).map((o: any) => ({ url: o.assetUrl || o.url || '', assetId: o.assetId || null })));
       } else if (mode === 'image-edit') {
         const out = await creativeApi.editImage({
@@ -494,7 +507,8 @@ export default function CreativeTools() {
           aspectRatio,
           clientId: selectedClientId || undefined,
           safeZone,
-          enhance: proPrompt,
+          enhance: promptBoost !== 'off',
+          ...(promptBoost !== 'off' ? { depth: promptBoost } : {}),
           ...(imageSize !== '1K' ? { imageSize } : {}),
           ...(extraRefs.length ? { referenceImages: extraRefs.map(r => ({ base64: r.base64, mimeType: r.mimeType, role: r.role })) } : {}),
           ...resolveImageModel(imageModel),
@@ -504,6 +518,7 @@ export default function CreativeTools() {
         setSavedAssetId(out.assetId || null);
         setProvider(out.provider || '');
         setLastEnhanced(out.enhancedPrompt || '');
+        setGenId(out.generationId || null);
       } else {
         // text-to-video OR image-to-video — both go through the same async route
         const { jobId } = await creativeApi.generateVideo({
@@ -513,7 +528,8 @@ export default function CreativeTools() {
           tier,
           clientId: selectedClientId || undefined,
           safeZone,
-          enhance: proPrompt,
+          enhance: promptBoost !== 'off',
+          ...(promptBoost !== 'off' ? { depth: promptBoost } : {}),
           ...(stylePackId ? { stylePackId } : {}),
           ...(tier === 'hd' && videoRes === '1080p' ? { resolution: '1080p' as const } : {}),
           ...(negPrompt.trim() ? { negativePrompt: negPrompt.trim() } : {}),
@@ -568,6 +584,7 @@ export default function CreativeTools() {
             setResultUrl(generatedUrl);
             setProvider(job.result?.provider || '');
             setLastEnhanced(job.result?.enhancedPrompt || '');
+            setGenId(job.result?.generationId || null);
             break;
           }
           if (job.status === 'failed') throw new Error(job.error || 'Video generation failed');
@@ -1162,24 +1179,33 @@ export default function CreativeTools() {
             </div>
           )}
 
-          {/* Auto pro-prompt — server-side model-aware enhancement (Veo formula,
-              ad composition, Arabic→English) applied to EVERY generation. */}
+          {/* Prompt boost dial — how much the server-side enhancer may rewrite.
+              Raw answers "the enhancer completely changed my prompt": it ONLY
+              translates (Arabic→English for Veo) and never reinterprets. */}
           <div>
-            <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Pro prompt</label>
-            <div className="mt-2">
-              <button
-                type="button"
-                onClick={() => setProPrompt(v => !v)}
-                title="Automatically rewrites your prompt into a production-grade prompt for the selected engine (composition, lighting, cinematography, audio). Turn off to send your exact words."
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-                  proPrompt ? '' : 'bg-white/[0.03] text-zinc-500 border-white/[0.06] hover:border-white/[0.1]'
-                }`}
-                style={proPrompt
-                  ? { background: 'var(--color-accent-subtle)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' }
-                  : undefined}
-              >
-                {proPrompt ? '✨ Auto-enhance ON' : 'Auto-enhance off'}
-              </button>
+            <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Prompt boost</label>
+            <div className="flex items-center gap-2 mt-2">
+              {([
+                { v: 'off' as const, label: 'Off', hint: 'Send your exact words, untouched.' },
+                { v: 'raw' as const, label: 'Raw', hint: 'Keep your wording — only translate for the engine (e.g. Arabic→English for video) and add technical negatives. Never reinterprets your idea.' },
+                { v: 'medium' as const, label: '✨ Pro', hint: 'Full rewrite into a production-grade prompt for the selected engine (composition, lighting, cinematography, audio).' },
+                { v: 'high' as const, label: 'Max', hint: 'Pushes art direction to the limit — most specific composition, lighting and palette.' },
+              ]).map(o => (
+                <button
+                  key={o.v}
+                  type="button"
+                  onClick={() => setPromptBoost(o.v)}
+                  title={o.hint}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                    promptBoost === o.v ? '' : 'bg-white/[0.03] text-zinc-500 border-white/[0.06] hover:border-white/[0.1]'
+                  }`}
+                  style={promptBoost === o.v
+                    ? { background: 'var(--color-accent-subtle)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' }
+                    : undefined}
+                >
+                  {o.label}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -1557,6 +1583,34 @@ export default function CreativeTools() {
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-white">Result</h3>
               <div className="flex items-center gap-2">
+                {/* Teach-the-AI thumbs: stores this prompt's style as a win/miss
+                    for the client so future generations lean toward (or away
+                    from) it. One vote per generation. */}
+                {genId && (
+                  <span className="flex items-center gap-1 mr-1">
+                    <button
+                      type="button"
+                      disabled={voted !== null}
+                      title="Good one — the AI will lean toward this style for this client"
+                      onClick={async () => { setVoted('up'); try { await creativeApi.feedback(genId, true); } catch { /* best-effort */ } }}
+                      className={`p-1 rounded-md border transition-all ${voted === 'up' ? '' : 'border-white/[0.06] text-zinc-500 hover:text-zinc-300 hover:border-white/[0.1]'} ${voted === 'down' ? 'opacity-30' : ''}`}
+                      style={voted === 'up' ? { color: 'var(--color-success)', background: 'var(--color-success-subtle)', borderColor: 'var(--color-success)' } : undefined}
+                    >
+                      <ThumbsUp className="w-3 h-3" />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={voted !== null}
+                      title="Off-brand — the AI will avoid this direction for this client"
+                      onClick={async () => { setVoted('down'); try { await creativeApi.feedback(genId, false); } catch { /* best-effort */ } }}
+                      className={`p-1 rounded-md border transition-all ${voted === 'down' ? '' : 'border-white/[0.06] text-zinc-500 hover:text-zinc-300 hover:border-white/[0.1]'} ${voted === 'up' ? 'opacity-30' : ''}`}
+                      style={voted === 'down' ? { color: 'var(--color-danger)', background: 'var(--color-danger-subtle)', borderColor: 'var(--color-danger)' } : undefined}
+                    >
+                      <ThumbsDown className="w-3 h-3" />
+                    </button>
+                    {voted && <span className="text-[10px] text-zinc-600">AI noted ✓</span>}
+                  </span>
+                )}
                 {savedAssetId && (
                   <span className="flex items-center gap-1 text-[10px] border rounded-md px-2 py-0.5" style={{ color: 'var(--color-success)', background: 'var(--color-success-subtle)', borderColor: 'var(--color-success)' }}>
                     <CheckCircle2 className="w-3 h-3" /> Saved to assets

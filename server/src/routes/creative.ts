@@ -70,7 +70,9 @@ export async function creativeRoutes(app: FastifyInstance) {
         }
       }
       const finalUrl = savedAsset?.fileUrl || result.output.url || null;
-      await historyService.record({
+      // generationId returned so the FE thumbs (POST /creative/feedback) can
+      // reference this exact generation for the learn-from-feedback loop.
+      const generationId = await historyService.record({
         orgId: request.orgId,
         userId: request.user?.userId,
         clientId: clientId || undefined,
@@ -94,6 +96,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         assetId: savedAsset?.id || null,
         assetUrl: finalUrl,
         enhancedPrompt,
+        generationId,
       };
     } catch (err) {
       await historyService.record({
@@ -149,7 +152,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         });
       }
       const finalUrl = savedAsset?.fileUrl || result.output.url || null;
-      await historyService.record({
+      const generationId = await historyService.record({
         orgId: request.orgId,
         userId: request.user?.userId,
         clientId: clientId || undefined,
@@ -170,6 +173,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         assetId: savedAsset?.id || null,
         assetUrl: finalUrl,
         enhancedPrompt,
+        generationId,
       };
     } catch (err) {
       await historyService.record({
@@ -372,7 +376,7 @@ export async function creativeRoutes(app: FastifyInstance) {
             ...(j.data.model && /omni/i.test(j.data.model) ? { preferredProvider: 'gemini' as const }
               : j.data.model && /wan/i.test(j.data.model) ? { preferredProvider: 'dashscope' as const } : {}) },
         );
-        await historyService.record({
+        const generationId = await historyService.record({
           orgId,
           userId,
           clientId: j.data.clientId || undefined,
@@ -398,6 +402,7 @@ export async function creativeRoutes(app: FastifyInstance) {
           latencyMs: result.latencyMs, fallbackUsed: result.fallbackUsed,
           url: result.output.url,
           enhancedPrompt: j.data.enhancedPrompt || null,
+          generationId,
         };
       } catch (err) {
         await historyService.record({

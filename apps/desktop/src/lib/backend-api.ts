@@ -483,10 +483,14 @@ export const apiKeysApi = {
 // ─── Creative ────────────────────────────────────────────────────
 
 export const creativeApi = {
-  generateImage: (data: { prompt: string; aspectRatio?: string; clientId?: string; model?: string; provider?: 'gemini' | 'xai' | 'dashscope'; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K'; enhance?: boolean; stylePackId?: string }) =>
+  generateImage: (data: { prompt: string; aspectRatio?: string; clientId?: string; model?: string; provider?: 'gemini' | 'xai' | 'dashscope'; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K'; enhance?: boolean; depth?: 'raw' | 'low' | 'medium' | 'high'; stylePackId?: string }) =>
     request<any>('/api/creative/images/generate', { method: 'POST', body: JSON.stringify(data) }, { timeoutMs: 180000 }),
-  editImage: (data: { prompt: string; imageBase64: string; mimeType?: string; aspectRatio?: string; clientId?: string; model?: string; provider?: 'gemini' | 'xai' | 'dashscope'; referenceImages?: { base64: string; mimeType: string; role?: 'content' | 'style' | 'character' }[]; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K'; enhance?: boolean }) =>
+  editImage: (data: { prompt: string; imageBase64: string; mimeType?: string; aspectRatio?: string; clientId?: string; model?: string; provider?: 'gemini' | 'xai' | 'dashscope'; referenceImages?: { base64: string; mimeType: string; role?: 'content' | 'style' | 'character' }[]; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K'; enhance?: boolean; depth?: 'raw' | 'low' | 'medium' | 'high' }) =>
     request<any>('/api/creative/images/edit', { method: 'POST', body: JSON.stringify(data) }, { timeoutMs: 180000 }),
+  // Teach-the-AI thumbs (2026-07-14): records a win/miss memory for the client
+  // so future enhancements/generations lean toward or away from this style.
+  feedback: (generationId: string, liked: boolean) =>
+    request<{ ok: boolean; memoryId: string | null }>('/api/creative/feedback', { method: 'POST', body: JSON.stringify({ generationId, liked }) }),
   generateVideo: (data: {
     prompt: string;
     aspectRatio?: string;
@@ -513,6 +517,8 @@ export const creativeApi = {
     model?: string;
     // Auto pro-prompt (server-side enhancer). Default true; false opts out.
     enhance?: boolean;
+    // Enhancer depth dial: raw = translate-only (never reinterprets wording).
+    depth?: 'raw' | 'low' | 'medium' | 'high';
     // Curated Style Pack id (server-side design contracts).
     stylePackId?: string;
   }) =>
