@@ -16,6 +16,18 @@ export interface ChangelogEntry {
 
 const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-07-15',
+    tag: 'improved',
+    title: 'Faster, more reliable content generation',
+    body: 'Generating a month of content is now more dependable — it holds up when your whole team is generating at the same time, keeps running even while the app updates in the background, and picks up right where it left off instead of leaving you on a stuck progress bar. Large calendars that used to occasionally stall now finish.',
+  },
+  {
+    date: '2026-07-15',
+    tag: 'fixed',
+    title: 'Monthly briefs now shape that exact month',
+    body: 'When you set a brief for a specific month, that brief is now reliably used to generate that month\'s calendar — so planning August the way you want it no longer falls back to an earlier month\'s brief.',
+  },
+  {
     date: '2026-07-14',
     tag: 'new',
     title: 'Upscale images up to 16K',

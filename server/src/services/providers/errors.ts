@@ -88,7 +88,12 @@ const NON_RETRYABLE_PATTERNS = [
  *  policy — useful for surfacing a smart "all providers refused this content"
  *  message when every fallback also blocked. */
 export function isSafetyBlock(msg: string): boolean {
-  return /safety|blocked|content.?filter|policy|prohibited|child|photorealistic/i.test(msg);
+  // Includes Gemini's "Input text data may contain inappropriate content" and
+  // Omni's "Input blocked: ... could not be processed" — both are safety-filter
+  // FALSE POSITIVES on benign marketing prompts (they clear on a plain re-run),
+  // but they arrive wrapped in a 400 so they must be recognised as safety (not
+  // a hard bad-request) to be retried across providers + re-attempted.
+  return /safety|blocked|content.?filter|policy|prohibited|child|photorealistic|inappropriate|input\s+blocked|declined this content|could not be processed/i.test(msg);
 }
 
 // Provider billing exhaustion (credits gone / monthly spend cap hit) is a
@@ -106,6 +111,12 @@ export function isRetryableAiError(err: unknown): boolean {
 
   // Billing/credits exhaustion → always fall through to the next provider.
   if (BILLING_EXHAUSTION.test(msg)) return true;
+
+  // Safety/content blocks are retryable across providers — checked BEFORE the
+  // non-retryable list because these arrive wrapped in a 400 ("400 Input text
+  // data may contain inappropriate content") which the /400/ pattern would
+  // otherwise hard-block, killing the fallback + the safety re-attempt.
+  if (isSafetyBlock(msg)) return true;
 
   // Explicit non-retryable text check first (e.g. malformed payload).
   if (NON_RETRYABLE_PATTERNS.some(p => p.test(msg))) return false;

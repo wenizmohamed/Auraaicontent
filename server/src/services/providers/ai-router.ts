@@ -242,6 +242,15 @@ async function routeCall<T>(
   // doesn't tax every request with a full timeout before falling through.
   // filterAvailable guarantees ≥1 provider even if every breaker is open.
   const providers = filterAvailable(orderedProviders(task, preferredPrimary), task);
+  // Safety-block false positives (Gemini "inappropriate content", Omni "input
+  // blocked") hit benign marketing prompts intermittently and clear on a plain
+  // re-run. When EVERY provider blocks on safety, re-attempt the whole chain a
+  // couple of times before failing the user's generation. AI_SAFETY_RETRIES=0
+  // disables it.
+  const SAFETY_RETRIES = Math.max(0, parseInt(process.env.AI_SAFETY_RETRIES || '2', 10));
+  let lastFailures: ProviderFailure[] = [];
+
+  for (let attempt = 0; attempt <= SAFETY_RETRIES; attempt++) {
   const failures: ProviderFailure[] = [];
   let fallbackUsed = false;
 
@@ -296,7 +305,17 @@ async function routeCall<T>(
       console.warn(`[AI] ${provider.name} ${task} failed (retryable), trying fallback: ${errMsg.slice(0, 80)}`);
     }
   }
-  throw new AllProvidersFailedError(task, failures);
+
+  lastFailures = failures;
+  const allSafetyBlocked = failures.length > 0 && failures.every(f => isSafetyBlock(f.message));
+  if (allSafetyBlocked && attempt < SAFETY_RETRIES) {
+    console.warn(`[AI] all providers safety-blocked ${task} (attempt ${attempt + 1}/${SAFETY_RETRIES + 1}) — re-attempting; benign content usually clears on retry`);
+    await new Promise(r => setTimeout(r, 600 * (attempt + 1)));
+    continue;
+  }
+  break;
+  }
+  throw new AllProvidersFailedError(task, lastFailures);
 }
 
 // ─── Public API ──────────────────────────────────────────────────
