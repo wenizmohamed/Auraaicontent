@@ -104,19 +104,50 @@ export function updateJob(id: string, updates: Partial<Job>): Job | undefined {
 }
 
 // Process a job asynchronously — fires worker function, updates status
+// ── Bounded concurrency ──────────────────────────────────────────────────
+// Heavy jobs (generate-month, creative-video, upscale) each spike RSS to
+// ~0.5–1.6GB. Running them UNBOUNDED meant N concurrent clients → N× memory →
+// OOM → PM2 SIGKILL → every in-flight job lost (the "generation is down at
+// scale" failure). We now run at most MAX_CONCURRENT workers at once; the rest
+// wait in `queued` status and drain as slots free. Memory stays flat no matter
+// how many clients hit generate at the same time. Same external API — callers
+// still just call processJob(id, worker).
+const MAX_CONCURRENT = Math.max(1, parseInt(process.env.RADIX_JOB_CONCURRENCY || '3', 10));
+let running = 0;
+const pending: Array<{ id: string; worker: (job: Job) => Promise<any> }> = [];
+
+function pump(): void {
+  while (running < MAX_CONCURRENT && pending.length > 0) {
+    const next = pending.shift()!;
+    const job = jobs.get(next.id);
+    if (!job) continue; // evicted/cancelled before it got a slot
+    if (job.status !== 'queued') continue; // already handled
+    running++;
+    updateJob(next.id, { status: 'processing', progress: 5 });
+    Promise.resolve()
+      .then(() => next.worker(job))
+      .then(result => { updateJob(next.id, { status: 'completed', progress: 100, result }); })
+      .catch(err => {
+        const msg = err?.message || String(err);
+        console.error(`[JOB FAILED] ${job.type} (${next.id}): ${msg}`, err?.stack || '');
+        updateJob(next.id, { status: 'failed', error: msg });
+      })
+      .finally(() => { running--; pump(); });
+  }
+}
+
 export function processJob(id: string, worker: (job: Job) => Promise<any>): void {
   const job = jobs.get(id);
   if (!job) return;
+  // Enqueue (stays `queued`) and let the pump start it when a slot is free.
+  pending.push({ id, worker });
+  if (pending.length > 0 && running >= MAX_CONCURRENT) {
+    console.log(`[queue] ${job.type} (${id}) queued — ${running} running, ${pending.length} waiting (cap ${MAX_CONCURRENT})`);
+  }
+  pump();
+}
 
-  updateJob(id, { status: 'processing', progress: 5 });
-
-  worker(job)
-    .then(result => {
-      updateJob(id, { status: 'completed', progress: 100, result });
-    })
-    .catch(err => {
-      const msg = err.message || String(err);
-      console.error(`[JOB FAILED] ${job.type} (${id}): ${msg}`, err.stack || '');
-      updateJob(id, { status: 'failed', error: msg });
-    });
+// Observability for the dashboard / debugging.
+export function queueStats(): { running: number; pending: number; cap: number } {
+  return { running, pending: pending.length, cap: MAX_CONCURRENT };
 }
