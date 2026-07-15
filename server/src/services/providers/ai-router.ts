@@ -107,7 +107,10 @@ const PROVIDERS: Record<AiProviderName, AiProvider> = {
 // stays primary by default via the PRIMARY env map; this only adds resilience —
 // a request only reaches DashScope if the providers before it fail.
 const CHAIN: Record<string, AiProviderName[]> = {
-  text: ['gemini', 'xai', 'dashscope'],
+  // xai text is billing-dead (403 credits exhausted) as of 2026-07 — keep it in
+  // the chain (harmless once topped up) but AFTER dashscope so a gemini miss
+  // falls straight to a WORKING provider instead of wasting a hop on the dead one.
+  text: ['gemini', 'dashscope', 'xai'],
   image: ['gemini', 'xai', 'dashscope'],
   // image_edit SKIPS xai: xAI's /images/edits returns 403 permission-denied for
   // this team, and 403 is non-retryable → it used to HALT the ladder before
