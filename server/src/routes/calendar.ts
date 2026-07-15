@@ -45,7 +45,7 @@ export async function calendarRoutes(app: FastifyInstance) {
     // second worker.
     const userId = request.user?.userId;
 
-    const inflight = findInflightGenerateJob(clientId, month);
+    const inflight = await findInflightGenerateJob(clientId, month);
     if (inflight) {
       auditService.log({ orgId, userId, clientId, action: 'generate-deduped', entityType: 'CalendarMonth', payload: { month, existingJobId: inflight.id } });
       return { jobId: inflight.id, deduped: true };

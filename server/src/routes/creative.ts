@@ -3,7 +3,8 @@ import { FastifyInstance } from 'fastify';
 import { authGuard } from '../middleware/auth.js';
 import { aiRouter, getAiTelemetry } from '../services/providers/ai-router.js';
 import { sendAiError } from '../services/providers/errors.js';
-import { createJob, processJob, getJob, updateJob } from '../workers/queue.js';
+import { createJob, processJob, getJob } from '../workers/queue.js';
+import { creativeVideoWorker } from '../workers/creativeVideo.worker.js';
 import { storageService } from '../services/storage.service.js';
 import { db } from '../db/prisma.js';
 import { searchPinterest, searchPinterestMulti, fetchPinterestImageBase64 } from '../services/pinterest.service.js';
@@ -14,7 +15,6 @@ import { getStylePack, listStylePacks } from '../services/style-packs.js';
 import { recordMemory } from '../services/memory.service.js';
 import { upscaleImage } from '../services/upscale.service.js';
 import { assertVideoDailyGuardrail } from '../lib/budget.js';
-import type { Job } from '../workers/queue.js';
 
 // B3 — social safe-zone: appended to the prompt when the user toggles it on, so
 // generated creative keeps the top/bottom platform-UI bands clear (Reels/Stories
@@ -360,6 +360,10 @@ export async function creativeRoutes(app: FastifyInstance) {
     const orgId = request.orgId;
     const userId = request.user?.userId;
     const job = createJob('creative-video', {
+      // orgId/userId travel IN the job data (not via closure) so the durable
+      // queue dispatches with the correct owner even under concurrent requests
+      // and after restarts — and so /creative/jobs scoping can authorize.
+      orgId, userId,
       prompt: genPrompt, aspectRatio, durationSeconds, resolution, clientId,
       imageBase64, mimeType,
       startImageBase64, startMimeType, endImageBase64, endMimeType,
@@ -370,101 +374,7 @@ export async function creativeRoutes(app: FastifyInstance) {
       enhancedPrompt,
       originalPrompt: prompt,
     });
-    processJob(job.id, async (j: Job) => {
-      // Pace the progress bar to the engine's REAL latency. The old flat
-      // +5%/3s sprinted to 90% in ~48s and then froze for the 2-3 minutes
-      // Wan/Veo actually take — users read that as "stuck at 90%".
-      // Expected wall-clock per engine (measured live 2026-07-03):
-      // omni ~45s, veo ~70s, grok draft ~100s, wan ~170s. Creeps to 95%
-      // max so there's always visible motion until real completion.
-      const m: string = j.data.model || '';
-      const expectedSec = /wan/i.test(m) ? 170
-        : /omni/i.test(m) ? 55
-        : (j.data.imageBase64 || j.data.tier === 'hd') ? 80
-        : 110;
-      const stepPct = 85 / (expectedSec / 3);   // 10% → 95% across expectedSec
-      let p = 10;
-      const ticker = setInterval(() => {
-        p = Math.min(p + stepPct, 95);
-        updateJob(j.id, { progress: Math.round(p * 10) / 10 });
-      }, 3000);
-      try {
-        const result = await aiRouter.video(
-          {
-            prompt: j.data.prompt,
-            aspectRatio: j.data.aspectRatio,
-            durationSeconds: j.data.durationSeconds,
-            resolution: j.data.resolution,
-            imageBase64: j.data.imageBase64,
-            mimeType: j.data.mimeType,
-            startImageBase64: j.data.startImageBase64,
-            startMimeType: j.data.startMimeType,
-            endImageBase64: j.data.endImageBase64,
-            endMimeType: j.data.endMimeType,
-            // Cost tiering: tier drives provider order in ai-router; fast is
-            // ALWAYS true in v1 (draft → grok-fast fallback, hd → veo-3.1-fast).
-            tier: j.data.tier,
-            fast: true,
-            negativePrompt: j.data.negativePrompt,
-            referenceImages: j.data.referenceImages,
-            model: j.data.model,
-          },
-          // Engine pins: Omni lives on Gemini, Wan on DashScope — pin the
-          // provider so tier-based reordering can't send the request to an
-          // engine that ignores req.model.
-          { orgId, userId, jobId: j.id, clientId: j.data.clientId,
-            ...(j.data.model && /omni/i.test(j.data.model) ? { preferredProvider: 'gemini' as const }
-              : j.data.model && /wan/i.test(j.data.model) ? { preferredProvider: 'dashscope' as const } : {}) },
-        );
-        const generationId = await historyService.record({
-          orgId,
-          userId,
-          clientId: j.data.clientId || undefined,
-          type: 'video',
-          surface: 'creative_tools',
-          prompt: j.data.prompt,
-          outputUrl: result.output.url || null,
-          thumbnailUrl: result.output.url || null,
-          provider: result.provider,
-          model: result.model,
-          latencyMs: result.latencyMs,
-          metadata: {
-            aspectRatio: j.data.aspectRatio,
-            durationSeconds: j.data.durationSeconds,
-            resolution: j.data.resolution,
-            mode: j.data.imageBase64 ? 'image-to-video' : 'text-to-video',
-            jobId: j.id,
-            enhancedPrompt: j.data.enhancedPrompt || null,
-          },
-        });
-        return {
-          provider: result.provider, model: result.model,
-          latencyMs: result.latencyMs, fallbackUsed: result.fallbackUsed,
-          url: result.output.url,
-          enhancedPrompt: j.data.enhancedPrompt || null,
-          generationId,
-        };
-      } catch (err) {
-        await historyService.record({
-          orgId,
-          userId,
-          clientId: j.data.clientId || undefined,
-          type: 'video',
-          surface: 'creative_tools',
-          prompt: j.data.prompt,
-          status: 'failed',
-          error: errMessage(err, 'unknown'),
-          metadata: {
-            aspectRatio: j.data.aspectRatio,
-            mode: j.data.imageBase64 ? 'image-to-video' : 'text-to-video',
-            jobId: j.id,
-          },
-        });
-        throw err;
-      } finally {
-        clearInterval(ticker);
-      }
-    });
+    processJob(job.id, creativeVideoWorker);
 
     return reply.status(202).send({ jobId: job.id });
   });
@@ -472,7 +382,7 @@ export async function creativeRoutes(app: FastifyInstance) {
   // GET /api/creative/jobs/:jobId — poll video/creative job status
   app.get('/creative/jobs/:jobId', async (request, reply) => {
     const { jobId } = request.params as { jobId: string };
-    const job = getJob(jobId);
+    const job = await getJob(jobId);
     if (job) {
       return { id: job.id, status: job.status, progress: job.progress, result: job.result, error: job.error };
     }

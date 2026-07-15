@@ -41,6 +41,7 @@ import { brandKitRoutes } from './routes/brand-kit.js';
 import { memoryRoutes } from './routes/memory.js';
 import { startTokenHealthWorker } from './workers/tokenHealth.worker.js';
 import { startSchedulerWorker } from './workers/scheduler.worker.js';
+import { initJobWorkers } from './workers/register.js';
 import { startGeminiModelValidator } from './services/providers/gemini-model-validator.js';
 import { initSentry } from './lib/sentry.js';
 import { registerRateLimiter } from './middleware/rate-limiter.js';
@@ -298,6 +299,11 @@ export async function buildApp() {
   // CalendarPost rows with status='scheduled' AND scheduledAt <= now+60s,
   // SETNX-locked per (postId, scheduledAt). Kill switch: SCHEDULER_DISABLED=true.
   startSchedulerWorker();
+
+  // Register all durable job workers so BullMQ starts consuming immediately and
+  // any jobs still WAITING in Redis from a previous process resume after a
+  // restart (instead of stranding until the next dispatch of that type).
+  initJobWorkers();
 
   // Validate every configured GEMINI_*_MODEL against Google's live
   // ListModels response. Loud-warns on any dead model id so the next

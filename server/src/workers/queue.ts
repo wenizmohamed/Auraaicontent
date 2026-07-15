@@ -1,16 +1,31 @@
-// Job queue — in-memory for now, BullMQ+Redis in Phase 4
-// This provides the same API surface so the migration to BullMQ is a drop-in swap
+// Job queue — BullMQ + Redis (durable). Replaces the former in-memory Map so
+// in-flight generations survive process restarts/deploys and can't be silently
+// lost, and so N concurrent clients can't OOM the box (bounded worker
+// concurrency). The PUBLIC API is preserved (createJob/processJob/updateJob +
+// now-async getJob/findInflightGenerateJob/queueStats) so route/worker callers
+// barely change.
+//
+// Safety notes for this codebase:
+//  - generate-month/export/publish are NON-idempotent (they create DB rows), so
+//    we set attempts:1 (no auto-retry) and maxStalledCount:0 (a job whose worker
+//    died is marked FAILED, never silently re-run → no duplicate calendars). The
+//    win is durable STATE (the FE always gets a real status instead of polling a
+//    ghost) + graceful drain, not blind auto-resume.
+//  - Worker concurrency = RADIX_JOB_CONCURRENCY (default 3): at most N heavy jobs
+//    run at once; the rest wait in Redis and drain as slots free.
+import { Queue, Worker, type Job as BmqJob } from 'bullmq';
+import IORedis from 'ioredis';
+import crypto from 'crypto';
+import { env } from '../config/env.js';
 
-const JOB_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes max per job (was 10; bumped for visual ref auto-populate headroom)
+const QUEUE_NAME = 'radix-jobs';
+const MAX_CONCURRENT = Math.max(1, parseInt(process.env.RADIX_JOB_CONCURRENCY || '3', 10));
+const KEEP_TERMINAL_S = 60 * 60; // keep completed/failed jobs 1h (FE poll window)
 
-// PERF-5 eviction: completed/failed jobs older than this are deleted on
-// every sweep, capping memory at roughly EVICTION_AGE_MS / job_rate. With
-// PM2 --max-old-space-size=512, the unbounded map was a plausible cause
-// of the 80-restart loop noted in MEMORY.md (especially when each job
-// payload included base64 image data).
-const EVICTION_AGE_MS = 60 * 60 * 1000; // keep completed/failed for 1h
-const EVICTION_TICK_MS = 5 * 60 * 1000;
-const HARD_SIZE_CAP = 5000; // emergency cap if eviction can't keep up
+// BullMQ requires maxRetriesPerRequest:null on its connections. Give the Worker
+// its own blocking connection, separate from the Queue's.
+const queueConn = new IORedis(env.REDIS_URL, { maxRetriesPerRequest: null });
+const workerConn = new IORedis(env.REDIS_URL, { maxRetriesPerRequest: null });
 
 export interface Job {
   id: string;
@@ -24,130 +39,164 @@ export interface Job {
   updatedAt: string;
 }
 
-const jobs = new Map<string, Job>();
+const queue = new Queue(QUEUE_NAME, {
+  connection: queueConn,
+  defaultJobOptions: {
+    attempts: 1, // non-idempotent workers → no auto-retry
+    removeOnComplete: { age: KEEP_TERMINAL_S, count: 2000 },
+    removeOnFail: { age: KEEP_TERMINAL_S, count: 2000 },
+  },
+});
 
-function sweep(): void {
-  const cutoff = Date.now() - EVICTION_AGE_MS;
-  let evicted = 0;
-  for (const [id, job] of jobs) {
-    if (job.status !== 'completed' && job.status !== 'failed') continue;
-    if (new Date(job.updatedAt).getTime() < cutoff) {
-      jobs.delete(id);
-      evicted++;
-    }
-  }
-  // Emergency cap: if still bloated after age-based eviction, drop the
-  // oldest terminal jobs first regardless of age.
-  if (jobs.size > HARD_SIZE_CAP) {
-    const terminals = [...jobs.values()]
-      .filter(j => j.status === 'completed' || j.status === 'failed')
-      .sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
-    while (jobs.size > HARD_SIZE_CAP && terminals.length) {
-      const victim = terminals.shift()!;
-      jobs.delete(victim.id);
-      evicted++;
-    }
-  }
-  if (evicted > 0) console.log(`[queue] swept ${evicted} terminal job(s); ${jobs.size} remain`);
+// type -> worker fn. A single BullMQ Worker consumes the queue and dispatches
+// by job.name (=type). Populated lazily by processJob.
+const workerRegistry = new Map<string, (job: Job) => Promise<any>>();
+// Active BullMQ jobs by id, so updateJob(id,{progress}) can forward progress.
+const activeBmq = new Map<string, BmqJob>();
+// Data for jobs created but not yet dispatched (createJob before processJob).
+const pendingData = new Map<string, { type: string; data: any }>();
+
+let worker: Worker | null = null;
+function ensureWorker(): void {
+  if (worker) return;
+  worker = new Worker(
+    QUEUE_NAME,
+    async (bmqJob: BmqJob) => {
+      const fn = workerRegistry.get(bmqJob.name);
+      if (!fn) throw new Error(`No worker registered for job type "${bmqJob.name}"`);
+      const shim: Job = {
+        id: bmqJob.id!,
+        type: bmqJob.name,
+        status: 'processing',
+        progress: 5,
+        data: bmqJob.data,
+        createdAt: new Date(bmqJob.timestamp).toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      activeBmq.set(bmqJob.id!, bmqJob);
+      try {
+        return await fn(shim);
+      } finally {
+        activeBmq.delete(bmqJob.id!);
+      }
+    },
+    {
+      connection: workerConn,
+      concurrency: MAX_CONCURRENT,
+      maxStalledCount: 0, // dead-worker job → FAILED, never re-run (non-idempotent)
+    },
+  );
+  worker.on('failed', (job, err) => {
+    console.error(`[JOB FAILED] ${job?.name} (${job?.id}): ${err?.message || err}`);
+  });
+  worker.on('error', (err) => { console.error(`[queue] worker error: ${err?.message || err}`); });
 }
 
-setInterval(sweep, EVICTION_TICK_MS).unref();
+// Register a worker for a job type AT BOOT (via workers/register.ts) so that
+// jobs enqueued by a PREVIOUS process — still waiting in Redis after a restart —
+// get picked up immediately, instead of stranding until a same-type job is
+// next dispatched. Starts the consuming Worker on first registration.
+export function registerWorkerType(type: string, workerFn: (job: Job) => Promise<any>): void {
+  workerRegistry.set(type, workerFn);
+  ensureWorker();
+}
 
 export function createJob(type: string, data: any): Job {
-  const job: Job = {
-    id: crypto.randomUUID(),
-    type,
-    status: 'queued',
-    progress: 0,
-    data,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+  const id = crypto.randomUUID();
+  pendingData.set(id, { type, data });
+  return {
+    id, type, status: 'queued', progress: 0, data,
+    createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
   };
-  jobs.set(job.id, job);
-  return job;
+}
+
+export function processJob(id: string, workerFn: (job: Job) => Promise<any>): void {
+  const pending = pendingData.get(id);
+  if (!pending) { console.error(`[queue] processJob(${id}) — no pending data (createJob first)`); return; }
+  pendingData.delete(id);
+  workerRegistry.set(pending.type, workerFn);
+  ensureWorker();
+  // Enqueue in Redis (durable). Fire-and-forget: the Worker picks it up
+  // respecting the concurrency cap; excess jobs wait in Redis.
+  queue.add(pending.type, pending.data, { jobId: id })
+    .catch(err => console.error(`[queue] add failed for ${id}: ${err?.message || err}`));
+}
+
+function mapState(state: string): Job['status'] {
+  if (state === 'completed') return 'completed';
+  if (state === 'failed') return 'failed';
+  if (state === 'active') return 'processing';
+  return 'queued'; // waiting | delayed | prioritized | paused | waiting-children | unknown
+}
+
+function toJob(bmqJob: BmqJob, state: string): Job {
+  const status = mapState(state);
+  const rawProg = typeof bmqJob.progress === 'number' ? bmqJob.progress : 0;
+  return {
+    id: bmqJob.id!,
+    type: bmqJob.name,
+    status,
+    progress: status === 'completed' ? 100 : rawProg,
+    data: bmqJob.data,
+    result: bmqJob.returnvalue ?? undefined,
+    error: bmqJob.failedReason ?? undefined,
+    createdAt: new Date(bmqJob.timestamp).toISOString(),
+    updatedAt: new Date(bmqJob.finishedOn || bmqJob.processedOn || bmqJob.timestamp).toISOString(),
+  };
+}
+
+export async function getJob(id: string): Promise<Job | undefined> {
+  const bmqJob = await queue.getJob(id);
+  if (!bmqJob) return undefined;
+  const state = await bmqJob.getState();
+  return toJob(bmqJob, state);
+}
+
+// Only `progress` is meaningful here — status/result/error transitions are
+// automatic in BullMQ (return value → result, throw → failed). Workers call
+// updateJob(job.id, { progress }) throughout; we forward it to the live job.
+export function updateJob(id: string, updates: Partial<Job>): void {
+  if (typeof updates.progress === 'number') {
+    const bmqJob = activeBmq.get(id);
+    if (bmqJob) bmqJob.updateProgress(updates.progress).catch(() => { /* best-effort */ });
+  }
 }
 
 // Find an in-flight generate-month job for the same clientId+month so a
-// double-click doesn't start two parallel workers (one wins on DB insert,
-// other fails with unique-constraint error → user stuck on failed job).
-export function findInflightGenerateJob(clientId: string, month: string): Job | undefined {
-  for (const job of jobs.values()) {
-    if (job.type !== 'generate-month') continue;
-    if (job.status !== 'queued' && job.status !== 'processing') continue;
-    if (job.data?.clientId === clientId && job.data?.month === month) return job;
+// double-click doesn't start two parallel workers.
+export async function findInflightGenerateJob(clientId: string, month: string): Promise<Job | undefined> {
+  const inflight = await queue.getJobs(['waiting', 'active', 'delayed', 'prioritized', 'paused']);
+  for (const j of inflight) {
+    if (j.name !== 'generate-month') continue;
+    if (j.data?.clientId === clientId && j.data?.month === month) {
+      const state = await j.getState();
+      return toJob(j, state);
+    }
   }
   return undefined;
 }
 
-export function getJob(id: string): Job | undefined {
-  const job = jobs.get(id);
-  if (!job) return undefined;
+export async function queueStats(): Promise<{ running: number; pending: number; cap: number }> {
+  const c = await queue.getJobCounts('waiting', 'active', 'delayed');
+  return { running: c.active || 0, pending: (c.waiting || 0) + (c.delayed || 0), cap: MAX_CONCURRENT };
+}
 
-  // Stale-job timeout guard: if processing longer than JOB_TIMEOUT_MS, mark failed
-  if (job.status === 'processing') {
-    const elapsed = Date.now() - new Date(job.updatedAt).getTime();
-    if (elapsed > JOB_TIMEOUT_MS) {
-      const reason = `Job timed out after ${Math.round(elapsed / 1000)}s (limit: ${JOB_TIMEOUT_MS / 1000}s)`;
-      console.error(`[JOB ZOMBIE] ${job.type} (${job.id}): ${reason}`);
-      Object.assign(job, { status: 'failed', error: reason, updatedAt: new Date().toISOString() });
-    }
+// Graceful shutdown: on SIGTERM/SIGINT (pm2 restart/deploy), stop taking new
+// jobs and let active ones finish before exit — deploys no longer drop
+// in-flight generations. pm2 kill_timeout must exceed the longest job.
+let shuttingDown = false;
+async function shutdown(sig: string): Promise<void> {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`[queue] ${sig} — draining ${activeBmq.size} active job(s) before exit...`);
+  try {
+    if (worker) await worker.close(); // waits for active jobs to finish
+    await queue.close();
+  } catch (err: any) {
+    console.error(`[queue] shutdown error: ${err?.message || err}`);
   }
-
-  return job;
+  console.log('[queue] drained — exiting');
+  process.exit(0);
 }
-
-export function updateJob(id: string, updates: Partial<Job>): Job | undefined {
-  const job = jobs.get(id);
-  if (!job) return undefined;
-  Object.assign(job, updates, { updatedAt: new Date().toISOString() });
-  return job;
-}
-
-// Process a job asynchronously — fires worker function, updates status
-// ── Bounded concurrency ──────────────────────────────────────────────────
-// Heavy jobs (generate-month, creative-video, upscale) each spike RSS to
-// ~0.5–1.6GB. Running them UNBOUNDED meant N concurrent clients → N× memory →
-// OOM → PM2 SIGKILL → every in-flight job lost (the "generation is down at
-// scale" failure). We now run at most MAX_CONCURRENT workers at once; the rest
-// wait in `queued` status and drain as slots free. Memory stays flat no matter
-// how many clients hit generate at the same time. Same external API — callers
-// still just call processJob(id, worker).
-const MAX_CONCURRENT = Math.max(1, parseInt(process.env.RADIX_JOB_CONCURRENCY || '3', 10));
-let running = 0;
-const pending: Array<{ id: string; worker: (job: Job) => Promise<any> }> = [];
-
-function pump(): void {
-  while (running < MAX_CONCURRENT && pending.length > 0) {
-    const next = pending.shift()!;
-    const job = jobs.get(next.id);
-    if (!job) continue; // evicted/cancelled before it got a slot
-    if (job.status !== 'queued') continue; // already handled
-    running++;
-    updateJob(next.id, { status: 'processing', progress: 5 });
-    Promise.resolve()
-      .then(() => next.worker(job))
-      .then(result => { updateJob(next.id, { status: 'completed', progress: 100, result }); })
-      .catch(err => {
-        const msg = err?.message || String(err);
-        console.error(`[JOB FAILED] ${job.type} (${next.id}): ${msg}`, err?.stack || '');
-        updateJob(next.id, { status: 'failed', error: msg });
-      })
-      .finally(() => { running--; pump(); });
-  }
-}
-
-export function processJob(id: string, worker: (job: Job) => Promise<any>): void {
-  const job = jobs.get(id);
-  if (!job) return;
-  // Enqueue (stays `queued`) and let the pump start it when a slot is free.
-  pending.push({ id, worker });
-  if (pending.length > 0 && running >= MAX_CONCURRENT) {
-    console.log(`[queue] ${job.type} (${id}) queued — ${running} running, ${pending.length} waiting (cap ${MAX_CONCURRENT})`);
-  }
-  pump();
-}
-
-// Observability for the dashboard / debugging.
-export function queueStats(): { running: number; pending: number; cap: number } {
-  return { running, pending: pending.length, cap: MAX_CONCURRENT };
-}
+process.on('SIGTERM', () => { void shutdown('SIGTERM'); });
+process.on('SIGINT', () => { void shutdown('SIGINT'); });

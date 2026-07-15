@@ -10,7 +10,7 @@ export async function jobRoutes(app: FastifyInstance) {
   // with that metadata. Prevents cross-org enumeration by UUID guessing.
   app.get('/:jobId', async (request, reply) => {
     const { jobId } = request.params as { jobId: string };
-    const job = getJob(jobId);
+    const job = await getJob(jobId);
     if (!job) return reply.status(404).send({ error: 'Job not found' });
     const jobOrgId = job.data?.orgId;
     const jobUserId = job.data?.userId;
