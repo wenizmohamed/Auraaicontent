@@ -1,5 +1,31 @@
 import { db } from '../db/prisma.js';
 
+// Brief months are SAVED in canonical ISO "YYYY-MM" (from BriefInput's month
+// picker `value`), but calendar generation historically passes the human LABEL
+// ("July 2026") — the two never string-matched, so per-month briefs silently
+// never applied and month-only clients hard-failed with "brief missing".
+// normalizeMonth() collapses either form to the canonical "YYYY-MM" key (or ''
+// for the legacy/default brief) so lookups match regardless of caller format.
+const MONTH_NAMES: Record<string, string> = {
+  january: '01', february: '02', march: '03', april: '04', may: '05', june: '06',
+  july: '07', august: '08', september: '09', october: '10', november: '11', december: '12',
+};
+export function normalizeMonth(month?: string | null): string {
+  if (!month) return '';
+  const s = String(month).trim();
+  if (!s) return '';
+  // Already canonical "YYYY-MM" (allow "YYYY-MM-DD" too)
+  const iso = s.match(/^(\d{4})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}`;
+  // Human label like "July 2026" / "Jul 2026"
+  const m = s.toLowerCase().match(/^([a-z]+)\s+(\d{4})$/);
+  if (m) {
+    const key = Object.keys(MONTH_NAMES).find(name => name.startsWith(m[1].slice(0, 3)));
+    if (key) return `${m[2]}-${MONTH_NAMES[key]}`;
+  }
+  return s; // unknown format — compare as-is
+}
+
 // Fields that contribute to completeness score
 const REQUIRED_FIELDS = [
   'objective', 'audience', 'tone', 'brandDo', 'brandDont',
@@ -18,15 +44,22 @@ export const briefService = {
   //    so every context consumer (assistant/design/research/etc.) keeps getting
   //    "the client's brief" exactly as before.
   async getByClientId(orgId: string, clientId: string, month?: string) {
-    if (month != null && month !== '') {
-      const exact = await db.clientBrief.findFirst({ where: { clientId, orgId, month } });
+    // Load every brief once and match in-memory on the NORMALIZED month key so
+    // "July 2026" (calendar label) resolves to the "2026-07" saved brief.
+    const all = await db.clientBrief.findMany({ where: { clientId, orgId } });
+    if (all.length === 0) return null;
+
+    const wanted = normalizeMonth(month);
+    if (wanted) {
+      const exact = all.find(b => normalizeMonth(b.month) === wanted);
       if (exact) return exact;
-      // fall back to the default brief for months without a dedicated one
-      return db.clientBrief.findFirst({ where: { clientId, orgId, month: '' } });
     }
-    const def = await db.clientBrief.findFirst({ where: { clientId, orgId, month: '' } });
+    // Prefer the legacy/default ('') brief, then most-recently updated — so a
+    // month without a dedicated brief (or a month-only client) still generates
+    // instead of hard-failing with "brief missing".
+    const def = all.find(b => normalizeMonth(b.month) === '');
     if (def) return def;
-    return db.clientBrief.findFirst({ where: { clientId, orgId }, orderBy: { updatedAt: 'desc' } });
+    return all.slice().sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())[0];
   },
 
   // All briefs for a client, newest first (for "copy last month" + history UI).
@@ -37,10 +70,11 @@ export const briefService = {
   // Upsert keyed on (clientId, month). Create if that month's brief is missing,
   // update it if it exists. month defaults to '' (the legacy default brief).
   async upsert(orgId: string, clientId: string, data: any, month = '') {
+    const key = normalizeMonth(month); // store canonical "YYYY-MM" (or '')
     const { id, clientId: _, orgId: __, month: ___, createdAt, updatedAt, client, ...briefData } = data;
     return db.clientBrief.upsert({
-      where: { clientId_month: { clientId, month } },
-      create: { clientId, orgId, month, ...briefData },
+      where: { clientId_month: { clientId, month: key } },
+      create: { clientId, orgId, month: key, ...briefData },
       update: briefData,
     });
   },

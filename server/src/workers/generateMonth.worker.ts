@@ -145,6 +145,22 @@ export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: 
 
   // 6. Save CalendarPosts
   updateJob(job.id, { progress: 80 });
+  // De-duplicate post dates. The (calendarMonthId, date) unique index means two
+  // posts the AI put on the same day (or both blank) would 500 the ENTIRE month
+  // on the second insert. Nudge each collision to the next free day so every
+  // post is kept and the job never crashes on an AI quirk.
+  const usedDates = new Set<string>();
+  const baseDate = (() => { const d = new Date(`${month} 1`); return isNaN(d.getTime()) ? new Date() : d; })();
+  const fmtDate = (d: Date) => d.toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  parsed.posts.forEach((post: any, i: number) => {
+    let d = new Date(post.date);
+    if (isNaN(d.getTime())) { d = new Date(baseDate); d.setDate(Math.min(28, i + 1)); } // fallback: spread across month
+    let dateStr = post.date && !isNaN(new Date(post.date).getTime()) ? post.date : fmtDate(d);
+    while (usedDates.has(dateStr)) { d.setDate(d.getDate() + 1); dateStr = fmtDate(d); }
+    usedDates.add(dateStr);
+    post.date = dateStr;
+  });
+
   const createdPostIds: { id: string; referenceQuery: string | null; format: string | null }[] = [];
   for (const post of parsed.posts) {
     const created = await db.calendarPost.create({
