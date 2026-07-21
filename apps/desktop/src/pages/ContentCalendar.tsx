@@ -612,7 +612,10 @@ export default function ContentCalendar() {
               {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
               {exporting ? 'Exporting...' : 'Export PPTX'}
             </button>
-            {urlClient && backendMonth?.month && (
+            {/* Monthly Report hidden until its backend exists — POST /reports/monthly
+                is not implemented server-side, so the button 404'd ("Report failed").
+                Re-enable once reportsRoutes ships. Component + reportsApi kept intact. */}
+            {false && urlClient && backendMonth?.month && (
               <MonthlyReportButton
                 clientId={urlClient}
                 month={backendMonth.month}
