@@ -142,7 +142,10 @@ export async function buildApp() {
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   });
   app.log.info({ corsOrigin }, '[http] CORS policy');
-  await app.register(multipart, { limits: { fileSize: 25 * 1024 * 1024 } });
+  // 50 MiB to match nginx client_max_body_size (50M) and the JSON bodyLimit.
+  // Was 25 MiB → real client video reels (25-50MB) passed nginx then hit a
+  // Fastify 413 (FST_REQ_FILE_TOO_LARGE) on /assets/upload.
+  await app.register(multipart, { limits: { fileSize: 50 * 1024 * 1024 } });
   await app.register(fastifyStatic, { root: path.resolve(process.cwd(), 'uploads'), prefix: '/uploads/', decorateReply: false });
 
   const PROCESS_START = new Date().toISOString();
