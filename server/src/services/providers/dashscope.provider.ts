@@ -53,7 +53,12 @@ async function chat(req: TextRequest | AnalysisRequest, json: boolean): Promise<
   const r = await client.chat.completions.create({
     model,
     messages,
-    max_tokens: (req as TextRequest).maxTokens ?? 4096,
+    // 16384 (was 4096): qwen3.7-max is a reasoning model, so thinking + answer
+    // share this budget. A month plan (18-30 posts) needs ~7-11K output tokens;
+    // at 4096 EVERY calendar that fell through to DashScope truncated → invalid
+    // posts array → whole generation failed. This is the second half of the
+    // "gemini fails → Qwen → job dies" chain.
+    max_tokens: (req as TextRequest).maxTokens ?? 16384,
     ...((req as TextRequest).temperature != null ? { temperature: (req as TextRequest).temperature } : {}),
     ...(json ? { response_format: { type: 'json_object' as const } } : {}),
   });

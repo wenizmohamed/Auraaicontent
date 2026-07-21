@@ -107,10 +107,11 @@ const PROVIDERS: Record<AiProviderName, AiProvider> = {
 // stays primary by default via the PRIMARY env map; this only adds resilience —
 // a request only reaches DashScope if the providers before it fail.
 const CHAIN: Record<string, AiProviderName[]> = {
-  // xai text is billing-dead (403 credits exhausted) as of 2026-07 — keep it in
-  // the chain (harmless once topped up) but AFTER dashscope so a gemini miss
-  // falls straight to a WORKING provider instead of wasting a hop on the dead one.
-  text: ['gemini', 'dashscope', 'xai'],
+  // xai grok-4.20 is ALIVE again (billing restored — re-verified live 2026-07-21)
+  // and is cheaper than DashScope AND doesn't run Qwen's strict content filter
+  // that false-blocks benign marketing prompts. So xai is the 2nd hop; DashScope
+  // (strict filter, pricier) is the last resort. gemini stays primary.
+  text: ['gemini', 'xai', 'dashscope'],
   image: ['gemini', 'xai', 'dashscope'],
   // image_edit SKIPS xai: xAI's /images/edits returns 403 permission-denied for
   // this team, and 403 is non-retryable → it used to HALT the ladder before

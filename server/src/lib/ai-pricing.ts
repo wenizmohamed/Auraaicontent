@@ -65,6 +65,7 @@ export const AI_PRICING: Record<string, PricePoint> = {
   'gemini-flash-latest':               { promptPerM: 0.30, completionPerM: 2.50 },  // 3.1 Flash (approx)
   'gemini-flash-lite-latest':          { promptPerM: 0.25, completionPerM: 1.50 },  // = flash-lite
   'gemini-2.5-flash':                  { promptPerM: 0.15, completionPerM: 0.60 },  // legacy flash
+  'gemini-2.0-flash':                  { promptPerM: 0.10, completionPerM: 0.40 },  // text ladder floor rung — was UNPRICED ($0 leak)
   // imagen standard (non-ultra). ~$0.04/image; ultra above is $0.06.
   'imagen-4.0-generate-001':           { promptPerM: 0,    completionPerM: 0,    perCall: 0.04 },
 
@@ -79,6 +80,7 @@ export const AI_PRICING: Record<string, PricePoint> = {
   'grok-imagine-image':                { promptPerM: 0,    completionPerM: 0,    perCall: 0.02 },
   // grok-imagine video: $0.05 per SECOND of clip (was modeled as flat per-call).
   'grok-imagine-video':                { promptPerM: 0,    completionPerM: 0,    perSecond: 0.05 },
+  'grok-imagine-video-1.5':            { promptPerM: 0,    completionPerM: 0,    perSecond: 0.05 },  // video ladder r2 — was UNPRICED ($0 leak)
   'grok-imagine-video-fast':           { promptPerM: 0,    completionPerM: 0,    perSecond: 0.03 },
 
   // ─── Moonshot Kimi ──────────────────────────────────────────────

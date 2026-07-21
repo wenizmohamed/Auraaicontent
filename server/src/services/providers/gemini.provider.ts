@@ -374,7 +374,7 @@ export const geminiProvider: AiProvider = {
       : readLadder('GEMINI_IMAGE_LADDER', [
           process.env.GEMINI_IMAGE_MODEL || 'gemini-3.1-flash-image-preview',
           'imagen-4.0-generate-001',
-          'imagen-3.0-generate-002',
+          'imagen-4.0-fast-generate-001', // was imagen-3.0-generate-002 (404 dead)
         ]);
     // Ultra on the nano path means high-res by default (2K unless the caller
     // asked for a specific size).
@@ -510,9 +510,12 @@ export const geminiProvider: AiProvider = {
     // Model ladder: try Veo Pro → Veo Fast → Veo 2 (Pro and Fast meter
     // separately; Veo 2 is older and may have leftover quota even when
     // 3.1 is exhausted). Override via GEMINI_VIDEO_LADDER env (colon-sep).
+    // veo-2.0-generate-001 removed — it 404s (dead/retired), so it only ever
+    // cost a guaranteed round-trip failure as the last rung. veo-3.1-lite is the
+    // live floor.
     const defaultLadder = req.fast
-      ? ['veo-3.1-fast-generate-preview', 'veo-3.1-generate-preview', 'veo-3.1-lite-generate-preview', 'veo-2.0-generate-001']
-      : ['veo-3.1-generate-preview', 'veo-3.1-fast-generate-preview', 'veo-3.1-lite-generate-preview', 'veo-2.0-generate-001'];
+      ? ['veo-3.1-fast-generate-preview', 'veo-3.1-generate-preview', 'veo-3.1-lite-generate-preview']
+      : ['veo-3.1-generate-preview', 'veo-3.1-fast-generate-preview', 'veo-3.1-lite-generate-preview'];
     const ladder = readLadder('GEMINI_VIDEO_LADDER', defaultLadder);
     const start = Date.now();
     // Shared poll budget across the entire ladder. Per-rung 10min meant

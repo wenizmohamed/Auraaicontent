@@ -152,7 +152,10 @@ function clientFor(p: ProviderName): ProviderClient {
 // Default chain — Gemini PRIMARY (Radix company-card key), Grok fallback,
 // Kimi tertiary.  Override per-call when a feature has a different routing
 // preference (e.g. agent orchestrator wants the model named in AGENT_MODEL).
-export const DEFAULT_CHAIN: ProviderName[] = ['gemini', 'xai', 'moonshot'];
+// moonshot/kimi dropped 2026-07-21 — the key returns 401 access_terminated
+// (quota terminated), so it was a dead tertiary that only added a failing hop.
+// Restore it here (or via chat env override) once Kimi billing is renewed.
+export const DEFAULT_CHAIN: ProviderName[] = ['gemini', 'xai'];
 
 function resolveChain(env: string | undefined, fallbackChain: ProviderName[] = DEFAULT_CHAIN): ProviderName[] {
   if (!env) return fallbackChain;

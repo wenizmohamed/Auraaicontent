@@ -102,7 +102,11 @@ export const xaiProvider: AiProvider = {
     // 16384 covers month-strategy JSON (~12KB typical).  Was 8192 and still
     // hit truncation on the Al Fardan 18-post brief+pillars payload — the
     // response would end mid-string and safeJsonParse couldn't recover.
-    const maxTokens = req.maxTokens ?? (req.json ? 16384 : 2048);
+    // 32000 for JSON (was 16384): grok-4.20 is now a reasoning model — thinking
+    // tokens share this budget, so a month-plan JSON needs headroom or content
+    // comes back empty/truncated. xai is now the 2nd text hop, so it must handle
+    // full calendars.
+    const maxTokens = req.maxTokens ?? (req.json ? 32000 : 2048);
     const data = await xaiFetch('/chat/completions', {
       model,
       temperature: req.temperature ?? 0.7,
