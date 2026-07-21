@@ -38,6 +38,7 @@ export const AI_PRICING: Record<string, PricePoint> = {
   // priced per IMAGE not per-token in disguise). Effective ~$0.045/img
   // at low-res, $0.151/img at high-res; perCall set to a 1024px midpoint.
   'gemini-3.1-flash-image-preview':    { promptPerM: 0.50, completionPerM: 60.00, perCall: 0.10 },
+  'nano-banana-pro-preview':           { promptPerM: 0.50, completionPerM: 120.00, perCall: 0.15 },  // newest premium image (approx — refine w/ real card)
   // imagen-4.0-ultra: $0.06/image (unchanged).
   'imagen-4.0-ultra-generate-001':     { promptPerM: 0,    completionPerM: 0,    perCall: 0.06 },
   // veo-3.1-generate-preview: $0.40 (720p) – $0.60 (4k) per SECOND of video.
@@ -63,6 +64,7 @@ export const AI_PRICING: Record<string, PricePoint> = {
   // analysis/chat call was costed at $0. Mapped to their versioned price.
   'gemini-pro-latest':                 { promptPerM: 2.00, completionPerM: 12.00 }, // = 3.1 Pro
   'gemini-flash-latest':               { promptPerM: 0.30, completionPerM: 2.50 },  // 3.1 Flash (approx)
+  'gemini-3.5-flash':                  { promptPerM: 0.30, completionPerM: 2.50 },  // newest flash (2026-05), = flash-latest tier
   'gemini-flash-lite-latest':          { promptPerM: 0.25, completionPerM: 1.50 },  // = flash-lite
   'gemini-2.5-flash':                  { promptPerM: 0.15, completionPerM: 0.60 },  // legacy flash
   'gemini-2.0-flash':                  { promptPerM: 0.10, completionPerM: 0.40 },  // text ladder floor rung — was UNPRICED ($0 leak)
@@ -72,12 +74,15 @@ export const AI_PRICING: Record<string, PricePoint> = {
   // ─── Anthropic Claude (assistant via chat.ts CLAUDE_ASSISTANT_MODEL) ──
   // Claude Sonnet 4: $3/M input, $15/M output.
   'claude-sonnet-4-20250514':          { promptPerM: 3.00, completionPerM: 15.00 },
+  'claude-sonnet-5':                   { promptPerM: 3.00, completionPerM: 15.00 },  // newest sonnet (assistant model; Anthropic key currently unset)
 
   // ─── xAI Grok ───────────────────────────────────────────────────
   // grok-4.20 was $5/$15 a few months ago; xAI cut it sharply in 2026.
   'grok-4.20':                         { promptPerM: 1.25, completionPerM: 2.50 },
+  'grok-4.5':                          { promptPerM: 2.00, completionPerM: 10.00 },  // newest grok flagship (approx — refine w/ real card)
   // grok-imagine image: $0.02 per generated image (was $0.07).
   'grok-imagine-image':                { promptPerM: 0,    completionPerM: 0,    perCall: 0.02 },
+  'grok-imagine-image-quality':        { promptPerM: 0,    completionPerM: 0,    perCall: 0.03 },  // newest quality-tier image
   // grok-imagine video: $0.05 per SECOND of clip (was modeled as flat per-call).
   'grok-imagine-video':                { promptPerM: 0,    completionPerM: 0,    perSecond: 0.05 },
   'grok-imagine-video-1.5':            { promptPerM: 0,    completionPerM: 0,    perSecond: 0.05 },  // video ladder r2 — was UNPRICED ($0 leak)

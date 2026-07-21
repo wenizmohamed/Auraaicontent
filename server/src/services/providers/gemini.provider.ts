@@ -309,7 +309,8 @@ export const geminiProvider: AiProvider = {
       // snappy rewrites instead of the pro reasoning model).
       ...(req.model && /gemini/i.test(req.model) ? [req.model] : []),
       process.env.GEMINI_TEXT_MODEL || 'gemini-3.1-pro-preview',
-      process.env.GEMINI_FLASH_TEXT_MODEL || 'gemini-3.1-flash-lite-preview',
+      process.env.GEMINI_FLASH_TEXT_MODEL || 'gemini-3.5-flash',
+      'gemini-3.5-flash',  // newest flash (2026-05) as an explicit rung
       'gemini-2.5-flash',
       'gemini-2.0-flash',
     ]);
