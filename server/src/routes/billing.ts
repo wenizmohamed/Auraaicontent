@@ -18,7 +18,7 @@ const PRICE_IDS = {
   studio: process.env.STRIPE_PRICE_STUDIO,
   agency: process.env.STRIPE_PRICE_AGENCY,
 };
-const APP_URL = process.env.PREVIEW_URL || 'http://localhost:3200';
+const APP_URL = process.env.RADIX_APP_BASE_URL || process.env.PREVIEW_URL || 'http://localhost:3200';
 
 // Lazy-import Stripe — keeps the dep tree light when Stripe isn't configured.
 async function getStripe() {

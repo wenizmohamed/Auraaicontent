@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { db } from '../db/prisma.js';
 import { errStatus, errMessage, errCode } from '../services/providers/errors.js';
-import { briefService } from '../services/brief.service.js';
+import { briefService, normalizeMonth } from '../services/brief.service.js';
 import { clientService } from '../services/client.service.js';
 import { authGuard } from '../middleware/auth.js';
 import { auditService } from '../services/audit.service.js';
@@ -48,7 +48,9 @@ export async function briefRoutes(app: FastifyInstance) {
       return reply.status(errStatus(err)).send({ error: errMessage(err) });
     }
     // Detect create vs update by checking for an existing brief BEFORE upsert.
-    const existingBefore = await db.clientBrief.findFirst({ where: { clientId, orgId: request.orgId!, month: targetMonth } }).catch(() => null);
+    // Briefs are stored under the normalized ISO month key; normalize here too
+    // or a label-form month ("August 2026") never matches → create/update mislabel.
+    const existingBefore = await db.clientBrief.findFirst({ where: { clientId, orgId: request.orgId!, month: normalizeMonth(targetMonth) } }).catch(() => null);
     try {
       const saved = await briefService.upsert(request.orgId!, clientId, request.body, targetMonth);
       auditService.log({

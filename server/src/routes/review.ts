@@ -26,7 +26,10 @@ export async function reviewRoutes(app: FastifyInstance) {
     if (!calendarMonth) return reply.status(404).send({ error: 'Calendar month not found' });
 
     const link = await reviewService.createLink(orgId, clientId, calendarMonth.id, expiresInDays);
-    const reviewUrl = `${env.PREVIEW_URL}/review/${link.token}`;
+    // Use the live app domain (radixcontent.com) — NOT the decommissioned
+    // synapseai-labs.com in the legacy PREVIEW_URL, which only resolves via a
+    // fragile 301 and breaks every client review link if it ever lapses.
+    const reviewUrl = `${env.RADIX_APP_BASE_URL}/review/${link.token}`;
     return reply.status(201).send({
       token: link.token,
       url: reviewUrl,
