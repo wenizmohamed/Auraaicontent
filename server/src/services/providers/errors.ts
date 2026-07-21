@@ -68,6 +68,11 @@ const RETRYABLE_PATTERNS = [
   /not.?found.*model|model.*not.?found/i,
   /model.*not.?supported|unsupported model/i,
   /deprecated/i,
+  // Output truncation (finishReason MAX_TOKENS / "output truncated") — the JSON
+  // was cut off at the token cap. Retryable so the inner model ladder advances
+  // to another model instead of the caller seeing a malformed-JSON hard-fail.
+  /truncat/i,
+  /MAX_TOKENS/,
 ];
 
 const NON_RETRYABLE_PATTERNS = [

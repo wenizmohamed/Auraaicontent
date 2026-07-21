@@ -315,21 +315,31 @@ export const geminiProvider: AiProvider = {
     ]);
     const start = Date.now();
 
-    const ladderResult = await runModelLadder('gemini', 'text', ladder, async (entry) =>
-      withRetry('text', () => withTimeout(
+    const ladderResult = await runModelLadder('gemini', 'text', ladder, async (entry) => {
+      // json:true means a structured payload (e.g. a monthly plan of 18-30 rich
+      // posts). At 32768 the JSON truncated mid-array on big calendars → the
+      // downstream parser saw malformed JSON ("JSON parse failed") and the whole
+      // generation fell through to dead xAI + strict Qwen and failed. Use the
+      // model's REAL output ceiling (pro/flash = 65536; older 2.0-flash = 8192).
+      const jsonMax = /2\.0-flash|1\.5|flash-8b/i.test(entry.model) ? 8192 : 65536;
+      const resp = await withRetry('text', () => withTimeout(
         ai.models.generateContent({
           model: entry.model,
           contents: req.system ? `${req.system}\n\n${req.prompt}` : req.prompt,
-          // json:true means we usually want a structured payload (e.g. monthly
-          // content plan with 18-30 posts). The default token budget can truncate
-          // mid-array; bump explicitly to avoid the workshop "truncated JSON" bug.
           config: req.json
-            ? { responseMimeType: 'application/json', maxOutputTokens: 32768 }
+            ? { responseMimeType: 'application/json', maxOutputTokens: jsonMax }
             : { maxOutputTokens: 8192 },
         }),
         TIMEOUT, 'text',
-      )),
-    );
+      ));
+      // Truncation guard: a JSON response cut off at the token cap parses as
+      // malformed downstream. Surface it as a clear, RETRYABLE error so the
+      // ladder advances to the next model instead of poisoning the JSON parse.
+      if (req.json && (resp as any)?.candidates?.[0]?.finishReason === 'MAX_TOKENS') {
+        throw new AiProviderError('gemini', 'text', `output truncated at ${jsonMax} tokens (MAX_TOKENS) — response too large`);
+      }
+      return resp;
+    });
     const response = ladderResult.result;
     const model = ladderResult.modelUsed;
     const text = response.text ?? '';
