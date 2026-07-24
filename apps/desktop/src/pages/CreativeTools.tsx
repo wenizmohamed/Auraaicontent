@@ -740,6 +740,14 @@ export default function CreativeTools() {
 
   const isVideoMode = modeDef.outputType === 'video';
 
+  // Keep the selected video engine valid for the current mode. Covers a DIRECT
+  // load of ?tab=image-to-video (where the switchMode handler never runs), so
+  // the default Grok — text→video only — doesn't linger as an invalid selection
+  // (cost line would show Grok and Generate would fail on i2v).
+  useEffect(() => {
+    if (isVideoMode && !videoEngineDef(videoEngine).modes.includes(mode)) setVideoEngine('veo');
+  }, [mode, isVideoMode, videoEngine]);
+
   return (
     <div className="max-w-[1200px] mx-auto space-y-8">
       {/* ─── Header ─────────────────────────────────────────────── */}
