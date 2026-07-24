@@ -201,16 +201,23 @@ const VIDEO_DURATIONS = [
 // hint. Alibaba's video line is Wan (there is no Qwen video model).
 interface VideoEngine {
   value: string; label: string; provider: 'gemini' | 'xai' | 'dashscope';
-  model: string; i2vModel?: string; tier: 'draft' | 'hd'; perSec: number; modes: Mode[]; hint: string;
+  model: string; i2vModel?: string; refOnly?: boolean; tier: 'draft' | 'hd'; perSec: number; modes: Mode[]; hint: string;
 }
 const VIDEO_ENGINES: VideoEngine[] = [
   { value: 'veo',   label: 'Veo · Google',           provider: 'gemini',    model: 'veo-3.1-generate-preview', tier: 'hd',    perSec: 0.20, modes: ['text-to-video', 'image-to-video'], hint: 'Google Veo 3.1 — highest quality, supports 1080p and start/end frames' },
   { value: 'grok',  label: 'Grok · xAI',             provider: 'xai',       model: 'grok-imagine-video',       i2vModel: 'grok-imagine-video-1.5', tier: 'draft', perSec: 0.05, modes: ['text-to-video', 'image-to-video'], hint: 'xAI Grok Imagine — fastest & cheapest; image→video uses Grok Imagine 1.5' },
   { value: 'omni',  label: 'Omni Flash · Google',    provider: 'gemini',    model: 'gemini-omni-flash-preview',tier: 'draft', perSec: 0.10, modes: ['text-to-video', 'image-to-video'], hint: 'Google Omni Flash — fast, strong character consistency' },
   { value: 'wan',   label: 'Wan 2.7 · Alibaba',      provider: 'dashscope', model: 'wan2.7-t2v',               i2vModel: 'wan2.7-i2v', tier: 'draft', perSec: 0.10, modes: ['text-to-video', 'image-to-video'], hint: "Alibaba Wan 2.7 — cinematic; image→video via Wan 2.7 i2v (slower, ~2-3 min)" },
+  // Reference→video: only offered WHEN product reference images are attached.
+  { value: 'wanr2v',label: 'Wan R2V · Alibaba',      provider: 'dashscope', model: 'wan2.7-r2v',               tier: 'draft', perSec: 0.10, modes: ['text-to-video', 'image-to-video'], refOnly: true, hint: 'Alibaba Wan R2V — locks your exact product/subject from the reference images (multi-reference)' },
 ];
-function videoEnginesFor(mode: Mode) {
-  return VIDEO_ENGINES.filter(e => e.modes.includes(mode));
+// Engines usable when product reference images are attached (both keep the
+// subject consistent): Veo "ingredients" + Wan R2V.
+const REF_ENGINE_VALUES = ['veo', 'wanr2v'];
+function videoEnginesFor(mode: Mode, hasRefs = false) {
+  return hasRefs
+    ? VIDEO_ENGINES.filter(e => REF_ENGINE_VALUES.includes(e.value))
+    : VIDEO_ENGINES.filter(e => e.modes.includes(mode) && !e.refOnly);
 }
 function videoEngineDef(value: string): VideoEngine {
   return VIDEO_ENGINES.find(e => e.value === value) || VIDEO_ENGINES[0];
@@ -577,8 +584,11 @@ export default function CreativeTools() {
         setGenId(out.generationId || null);
       } else {
         // text-to-video OR image-to-video — both go through the same async route
-        // Product references force Veo (only Veo does "ingredients to video").
-        const eng = extraRefs.length ? videoEngineDef('veo') : videoEngineDef(videoEngine);
+        // With product references, honour the chosen ref-engine (Veo ingredients
+        // or Wan R2V) — default Veo if the current engine isn't ref-capable.
+        const eng = extraRefs.length
+          ? (REF_ENGINE_VALUES.includes(videoEngine) ? videoEngineDef(videoEngine) : videoEngineDef('veo'))
+          : videoEngineDef(videoEngine);
         const { jobId } = await creativeApi.generateVideo({
           prompt: prompt.trim(),
           aspectRatio,
@@ -748,8 +758,16 @@ export default function CreativeTools() {
   // the default Grok — text→video only — doesn't linger as an invalid selection
   // (cost line would show Grok and Generate would fail on i2v).
   useEffect(() => {
-    if (isVideoMode && !videoEngineDef(videoEngine).modes.includes(mode)) setVideoEngine('veo');
-  }, [mode, isVideoMode, videoEngine]);
+    if (!isVideoMode) return;
+    const eng = videoEngineDef(videoEngine);
+    if (extraRefs.length > 0) {
+      // With product references only Veo / Wan R2V apply.
+      if (!REF_ENGINE_VALUES.includes(videoEngine)) setVideoEngine('veo');
+    } else if (eng.refOnly || !eng.modes.includes(mode)) {
+      // No refs: drop the ref-only engine, and any engine invalid for the mode.
+      setVideoEngine('veo');
+    }
+  }, [mode, isVideoMode, videoEngine, extraRefs.length]);
 
   return (
     <div className="max-w-[1200px] mx-auto space-y-8">
@@ -1422,11 +1440,11 @@ export default function CreativeTools() {
             </div>
           )}
 
-          {isVideoMode && extraRefs.length === 0 && (
+          {isVideoMode && (
             <div>
-              <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Engine</label>
+              <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Engine{extraRefs.length > 0 ? ' · keeps your product consistent' : ''}</label>
               <div className="flex items-center gap-2 mt-2">
-                {videoEnginesFor(mode).map(ve => (
+                {videoEnginesFor(mode, extraRefs.length > 0).map(ve => (
                   <button
                     key={ve.value}
                     type="button"

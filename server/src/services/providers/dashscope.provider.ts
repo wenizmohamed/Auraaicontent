@@ -182,19 +182,24 @@ export const dashscopeProvider: AiProvider = {
     // them on Veo via the router.
     const key = process.env.DASHSCOPE_API_KEY;
     if (!key) throw new AiProviderError('dashscope', 'video', 'DASHSCOPE_API_KEY not set', 401);
-    // Veo "ingredients" (asset reference images) stay on Veo — Wan has no
-    // equivalent. Everything else, including a start frame, Wan can now do.
-    if (req.referenceImages?.length || req.endImageBase64) {
-      throw new AiProviderError('dashscope', 'video', 'wan has no reference-images / end-frame mode — Veo handles those', 503);
+    // Wan has no end-frame mode — those stay on Veo.
+    if (req.endImageBase64) {
+      throw new AiProviderError('dashscope', 'video', 'wan has no end-frame mode — Veo handles bookended clips', 503);
     }
-    // Image-to-video: Wan takes the START frame as a base64 data-URI img_url
-    // (verified live — no upload/hosting needed).
+    // Three Wan video modes, chosen by input:
+    //  - reference→video (R2V): product/subject reference images → wan2.7-r2v,
+    //    each ref under input.media as {type:'reference_image'} (multi-reference
+    //    co-creation) — keeps the exact product consistent (verified live).
+    //  - image→video (I2V): a start frame → wan2.7-i2v, {type:'first_frame'}.
+    //  - text→video (T2V): prompt only → wan2.7-t2v.
+    const refs = (req.referenceImages || []).filter(r => r?.base64 && r?.mimeType);
+    const isR2V = refs.length > 0;
     const srcB64 = req.startImageBase64 || req.imageBase64;
     const srcMime = req.startMimeType || req.mimeType || 'image/jpeg';
-    const isI2V = !!srcB64;
+    const isI2V = !isR2V && !!srcB64;
     const model = req.model && /wan/i.test(req.model)
       ? req.model
-      : isI2V ? 'wan2.7-i2v' : (process.env.DASHSCOPE_VIDEO_MODEL || 'wan2.7-t2v');
+      : isR2V ? 'wan2.7-r2v' : isI2V ? 'wan2.7-i2v' : (process.env.DASHSCOPE_VIDEO_MODEL || 'wan2.7-t2v');
     const host = BASE_URL.replace(/\/compatible-mode\/v1\/?$/, '');
     const size = req.aspectRatio === '9:16' ? '720*1280' : '1280*720';
     const duration = Math.min(Math.max(Math.round(req.durationSeconds || 5), 3), 10);
@@ -206,14 +211,16 @@ export const dashscopeProvider: AiProvider = {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}`, 'X-DashScope-Async': 'enable' },
       body: JSON.stringify({
         model,
-        // Wan i2v takes the start frame under input.media as a typed 'first_frame'
-        // (a base64 data-URI works — verified live). img_url is NOT accepted by
-        // wan2.7-i2v (submit passes but the task then FAILs "Field required: media").
-        input: isI2V
-          ? { prompt: req.prompt, media: [{ type: 'first_frame', url: `data:${srcMime};base64,${srcB64}` }] }
-          : { prompt: req.prompt },
-        // Wan i2v derives the frame size from the source image; only pin size for t2v.
-        parameters: isI2V ? { duration } : { size, duration },
+        // Wan i2v/r2v take images under input.media as typed entries (base64
+        // data-URIs work — verified live). img_url is NOT accepted (submit passes
+        // but the task FAILs "Field required: media").
+        input: isR2V
+          ? { prompt: req.prompt, media: refs.map(r => ({ type: 'reference_image', url: `data:${r.mimeType};base64,${r.base64}` })) }
+          : isI2V
+            ? { prompt: req.prompt, media: [{ type: 'first_frame', url: `data:${srcMime};base64,${srcB64}` }] }
+            : { prompt: req.prompt },
+        // i2v/r2v derive frame size from the source image(s); only pin size for t2v.
+        parameters: (isI2V || isR2V) ? { duration } : { size, duration },
       }),
       signal: AbortSignal.timeout(60000),
     });
