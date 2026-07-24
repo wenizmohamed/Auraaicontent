@@ -194,17 +194,26 @@ const VIDEO_DURATIONS = [
   { label: '8s', value: 8 },
 ];
 
-// Video engine picker. Auto = tiered Veo/Grok routing; Omni Flash is
-// Google's new Interactions-API video model (character consistency,
-// ~\$0.10/s, text→video only — with a source image the server routes to Veo).
-const VIDEO_ENGINES = [
-  { value: 'auto', label: 'Auto (Veo / Grok)' },
-  { value: 'gemini-omni-flash-preview', label: 'Omni Flash · Beta' },
-  // Wan 2.7 (Alibaba) — text→video only; hidden in image-to-video mode.
-  { value: 'wan2.7-t2v', label: 'Wan 2.7 · Alibaba' },
+// Explicit video engines — each is ONE provider/model the user picks directly
+// (no hidden Auto/tier routing). `modes` gates which are offered per mode:
+// Grok mishandles a reference frame and Wan is text-only, so both are hidden in
+// image-to-video. `tier` is sent for cost accounting; `perSec` drives the price
+// hint. Alibaba's video line is Wan (there is no Qwen video model).
+interface VideoEngine {
+  value: string; label: string; provider: 'gemini' | 'xai' | 'dashscope';
+  model: string; tier: 'draft' | 'hd'; perSec: number; modes: Mode[]; hint: string;
+}
+const VIDEO_ENGINES: VideoEngine[] = [
+  { value: 'veo',   label: 'Veo · Google',           provider: 'gemini',    model: 'veo-3.1-generate-preview', tier: 'hd',    perSec: 0.20, modes: ['text-to-video', 'image-to-video'], hint: 'Google Veo 3.1 — highest quality, supports 1080p and start/end frames' },
+  { value: 'grok',  label: 'Grok · xAI',             provider: 'xai',       model: 'grok-imagine-video',       tier: 'draft', perSec: 0.05, modes: ['text-to-video'],                   hint: 'xAI Grok Imagine — fastest & cheapest text→video' },
+  { value: 'omni',  label: 'Omni Flash · Google',    provider: 'gemini',    model: 'gemini-omni-flash-preview',tier: 'draft', perSec: 0.10, modes: ['text-to-video', 'image-to-video'], hint: 'Google Omni Flash — fast, strong character consistency' },
+  { value: 'wan',   label: 'Wan 2.7 · Alibaba',      provider: 'dashscope', model: 'wan2.7-t2v',               tier: 'draft', perSec: 0.10, modes: ['text-to-video'],                   hint: "Alibaba Wan 2.7 — cinematic text→video (slower, ~2-3 min)" },
 ];
 function videoEnginesFor(mode: Mode) {
-  return mode === 'image-to-video' ? VIDEO_ENGINES.filter(e => !e.value.startsWith('wan')) : VIDEO_ENGINES;
+  return VIDEO_ENGINES.filter(e => e.modes.includes(mode));
+}
+function videoEngineDef(value: string): VideoEngine {
+  return VIDEO_ENGINES.find(e => e.value === value) || VIDEO_ENGINES[0];
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────
@@ -243,9 +252,8 @@ export default function CreativeTools() {
   const promptRef = useRef<HTMLTextAreaElement | null>(null);
   const [aspectRatio, setAspectRatio] = useState('1:1');
   const [duration, setDuration] = useState(6);
-  // Video cost tier (design 2026-06-03). Default 'draft' (cheap, Grok);
-  // 'hd' opts into veo-3.1-fast. Sent to the backend as `tier`.
-  const [tier, setTier] = useState<'draft' | 'hd'>('draft');
+  // Video tier is now derived from the chosen engine (see VIDEO_ENGINES) and
+  // sent for cost accounting — no separate Draft/HD control.
   // Image output resolution (nano native; 2K default — same per-image price
   // as 1K on the meter, visibly better detail for ad creative).
   const [imageSize, setImageSize] = useState<'1K' | '2K' | '4K'>('2K');
@@ -277,8 +285,10 @@ export default function CreativeTools() {
   const [videoRes, setVideoRes] = useState<'720p' | '1080p'>('720p');
   // Optional "avoid" terms — merged into Veo's negativePrompt server-side.
   const [negPrompt, setNegPrompt] = useState('');
-  // Video engine ('auto' = tiered Veo/Grok; omni = Interactions API).
-  const [videoEngine, setVideoEngine] = useState('auto');
+  // Video engine — explicit provider/model the user picks (see VIDEO_ENGINES).
+  // Default Grok (fast + cheapest); switches to Veo automatically if the mode
+  // needs it (image-to-video).
+  const [videoEngine, setVideoEngine] = useState('grok');
   // Image engine picker (multi-LLM). 'auto' = Gemini default chain; DashScope
   // qwen/wan options for higher-fidelity stills. Sent as { provider, model }.
   const [imageModel, setImageModel] = useState<string>('auto');
@@ -360,7 +370,9 @@ export default function CreativeTools() {
     // modes (Veo asset refs) — only clear when entering plain text-to-image.
     if (next === 'text-to-image') setExtraRefs([]);
     // Wan is text-to-video only — fall back to Auto when entering i2v.
-    if (next === 'image-to-video' && videoEngine.startsWith('wan')) setVideoEngine('auto');
+    // Entering image-to-video: if the current engine can't do i2v (Grok/Wan),
+    // fall back to Veo (the best i2v engine).
+    if (next === 'image-to-video' && !videoEngineDef(videoEngine).modes.includes('image-to-video')) setVideoEngine('veo');
     // End-frame is only meaningful in image-to-video; clear on every other mode
     if (next !== 'image-to-video') {
       setEndBase64('');
@@ -565,22 +577,27 @@ export default function CreativeTools() {
         setGenId(out.generationId || null);
       } else {
         // text-to-video OR image-to-video — both go through the same async route
+        // Product references force Veo (only Veo does "ingredients to video").
+        const eng = extraRefs.length ? videoEngineDef('veo') : videoEngineDef(videoEngine);
         const { jobId } = await creativeApi.generateVideo({
           prompt: prompt.trim(),
           aspectRatio,
           durationSeconds: duration,
-          tier,
+          tier: eng.tier,
           clientId: selectedClientId || undefined,
           safeZone,
           enhance: promptBoost !== 'off',
           ...(promptBoost !== 'off' ? { depth: promptBoost } : {}),
           ...(stylePackId ? { stylePackId } : {}),
-          ...(tier === 'hd' && videoRes === '1080p' ? { resolution: '1080p' as const } : {}),
+          ...(eng.value === 'veo' && videoRes === '1080p' ? { resolution: '1080p' as const } : {}),
           ...(negPrompt.trim() ? { negativePrompt: negPrompt.trim() } : {}),
           // Veo asset refs: the exact product/subject stays consistent in the
           // clip (forces 8s server-side per Google's constraint).
           ...(extraRefs.length ? { referenceImages: extraRefs.slice(0, 3).map(r => ({ base64: r.base64, mimeType: r.mimeType })) } : {}),
-          ...(videoEngine !== 'auto' && !extraRefs.length && !(mode === 'image-to-video' && videoEngine.startsWith('wan')) ? { model: videoEngine } : {}),
+          // Explicit engine → send its model; the server maps model→provider
+          // (grok→xai, omni→gemini, wan→dashscope). Veo is the chain default so
+          // it needs no model (and refs already force Veo).
+          ...(eng.value !== 'veo' ? { model: eng.model } : {}),
           // Only attach the image when in image-to-video mode
           ...(mode === 'image-to-video' ? {
             imageBase64: sourceBase64,
@@ -1403,9 +1420,7 @@ export default function CreativeTools() {
                     key={ve.value}
                     type="button"
                     onClick={() => setVideoEngine(ve.value)}
-                    title={ve.value === 'auto' ? 'Cost-tiered routing: Draft → Grok/Veo, HD → Veo'
-                      : ve.value.startsWith('wan') ? "Alibaba's Wan 2.7 — cinematic text-to-video, ~$0.10/s (slower: ~2-3 min)"
-                      : "Google's newest video model — stronger coherence & character consistency, ~$0.10/s, fast"}
+                    title={`${ve.hint} · ~$${ve.perSec.toFixed(2)}/s`}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
                       videoEngine === ve.value ? '' : 'bg-white/[0.03] text-zinc-500 border-white/[0.06] hover:border-white/[0.1]'
                     }`}
@@ -1428,8 +1443,8 @@ export default function CreativeTools() {
                   <button
                     key={d.value}
                     onClick={() => setDuration(d.value)}
-                    disabled={(tier === 'hd' && videoRes === '1080p' && d.value !== 8) || (extraRefs.length > 0 && d.value !== 8)}
-                    title={extraRefs.length > 0 && d.value !== 8 ? 'Product references require an 8s clip' : (tier === 'hd' && videoRes === '1080p' && d.value !== 8 ? '1080p requires an 8s clip' : undefined)}
+                    disabled={(videoEngine === 'veo' && videoRes === '1080p' && d.value !== 8) || (extraRefs.length > 0 && d.value !== 8)}
+                    title={extraRefs.length > 0 && d.value !== 8 ? 'Product references require an 8s clip' : (videoEngine === 'veo' && videoRes === '1080p' && d.value !== 8 ? '1080p requires an 8s clip' : undefined)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                       duration === d.value
                         ? ''
@@ -1448,50 +1463,13 @@ export default function CreativeTools() {
 
           {isVideoMode && (
             <div>
-              {/* Quality (Draft/HD) ONLY applies to the Auto engine — it's the
-                  Grok↔Veo cost router. When a specific engine (Omni/Wan) is
-                  chosen, the model is forced and this tier is ignored, so we
-                  hide it to stop the two controls contradicting each other. */}
-              {videoEngine === 'auto' && (<>
-              <label className="text-[10px] uppercase tracking-wider font-bold" style={{ color: 'var(--color-fg-muted)' }}>Quality</label>
-              <div className="flex items-center gap-2 mt-2">
-                {([
-                  // Draft text→video runs on Grok (cheap/fast); image→video is
-                  // forced to Veo (Grok mis-handles the reference frame). HD = Veo.
-                  { value: 'draft' as const, label: mode === 'image-to-video' ? 'Draft · Veo' : 'Draft · Grok' },
-                  { value: 'hd' as const, label: 'HD · Veo' },
-                ]).map(opt => {
-                  const active = tier === opt.value;
-                  return (
-                    <button
-                      key={opt.value}
-                      onClick={() => setTier(opt.value)}
-                      className="px-3 py-1.5 rounded-lg text-xs font-medium border transition-all"
-                      style={{
-                        background: active ? 'var(--color-accent-subtle)' : 'var(--color-surface-hover)',
-                        color: active ? 'var(--color-accent)' : 'var(--color-fg-muted)',
-                        borderColor: active ? 'var(--color-accent)' : 'var(--color-border)',
-                      }}
-                    >
-                      {opt.label}
-                    </button>
-                  );
-                })}
-              </div>
-              </>)}
-              {/* Cost preview. Image-to-video drafts run on VEO (Grok mangles the
-                  source frame), so they bill at Veo's $0.20/s — the hint used to
-                  claim Grok's $0.03/s there, which was wrong. */}
+              {/* Per-engine cost — each engine is one explicit provider, so the
+                  price is just that engine's rate × duration. No hidden tier. */}
               {(() => {
-                const engineActive = videoEngine !== 'auto' && !extraRefs.length && !(mode === 'image-to-video' && videoEngine.startsWith('wan'));
-                const perSec = engineActive ? 0.1 : tier === 'hd' ? 0.2 : mode === 'image-to-video' ? 0.2 : 0.03;
-                const label = engineActive
-                  ? (videoEngine.includes('omni') ? 'Omni Flash ($0.10/s)' : 'Wan 2.7 (~$0.10/s)')
-                  : tier === 'hd' ? 'HD · Veo ($0.20/s)' : mode === 'image-to-video' ? 'Draft · Veo ($0.20/s)' : 'Draft · Grok ($0.03/s)';
+                const eng = videoEngineDef(videoEngine);
                 return (
-                  <p className="text-[10px] mt-2" style={{ color: 'var(--color-fg-muted)' }}>
-                    ≈ ${(perSec * duration).toFixed(2)} for this {duration}s clip
-                    <span> · {label}</span>
+                  <p className="text-[10px]" style={{ color: 'var(--color-fg-muted)' }}>
+                    ≈ ${(eng.perSec * duration).toFixed(2)} for this {duration}s clip · {eng.label} (${eng.perSec.toFixed(2)}/s)
                   </p>
                 );
               })()}
@@ -1500,8 +1478,8 @@ export default function CreativeTools() {
 
           {/* HD output resolution — 1080p is Veo-only and needs an 8s clip, so
               selecting it locks duration to 8 (Veo rejects other combos).
-              Only under the Auto engine's HD tier — Omni/Wan don't do Veo 1080p. */}
-          {isVideoMode && videoEngine === 'auto' && tier === 'hd' && (
+              Only for the Veo engine — Grok/Omni/Wan don't do Veo 1080p. */}
+          {isVideoMode && videoEngine === 'veo' && (
             <div>
               <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Output</label>
               <div className="flex items-center gap-2 mt-2">

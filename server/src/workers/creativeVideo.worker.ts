@@ -45,8 +45,12 @@ export async function creativeVideoWorker(j: Job): Promise<any> {
       // Engine pins: Omni lives on Gemini, Wan on DashScope.
       {
         orgId: j.data.orgId, userId: j.data.userId, jobId: j.id, clientId: j.data.clientId,
-        ...(j.data.model && /omni/i.test(j.data.model) ? { preferredProvider: 'gemini' as const }
-          : j.data.model && /wan/i.test(j.data.model) ? { preferredProvider: 'dashscope' as const } : {}),
+        // Explicit engine → provider. Each picked video engine deterministically
+        // pins its provider (Veo/Omni→gemini, Grok→xai, Wan→dashscope) so the
+        // user's choice is honoured regardless of tier.
+        ...(j.data.model && /veo|omni|imagen|gemini/i.test(j.data.model) ? { preferredProvider: 'gemini' as const }
+          : j.data.model && /grok/i.test(j.data.model) ? { preferredProvider: 'xai' as const }
+          : j.data.model && /wan|qwen/i.test(j.data.model) ? { preferredProvider: 'dashscope' as const } : {}),
       },
     );
     const generationId = await historyService.record({
