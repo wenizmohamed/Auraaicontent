@@ -1448,9 +1448,11 @@ export default function CreativeTools() {
 
           {isVideoMode && (
             <div>
-              {/* Semantic tokens (not raw amber/zinc) so the raw-color audit
-                  stays flat; --color-accent === amber-500 so it matches the
-                  Aspect/Duration controls visually. */}
+              {/* Quality (Draft/HD) ONLY applies to the Auto engine — it's the
+                  Grok↔Veo cost router. When a specific engine (Omni/Wan) is
+                  chosen, the model is forced and this tier is ignored, so we
+                  hide it to stop the two controls contradicting each other. */}
+              {videoEngine === 'auto' && (<>
               <label className="text-[10px] uppercase tracking-wider font-bold" style={{ color: 'var(--color-fg-muted)' }}>Quality</label>
               <div className="flex items-center gap-2 mt-2">
                 {([
@@ -1476,6 +1478,7 @@ export default function CreativeTools() {
                   );
                 })}
               </div>
+              </>)}
               {/* Cost preview. Image-to-video drafts run on VEO (Grok mangles the
                   source frame), so they bill at Veo's $0.20/s — the hint used to
                   claim Grok's $0.03/s there, which was wrong. */}
@@ -1496,8 +1499,9 @@ export default function CreativeTools() {
           )}
 
           {/* HD output resolution — 1080p is Veo-only and needs an 8s clip, so
-              selecting it locks duration to 8 (Veo rejects other combos). */}
-          {isVideoMode && tier === 'hd' && (
+              selecting it locks duration to 8 (Veo rejects other combos).
+              Only under the Auto engine's HD tier — Omni/Wan don't do Veo 1080p. */}
+          {isVideoMode && videoEngine === 'auto' && tier === 'hd' && (
             <div>
               <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Output</label>
               <div className="flex items-center gap-2 mt-2">
