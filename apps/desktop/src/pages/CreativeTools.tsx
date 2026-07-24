@@ -201,13 +201,13 @@ const VIDEO_DURATIONS = [
 // hint. Alibaba's video line is Wan (there is no Qwen video model).
 interface VideoEngine {
   value: string; label: string; provider: 'gemini' | 'xai' | 'dashscope';
-  model: string; tier: 'draft' | 'hd'; perSec: number; modes: Mode[]; hint: string;
+  model: string; i2vModel?: string; tier: 'draft' | 'hd'; perSec: number; modes: Mode[]; hint: string;
 }
 const VIDEO_ENGINES: VideoEngine[] = [
   { value: 'veo',   label: 'Veo · Google',           provider: 'gemini',    model: 'veo-3.1-generate-preview', tier: 'hd',    perSec: 0.20, modes: ['text-to-video', 'image-to-video'], hint: 'Google Veo 3.1 — highest quality, supports 1080p and start/end frames' },
-  { value: 'grok',  label: 'Grok · xAI',             provider: 'xai',       model: 'grok-imagine-video',       tier: 'draft', perSec: 0.05, modes: ['text-to-video'],                   hint: 'xAI Grok Imagine — fastest & cheapest text→video' },
+  { value: 'grok',  label: 'Grok · xAI',             provider: 'xai',       model: 'grok-imagine-video',       i2vModel: 'grok-imagine-video-1.5', tier: 'draft', perSec: 0.05, modes: ['text-to-video', 'image-to-video'], hint: 'xAI Grok Imagine — fastest & cheapest; image→video uses Grok Imagine 1.5' },
   { value: 'omni',  label: 'Omni Flash · Google',    provider: 'gemini',    model: 'gemini-omni-flash-preview',tier: 'draft', perSec: 0.10, modes: ['text-to-video', 'image-to-video'], hint: 'Google Omni Flash — fast, strong character consistency' },
-  { value: 'wan',   label: 'Wan 2.7 · Alibaba',      provider: 'dashscope', model: 'wan2.7-t2v',               tier: 'draft', perSec: 0.10, modes: ['text-to-video'],                   hint: "Alibaba Wan 2.7 — cinematic text→video (slower, ~2-3 min)" },
+  { value: 'wan',   label: 'Wan 2.7 · Alibaba',      provider: 'dashscope', model: 'wan2.7-t2v',               i2vModel: 'wan2.7-i2v', tier: 'draft', perSec: 0.10, modes: ['text-to-video', 'image-to-video'], hint: "Alibaba Wan 2.7 — cinematic; image→video via Wan 2.7 i2v (slower, ~2-3 min)" },
 ];
 function videoEnginesFor(mode: Mode) {
   return VIDEO_ENGINES.filter(e => e.modes.includes(mode));
@@ -596,8 +596,11 @@ export default function CreativeTools() {
           ...(extraRefs.length ? { referenceImages: extraRefs.slice(0, 3).map(r => ({ base64: r.base64, mimeType: r.mimeType })) } : {}),
           // Explicit engine → send its model; the server maps model→provider
           // (grok→xai, omni→gemini, wan→dashscope). Veo is the chain default so
-          // it needs no model (and refs already force Veo).
-          ...(eng.value !== 'veo' ? { model: eng.model } : {}),
+          // it needs no model (and refs already force Veo). Image→video uses the
+          // engine's i2v-specific model where it differs (Grok 1.5, Wan i2v).
+          ...(eng.value !== 'veo'
+            ? { model: (mode === 'image-to-video' && eng.i2vModel) ? eng.i2vModel : eng.model }
+            : {}),
           // Only attach the image when in image-to-video mode
           ...(mode === 'image-to-video' ? {
             imageBase64: sourceBase64,

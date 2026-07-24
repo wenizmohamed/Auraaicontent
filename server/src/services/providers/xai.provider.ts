@@ -190,6 +190,12 @@ export const xaiProvider: AiProvider = {
         return fa - fb;
       });
     }
+    // Image-to-video: grok-imagine-video-1.5 is the i2v-capable model (the base
+    // grok-imagine-video is text-to-video only, 400s on a start frame). Run 1.5
+    // first whenever a source/start frame is present.
+    if (req.startImageBase64 || req.imageBase64) {
+      ladder.sort((a, b) => (a.model.includes('1.5') ? 0 : 1) - (b.model.includes('1.5') ? 0 : 1));
+    }
     const start = Date.now();
     // Frame conditioning (2026-06-04 fix): a SOURCE/START frame must go in xAI's
     // image-to-video `image` field (= "use this as the starting frame"), NOT
