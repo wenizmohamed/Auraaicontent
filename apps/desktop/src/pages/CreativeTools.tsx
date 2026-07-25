@@ -855,14 +855,27 @@ export default function CreativeTools() {
                   <p className="text-[10px] text-zinc-700">PNG, JPG, WebP up to 25 MB</p>
                 </button>
               ) : (
-                <div className="mt-2 relative rounded-xl overflow-hidden border border-white/[0.06] bg-black">
-                  <img src={sourcePreview} alt="Source" className="w-full max-h-72 object-contain" />
+                <div className="mt-2">
+                  <div className="relative rounded-xl overflow-hidden border border-white/[0.06] bg-black">
+                    <img src={sourcePreview} alt="Source" className="w-full max-h-72 object-contain" />
+                    {/* Prominent, always-visible remove pill (not a subtle corner
+                        icon) so the source can always be cleared/changed — even
+                        after a result renders. */}
+                    <button
+                      onClick={clearSource}
+                      className="absolute top-2 right-2 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-black/70 text-white text-xs font-semibold hover:bg-red-600/90 border border-white/20 transition-colors"
+                      title="Remove this image"
+                    >
+                      <X className="w-3.5 h-3.5" /> Remove
+                    </button>
+                  </div>
+                  {/* A second, unmistakable full-width control below the image —
+                      belt-and-suspenders for discoverability. */}
                   <button
                     onClick={clearSource}
-                    className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/60 text-white hover:bg-black/80"
-                    title="Clear source"
+                    className="mt-2 w-full flex items-center justify-center gap-1.5 py-2 rounded-lg border border-white/[0.08] text-xs font-medium text-zinc-400 hover:text-white hover:border-[color:var(--color-danger)] hover:bg-[color:var(--color-danger-subtle)] transition-colors"
                   >
-                    <X className="w-4 h-4" />
+                    <X className="w-3.5 h-3.5" /> Remove image · upload a different one
                   </button>
                 </div>
               )}
