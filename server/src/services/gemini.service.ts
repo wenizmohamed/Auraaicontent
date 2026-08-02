@@ -13,7 +13,10 @@ export interface EmbedContext { orgId?: string | null; userId?: string | null; c
 // The preview embedContent API doesn't return a token count, so we estimate at
 // ~4 chars/token (Gemini's rough ratio); good enough for cost attribution.
 function recordEmbedUsage(text: string, ctx?: EmbedContext): void {
-  if (!ctx?.orgId) return;
+  if (!ctx?.orgId) {
+    console.warn('[embed] usage NOT tracked — missing orgId (caller did not pass EmbedContext)');
+    return;
+  }
   const model = MODELS.embedding;
   const promptTokens = Math.max(1, Math.ceil(text.length / 4));
   const priced = isPriced(model);

@@ -89,7 +89,12 @@ export interface UsageMeta {
   jobId?: string;
 }
 function persistChatUsage(meta: UsageMeta | undefined, model: string, provider: ProviderName, p?: number, c?: number, t?: number) {
-  if (!meta?.orgId) return;
+  if (!meta?.orgId) {
+    // Surface it: a silent skip is how token tracking develops blind spots.
+    // Mirrors the same warning in ai-router.persistUsage.
+    console.warn(`[chat] usage NOT tracked — missing orgId for model=${model}`);
+    return;
+  }
   const priced = isPriced(model);  // Phase 1: a real $0 vs cost-unknown.
   void db.usageEvent.create({
     data: {

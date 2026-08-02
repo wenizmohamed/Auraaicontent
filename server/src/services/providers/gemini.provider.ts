@@ -296,6 +296,25 @@ async function omniVideo(req: VideoRequest): Promise<ProviderResult<{ url: strin
   };
 }
 
+
+// Gemini returns usageMetadata on image/video responses too (prompt tokens +
+// output image tokens, which is what nano-banana actually bills on). Text and
+// analysis already captured it; image/video did not, so every image and video
+// UsageEvent recorded ZERO tokens. Complete token capture is the point of the
+// meter, so pull it from whatever shape the response carries.
+function usageOf(response: any): { promptTokens?: number; completionTokens?: number; totalTokens?: number } {
+  const u = response?.usageMetadata || response?.response?.usageMetadata;
+  if (!u) return {};
+  const p = u.promptTokenCount ?? u.promptTokens;
+  const c = u.candidatesTokenCount ?? u.completionTokenCount ?? u.candidateTokenCount;
+  const t = u.totalTokenCount ?? (((p ?? 0) + (c ?? 0)) || undefined);
+  return {
+    ...(typeof p === 'number' ? { promptTokens: p } : {}),
+    ...(typeof c === 'number' ? { completionTokens: c } : {}),
+    ...(typeof t === 'number' ? { totalTokens: t } : {}),
+  };
+}
+
 export const geminiProvider: AiProvider = {
   name: 'gemini',
 
@@ -435,6 +454,7 @@ export const geminiProvider: AiProvider = {
       return {
         provider: 'gemini', model, latencyMs: Date.now() - start, fallbackUsed: false,
         output: { base64 },
+        ...usageOf(ladderResult.result.response),
       };
     }
     const part = (ladderResult.result.response as any).candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData);
@@ -443,6 +463,7 @@ export const geminiProvider: AiProvider = {
     return {
       provider: 'gemini', model, latencyMs: Date.now() - start, fallbackUsed: false,
       output: { base64: b64 },
+      ...usageOf(ladderResult.result.response),
     };
   },
 
@@ -495,6 +516,7 @@ export const geminiProvider: AiProvider = {
     return {
       provider: 'gemini', model, latencyMs: Date.now() - start, fallbackUsed: false,
       output: { base64: b64 },
+      ...usageOf(response),
     };
   },
 

@@ -89,6 +89,23 @@ async function pollVideo(requestId: string): Promise<string> {
   throw new AiProviderError('xai', 'video', 'timeout');
 }
 
+
+// xAI returns a usage block on image endpoints too (prompt tokens + generated
+// image tokens). Text already captured it; image/imageEdit did not, so those
+// UsageEvents recorded zero tokens. Undefined fields stay undefined.
+function xaiUsage(data: any): { promptTokens?: number; completionTokens?: number; totalTokens?: number } {
+  const u = data?.usage;
+  if (!u) return {};
+  const p = u.prompt_tokens ?? u.input_tokens;
+  const c = u.completion_tokens ?? u.output_tokens ?? u.generated_image_tokens;
+  const t = u.total_tokens ?? (((p ?? 0) + (c ?? 0)) || undefined);
+  return {
+    ...(typeof p === 'number' ? { promptTokens: p } : {}),
+    ...(typeof c === 'number' ? { completionTokens: c } : {}),
+    ...(typeof t === 'number' ? { totalTokens: t } : {}),
+  };
+}
+
 export const xaiProvider: AiProvider = {
   name: 'xai',
 
@@ -152,6 +169,7 @@ export const xaiProvider: AiProvider = {
     return {
       provider: 'xai', model, latencyMs: Date.now() - start, fallbackUsed: false,
       output: b64 ? { base64: b64 } : { url },
+      ...xaiUsage(data),
     };
   },
 
@@ -167,6 +185,7 @@ export const xaiProvider: AiProvider = {
     return {
       provider: 'xai', model, latencyMs: Date.now() - start, fallbackUsed: false,
       output: { url },
+      ...xaiUsage(data),
     };
   },
 

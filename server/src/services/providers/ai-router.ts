@@ -5,7 +5,7 @@ import { isRetryableAiError, isSafetyBlock, AllProvidersFailedError, type Provid
 import { filterAvailable, recordSuccess, recordFailure, getCircuitSnapshot } from './circuit-breaker.js';
 import type { AiProvider, AiProviderName, AiTask, AiTelemetryEntry, AnalysisRequest, ImageRequest, ProviderResult, TextRequest, VideoRequest } from './types.js';
 import { db } from '../../db/prisma.js';
-import { computeCostUsd, isPriced } from '../../lib/ai-pricing.js';
+import { computeCostUsd, isPriced, DEFAULT_VIDEO_DURATION_S } from '../../lib/ai-pricing.js';
 import { assertOrgBudget } from '../../lib/budget.js';
 import { enrichWithBrandKit } from '../../lib/brand-kit-enricher.js';
 import { enrichWithKnowledge } from '../../lib/knowledge-enricher.js';
@@ -73,7 +73,16 @@ function persistUsage(meta: { orgId?: string; userId?: string; clientId?: string
         promptTokens: tokens.p,
         completionTokens: tokens.c,
         ...(priced ? {} : { unpricedModel: model }),
-        ...(extras?.durationSeconds ? { durationSeconds: extras.durationSeconds } : {}),
+        // ALWAYS record the seconds the row was billed on. Previously an absent
+        // durationSeconds meant the metadata carried nothing while computeCostUsd
+        // silently assumed 8s, so the meter couldn't tell a measured clip from an
+        // assumed one. Now the number is always present and flagged when assumed.
+        ...(task === 'video'
+          ? {
+              durationSeconds: extras?.durationSeconds ?? DEFAULT_VIDEO_DURATION_S,
+              durationEstimated: extras?.durationSeconds == null,
+            }
+          : {}),
       },
     },
   }).catch((err: any) => {

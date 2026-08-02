@@ -178,7 +178,7 @@ export function priceFor(model: string): PricePoint {
 // Default assumed duration for video calls when the caller doesn't pass
 // one. Most Veo + grok-imagine clips default to 8s in our request shapes
 // (see services/providers/xai.provider.ts:142). Better than logging $0.
-const DEFAULT_VIDEO_DURATION_S = 8;
+export const DEFAULT_VIDEO_DURATION_S = 8;
 
 export function computeCostUsd(
   model: string,
@@ -190,7 +190,15 @@ export function computeCostUsd(
   const p = priceFor(model);
   const promptCost = ((promptTokens ?? 0) / 1_000_000) * p.promptPerM;
   const completionCost = ((completionTokens ?? 0) / 1_000_000) * p.completionPerM;
-  const callCost = (p.perCall ?? 0) * calls;
+  // perCall on an image model is a STAND-IN for the per-image output-token cost
+  // (an image is ~1.3k output tokens). From 2026-08-02 the providers' real token
+  // counts are captured, so when we have measured tokens AND token pricing, the
+  // tokens ARE the cost. Adding perCall on top would double-bill every image.
+  // perCall still applies when the provider reported no tokens, and for models
+  // priced ONLY per call (imagen: promptPerM/completionPerM are 0).
+  const hasTokenPricing = p.promptPerM > 0 || p.completionPerM > 0;
+  const measuredOutputTokens = (completionTokens ?? 0) > 0;
+  const callCost = hasTokenPricing && measuredOutputTokens ? 0 : (p.perCall ?? 0) * calls;
   // Per-second video pricing — falls back to the 8s default if caller didn't
   // pass duration (so we still record some non-zero cost). When duration IS
   // known the row is accurate to the second.
