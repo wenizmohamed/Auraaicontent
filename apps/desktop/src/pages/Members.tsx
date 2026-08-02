@@ -26,8 +26,8 @@ function fill(template: string, vars: Record<string, string>): string {
 }
 
 export default function Members() {
-  const { theme } = useTheme();
-  const isDark = theme === 'dark';
+  const { effectiveTheme } = useTheme();
+  const isDark = effectiveTheme !== 'light';
   const { orgId, orgRole, userId: callerUserId } = useMemo(decodeOrg, []);
   const isPrivileged = orgRole === 'OWNER' || orgRole === 'ADMIN';
 

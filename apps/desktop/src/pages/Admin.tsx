@@ -46,8 +46,8 @@ function todayIso(): string {
 }
 
 export default function Admin() {
-  const { theme } = useTheme();
-  const isDark = theme === 'dark';
+  const { effectiveTheme } = useTheme();
+  const isDark = effectiveTheme !== 'light';
   const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
   const [orgs, setOrgs] = useState<AdminOrg[]>([]);
   const [error, setError] = useState<string | null>(null);

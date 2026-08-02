@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { errStatus, errMessage } from '../services/providers/errors.js';
 import { db } from '../db/prisma.js';
-import { authGuard } from '../middleware/auth.js';
+import { authGuard, denyViewer } from '../middleware/auth.js';
 import { briefService } from '../services/brief.service.js';
 import { auditService } from '../services/audit.service.js';
 import { createJob, processJob, findInflightGenerateJob } from '../workers/queue.js';
@@ -135,7 +135,7 @@ export async function calendarRoutes(app: FastifyInstance) {
   });
 
   // DELETE /api/clients/:clientId/calendar/:month
-  app.delete('/clients/:clientId/calendar/:month', async (request, reply) => {
+  app.delete('/clients/:clientId/calendar/:month', { preHandler: denyViewer }, async (request, reply) => {
     const { clientId, month } = request.params as { clientId: string; month: string };
     const orgId = request.orgId!;
     try {
@@ -249,6 +249,19 @@ export async function calendarRoutes(app: FastifyInstance) {
     for (const k of PATCHABLE_FIELDS) {
       if (Object.prototype.hasOwnProperty.call(updates, k)) data[k] = updates[k];
     }
+    // platformConnectionId is a foreign key the SCHEDULER later publishes
+    // through — an unvalidated id here would post this org's content to another
+    // org's (or the wrong client's) social account, and recordSuccess scopes its
+    // write-back by the connection's orgId so the post would never flip to
+    // 'published' and would republish every hour. The manual publish route
+    // validates the connection; the scheduled path must too.
+    if (data.platformConnectionId) {
+      const conn = await db.platformConnection.findFirst({
+        where: { id: String(data.platformConnectionId), orgId: request.orgId! },
+        select: { id: true },
+      });
+      if (!conn) return reply.status(404).send({ error: 'Platform connection not found' });
+    }
     // F2 scheduler — when the caller writes a non-null scheduledAt and
     // doesn't override status, stamp status='scheduled' so the scheduler
     // worker (workers/scheduler.worker.ts) picks the row up on its next
@@ -276,18 +289,21 @@ export async function calendarRoutes(app: FastifyInstance) {
   });
 
   // DELETE /api/calendar-posts/:postId
-  app.delete('/calendar-posts/:postId', async (request, reply) => {
+  app.delete('/calendar-posts/:postId', { preHandler: denyViewer }, async (request, reply) => {
     const { postId } = request.params as { postId: string };
     try {
       await assertCalendarPostInOrg(postId, request.orgId);
     } catch (err) {
       return reply.status(errStatus(err)).send({ error: errMessage(err) });
     }
-    const existing = await db.calendarPost.findUnique({
-      where: { id: postId },
+    // orgId must be in the where clause on BOTH queries — the tenant guard runs
+    // in throw mode in prod, so the unscoped versions made this route a
+    // guaranteed 500 (and silently blanked clientId in the audit record).
+    const existing = await db.calendarPost.findFirst({
+      where: { id: postId, orgId: request.orgId! },
       include: { calendarMonth: { select: { clientId: true } } },
     }).catch(() => null);
-    await db.calendarPost.delete({ where: { id: postId } });
+    await db.calendarPost.delete({ where: { id: postId, orgId: request.orgId! } });
     auditService.log({
       orgId: request.orgId,
       userId: request.user?.userId,

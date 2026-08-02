@@ -142,7 +142,15 @@ function orderedProviders(task: string, preferredPrimary?: AiProviderName): AiPr
   // Prefer a task-specific chain (image_edit has its own that skips xai);
   // fall back to the normalized-task chain for everything else.
   const base = CHAIN[task] || CHAIN[normalizedTask] || ['gemini', 'xai'];
-  const primary = preferredPrimary || PRIMARY[normalizedTask] || 'gemini';
+  let primary = preferredPrimary || PRIMARY[normalizedTask] || 'gemini';
+  // A task-specific chain is an EXCLUSION list, not just an ordering: image_edit
+  // omits xai because its /images/edits 403s for this team and 403 is
+  // non-retryable, which halts the ladder. A user picking "Grok Imagine" in the
+  // model picker must not re-insert an excluded provider as primary — that made
+  // every Grok image-edit a deterministic 503 with gemini/dashscope untried.
+  if (CHAIN[task] && preferredPrimary && !base.includes(preferredPrimary)) {
+    primary = PRIMARY[normalizedTask] || base[0];
+  }
   // primary first, then the rest of the chain (deduped), filtered to available.
   const ordered = [primary, ...base.filter((p) => p !== primary)].filter(providerAvailable);
   const names = FALLBACK_ENABLED ? ordered : ordered.slice(0, 1);
@@ -216,6 +224,7 @@ async function routeCall<T>(
     req.prompt = await enrichWithBrandKit(req.prompt, meta.clientId, {
       skip: meta?.skipBrandKit,
       platform: meta?.platform as any,
+      orgId: meta.orgId,
     });
   }
 

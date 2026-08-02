@@ -15,8 +15,8 @@ const MIN_PASSWORD = 6;
 export default function ResetPassword() {
   const { token } = useParams<{ token: string }>();
   const nav = useNavigate();
-  const { theme } = useTheme();
-  const isDark = theme === 'dark';
+  const { effectiveTheme } = useTheme();
+  const isDark = effectiveTheme !== 'light';
 
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');

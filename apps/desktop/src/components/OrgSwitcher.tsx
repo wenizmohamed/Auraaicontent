@@ -11,8 +11,8 @@ import { useTheme } from '../lib/theme-context';
 interface Props { collapsed: boolean }
 
 export default function OrgSwitcher({ collapsed }: Props) {
-  const { theme } = useTheme();
-  const isDark = theme === 'dark';
+  const { effectiveTheme } = useTheme();
+  const isDark = effectiveTheme !== 'light';
   const [memberships, setMemberships] = useState<OrgMembership[]>([]);
   const [activeOrgId, setActiveOrgId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);

@@ -384,6 +384,12 @@ export async function creativeRoutes(app: FastifyInstance) {
     const { jobId } = request.params as { jobId: string };
     const job = await getJob(jobId);
     if (job) {
+      // Tenant check — job ids are guessable-ish UUIDs and the payload carries
+      // result URLs + enhanced prompts. Matches the guard in routes/jobs.ts.
+      const jobOrgId = (job as any)?.data?.orgId;
+      if (jobOrgId && jobOrgId !== request.orgId) {
+        return reply.status(404).send({ error: 'Job not found' });
+      }
       return { id: job.id, status: job.status, progress: job.progress, result: job.result, error: job.error };
     }
     // Restart survivor: the queue is in-memory and wiped on every deploy, but
@@ -403,9 +409,12 @@ export async function creativeRoutes(app: FastifyInstance) {
     return reply.status(404).send({ error: 'Job not found' });
   });
 
-  // GET /api/creative/telemetry — provider audit log
-  app.get('/creative/telemetry', async () => {
-    return getAiTelemetry();
+  // GET /api/creative/telemetry — provider audit log, scoped to the caller's
+  // org (entries with no orgId are system/worker calls and stay visible).
+  // Mirrors the dashboard's filter — returning the raw buffer exposed every
+  // org's orgId/clientId/jobId/error strings to any authenticated user.
+  app.get('/creative/telemetry', async (request) => {
+    return getAiTelemetry().filter((e: any) => !e.orgId || e.orgId === request.orgId);
   });
 
   // POST /api/creative/prompt/improve

@@ -60,7 +60,7 @@ export async function reviewRoutes(app: FastifyInstance) {
 
     // Verify postId belongs to the link's calendar (defense in depth — token
     // grants approval rights only for its own month).
-    const post = await db.calendarPost.findUnique({ where: { id: postId }, select: { orgId: true, calendarMonthId: true } });
+    const post = await db.calendarPost.findFirst({ where: { id: postId, orgId: link.orgId }, select: { orgId: true, calendarMonthId: true } });
     if (!post || post.orgId !== link.orgId || post.calendarMonthId !== link.calendarMonthId) {
       return reply.status(404).send({ error: 'Post not in this review link' });
     }
@@ -75,7 +75,7 @@ export async function reviewRoutes(app: FastifyInstance) {
     const link = await reviewService.getByToken(token);
     if (!link) return reply.status(404).send({ error: 'Review link not found or expired' });
 
-    const post = await db.calendarPost.findUnique({ where: { id: postId }, select: { orgId: true, calendarMonthId: true } });
+    const post = await db.calendarPost.findFirst({ where: { id: postId, orgId: link.orgId }, select: { orgId: true, calendarMonthId: true } });
     if (!post || post.orgId !== link.orgId || post.calendarMonthId !== link.calendarMonthId) {
       return reply.status(404).send({ error: 'Post not in this review link' });
     }

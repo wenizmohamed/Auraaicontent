@@ -30,6 +30,10 @@ export type BrandKitPlatform =
 export interface BrandKitEnrichOpts {
   platform?: BrandKitPlatform;
   skip?: boolean;
+  /** Tenant scope. REQUIRED for enrichment to run — see the fail-closed note
+   *  in enrichWithBrandKit. Callers pass the orgId from the request context,
+   *  never one supplied by the client. */
+  orgId?: string | null;
 }
 
 interface VoiceSample {
@@ -88,12 +92,17 @@ export async function enrichWithBrandKit(
   if (opts.skip) return prompt;
   if (!clientId) return prompt;
   if (!prompt) return prompt;
+  // FAIL CLOSED on missing tenant scope. clientId can originate from a request
+  // body (e.g. /api/ai/text, /api/design/brief), so an unscoped lookup would
+  // splice another org's brand voice, DO-NOT rules and asset URLs into this
+  // org's prompt — and prompts get echoed back. No orgId → no enrichment.
+  if (!opts.orgId) return prompt;
 
   let bk: any = null;
   let clientName = '';
   try {
-    bk = await db.brandKit.findUnique({
-      where: { clientId },
+    bk = await db.brandKit.findFirst({
+      where: { clientId, orgId: opts.orgId },
       include: { client: { select: { name: true } } },
     });
     clientName = bk?.client?.name || '';

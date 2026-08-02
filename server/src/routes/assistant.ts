@@ -352,7 +352,7 @@ export async function assistantRoutes(app: FastifyInstance) {
       try {
         systemPrompt = await enrichWithKnowledge(systemPrompt, orgId, clientId, lastUserText, {});
         systemPrompt = await enrichWithMemory(systemPrompt, orgId, clientId, lastUserText, {});
-        systemPrompt = await enrichWithBrandKit(systemPrompt, clientId, {});
+        systemPrompt = await enrichWithBrandKit(systemPrompt, clientId, { orgId });
       } catch { /* best-effort — never block the chat on enrichment */ }
     }
 

@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { errStatus, errMessage } from '../services/providers/errors.js';
-import { authGuard } from '../middleware/auth.js';
+import { authGuard, denyViewer } from '../middleware/auth.js';
 import { assetService } from '../services/asset.service.js';
 import { storageService } from '../services/storage.service.js';
 import { analyzeAssetWorker } from '../workers/assetAnalysis.worker.js';
@@ -117,7 +117,7 @@ export async function assetRoutes(app: FastifyInstance) {
   });
 
   // DELETE /api/assets/:assetId
-  app.delete('/assets/:assetId', async (request, reply) => {
+  app.delete('/assets/:assetId', { preHandler: denyViewer }, async (request, reply) => {
     const { assetId } = request.params as { assetId: string };
     const orgId = request.orgId!;
     const asset = await assetService.getById(orgId, assetId);
@@ -148,7 +148,7 @@ export async function assetRoutes(app: FastifyInstance) {
   });
 
   // DELETE /api/calendar-posts/:postId/link-asset/:assetId
-  app.delete('/calendar-posts/:postId/link-asset/:assetId', async (request) => {
+  app.delete('/calendar-posts/:postId/link-asset/:assetId', { preHandler: denyViewer }, async (request) => {
     const { postId, assetId } = request.params as { postId: string; assetId: string };
     const orgId = request.orgId!;
     await assetService.unlinkFromPost(orgId, postId, assetId);

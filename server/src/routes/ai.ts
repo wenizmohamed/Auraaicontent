@@ -9,6 +9,7 @@ import { FastifyInstance } from 'fastify';
 import { authGuard } from '../middleware/auth.js';
 import { aiRouter } from '../services/providers/ai-router.js';
 import { sendAiError } from '../services/providers/errors.js';
+import { assertClientInOrg } from '../lib/tenant.js';
 
 interface AiTextBody {
   prompt?: string;
@@ -25,6 +26,13 @@ export async function aiRoutes(app: FastifyInstance) {
   app.post('/ai/text', async (request, reply) => {
     const { prompt, system, json, temperature, clientId } = (request.body || {}) as AiTextBody;
     if (!prompt?.trim()) return reply.status(400).send({ error: 'prompt is required' });
+    // clientId arrives from the request body — it must be proven to belong to
+    // the caller's org before it reaches the router's enrichers (brand voice,
+    // knowledge, memory are all client-scoped context).
+    if (clientId) {
+      try { await assertClientInOrg(clientId, request.orgId); }
+      catch (e: any) { return reply.status(e?.statusCode || 404).send({ error: e?.message || 'Client not found' }); }
+    }
     try {
       const result = await aiRouter.text(
         { prompt, system, json: !!json, temperature },

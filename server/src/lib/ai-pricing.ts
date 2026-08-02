@@ -55,6 +55,15 @@ export const AI_PRICING: Record<string, PricePoint> = {
   // catalog page — ESTIMATE $0.10/s pending console verification.
   'wan2.7-t2v':                        { promptPerM: 0,    completionPerM: 0,    perSecond: 0.10 },
   'wan2.7-t2v-2026-06-12':             { promptPerM: 0,    completionPerM: 0,    perSecond: 0.10 },
+  // wan2.7 i2v + r2v: same DashScope video tier as t2v, and the Creative Studio
+  // engine picker quotes users $0.10/s for both. Unpriced until 2026-08-02 —
+  // every image→video and Reference→Video clip logged a $0 UsageEvent while
+  // video is ~97% of AI spend. The boot guard only audits *_MODEL env vars, so
+  // hardcoded provider rungs like these must be priced by hand.
+  'wan2.7-i2v':                        { promptPerM: 0,    completionPerM: 0,    perSecond: 0.10 },
+  'wan2.7-i2v-2026-04-25':             { promptPerM: 0,    completionPerM: 0,    perSecond: 0.10 },
+  'wan2.7-r2v':                        { promptPerM: 0,    completionPerM: 0,    perSecond: 0.10 },
+  'wan2.7-r2v-2026-06-12':             { promptPerM: 0,    completionPerM: 0,    perSecond: 0.10 },
   // veo-2.0-generate-001: legacy fallback, $0.05/sec (Google deprecated tier).
   'veo-2.0-generate-001':              { promptPerM: 0,    completionPerM: 0,    perSecond: 0.05 },
   // gemini-embedding-2-preview: $0.20/M for text; multimodal climbs higher.
@@ -70,6 +79,9 @@ export const AI_PRICING: Record<string, PricePoint> = {
   'gemini-2.0-flash':                  { promptPerM: 0.10, completionPerM: 0.40 },  // text ladder floor rung — was UNPRICED ($0 leak)
   // imagen standard (non-ultra). ~$0.04/image; ultra above is $0.06.
   'imagen-4.0-generate-001':           { promptPerM: 0,    completionPerM: 0,    perCall: 0.04 },
+  // imagen fast tier (~$0.02/image) — rung 3 of the standard-image ladder in
+  // gemini.provider.ts; was unpriced (logged $0).
+  'imagen-4.0-fast-generate-001':      { promptPerM: 0,    completionPerM: 0,    perCall: 0.02 },
 
   // ─── Anthropic Claude (assistant via chat.ts CLAUDE_ASSISTANT_MODEL) ──
   // Claude Sonnet 4: $3/M input, $15/M output.

@@ -14,6 +14,9 @@ import { creativeVideoWorker } from './creativeVideo.worker.js';
 export function initJobWorkers(): void {
   registerWorkerType('generate-month', generateMonthWorker);
   registerWorkerType('export', exportWorker);
+  // routes/publish.ts enqueues 'publish-post'; the legacy 'publish' name is kept
+  // registered so any job already sitting in Redis under it still drains.
+  registerWorkerType('publish-post', publishWorker);
   registerWorkerType('publish', publishWorker);
   registerWorkerType('visual-refs-backfill', visualRefsBackfillWorker);
   registerWorkerType('creative-video', creativeVideoWorker);

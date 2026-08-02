@@ -11,10 +11,15 @@ import { authGuard } from '../middleware/auth.js';
 import { aiRouter } from '../services/providers/ai-router.js';
 import { db } from '../db/prisma.js';
 import { errStatus, errMessage } from '../services/providers/errors.js';
+import { assertPublicHttpUrl } from '../services/upscale.service.js';
 
 async function fetchPageText(url: string, timeoutMs = 8000): Promise<string | null> {
   try {
     const u = url.startsWith('http') ? url : `https://${url}`;
+    // The server performs this fetch, so an unvalidated host turns the endpoint
+    // into an internal-network probe (the page text is summarised back to the
+    // caller). Public http(s) hosts only — throws for loopback/private ranges.
+    assertPublicHttpUrl(u);
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), timeoutMs);
     const res = await fetch(u, { signal: ctrl.signal, headers: { 'User-Agent': 'Mozilla/5.0 RadixBot' } });

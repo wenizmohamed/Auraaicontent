@@ -79,6 +79,20 @@ export async function authGuard(request: FastifyRequest, reply: FastifyReply) {
 }
 
 // Role gate — wrap routes that should only fire for OWNER/ADMIN.
+/**
+ * Blocks the read-only VIEWER role from destructive/write endpoints.
+ * The Members UI offers VIEWER and renders it read-only, but nothing on the
+ * server enforced it — a VIEWER could DELETE a client and cascade-wipe its
+ * calendars, assets, knowledge base and brand kit (found 2026-08-02).
+ * Additive by design: OWNER/ADMIN/EDITOR and any future role pass, so this
+ * can never lock out an existing member (prod has zero VIEWERs today).
+ */
+export async function denyViewer(request: FastifyRequest, reply: FastifyReply) {
+  if (request.user?.orgRole === 'VIEWER') {
+    return reply.status(403).send({ error: 'Your role is read-only for this organization' });
+  }
+}
+
 export function requireOrgRole(...allowed: string[]) {
   return async (request: FastifyRequest, reply: FastifyReply) => {
     const role = request.user?.orgRole;

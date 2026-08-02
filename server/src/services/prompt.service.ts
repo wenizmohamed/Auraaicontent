@@ -139,6 +139,22 @@ function formatCampaigns(brief: any, pieceCount: number): string[] {
   return lines;
 }
 
+// Brief list entries may be plain strings OR objects — campaignMoments and
+// occasions are saved as [{name, date}] by BriefInput, and a bare join()
+// stringified them to "[object Object]", so Special Occasions never actually
+// reached the model. Renders objects as "Name (date)". (fixed 2026-08-02)
+function fmtBriefEntry(x: any): string {
+  if (x == null) return '';
+  if (typeof x === 'string') return x.trim();
+  if (typeof x === 'object') {
+    const name = String(x.name ?? x.title ?? x.label ?? '').trim();
+    const date = String(x.date ?? x.when ?? '').trim();
+    if (name && date) return `${name} (${date})`;
+    return name || date || '';
+  }
+  return String(x);
+}
+
 function buildEnglishPrompt(p: BuildArgs): string {
   const s: string[] = [];
   s.push(`You are an expert social media content strategist for ${p.client.name}, a ${p.client.industry || 'general'} company.`);
@@ -156,7 +172,7 @@ function buildEnglishPrompt(p: BuildArgs): string {
     if (p.brief.brandDont) s.push(`Brand Don't: ${p.brief.brandDont}`);
     if (p.brief.complianceNotes) s.push(`Compliance: ${p.brief.complianceNotes}`);
     if (p.brief.visualLookFeel) s.push(`Visual look & feel: ${p.brief.visualLookFeel}`);
-    const fmtArr = (l: string, v: any) => { try { const a = typeof v === 'string' ? JSON.parse(v) : v; if (Array.isArray(a) && a.length) s.push(`${l}: ${a.join(', ')}`); } catch {} };
+    const fmtArr = (l: string, v: any) => { try { const a = typeof v === 'string' ? JSON.parse(v) : v; if (Array.isArray(a)) { const parts = a.map(fmtBriefEntry).filter(Boolean); if (parts.length) s.push(`${l}: ${parts.join(', ')}`); } } catch {} };
     fmtArr('Products', p.brief.products);
     fmtArr('Campaign Moments', p.brief.campaignMoments);
     // Per-campaign block (distinct audience/objective/message per campaign).
@@ -255,7 +271,7 @@ function buildArabicPrompt(p: BuildArgs): string {
     if (p.brief.brandDont) s.push(`Brand Don't: ${p.brief.brandDont}`);
     if (p.brief.complianceNotes) s.push(`Compliance: ${p.brief.complianceNotes}`);
     if (p.brief.visualLookFeel) s.push(`Visual look & feel: ${p.brief.visualLookFeel}`);
-    const fmtArr = (l: string, v: any) => { try { const a = typeof v === 'string' ? JSON.parse(v) : v; if (Array.isArray(a) && a.length) s.push(`${l}: ${a.join(', ')}`); } catch {} };
+    const fmtArr = (l: string, v: any) => { try { const a = typeof v === 'string' ? JSON.parse(v) : v; if (Array.isArray(a)) { const parts = a.map(fmtBriefEntry).filter(Boolean); if (parts.length) s.push(`${l}: ${parts.join(', ')}`); } } catch {} };
     fmtArr('Products', p.brief.products);
     fmtArr('Campaign Moments', p.brief.campaignMoments);
     // Per-campaign block (distinct audience/objective/message per campaign).

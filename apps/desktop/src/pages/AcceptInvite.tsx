@@ -20,8 +20,8 @@ function fill(template: string, vars: Record<string, string>): string {
 export default function AcceptInvite() {
   const { token } = useParams<{ token: string }>();
   const nav = useNavigate();
-  const { theme } = useTheme();
-  const isDark = theme === 'dark';
+  const { effectiveTheme } = useTheme();
+  const isDark = effectiveTheme !== 'light';
 
   const [preview, setPreview] = useState<InvitePreview | null>(null);
   const [error, setError] = useState<string | null>(null);

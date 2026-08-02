@@ -5,7 +5,7 @@
 // query carries orgId explicitly.
 import { FastifyInstance } from 'fastify';
 import { db } from '../db/prisma.js';
-import { authGuard } from '../middleware/auth.js';
+import { authGuard, denyViewer } from '../middleware/auth.js';
 import { auditService } from '../services/audit.service.js';
 
 // Whitelist of client-settable fields (id/orgId/clientId/timestamps excluded).
@@ -79,7 +79,7 @@ export async function contentPieceRoutes(app: FastifyInstance) {
   });
 
   // DELETE /api/content-pieces/:id
-  app.delete('/content-pieces/:id', async (request, reply) => {
+  app.delete('/content-pieces/:id', { preHandler: denyViewer }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const existing = await db.contentPiece.findFirst({ where: { id, orgId: request.orgId! }, select: { id: true, clientId: true, title: true } });
     if (!existing) return reply.status(404).send({ error: 'Content piece not found' });

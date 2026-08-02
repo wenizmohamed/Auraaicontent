@@ -31,10 +31,14 @@ export async function designRoutes(app: FastifyInstance) {
     }
 
     let clientContext = '';
+    // Only a client PROVEN to belong to the caller's org may flow onward as
+    // AI context/attribution — body clientId is untrusted input.
+    let scopedClientId: string | undefined;
     if (clientId) {
       try {
         const client = await db.client.findUnique({ where: { id: clientId, orgId: request.orgId }, include: { briefs: { orderBy: { month: 'asc' }, take: 1 } } });
         if (client) {
+          scopedClientId = client.id;
           const brief = (client as any).briefs?.[0];
           clientContext += `\nClient: ${client.name}`;
           if (client.industry) clientContext += ` (${client.industry})`;
@@ -78,7 +82,7 @@ export async function designRoutes(app: FastifyInstance) {
     ].filter(Boolean).join('\n');
 
     try {
-      const result = await aiRouter.text({ prompt, json: true }, { orgId: request.orgId, userId: request.user?.userId, clientId });
+      const result = await aiRouter.text({ prompt, json: true }, { orgId: request.orgId, userId: request.user?.userId, clientId: scopedClientId });
       const out = result.output as any;
 
       // Best-effort normalization
@@ -121,7 +125,7 @@ export async function designRoutes(app: FastifyInstance) {
       await historyService.record({
         orgId: request.orgId,
         userId: request.user?.userId,
-        clientId: clientId || undefined,
+        clientId: scopedClientId,
         type: 'design',
         surface: 'design_textures',
         prompt: topic,

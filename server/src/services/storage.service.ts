@@ -12,9 +12,31 @@ const THUMB_DIR = path.resolve(UPLOAD_DIR, 'thumbs');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 fs.mkdirSync(THUMB_DIR, { recursive: true });
 
+// Extensions we are willing to put on disk under /uploads. The stored name is
+// ALWAYS built from this allowlist — never from the uploader's filename, which
+// is attacker-controlled. Serving an upload as text/html (or svg) on the app
+// origin is stored XSS: it can read localStorage auth tokens = account
+// takeover. nginx blocks those types too (defence in depth, 2026-08-02).
+const SAFE_EXTS = new Set([
+  '.jpg', '.jpeg', '.png', '.webp', '.gif', '.avif', '.bmp', '.tiff',
+  '.mp4', '.webm', '.mov', '.m4v',
+  '.mp3', '.wav', '.m4a',
+  '.pdf', '.docx', '.doc', '.xlsx', '.xls', '.csv', '.txt', '.pptx',
+  '.zip', '.bin',
+]);
+
+function safeExt(originalName: string, mimeType: string): string {
+  const fromMime = mimeTypeToExt(mimeType);
+  if (fromMime && fromMime !== '.bin' && SAFE_EXTS.has(fromMime)) return fromMime;
+  // Fall back to the uploader's extension ONLY if it is explicitly allowlisted.
+  const raw = path.extname(originalName || '').toLowerCase();
+  if (SAFE_EXTS.has(raw)) return raw;
+  return '.bin';
+}
+
 export const storageService = {
   async saveFile(buffer: Buffer, originalName: string, mimeType: string): Promise<{ fileUrl: string; thumbUrl: string | null }> {
-    const ext = path.extname(originalName) || mimeTypeToExt(mimeType);
+    const ext = safeExt(originalName, mimeType);
     const hash = crypto.randomBytes(8).toString('hex');
     const filename = `${hash}${ext}`;
     const filePath = path.join(UPLOAD_DIR, filename);
@@ -38,14 +60,31 @@ export const storageService = {
   },
 
   async deleteFile(fileUrl: string): Promise<void> {
-    const filePath = path.join(process.cwd(), fileUrl);
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    const filePath = resolveUploadPath(fileUrl);
+    if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
   },
 
   getAbsolutePath(fileUrl: string): string {
-    return path.join(process.cwd(), fileUrl);
+    const p = resolveUploadPath(fileUrl);
+    if (!p) throw Object.assign(new Error('Invalid upload path'), { statusCode: 400 });
+    return p;
   },
+
+  /** null when the url escapes the uploads dir — callers must treat as invalid. */
+  resolveUploadPath,
 };
+
+// path.join(cwd, '/uploads/../../etc/passwd') silently escapes the uploads
+// directory, so a "/uploads/"-prefixed string is NOT proof of containment.
+// Resolve first, then assert the result is still inside UPLOAD_DIR.
+function resolveUploadPath(fileUrl: string): string | null {
+  if (!fileUrl || typeof fileUrl !== 'string') return null;
+  const rel = fileUrl.replace(/^\/+/, '');
+  if (!rel.startsWith('uploads/')) return null;
+  const abs = path.resolve(process.cwd(), rel);
+  const root = UPLOAD_DIR.endsWith(path.sep) ? UPLOAD_DIR : UPLOAD_DIR + path.sep;
+  return abs === UPLOAD_DIR || abs.startsWith(root) ? abs : null;
+}
 
 function mimeTypeToExt(mime: string): string {
   const map: Record<string, string> = {

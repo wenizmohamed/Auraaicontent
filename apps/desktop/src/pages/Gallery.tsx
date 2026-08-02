@@ -26,10 +26,10 @@ function formatRelative(iso: string): string {
 }
 
 export default function Gallery() {
-  const { theme } = useTheme();
+  const { effectiveTheme } = useTheme();
   const { clients, currentClient } = useClients();
   const { success: toastOk, error: toastErr } = useToast();
-  const isDark = theme === 'dark';
+  const isDark = effectiveTheme !== 'light';
 
   const [assets, setAssets] = useState<GalleryAsset[]>([]);
   const [loading, setLoading] = useState(true);

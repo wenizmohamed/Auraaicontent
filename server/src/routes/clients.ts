@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { errStatus, errMessage } from '../services/providers/errors.js';
 import { clientService } from '../services/client.service.js';
-import { authGuard } from '../middleware/auth.js';
+import { authGuard, denyViewer } from '../middleware/auth.js';
 import { auditService } from '../services/audit.service.js';
 
 export async function clientRoutes(app: FastifyInstance) {
@@ -68,7 +68,7 @@ export async function clientRoutes(app: FastifyInstance) {
   });
 
   // DELETE /api/clients/:clientId
-  app.delete('/:clientId', async (request, reply) => {
+  app.delete('/:clientId', { preHandler: denyViewer }, async (request, reply) => {
     const { clientId } = request.params as { clientId: string };
     try {
       await clientService.remove(request.orgId!, clientId);

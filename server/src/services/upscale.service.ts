@@ -52,6 +52,26 @@ export interface UpscaleResult {
   aiEnhanced?: boolean;
 }
 
+// SSRF guard: a caller-supplied sourceUrl is fetched BY THE SERVER, so without
+// this it doubles as a probe of loopback/LAN services (redis, the API's own
+// internal routes, cloud metadata). Public http(s) hosts only.
+export function assertPublicHttpUrl(raw: string): URL {
+  let u: URL;
+  try { u = new URL(raw); } catch { throw Object.assign(new Error('Invalid source URL'), { statusCode: 400 }); }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') {
+    throw Object.assign(new Error('Only http(s) URLs are allowed'), { statusCode: 400 });
+  }
+  const h = u.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  const blocked =
+    h === 'localhost' || h === '::1' || h.endsWith('.localhost') || h.endsWith('.internal') ||
+    /^127\./.test(h) || /^10\./.test(h) || /^192\.168\./.test(h) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(h) ||
+    /^169\.254\./.test(h) || /^0\./.test(h) ||
+    /^f[cd][0-9a-f]{2}:/i.test(h) || /^fe80:/i.test(h);
+  if (blocked) throw Object.assign(new Error('URL host is not permitted'), { statusCode: 400 });
+  return u;
+}
+
 async function loadSource(input: UpscaleInput): Promise<Buffer> {
   if (input.base64) return Buffer.from(input.base64, 'base64');
   if (input.sourceUrl) {
@@ -61,6 +81,7 @@ async function loadSource(input: UpscaleInput): Promise<Buffer> {
       const fs = await import('fs');
       return fs.readFileSync(abs);
     }
+    assertPublicHttpUrl(input.sourceUrl);
     const res = await fetch(input.sourceUrl, { signal: AbortSignal.timeout(20000) });
     if (!res.ok) throw new Error(`Could not fetch source image (${res.status})`);
     return Buffer.from(await res.arrayBuffer());

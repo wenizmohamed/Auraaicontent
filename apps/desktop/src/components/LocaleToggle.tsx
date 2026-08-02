@@ -13,8 +13,8 @@ interface Props { collapsed: boolean }
 type Locale = 'en' | 'ar';
 
 export default function LocaleToggle({ collapsed }: Props) {
-  const { theme } = useTheme();
-  const isDark = theme === 'dark';
+  const { effectiveTheme } = useTheme();
+  const isDark = effectiveTheme !== 'light';
   const [locale, setLocale] = useState<Locale>('en');
 
   useEffect(() => {

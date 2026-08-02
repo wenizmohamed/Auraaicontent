@@ -66,7 +66,7 @@ async function enrichLastUserTurn(
   try {
     let enriched = await enrichWithKnowledge(original, meta.orgId, meta.clientId, original, {});
     enriched = await enrichWithMemory(enriched, meta.orgId, meta.clientId, original, {});
-    enriched = await enrichWithBrandKit(enriched, meta.clientId, {});
+    enriched = await enrichWithBrandKit(enriched, meta.clientId, { orgId: meta.orgId });
     if (enriched === original) return messages; // nothing added → leave untouched
     const clone = messages.slice();
     clone[idx] = { ...clone[idx], content: enriched } as typeof clone[number];

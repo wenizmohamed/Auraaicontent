@@ -362,8 +362,8 @@ function WalkthroughSection({ isDark, glass, glassStatic, textPrimary, textSecon
 
 export default function Dashboard() {
   const { clients, currentClient, authenticated } = useClients();
-  const { theme } = useTheme();
-  const isDark = theme === 'dark';
+  const { effectiveTheme } = useTheme();
+  const isDark = effectiveTheme !== 'light';
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [aiStats, setAiStats] = useState<AiStats | null>(null);
   const [insights, setInsights] = useState<DashboardInsights | null>(null);

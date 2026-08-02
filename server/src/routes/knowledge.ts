@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { errStatus, errMessage } from '../services/providers/errors.js';
-import { authGuard } from '../middleware/auth.js';
+import { authGuard, denyViewer } from '../middleware/auth.js';
 import { knowledgeService } from '../services/knowledge.service.js';
 import { storageService } from '../services/storage.service.js';
 import { embedKnowledgeItem } from '../workers/embeddings.worker.js';
@@ -72,7 +72,7 @@ export async function knowledgeRoutes(app: FastifyInstance) {
   });
 
   // DELETE /api/knowledge/:knowledgeItemId
-  app.delete('/knowledge/:knowledgeItemId', async (request, reply) => {
+  app.delete('/knowledge/:knowledgeItemId', { preHandler: denyViewer }, async (request, reply) => {
     const { knowledgeItemId } = request.params as { knowledgeItemId: string };
     const orgId = request.orgId!;
     const item = await knowledgeService.getById(orgId, knowledgeItemId);
