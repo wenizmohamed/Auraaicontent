@@ -16,6 +16,24 @@ export interface ChangelogEntry {
 
 const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-08-02',
+    tag: 'new',
+    title: 'Improve with AI: pick from 3 creative directions',
+    body: 'Hit Improve with AI in Creative Tools and you now get three genuinely different takes on your idea — each a full production-grade prompt with its own angle — instead of one rewrite. Read them in full, apply the one you like, or dismiss them and keep your own wording. On image-to-video, directions only vary camera and motion: the image you uploaded stays exactly as it is.',
+  },
+  {
+    date: '2026-07-25',
+    tag: 'improved',
+    title: 'Choose your exact video engine — for image-to-video too',
+    body: 'The video Engine picker now lists every engine individually — Veo, Grok, Omni Flash and Wan 2.7 — each with its own price per second, and image-to-video is no longer limited to one engine family. Attach product reference images and a Reference→Video option appears that keeps your exact product consistent through the whole clip. Removing an uploaded start frame is now one obvious click.',
+  },
+  {
+    date: '2026-07-21',
+    tag: 'fixed',
+    title: 'No more cut-off captions + the newest AI models',
+    body: 'Long generations (big calendars, detailed briefs) no longer come back truncated mid-sentence — output limits were raised across engines. Radix also moved to the latest models across providers (Grok 4.5, Gemini 3.5 Flash, the newest image models), and when an engine wrongly blocks safe content, Radix now automatically retries on another engine instead of failing.',
+  },
+  {
     date: '2026-07-15',
     tag: 'improved',
     title: 'Faster, more reliable content generation',
