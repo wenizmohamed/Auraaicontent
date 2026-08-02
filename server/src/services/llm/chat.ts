@@ -124,7 +124,7 @@ const DASHSCOPE_BASE = process.env.DASHSCOPE_BASE_URL || 'https://dashscope-intl
 
 const cache = new Map<ProviderName, OpenAI>();
 
-function clientFor(p: ProviderName): ProviderClient {
+function clientFor(p: ProviderName, geminiModelOverride?: string): ProviderClient {
   let cached = cache.get(p);
   if (p === 'gemini') {
     const key = process.env.GEMINI_API_KEY;
@@ -133,7 +133,11 @@ function clientFor(p: ProviderName): ProviderClient {
       cached = new OpenAI({ apiKey: key, baseURL: GEMINI_BASE });
       cache.set(p, cached);
     }
-    const model = process.env.GEMINI_CHAT_MODEL || 'gemini-3.1-pro-preview';
+    // A caller (the agent) can force a reasoning-tier model on the gemini hop
+    // without changing GEMINI_CHAT_MODEL, which the assistant shares. The
+    // override applies ONLY to gemini: the xai/dashscope fallbacks keep their
+    // own ids, since a gemini model string would 400 on those endpoints.
+    const model = geminiModelOverride || process.env.GEMINI_CHAT_MODEL || 'gemini-3.1-pro-preview';
     return { client: cached, model, provider: p };
   }
   if (p === 'xai') {
@@ -210,11 +214,11 @@ function isTransientError(err: unknown): boolean {
 
 const RETRY_BACKOFFS_MS = [400, 1200, 3500]; // ~5s total upper bound
 
-async function tryWithBackoff<T>(p: ProviderName, fn: (ctx: ProviderClient) => Promise<T>): Promise<T> {
+async function tryWithBackoff<T>(p: ProviderName, fn: (ctx: ProviderClient) => Promise<T>, geminiModelOverride?: string): Promise<T> {
   let lastErr: unknown;
   for (let attempt = 0; attempt <= RETRY_BACKOFFS_MS.length; attempt++) {
     try {
-      const ctx = clientFor(p);
+      const ctx = clientFor(p, geminiModelOverride);
       return await fn(ctx);
     } catch (err) {
       lastErr = err;
@@ -234,7 +238,7 @@ async function tryWithBackoff<T>(p: ProviderName, fn: (ctx: ProviderClient) => P
 // fall through immediately.
 export async function withFallback<T>(
   fn: (ctx: ProviderClient) => Promise<T>,
-  options: { chain?: ProviderName[]; chainEnv?: string } = {},
+  options: { chain?: ProviderName[]; chainEnv?: string; geminiModel?: string } = {},
 ): Promise<FallbackResult<T>> {
   const resolved = resolveChain(options.chainEnv, options.chain ?? DEFAULT_CHAIN);
   // Shared circuit-breaker (unified with ai-router): drop providers whose 'text'
@@ -247,8 +251,8 @@ export async function withFallback<T>(
   for (let i = 0; i < chain.length; i++) {
     const p = chain[i];
     try {
-      const result = await tryWithBackoff(p, fn);
-      const ctx = clientFor(p);
+      const result = await tryWithBackoff(p, fn, options.geminiModel);
+      const ctx = clientFor(p, options.geminiModel);
       recordSuccess(p, 'text');
       return { result, provider: ctx.provider, model: ctx.model, fallbackUsed: i > 0, attempts };
     } catch (err) {
@@ -324,7 +328,7 @@ export async function chatText(
 // drop partial output + duplicate work). Caller iterates as usual.
 export async function chatStream(
   params: Omit<ChatCompletionCreateParamsStreaming, 'model' | 'stream'>,
-  options?: { chain?: ProviderName[]; chainEnv?: string; signal?: AbortSignal; meta?: UsageMeta; enrich?: boolean },
+  options?: { chain?: ProviderName[]; chainEnv?: string; signal?: AbortSignal; meta?: UsageMeta; enrich?: boolean; modelOverride?: string },
 ): Promise<{
   stream: AsyncIterable<ChatCompletionChunk>;
   provider: ProviderName;
@@ -358,7 +362,7 @@ export async function chatStream(
       { signal: options?.signal },
     );
     return stream;
-  }, { chain: options?.chain, chainEnv: options?.chainEnv });
+  }, { chain: options?.chain, chainEnv: options?.chainEnv, geminiModel: options?.modelOverride });
 
   // Wrap the stream so we tap into each chunk for usage, then re-yield to
   // the caller. The final chunk (when include_usage works) carries `usage`.

@@ -24,7 +24,13 @@ import { SYSTEM } from './system-prompt.js';
 // routinely hit 14-16 iters).  20 keeps the safety cap but stops truncating
 // valid multi-client plans.
 const MAX_ITERATIONS = parseInt(process.env.AGENT_MAX_ITERATIONS ?? '20', 10);
-const AGENT_CHAIN_ENV = process.env.AGENT_PROVIDER_CHAIN; // e.g. "gemini,xai,moonshot"
+const AGENT_CHAIN_ENV = process.env.AGENT_PROVIDER_CHAIN; // e.g. "gemini,xai,dashscope"
+// The agent does the hardest reasoning in the app: choosing among 14 tools, in
+// order, across up to 20 iterations. It used to inherit GEMINI_CHAT_MODEL (a
+// flash tier shared with the assistant), so a wrong tool pick wasted a whole
+// iteration. Give it a dedicated reasoning-tier model on the gemini hop.
+// Probed live 2026-08-02: gemini-pro-latest tool-calls cleanly and is priced.
+const AGENT_MODEL = process.env.AGENT_MODEL || 'gemini-pro-latest';
 
 function isAbortError(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false;
@@ -168,6 +174,9 @@ async function runAgentLoopInner(
         },
         {
           chainEnv: AGENT_CHAIN_ENV,
+          // Reasoning-tier model for the gemini hop only; xai/dashscope
+          // fallbacks keep their own ids.
+          modelOverride: AGENT_MODEL,
           signal: ctx.signal,
           meta: { orgId: ctx.orgId, userId: ctx.userId ?? undefined, clientId: ctx.clientId ?? undefined, jobId: ctx.sessionUid },
           // Ground every agent run in the client's brand kit, knowledge base
