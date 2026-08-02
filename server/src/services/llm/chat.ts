@@ -40,7 +40,7 @@ import { enrichWithBrandKit } from '../../lib/brand-kit-enricher.js';
 import { filterAvailable, recordSuccess, recordFailure } from '../providers/circuit-breaker.js';
 import { isRetryableAiError, isSafetyBlock } from '../providers/errors.js';
 
-export type ProviderName = 'gemini' | 'xai' | 'moonshot';
+export type ProviderName = 'gemini' | 'xai' | 'moonshot' | 'dashscope';
 
 // RAG grounding for the chat stack. ai-router already enriches creative/text
 // generation with the client's knowledge base + learned memory + brand kit;
@@ -120,6 +120,7 @@ export interface ProviderClient {
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/openai/';
 const XAI_BASE = process.env.XAI_BASE_URL || 'https://api.x.ai/v1';
 const MOONSHOT_BASE = process.env.MOONSHOT_BASE_URL || 'https://api.moonshot.ai/v1';
+const DASHSCOPE_BASE = process.env.DASHSCOPE_BASE_URL || 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1';
 
 const cache = new Map<ProviderName, OpenAI>();
 
@@ -144,6 +145,20 @@ function clientFor(p: ProviderName): ProviderClient {
     }
     return { client: cached, model: process.env.XAI_TEXT_MODEL || 'grok-4.20', provider: p };
   }
+  if (p === 'dashscope') {
+    // Alibaba Qwen. Already the third hop for creative work in ai-router, but it
+    // was never a provider in THIS stack, so the agent and assistant had only two
+    // providers and died if both failed. Verified live 2026-08-02: qwen3.7-max
+    // does OpenAI-style tool calling on our endpoint and returns finish_reason
+    // 'tool_calls' correctly.
+    const key = process.env.DASHSCOPE_API_KEY;
+    if (!key) throw new Error('DASHSCOPE_API_KEY missing');
+    if (!cached) {
+      cached = new OpenAI({ apiKey: key, baseURL: DASHSCOPE_BASE });
+      cache.set(p, cached);
+    }
+    return { client: cached, model: process.env.DASHSCOPE_TEXT_MODEL || 'qwen3.7-max', provider: p };
+  }
   // moonshot
   const key = process.env.MOONSHOT_API_KEY;
   if (!key) throw new Error('MOONSHOT_API_KEY missing');
@@ -160,7 +175,7 @@ function clientFor(p: ProviderName): ProviderClient {
 // moonshot/kimi dropped 2026-07-21 — the key returns 401 access_terminated
 // (quota terminated), so it was a dead tertiary that only added a failing hop.
 // Restore it here (or via chat env override) once Kimi billing is renewed.
-export const DEFAULT_CHAIN: ProviderName[] = ['gemini', 'xai'];
+export const DEFAULT_CHAIN: ProviderName[] = ['gemini', 'xai', 'dashscope'];
 
 function resolveChain(env: string | undefined, fallbackChain: ProviderName[] = DEFAULT_CHAIN): ProviderName[] {
   if (!env) return fallbackChain;
@@ -377,9 +392,13 @@ export async function chatStream(
 // Diagnostic: which providers in the chain currently have credentials set.
 export function chainStatus(chain: ProviderName[] = DEFAULT_CHAIN): Array<{ provider: ProviderName; configured: boolean; model: string }> {
   return chain.map((p) => {
-    const envKey = p === 'gemini' ? 'GEMINI_API_KEY' : p === 'xai' ? 'XAI_API_KEY' : 'MOONSHOT_API_KEY';
+    const envKey = p === 'gemini' ? 'GEMINI_API_KEY'
+      : p === 'xai' ? 'XAI_API_KEY'
+      : p === 'dashscope' ? 'DASHSCOPE_API_KEY'
+      : 'MOONSHOT_API_KEY';
     const modelEnv = p === 'gemini' ? (process.env.GEMINI_CHAT_MODEL || 'gemini-3.1-pro-preview')
       : p === 'xai' ? (process.env.XAI_TEXT_MODEL || 'grok-4.20')
+      : p === 'dashscope' ? (process.env.DASHSCOPE_TEXT_MODEL || 'qwen3.7-max')
       : (process.env.MOONSHOT_MODEL || 'kimi-k2.6');
     return { provider: p, configured: !!process.env[envKey], model: modelEnv };
   });
