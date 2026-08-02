@@ -309,7 +309,7 @@ export async function chatText(
 // drop partial output + duplicate work). Caller iterates as usual.
 export async function chatStream(
   params: Omit<ChatCompletionCreateParamsStreaming, 'model' | 'stream'>,
-  options?: { chain?: ProviderName[]; chainEnv?: string; signal?: AbortSignal; meta?: UsageMeta },
+  options?: { chain?: ProviderName[]; chainEnv?: string; signal?: AbortSignal; meta?: UsageMeta; enrich?: boolean },
 ): Promise<{
   stream: AsyncIterable<ChatCompletionChunk>;
   provider: ProviderName;
@@ -318,6 +318,14 @@ export async function chatStream(
 }> {
   // Spend gate — same monthly org budget cap as ai-router / chatText.
   await assertOrgBudget(options?.meta?.orgId);
+  // RAG grounding (opt-in), mirroring chatText: enrich the last user turn
+  // with the client's knowledge base + learned memory + brand kit. The agent
+  // loop passes enrich:true so agent runs are grounded like the assistant.
+  // Best-effort by construction: enrichLastUserTurn catches internally and
+  // returns the original messages, so grounding can never break a stream.
+  const messages = options?.enrich
+    ? await enrichLastUserTurn(params.messages, options.meta)
+    : params.messages;
   // stream_options.include_usage = true makes Gemini / xAI / Kimi emit one
   // final chunk containing prompt+completion token counts. Without this,
   // the streaming path can't be priced and every chatbot turn would be a
@@ -325,6 +333,7 @@ export async function chatStream(
   // already turned it off doesn't get overridden silently.
   const paramsWithUsage: ChatCompletionCreateParamsStreaming = {
     ...params,
+    messages,
     stream: true,
     stream_options: { include_usage: true, ...(params as any).stream_options },
   } as ChatCompletionCreateParamsStreaming;

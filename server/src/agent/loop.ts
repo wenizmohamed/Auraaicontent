@@ -13,9 +13,11 @@ import type {
   ChatCompletionTool,
   ChatCompletionMessageToolCall,
 } from 'openai/resources/chat/completions';
-import { TOOL_BY_NAME, toOpenAITools } from './tools/index.js';
+import { TOOL_BY_NAME, toOpenAITools, validateToolInput, formatValidationError } from './tools/index.js';
 import type { ToolContext } from './tool-types.js';
 import { chatStream, DEFAULT_CHAIN, type ProviderName } from '../services/llm/chat.js';
+import { historyService } from '../services/history.service.js';
+import { SYSTEM } from './system-prompt.js';
 
 // Superagent LRN-20260420-008 finding #4: 10 was too tight for manus-grade
 // workflows (scrape -> analyze -> gen -> caption -> compliance chains
@@ -29,45 +31,6 @@ function isAbortError(err: unknown): boolean {
   const e = err as { name?: string; code?: string };
   return e.name === 'AbortError' || e.code === 'ABORT_ERR';
 }
-
-const SYSTEM = `You are Radix's content-ops agent. You orchestrate a social media pipeline for UAE brands.
-
-Available tools let you read client briefs, generate content pieces, plan calendars, write captions, research hashtags, check compliance, switch clients, generate images, and scrape competitors.
-
-PERSISTENCE RULE (non-negotiable — this is the app's core contract):
-Every content artifact you produce MUST be persisted to the database so the
-user sees it on /calendar, /content-review, and /pieces.  The chat stream is
-a progress feed, not a deliverable.
-- pieces_generate persists by default (persist=true).  Call it once per month
-  you want to populate — it creates CalendarMonth + one CalendarPost per
-  piece and returns \`postIds\` you can target with refinement tools.
-- caption_write: ALWAYS pass the real CalendarPost id as \`pieceId\`.  It will
-  write the new caption back to CalendarPost.caption and bump version.
-- hashtag_research: pass \`postId\` whenever you research for a specific post.
-  It merges tags into CalendarPost.hashtags.
-- compliance_check: pass \`postId\` whenever you audit a persisted post.  It
-  writes findings to CalendarPost.metadata.compliance.
-- calendar_plan: only invoke when you already have pieces from a previous
-  persist=false run OR when moving/retiming pieces.  If pieces_generate
-  persisted this turn, DO NOT call calendar_plan — the rows are already there.
-- If the user doesn't specify a month, default to the current YYYY-MM in UAE
-  (Asia/Dubai) time.
-- Never end a turn with unsaved captions, pieces, hashtags, or compliance
-  findings.  "The row must be visible on /calendar" is the acceptance test.
-
-Default workflow for a full month plan:
-  1. client_switch → resolve target client
-  2. brief_analyze → load normalized brief
-  3. (optional) competitor_scrape → gather reference patterns
-  4. pieces_generate (persist=true) → drafts AND writes 18 posts
-  5. compliance_check(postId=…) per post → annotate issues into metadata
-  6. caption_write(pieceId=postId) per flagged post → updates caption + PostVersion
-  7. hashtag_research(postId=…) per post → merges tags
-  8. image_generate → create hero visuals (already persists to Asset)
-
-Be concise in your reasoning.  Emit thoughts, not filler.  When a tool returns,
-briefly acknowledge what it gave you then continue.  Stop when the user's
-request is satisfied AND every content artifact has a postId in the database.`;
 
 export interface RunAgentArgs {
   input: string;
@@ -87,7 +50,73 @@ interface PartialToolCall {
   argsBuf: string;
 }
 
-export async function runAgentLoop({ input, ctx }: RunAgentArgs): Promise<RunAgentResult> {
+// Provider/model actually used for the run, tracked for observability.
+interface LlmUsed {
+  provider?: ProviderName;
+  model?: string;
+}
+
+// Last assistant message with non-empty string content = the run's final text.
+function finalAssistantText(messages: ChatCompletionMessageParam[]): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role === 'assistant' && typeof m.content === 'string' && m.content.trim().length > 0) {
+      return m.content;
+    }
+  }
+  return '';
+}
+
+// Observability: every agent run lands in the Generation history table so it
+// shows on /history and can be audited / learned from. Fire-and-forget:
+// historyService.record never throws, and this wrapper never blocks a run.
+function recordAgentRun(
+  { input, ctx }: RunAgentArgs,
+  result: RunAgentResult,
+  llmUsed: LlmUsed,
+  toolsInvoked: string[],
+  startedAt: number,
+): void {
+  try {
+    void historyService.record({
+      orgId: ctx.orgId,
+      userId: ctx.userId ?? undefined,
+      clientId: ctx.clientId ?? undefined,
+      type: 'text',
+      surface: 'agent',
+      prompt: input,
+      outputText: finalAssistantText(result.messages) || null,
+      provider: llmUsed.provider ?? null,
+      model: llmUsed.model ?? null,
+      latencyMs: Date.now() - startedAt,
+      status: result.stopReason === 'end_turn' ? 'succeeded' : 'failed',
+      error: result.stopReason === 'end_turn' ? null : (result.error ?? result.stopReason),
+      metadata: {
+        iterations: result.iterations,
+        stopReason: result.stopReason,
+        toolsInvoked,
+        sessionUid: ctx.sessionUid,
+      },
+    });
+  } catch {
+    // History must never break an agent run.
+  }
+}
+
+export async function runAgentLoop(args: RunAgentArgs): Promise<RunAgentResult> {
+  const startedAt = Date.now();
+  const toolsInvoked: string[] = [];
+  const llmUsed: LlmUsed = {};
+  const result = await runAgentLoopInner(args, toolsInvoked, llmUsed);
+  recordAgentRun(args, result, llmUsed, toolsInvoked, startedAt);
+  return result;
+}
+
+async function runAgentLoopInner(
+  { input, ctx }: RunAgentArgs,
+  toolsInvoked: string[],
+  llmUsed: LlmUsed,
+): Promise<RunAgentResult> {
   // Provider chain (Gemini primary, Grok fallback, Kimi tertiary).  Resolve
   // it once up front so we can fail fast if NO provider is configured.  The
   // chatStream() helper still tries each provider per iteration in case
@@ -123,8 +152,6 @@ export async function runAgentLoop({ input, ctx }: RunAgentArgs): Promise<RunAge
     }
 
     let stream: AsyncIterable<import('openai/resources/chat/completions').ChatCompletionChunk>;
-    let providerUsed: ProviderName;
-    let modelUsed: string;
     try {
       const opened = await chatStream(
         {
@@ -140,14 +167,18 @@ export async function runAgentLoop({ input, ctx }: RunAgentArgs): Promise<RunAge
           chainEnv: AGENT_CHAIN_ENV,
           signal: ctx.signal,
           meta: { orgId: ctx.orgId, userId: ctx.userId ?? undefined, clientId: ctx.clientId ?? undefined, jobId: ctx.sessionUid },
+          // Ground every agent run in the client's brand kit, knowledge base
+          // and learned preferences (same enrichers as chatText). Best-effort
+          // inside chatStream: an enrichment failure never breaks the run.
+          enrich: true,
         },
       );
       stream = opened.stream;
-      providerUsed = opened.provider;
-      modelUsed = opened.model;
+      llmUsed.provider = opened.provider;
+      llmUsed.model = opened.model;
       if (iter === 0) {
         await ctx.emit('agent:thought', {
-          text: `Orchestrator: ${providerUsed}/${modelUsed}${opened.fallbackUsed ? ' (fallback)' : ''}`,
+          text: `Orchestrator: ${opened.provider}/${opened.model}${opened.fallbackUsed ? ' (fallback)' : ''}`,
           at: new Date().toISOString(),
         });
       }
@@ -160,8 +191,6 @@ export async function runAgentLoop({ input, ctx }: RunAgentArgs): Promise<RunAge
       await ctx.emit('agent:error', { message: `All LLM providers failed: ${msg}`, at: new Date().toISOString() });
       return { iterations: iter, stopReason: 'error', messages, error: msg };
     }
-    void providerUsed;
-    void modelUsed;
 
     let assistantContent = '';
     let streamingBuffer = '';
@@ -242,14 +271,22 @@ export async function runAgentLoop({ input, ctx }: RunAgentArgs): Promise<RunAge
         : { role: 'assistant', content: assistantContent };
     messages.push(assistantMsg);
 
-    if (finishReason && finishReason !== 'tool_calls') {
-      const summary = assistantContent.slice(0, 500);
-      await ctx.emit('agent:complete', { at: new Date().toISOString(), summary });
-      return { iterations: iter + 1, stopReason: 'end_turn', messages };
-    }
-
+    // WHAT THE MODEL ASKED FOR BEATS WHAT IT LABELLED THE TURN.
+    //
+    // This used to end the turn whenever finish_reason was anything other than
+    // 'tool_calls', checked BEFORE looking at whether any tool calls arrived.
+    // Gemini's OpenAI-compatible layer reports finish_reason 'stop' even when it
+    // emits tool_calls in the same response (verified live 2026-08-02:
+    // finish=stop with one tool-call delta). The result was that the agent never
+    // executed a single tool on the Gemini path, which is the primary path. It
+    // streamed a thought, ended the turn, and persisted nothing, so agent mode
+    // looked like it simply did not work.
+    //
+    // Tool calls now win: if the model asked for tools, run them no matter how
+    // the turn was labelled. Only a turn with NO tool calls is a real end_turn.
     if (toolCalls.length === 0) {
-      await ctx.emit('agent:complete', { at: new Date().toISOString() });
+      const summary = assistantContent.slice(0, 500);
+      await ctx.emit('agent:complete', { at: new Date().toISOString(), ...(summary ? { summary } : {}) });
       return { iterations: iter + 1, stopReason: 'end_turn', messages };
     }
 
@@ -259,11 +296,17 @@ export async function runAgentLoop({ input, ctx }: RunAgentArgs): Promise<RunAge
         continue;
       }
 
-      let parsedInput: Record<string, unknown>;
+      let parsedInput: Record<string, unknown> = {};
+      let parseError: string | null = null;
       try {
-        parsedInput = JSON.parse(tc.function.arguments);
+        const parsed: unknown = JSON.parse(tc.function.arguments);
+        if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          parsedInput = parsed as Record<string, unknown>;
+        } else {
+          parseError = `arguments must be a JSON object, got ${Array.isArray(parsed) ? 'array' : parsed === null ? 'null' : typeof parsed}`;
+        }
       } catch {
-        parsedInput = {};
+        parseError = 'arguments were not valid JSON';
       }
 
       const tool = TOOL_BY_NAME[tc.function.name];
@@ -289,6 +332,33 @@ export async function runAgentLoop({ input, ctx }: RunAgentArgs): Promise<RunAge
         });
         continue;
       }
+
+      // Validate arguments against the tool's input_schema BEFORE dispatch.
+      // On failure the handler is NOT called: a structured error naming the
+      // offending field goes back as the tool result so the model can retry
+      // with corrected arguments on the next iteration (self-correction
+      // instead of a TypeError inside the handler).
+      const validation = parseError
+        ? { ok: false as const, issues: [{ field: '(root)', expected: 'a JSON object matching the tool input schema', received: parseError }] }
+        : validateToolInput(tool.input_schema, parsedInput);
+      if (!validation.ok) {
+        const structured = formatValidationError(tc.function.name, validation.issues);
+        await ctx.emit('agent:tool_result', {
+          toolCallId: tc.id,
+          tool: tc.function.name,
+          ok: false,
+          error: structured,
+          at: new Date().toISOString(),
+        });
+        messages.push({
+          role: 'tool',
+          tool_call_id: tc.id,
+          content: structured,
+        });
+        continue;
+      }
+
+      if (!toolsInvoked.includes(tc.function.name)) toolsInvoked.push(tc.function.name);
 
       try {
         const result = await tool.handler(parsedInput as never, ctx);

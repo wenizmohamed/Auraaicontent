@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Bot, Send, X, Loader2, Trash2, MessageSquare, AlertCircle, Zap, Search, FileText, Calendar, Image as ImageIcon, ExternalLink, Copy, RefreshCw, Check, Sparkles, Quote, Brain, ChevronDown, Palette, Database, Lightbulb, Languages, Scissors, Shuffle, Maximize2, Minimize2, Plus, StopCircle, Paperclip } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { toast } from 'sonner';
-import { assistantApi, agentApi, type ChatMessage, type AgentTemplateSummary } from '../lib/backend-api';
+import { io, type Socket } from 'socket.io-client';
+import { assistantApi, agentApi, getApiUrl, type ChatMessage, type AgentTemplateSummary } from '../lib/backend-api';
 import { useClients } from '../lib/client-context';
 import { useNavigate } from 'react-router-dom';
 import { Z } from '../lib/z-index';
@@ -36,6 +37,165 @@ interface EnrichedMessage extends ChatMessage {
   citations?: Citation[];
   /** Optional chain-of-thought / reasoning trace. Hidden behind a toggle. */
   reasoning?: string;
+  /** Agent run: the tool activity timeline attached to the final reply. */
+  steps?: AgentToolStep[];
+  /** Agent run: why the run stopped early, when it did. */
+  runError?: string;
+}
+
+// ─── Agent run stream (Socket.IO /agent namespace) ───────────────────
+// Mirrors the server contract in server/src/realtime/events.ts: the loop
+// emits agent:start / agent:message (text deltas) / agent:tool_start /
+// agent:tool_result / agent:complete / agent:error into the room keyed by
+// sessionUid. The client joins with session:join and starts a run with
+// agent:run. This consumes the REAL loop (server/src/agent/loop.ts), not a
+// parallel implementation.
+
+interface AgentToolStep {
+  /** toolCallId from the loop; pairs tool_start with tool_result. */
+  id: string;
+  tool: string;
+  status: 'running' | 'done' | 'failed';
+  /** One-line human summary of the result (never raw JSON). */
+  summary?: string;
+  /** Failure detail when status is failed. */
+  error?: string;
+  /** In-app destination where the persisted output can be seen. */
+  link?: { to: string; label: string };
+}
+
+interface AgentRunView {
+  sessionUid: string;
+  phase: 'connecting' | 'running';
+  /** Streamed narrative text accumulated from agent:message deltas. */
+  text: string;
+  steps: AgentToolStep[];
+  /** Client the run was started for, captured at start so the once-registered
+   * socket handlers never read a stale selectedClientId. */
+  clientId?: string | null;
+}
+
+/** Plain-language labels for tool activity. Unknown tools fall back to the
+ * de-underscored tool name so new tools degrade gracefully. */
+const TOOL_LABELS: Record<string, string> = {
+  brief_analyze: 'Reading the brief',
+  pieces_generate: 'Creating posts',
+  calendar_plan: 'Building the calendar',
+  calendar_read: 'Reading the calendar',
+  caption_write: 'Writing captions',
+  hashtag_research: 'Researching hashtags',
+  compliance_check: 'Checking compliance',
+  client_switch: 'Switching client',
+  image_generate: 'Generating an image',
+  competitor_scrape: 'Scanning competitors',
+  visual_search: 'Finding reference visuals',
+  asset_search: 'Searching brand assets',
+  web_research: 'Researching the web',
+  post_schedule: 'Scheduling the post',
+};
+
+function toolLabel(tool: string): string {
+  return TOOL_LABELS[tool] ?? tool.replace(/_/g, ' ');
+}
+
+/** Detect a soft failure: the handler returned normally but reported it
+ * could not do the job (post_schedule {scheduled:false}, web_research
+ * {error}, ...). compliance_check passed:false is a finding, not a failure. */
+function resultFailure(result: unknown): string | null {
+  if (result == null || typeof result !== 'object') return null;
+  const r = result as Record<string, unknown>;
+  if (typeof r.error === 'string' && r.error) return r.error;
+  if (r.ok === false || r.scheduled === false) return 'The tool reported it could not finish';
+  return null;
+}
+
+/** One-line human summary of a successful tool result. Never raw JSON. */
+function summarizeToolResult(tool: string, result: unknown): string {
+  if (result == null) return 'Done';
+  if (typeof result === 'string') return result.slice(0, 140);
+  const r = result as Record<string, any>;
+  switch (tool) {
+    case 'pieces_generate': {
+      const n = Array.isArray(r.pieces) ? r.pieces.length : Array.isArray(r.postIds) ? r.postIds.length : 0;
+      return r.calendarMonthId ? `${n} posts drafted and saved to the calendar` : `${n} posts drafted`;
+    }
+    case 'calendar_plan': {
+      const n = Array.isArray(r.postIds) ? r.postIds.length : 0;
+      return `Calendar built with ${n} posts placed across the month`;
+    }
+    case 'calendar_read': {
+      if (Array.isArray(r.posts)) return `${r.totalPosts ?? r.posts.length} posts read from ${r.month || 'the month'}`;
+      if (Array.isArray(r.months)) return `${r.months.length} months found on the calendar`;
+      return 'Calendar read';
+    }
+    case 'caption_write':
+      return r.persistedPostId ? 'Caption written and saved to the post' : 'Caption drafted';
+    case 'post_schedule':
+      return r.scheduledAt ? `Scheduled for ${new Date(r.scheduledAt).toLocaleString()}` : 'Post scheduled';
+    case 'compliance_check': {
+      const n = Array.isArray(r.issues) ? r.issues.length : 0;
+      return r.passed ? 'Passed the compliance check' : `${n} compliance issue${n === 1 ? '' : 's'} found`;
+    }
+    case 'hashtag_research': {
+      const n = Array.isArray(r.hashtags) ? r.hashtags.length : 0;
+      return r.persistedPostId ? `${n} hashtags researched and merged into the post` : `${n} hashtags researched`;
+    }
+    case 'brief_analyze':
+      return `Brief read${r.clientName ? ` for ${r.clientName}` : ''}${typeof r.knowledgeItemCount === 'number' ? ` with ${r.knowledgeItemCount} knowledge items` : ''}`;
+    case 'asset_search': {
+      const n = typeof r.total === 'number' ? r.total : Array.isArray(r.assets) ? r.assets.length : 0;
+      return `${n} matching brand asset${n === 1 ? '' : 's'} found`;
+    }
+    case 'web_research': {
+      const f = Array.isArray(r.findings) ? r.findings.length : 0;
+      const s = Array.isArray(r.sources) ? r.sources.length : 0;
+      return `${f} finding${f === 1 ? '' : 's'} from ${s} source${s === 1 ? '' : 's'}`;
+    }
+    case 'visual_search': {
+      const n = Array.isArray(r.results) ? r.results.length : 0;
+      return `${n} reference visual${n === 1 ? '' : 's'} found`;
+    }
+    case 'image_generate':
+      return r.url ? 'Image generated and saved to the gallery' : 'Image generated';
+    case 'competitor_scrape': {
+      const n = Array.isArray(r.handles) ? r.handles.length : 0;
+      return `${n} competitor profile${n === 1 ? '' : 's'} scanned`;
+    }
+    default: {
+      if (typeof r.summary === 'string' && r.summary) return r.summary.slice(0, 140);
+      if (typeof r.note === 'string' && r.note) return r.note.slice(0, 140);
+      return 'Done';
+    }
+  }
+}
+
+/** Where to see what the run persisted. Only tools that write return a link
+ * (the app's core contract: the user should never have to guess). */
+function linkForStep(tool: string, result: unknown, clientId?: string | null): { to: string; label: string } | undefined {
+  const r = (result ?? {}) as Record<string, any>;
+  const q = clientId ? `?client=${encodeURIComponent(clientId)}` : '';
+  switch (tool) {
+    case 'calendar_plan':
+      return { to: `/calendar${q}`, label: 'Open the calendar' };
+    case 'pieces_generate':
+      return r.calendarMonthId ? { to: `/calendar${q}`, label: 'Open the calendar' } : undefined;
+    case 'post_schedule':
+      return r.scheduled ? { to: `/calendar${q}`, label: 'Open the calendar' } : undefined;
+    case 'caption_write':
+    case 'compliance_check':
+    case 'hashtag_research':
+      return r.persistedPostId ? { to: '/content-review', label: 'See it in Content Review' } : undefined;
+    case 'image_generate':
+      return r.assetId || r.url ? { to: '/gallery', label: 'Open the gallery' } : undefined;
+    default:
+      return undefined;
+  }
+}
+
+function newSessionUid(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('').slice(0, 22);
 }
 
 /**
@@ -68,9 +228,26 @@ export default function RadixAssistant() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null); // aborts the in-flight run (Stop)
 
+  // ── Agent mode ──────────────────────────────────────────────────
+  // 'chat' = the existing single-turn assistant (actions + citations).
+  // 'agent' = the real multi-step tool loop streamed over Socket.IO.
+  const [mode, setMode] = useState<'chat' | 'agent'>('chat');
+  const [agentRun, setAgentRun] = useState<AgentRunView | null>(null);
+  const agentRunRef = useRef<AgentRunView | null>(null); // socket handlers read the live value
+  const agentSocketRef = useRef<Socket | null>(null);
+  const agentSessionRef = useRef<string | null>(null);
+  const breakAfterToolRef = useRef(false); // paragraph break between iterations
+  const promptRef = useRef<HTMLTextAreaElement>(null);
+
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [messages, loading]);
+  }, [messages, loading, agentRun]);
+
+  // Tear the agent socket down with the widget.
+  useEffect(() => () => {
+    agentSocketRef.current?.disconnect();
+    agentSocketRef.current = null;
+  }, []);
 
   // ⌘J / Ctrl+J toggles the assistant from anywhere (⌘K is the command palette).
   useEffect(() => {
@@ -84,7 +261,7 @@ export default function RadixAssistant() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  const handleSend = async (overrideInput?: string) => {
+  const handleSend = async (overrideInput?: string, opts?: { via?: 'chat' }) => {
     const content = (overrideInput || input).trim();
     // Attachments only ride the typed turn, not quick-action/template prompts.
     const atts = overrideInput ? [] : attachments;
@@ -99,6 +276,16 @@ export default function RadixAssistant() {
     setLoading(true);
     setError('');
 
+    // Agent runs are text-driven; attachments and forced-chat prompts
+    // (quick actions, follow-up refinements) keep the proven chat path.
+    if (mode === 'agent' && opts?.via !== 'chat' && atts.length === 0) {
+      await startAgentRun(content, chatMessages);
+    } else {
+      await runChat(chatMessages, atts);
+    }
+  };
+
+  const runChat = async (chatMessages: ChatMessage[], atts: typeof attachments) => {
     const controller = new AbortController();
     abortRef.current = controller;
     try {
@@ -143,13 +330,173 @@ export default function RadixAssistant() {
     }
   };
 
+  // ── Agent run machinery ─────────────────────────────────────────
+
+  const patchRun = (fn: (prev: AgentRunView) => AgentRunView) => {
+    const prev = agentRunRef.current;
+    if (!prev) return;
+    const next = fn(prev);
+    agentRunRef.current = next;
+    setAgentRun(next);
+  };
+
+  /** Fold the finished (or failed) run into the transcript as a normal
+   * assistant message carrying its tool timeline, then clear the live view. */
+  const finalizeRun = (runError?: string, summary?: string) => {
+    const run = agentRunRef.current;
+    if (!run) return;
+    agentRunRef.current = null;
+    setAgentRun(null);
+    setLoading(false);
+    const text = run.text.trim() || (summary ?? '').trim();
+    const msg: EnrichedMessage = {
+      role: 'assistant',
+      content: text || (runError ? 'The run stopped before producing a reply.' : 'Done.'),
+      steps: run.steps.length ? run.steps : undefined,
+      runError,
+    };
+    setMessages(prev => [...prev, msg]);
+  };
+
+  /** One shared socket to the /agent namespace; handlers registered once.
+   * Events only arrive for rooms this client joined, and stale events are
+   * dropped because agentRunRef is null between runs. */
+  const getAgentSocket = (): Socket | null => {
+    if (agentSocketRef.current) return agentSocketRef.current;
+    const token = localStorage.getItem('radix_auth_token');
+    if (!token) return null;
+    const base = getApiUrl() || window.location.origin;
+    const s = io(`${base}/agent`, {
+      path: '/socket.io',
+      transports: ['websocket', 'polling'],
+      auth: { token },
+      reconnection: true,
+      reconnectionAttempts: 3,
+      reconnectionDelay: 1000,
+      timeout: 4000,
+    });
+    // Rooms are lost on reconnect; re-join if a run is still live.
+    s.on('connect', () => {
+      const uid = agentSessionRef.current;
+      if (uid && agentRunRef.current) s.emit('session:join', { sessionUid: uid });
+    });
+    s.on('agent:message', (p: { text: string; streaming?: boolean }) => {
+      patchRun(prev => {
+        const sep = breakAfterToolRef.current && prev.text ? '\n\n' : '';
+        breakAfterToolRef.current = false;
+        return { ...prev, phase: 'running', text: prev.text + sep + p.text };
+      });
+    });
+    s.on('agent:tool_start', (p: { toolCallId: string; tool: string }) => {
+      breakAfterToolRef.current = true;
+      patchRun(prev => ({
+        ...prev,
+        phase: 'running',
+        steps: [
+          ...prev.steps.filter(st => st.id !== p.toolCallId),
+          { id: p.toolCallId, tool: p.tool, status: 'running' as const },
+        ],
+      }));
+    });
+    s.on('agent:tool_result', (p: { toolCallId: string; tool: string; ok: boolean; result?: unknown; error?: string }) => {
+      const soft = p.ok ? resultFailure(p.result) : null;
+      const failed = !p.ok || soft != null;
+      patchRun(prev => ({
+        ...prev,
+        steps: prev.steps.map(st =>
+          st.id === p.toolCallId
+            ? {
+                ...st,
+                status: failed ? ('failed' as const) : ('done' as const),
+                summary: failed ? undefined : summarizeToolResult(p.tool, p.result),
+                error: failed ? (p.error || soft || 'No detail returned') : undefined,
+                link: failed ? undefined : linkForStep(p.tool, p.result, prev.clientId),
+              }
+            : st,
+        ),
+      }));
+    });
+    s.on('agent:complete', (p: { summary?: string }) => finalizeRun(undefined, p.summary));
+    s.on('agent:error', (p: { message: string }) => finalizeRun(p.message));
+    // If reconnection gives up mid-run, do not leave the widget spinning:
+    // the run keeps going server-side and lands in Session history.
+    s.io.on('reconnect_failed', () =>
+      finalizeRun('Lost the live connection. The run may still finish; check Session history'));
+    agentSocketRef.current = s;
+    return s;
+  };
+
+  const joinSession = (socket: Socket, sessionUid: string, timeoutMs: number) =>
+    new Promise<boolean>((resolve) => {
+      let done = false;
+      const onJoined = (p: { sessionUid: string }) => {
+        if (done || p.sessionUid !== sessionUid) return;
+        done = true;
+        clearTimeout(timer);
+        socket.off('session:joined', onJoined);
+        resolve(true);
+      };
+      const timer = setTimeout(() => {
+        if (done) return;
+        done = true;
+        socket.off('session:joined', onJoined);
+        resolve(false);
+      }, timeoutMs);
+      socket.on('session:joined', onJoined);
+      const doJoin = () => socket.emit('session:join', { sessionUid });
+      if (socket.connected) doJoin();
+      else socket.once('connect', doJoin);
+    });
+
+  const startAgentRun = async (content: string, chatFallback: ChatMessage[]) => {
+    const socket = getAgentSocket();
+    if (!socket) {
+      // No auth token for the stream; the chat path still answers.
+      await runChat(chatFallback, []);
+      return;
+    }
+    const sessionUid = newSessionUid();
+    if (agentSessionRef.current) socket.emit('session:leave', { sessionUid: agentSessionRef.current });
+    agentSessionRef.current = sessionUid;
+    breakAfterToolRef.current = false;
+    const run: AgentRunView = { sessionUid, phase: 'connecting', text: '', steps: [], clientId: selectedClientId };
+    agentRunRef.current = run;
+    setAgentRun(run);
+
+    const joined = await joinSession(socket, sessionUid, 4000);
+    if (!joined) {
+      agentRunRef.current = null;
+      setAgentRun(null);
+      toast('Live agent stream unavailable. Answered in chat mode instead.');
+      await runChat(chatFallback, []);
+      return;
+    }
+    socket.emit('agent:run', { sessionUid, input: content, clientId: selectedClientId || undefined });
+  };
+
   const handleStop = () => {
+    if (agentRunRef.current) {
+      agentSocketRef.current?.emit('agent:cancel', { sessionUid: agentRunRef.current.sessionUid });
+      finalizeRun('Stopped by you');
+      return;
+    }
     abortRef.current?.abort();
     abortRef.current = null;
     setLoading(false);
   };
 
-  const handleClear = () => { setMessages([]); setError(''); setAttachments([]); abortRef.current?.abort(); };
+  const handleClear = () => {
+    setMessages([]);
+    setError('');
+    setAttachments([]);
+    abortRef.current?.abort();
+    if (agentRunRef.current) {
+      agentSocketRef.current?.emit('agent:cancel', { sessionUid: agentRunRef.current.sessionUid });
+      agentRunRef.current = null;
+      setAgentRun(null);
+      setLoading(false);
+    }
+  };
 
   // Encode attached files to data URLs (images go to the vision model; others
   // are noted in text for now). Cap 6 per turn; ~15MB each to keep the JSON sane.
@@ -194,6 +541,32 @@ export default function RadixAssistant() {
     { label: 'Stats', icon: MessageSquare, prompt: 'Show me dashboard stats' },
     { label: 'Research', icon: Search, prompt: `Research content ideas for ${currentClient?.name || 'our client'}` },
   ];
+
+  // Concrete jobs the agent can run end to end. Clicking fills the input
+  // (and flips to Agent mode) so the user can adjust before sending; that
+  // is what makes the agent discoverable as a doer, not just a chat.
+  const nextMonthLabel = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1)
+    .toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  const starterJobs = [
+    {
+      label: 'Plan next month for this client',
+      prompt: `Plan ${nextMonthLabel} for ${currentClient?.name || 'the selected client'}: read the brief, draft the posts, and build the calendar.`,
+    },
+    {
+      label: 'Rewrite the captions that failed compliance',
+      prompt: 'Find the posts that failed compliance, rewrite their captions so they pass, and re-check them.',
+    },
+    {
+      label: 'Find reference visuals for the new campaign',
+      prompt: `Find reference visuals for ${currentClient?.name || 'our client'}'s next campaign and summarize the visual direction.`,
+    },
+  ];
+
+  const fillPrompt = (prompt: string) => {
+    setMode('agent');
+    setInput(prompt);
+    promptRef.current?.focus();
+  };
 
   // Action card renderer
   const renderActionCard = (action: ActionResult) => {
@@ -403,10 +776,33 @@ export default function RadixAssistant() {
                   <p className="text-sm text-fg-muted mb-1 font-medium">I'm Radix. Your content strategist.</p>
                   <p className="text-xs text-fg-subtle mb-4">I can generate content, search visual refs, pull your brief, and more.</p>
 
+                  {/* Starter jobs: real work the agent runs end to end.
+                      Clicking fills the input so the user can adjust first. */}
+                  <div className="w-full max-w-[280px] mb-4">
+                    <p className="mb-1.5 text-start text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-fg-subtle)' }}>
+                      Jobs I can run for you
+                    </p>
+                    <div className="space-y-1">
+                      {starterJobs.map(job => (
+                        <button
+                          key={job.label}
+                          type="button"
+                          onClick={() => fillPrompt(job.prompt)}
+                          title="Fills the prompt so you can adjust it before sending"
+                          className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-start text-[11px] font-medium transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-1"
+                          style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border-subtle)', color: 'var(--color-fg)', outlineColor: 'var(--color-accent)' }}
+                        >
+                          <Zap className="w-3 h-3 shrink-0" style={{ color: 'var(--color-accent)' }} />
+                          {job.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   {/* Quick actions */}
                   <div className="grid grid-cols-2 gap-2 w-full max-w-[280px]">
                     {quickActions.map(qa => (
-                      <button key={qa.label} onClick={() => handleSend(qa.prompt)}
+                      <button key={qa.label} onClick={() => handleSend(qa.prompt, { via: 'chat' })}
                         className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.03] border border-white/[0.06] text-xs text-fg-muted hover:text-white hover:border-white/[0.12] transition-all cursor-pointer">
                         <qa.icon className="w-3.5 h-3.5 text-accent/60" />
                         {qa.label}
@@ -464,8 +860,31 @@ export default function RadixAssistant() {
                       : undefined
                   }
                   renderAction={renderActionCard}
+                  onOpenLink={(to) => { navigate(to); setOpen(false); }}
                 />
               ))}
+
+              {/* Live agent run: tool timeline + streamed narrative, updated
+                  from the Socket.IO events as the loop works. */}
+              {agentRun && (
+                <div className="flex justify-start">
+                  <div className="w-full max-w-[88%] space-y-2">
+                    <ToolTimeline
+                      steps={agentRun.steps}
+                      live
+                      onOpenLink={(to) => { navigate(to); setOpen(false); }}
+                    />
+                    {agentRun.text ? (
+                      <div
+                        className="rounded-2xl rounded-bl-sm border px-3.5 py-2 text-sm leading-relaxed"
+                        style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border-subtle)', color: 'var(--color-fg)' }}
+                      >
+                        <Markdown text={agentRun.text} />
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              )}
 
               {/* Suggested follow-ups — appear under the latest assistant reply
                   (Jasper-style). Bilingual "Translate to Arabic" is first-class
@@ -479,7 +898,7 @@ export default function RadixAssistant() {
                     { icon: Languages, label: 'Translate to Arabic', prompt: 'Translate that into natural Gulf Arabic.' },
                     { icon: Palette, label: 'Apply brand voice', prompt: 'Rewrite that in our brand voice.' },
                   ].map((s) => (
-                    <button key={s.label} type="button" onClick={() => handleSend(s.prompt)}
+                    <button key={s.label} type="button" onClick={() => handleSend(s.prompt, { via: 'chat' })}
                       className="inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2.5 py-1 transition-colors cursor-pointer"
                       style={{ color: 'var(--color-fg-muted)', border: '1px solid var(--color-border)' }}>
                       <s.icon className="w-3 h-3" style={{ color: 'var(--color-accent)' }} /> {s.label}
@@ -511,6 +930,34 @@ export default function RadixAssistant() {
                 Enter to send + Shift+Enter for newline, char counter at limit */}
             {/* Attachment tray — chips for queued files + the attach control. */}
             <div className="px-3 pt-2 flex items-center gap-2 flex-wrap">
+              {/* Mode switch: Chat answers, Agent runs tools end to end. */}
+              <div
+                role="group"
+                aria-label="Assistant mode"
+                className="inline-flex rounded-lg border p-0.5"
+                style={{ borderColor: 'var(--color-border)' }}
+              >
+                {([
+                  { id: 'chat' as const, label: 'Chat', hint: 'Chat mode: quick answers and single actions' },
+                  { id: 'agent' as const, label: 'Agent', hint: 'Agent mode: runs tools end to end (plan a month, write captions, schedule posts)' },
+                ]).map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => setMode(m.id)}
+                    aria-pressed={mode === m.id}
+                    title={m.hint}
+                    className="rounded-md px-2 py-0.5 text-[11px] font-semibold transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-1"
+                    style={
+                      mode === m.id
+                        ? { background: 'var(--color-accent)', color: 'var(--color-fg-on-accent)', outlineColor: 'var(--color-accent)' }
+                        : { color: 'var(--color-fg-muted)', outlineColor: 'var(--color-accent)' }
+                    }
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
               <button
                 type="button"
                 onClick={() => attachInputRef.current?.click()}
@@ -549,6 +996,10 @@ export default function RadixAssistant() {
               onSend={() => handleSend()}
               loading={loading}
               maxChars={4000}
+              textareaRef={promptRef}
+              placeholder={mode === 'agent'
+                ? 'Give the agent a job…  (Enter to send, Shift+Enter for newline)'
+                : undefined}
             />
           </motion.div>
         )}
@@ -569,10 +1020,14 @@ interface PromptBoxProps {
   onSend: () => void;
   loading: boolean;
   maxChars: number;
+  /** Optional shared ref so the parent can focus the textarea (starter jobs). */
+  textareaRef?: React.RefObject<HTMLTextAreaElement | null>;
+  placeholder?: string;
 }
 
-function PromptBox({ value, onChange, onSend, loading, maxChars }: PromptBoxProps) {
-  const taRef = useRef<HTMLTextAreaElement>(null);
+function PromptBox({ value, onChange, onSend, loading, maxChars, textareaRef, placeholder }: PromptBoxProps) {
+  const innerRef = useRef<HTMLTextAreaElement>(null);
+  const taRef = textareaRef ?? innerRef;
 
   // Auto-resize: 1 line at rest, grow up to 6 lines
   useEffect(() => {
@@ -610,7 +1065,7 @@ function PromptBox({ value, onChange, onSend, loading, maxChars }: PromptBoxProp
             }
           }}
           rows={1}
-          placeholder={loading ? 'Working…' : 'Ask Radix anything…  (Enter to send, Shift+Enter for newline)'}
+          placeholder={loading ? 'Working…' : (placeholder || 'Ask Radix anything…  (Enter to send, Shift+Enter for newline)')}
           disabled={loading}
           className="flex-1 resize-none bg-transparent text-sm leading-snug outline-none placeholder:opacity-50 disabled:opacity-50"
           style={{ color: 'var(--color-fg)', minHeight: '22px', maxHeight: '132px' }}
@@ -685,9 +1140,11 @@ interface MessageRowProps {
   isLast: boolean;
   onRetry?: () => void;
   renderAction: (action: ActionResult) => React.ReactNode;
+  /** Navigate to an in-app destination a tool persisted output to. */
+  onOpenLink?: (to: string) => void;
 }
 
-function MessageRow({ message, isLast, onRetry, renderAction }: MessageRowProps) {
+function MessageRow({ message, isLast, onRetry, renderAction, onOpenLink }: MessageRowProps) {
   const [copied, setCopied] = useState(false);
   const isUser = message.role === 'user';
 
@@ -709,6 +1166,12 @@ function MessageRow({ message, isLast, onRetry, renderAction }: MessageRowProps)
       transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
     >
       <div className="group max-w-[88%]">
+        {/* Tool timeline first: the work, then the answer. */}
+        {!isUser && message.steps && message.steps.length > 0 ? (
+          <div className="mb-2">
+            <ToolTimeline steps={message.steps} onOpenLink={onOpenLink} />
+          </div>
+        ) : null}
         <div
           className={`rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${
             isUser ? 'rounded-br-sm whitespace-pre-wrap' : 'rounded-bl-sm border'
@@ -754,6 +1217,19 @@ function MessageRow({ message, isLast, onRetry, renderAction }: MessageRowProps)
                 </button>
               ) : null}
             </div>
+          </div>
+        ) : null}
+
+        {/* Run stopped early: say so plainly instead of a silent red blob. */}
+        {!isUser && message.runError ? (
+          <div
+            className="mt-2 flex items-start gap-2 rounded-xl border px-3 py-2"
+            style={{ background: 'var(--color-danger-subtle)', borderColor: 'var(--color-danger-subtle)' }}
+          >
+            <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" style={{ color: 'var(--color-danger)' }} />
+            <p className="text-xs" style={{ color: 'var(--color-danger)' }}>
+              The run stopped early: {message.runError}. Anything finished above is already saved.
+            </p>
           </div>
         ) : null}
 
@@ -850,6 +1326,74 @@ function CitationsBubble({ citations }: { citations: Citation[] }) {
           );
         })}
       </ul>
+    </div>
+  );
+}
+
+// ─── Agent tool timeline ─────────────────────────────────────────────
+// Readable record of what the agent actually did: plain-language tool
+// labels, running / done / failed state, a one-line result summary, and a
+// direct link to wherever the run persisted output. Never raw JSON.
+
+function StepStatusIcon({ status }: { status: AgentToolStep['status'] }) {
+  if (status === 'running') {
+    return (
+      <Loader2
+        className="mt-0.5 h-3 w-3 shrink-0 animate-spin motion-reduce:animate-none"
+        style={{ color: 'var(--color-accent)' }}
+        aria-label="Running"
+      />
+    );
+  }
+  if (status === 'failed') {
+    return <AlertCircle className="mt-0.5 h-3 w-3 shrink-0" style={{ color: 'var(--color-danger)' }} aria-label="Failed" />;
+  }
+  return <Check className="mt-0.5 h-3 w-3 shrink-0" style={{ color: 'var(--color-success)' }} aria-label="Done" />;
+}
+
+function ToolTimeline({ steps, live, onOpenLink }: { steps: AgentToolStep[]; live?: boolean; onOpenLink?: (to: string) => void }) {
+  if (steps.length === 0) return null;
+  return (
+    <div
+      className="rounded-xl border px-2.5 py-2"
+      style={{ background: 'var(--color-bg-elevated)', borderColor: 'var(--color-border-subtle)' }}
+    >
+      <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-fg-subtle)' }}>
+        <Zap className="h-3 w-3" /> {live ? 'Working through it' : 'What I did'}
+      </div>
+      <ol className="space-y-1">
+        {steps.map((step) => (
+          <li key={step.id} className="flex items-start gap-2 px-1 py-0.5">
+            <StepStatusIcon status={step.status} />
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-medium leading-snug" style={{ color: 'var(--color-fg)' }}>
+                {toolLabel(step.tool)}
+                {step.status === 'running' ? (
+                  <span className="ms-1.5 text-[10px] font-normal" style={{ color: 'var(--color-fg-subtle)' }}>in progress</span>
+                ) : null}
+              </p>
+              {step.status === 'failed' ? (
+                <p className="text-[10px] leading-snug" style={{ color: 'var(--color-danger)' }}>
+                  Failed: {step.error || 'no detail returned'}.
+                  {live ? ' I can see the error and will adjust the next step.' : ''}
+                </p>
+              ) : step.summary ? (
+                <p className="text-[10px] leading-snug" style={{ color: 'var(--color-fg-muted)' }}>{step.summary}</p>
+              ) : null}
+              {step.link && onOpenLink ? (
+                <button
+                  type="button"
+                  onClick={() => onOpenLink(step.link!.to)}
+                  className="mt-0.5 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-1"
+                  style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)', outlineColor: 'var(--color-accent)' }}
+                >
+                  {step.link.label} →
+                </button>
+              ) : null}
+            </div>
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }
