@@ -28,7 +28,11 @@ const OPENERS = ['(', '[', '{', '"', "'", '`', ':', ';', ','];
  */
 export function deAiText(input: string): string {
   if (!input || (!input.includes('—') && !input.includes('–'))) return input;
-  let t = input.replace(/–/g, '—');
+  // A dash BETWEEN DIGITS is a numeric range, not a clause separator. Turn it
+  // into a plain hyphen first, otherwise "delivered in 2-3 days" (typed with an
+  // en dash) came out as "delivered in 2. 3 days".
+  let t = input.replace(/(\d)\s*[—–]\s*(?=\d)/g, '$1-');
+  t = t.replace(/–/g, '—');
   let guard = 0;
   while (t.includes('—') && guard < 200) {
     guard++;
@@ -40,8 +44,14 @@ export function deAiText(input: string): string {
     const before = t.slice(0, j);
     const after = t.slice(k);
     const bstrip = before.replace(/[ \t]+$/, '');
-    if (!bstrip || OPENERS.includes(bstrip[bstrip.length - 1])) {
+    if (!bstrip) {
       t = before + after;                       // leading dash: drop it
+    } else if (OPENERS.includes(bstrip[bstrip.length - 1])) {
+      // Dash right after an opening bracket takes no space ("(— note)" -> "(note)").
+      // After a closing quote or a colon/semicolon/comma it MUST keep one, or
+      // "Menu: — new items" collapsed to "Menu:new items".
+      const tight = '([{'.includes(bstrip[bstrip.length - 1]);
+      t = tight ? bstrip + after : `${bstrip} ${after}`;
     } else if (!after || after[0] === '\n') {
       t = bstrip + after;                       // trailing dash: drop it
     } else if (/[.?!…]$/.test(bstrip)) {
@@ -65,6 +75,11 @@ export function deAiDeep<T>(value: T): T {
   if (typeof value === 'string') return deAiText(value) as unknown as T;
   if (Array.isArray(value)) return value.map((v) => deAiDeep(v)) as unknown as T;
   if (value && typeof value === 'object') {
+    // Only rebuild PLAIN objects. Rebuilding a class instance from its own
+    // enumerable props destroys it: deAiDeep(new Date()) returned {}, which
+    // would silently corrupt any payload carrying Date/Decimal/Buffer fields.
+    const proto = Object.getPrototypeOf(value);
+    if (proto !== Object.prototype && proto !== null) return value;
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) out[k] = deAiDeep(v);
     return out as T;

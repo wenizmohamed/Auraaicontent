@@ -200,3 +200,58 @@ describe('deAiDeep: recursive cleaning', () => {
     expect(deAiDeep(undefined)).toBe(undefined);
   });
 });
+
+// ── Regressions found by the adversarial pass on 2026-08-02 ──────────────────
+// All three were live defects in deAiText/deAiDeep, found by mutation-testing the
+// helpers rather than by reading them.
+describe('human-voice: adversarial regressions', () => {
+  const EM = '—';
+  const EN = '–';
+
+  it('keeps a numeric range readable instead of splitting it into two sentences', () => {
+    // Was: "Delivered in 2. 3 business days"
+    expect(deAiText(`Delivered in 2${EN}3 business days`)).toBe('Delivered in 2-3 business days');
+    expect(deAiText(`Open 9${EN}5 daily`)).toBe('Open 9-5 daily');
+    expect(deAiText(`A 10 ${EM} 20 percent lift`)).toBe('A 10-20 percent lift');
+  });
+
+  it('does not glue words together after a colon or a closing quote', () => {
+    // Was: "Menu:new items weekly" and '"Best coffee in town"say our regulars'
+    expect(deAiText(`Menu: ${EM} new items weekly`)).toBe('Menu: new items weekly');
+    expect(deAiText(`"Best coffee in town" ${EM} say our regulars`))
+      .toBe('"Best coffee in town" say our regulars');
+    expect(deAiText(`Sizes; ${EM} small, medium, large`)).toBe('Sizes; small, medium, large');
+  });
+
+  it('still takes no space after a true opening bracket', () => {
+    expect(deAiText(`Now open (${EM} finally) downtown`)).toBe('Now open (finally) downtown');
+  });
+
+  it('leaves class instances intact instead of flattening them to {}', () => {
+    // Was: deAiDeep(new Date()) === {}
+    const when = new Date('2026-08-02T00:00:00.000Z');
+    expect(deAiDeep(when)).toBeInstanceOf(Date);
+    expect((deAiDeep(when) as Date).toISOString()).toBe('2026-08-02T00:00:00.000Z');
+
+    const buf = Buffer.from('hello');
+    expect(Buffer.isBuffer(deAiDeep(buf))).toBe(true);
+
+    // A plain object nested around one is still cleaned, and the instance survives.
+    const payload = { caption: `Fresh ${EM} every morning`, createdAt: when };
+    const out = deAiDeep(payload) as { caption: string; createdAt: Date };
+    expect(out.caption).toBe('Fresh. Every morning');
+    expect(out.createdAt).toBeInstanceOf(Date);
+  });
+
+  it('leaves no dash behind in any of the regression fixtures', () => {
+    for (const s of [
+      `Delivered in 2${EN}3 business days`,
+      `Menu: ${EM} new items weekly`,
+      `"Best coffee in town" ${EM} say our regulars`,
+      `Now open (${EM} finally) downtown`,
+    ]) {
+      expect(deAiText(s)).not.toMatch(/[–—]/);
+      expect(deAiText(deAiText(s))).toBe(deAiText(s)); // still idempotent
+    }
+  });
+});
