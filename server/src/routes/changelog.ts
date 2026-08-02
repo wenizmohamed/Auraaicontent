@@ -23,12 +23,6 @@ const CHANGELOG: ChangelogEntry[] = [
   },
   {
     date: '2026-08-02',
-    tag: 'improved',
-    title: 'Prices are now visible to owners, admins and accounting only',
-    body: 'Per-second engine rates, cost estimates and the monthly spend meter are restricted to owners, admins and anyone on the accounting list. Everyone else works exactly as before, they just do not see cost figures. If you need a teammate added to the accounting list, ask your owner.',
-  },
-  {
-    date: '2026-08-02',
     tag: 'fixed',
     title: 'Usage reports show the dates you actually pick',
     body: 'The finance report treated the end date as the moment the day began, so the last day of your range was left out and picking today showed nothing at all. Ranges are now inclusive, and there are one-click shortcuts for This month, Last month, Last 30 days, Last 90 days, This year and All time. Empty results now tell you which window was searched instead of just showing zero.',
@@ -38,12 +32,6 @@ const CHANGELOG: ChangelogEntry[] = [
     tag: 'fixed',
     title: 'Stay signed in',
     body: 'Accounts created through a sign-up link were being logged out about an hour later with no warning. Those sessions now refresh quietly in the background like everyone else\'s.',
-  },
-  {
-    date: '2026-08-02',
-    tag: 'improved',
-    title: 'Generated content reads less like AI',
-    body: 'Captions, copy and the app itself no longer use the long dash that gives AI writing away, and the generators are steered off the usual AI vocabulary. Applies to new generations from today.',
   },
   {
     date: '2026-08-02',
