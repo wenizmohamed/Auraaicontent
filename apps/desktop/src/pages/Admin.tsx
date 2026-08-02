@@ -44,6 +44,22 @@ function todayIso(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+function isoOf(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+/**
+ * One-click ranges. Reaching a past month used to mean hand-typing both dates
+ * and knowing that the end date was exclusive, which is how a full month of
+ * real usage could look like zero.
+ */
+const RANGE_PRESETS: { label: string; range: () => { from: string; to: string } }[] = [
+  { label: 'This month', range: () => { const n = new Date(); return { from: isoOf(new Date(n.getFullYear(), n.getMonth(), 1)), to: isoOf(n) }; } },
+  { label: 'Last month', range: () => { const n = new Date(); return { from: isoOf(new Date(n.getFullYear(), n.getMonth() - 1, 1)), to: isoOf(new Date(n.getFullYear(), n.getMonth(), 0)) }; } },
+  { label: 'Last 30 days', range: () => { const n = new Date(); return { from: isoOf(new Date(n.getTime() - 29 * 864e5)), to: isoOf(n) }; } },
+  { label: 'Last 90 days', range: () => { const n = new Date(); return { from: isoOf(new Date(n.getTime() - 89 * 864e5)), to: isoOf(n) }; } },
+  { label: 'This year', range: () => { const n = new Date(); return { from: `${n.getFullYear()}-01-01`, to: isoOf(n) }; } },
+  { label: 'All time', range: () => ({ from: '2026-01-01', to: isoOf(new Date()) }) },
+];
 
 export default function Admin() {
   const { effectiveTheme } = useTheme();
@@ -292,6 +308,29 @@ export default function Admin() {
               className={`${inputCls} rounded-lg px-3 py-1.5 text-sm`}
             />
           </div>
+          <div className="flex flex-col gap-1">
+            <label className={`text-[10px] uppercase tracking-wider ${sub}`}>Quick range</label>
+            <div className="flex flex-wrap gap-1">
+              {RANGE_PRESETS.map((p) => {
+                const r = p.range();
+                const active = usageFrom === r.from && usageTo === r.to;
+                return (
+                  <button
+                    key={p.label}
+                    type="button"
+                    onClick={() => { setUsageFrom(r.from); setUsageTo(r.to); }}
+                    aria-pressed={active}
+                    className="rounded-lg px-2.5 py-1.5 text-xs font-medium border transition-colors focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]/60"
+                    style={active
+                      ? { background: 'var(--color-accent-subtle)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' }
+                      : { background: 'transparent', color: 'var(--color-fg-muted)', borderColor: 'var(--color-border)' }}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           <button
             onClick={handleExportCsv}
             disabled={!usageOrgId || exportBusy}
@@ -340,7 +379,7 @@ export default function Admin() {
             </thead>
             <tbody>
               {usageByUser.length === 0 && (
-                <tr><td colSpan={4} className={`px-5 py-6 text-center ${sub}`}>{usageLoading ? '…' : 'No usage in range.'}</td></tr>
+                <tr><td colSpan={4} className={`px-5 py-6 text-center ${sub}`}>{usageLoading ? '…' : `No activity between ${usageFrom} and ${usageTo}. Try a wider range, or the Last 30 days preset.`}</td></tr>
               )}
               {usageByUser.map((u) => (
                 <tr key={u.userId ?? '__null__'} className={isDark ? 'border-t border-white/[0.04]' : 'border-t border-slate-100'}>
@@ -373,7 +412,7 @@ export default function Admin() {
             </thead>
             <tbody>
               {usageByDay.length === 0 && (
-                <tr><td colSpan={3} className={`px-5 py-6 text-center ${sub}`}>{usageLoading ? '…' : 'No daily activity.'}</td></tr>
+                <tr><td colSpan={3} className={`px-5 py-6 text-center ${sub}`}>{usageLoading ? '…' : `No days with activity in ${usageFrom} to ${usageTo}.`}</td></tr>
               )}
               {usageByDay.map((d) => (
                 <tr key={d.date} className={isDark ? 'border-t border-white/[0.04]' : 'border-t border-slate-100'}>
@@ -404,7 +443,7 @@ export default function Admin() {
             </thead>
             <tbody>
               {(!usageTotals || usageTotals.topModels.length === 0) && (
-                <tr><td colSpan={3} className={`px-5 py-6 text-center ${sub}`}>{usageLoading ? '…' : 'No model usage in range.'}</td></tr>
+                <tr><td colSpan={3} className={`px-5 py-6 text-center ${sub}`}>{usageLoading ? '…' : `No model calls in ${usageFrom} to ${usageTo}.`}</td></tr>
               )}
               {usageTotals?.topModels.map((m) => (
                 <tr key={m.model} className="border-t" style={{ borderColor: 'var(--color-border)' }}>

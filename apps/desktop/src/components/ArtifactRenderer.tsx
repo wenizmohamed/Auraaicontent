@@ -54,7 +54,7 @@ export function ArtifactRenderer({
   if (kind === 'image') {
     return (
       <figure
-        className={`group rounded-lg overflow-hidden border border-white/[0.05] hover:border-amber-500/30 transition-colors bg-zinc-900 ${className}`}
+        className={`group rounded-lg overflow-hidden border border-white/[0.05] hover:border-accent/30 transition-colors bg-surface ${className}`}
         onClick={onClick}
       >
         <div className="aspect-square relative">
@@ -86,9 +86,9 @@ export function ArtifactRenderer({
           onError={() => setErrored(true)}
           className="w-full max-h-[60vh] block"
         />
-        <figcaption className="px-3 py-2 text-[11px] text-zinc-500 border-t border-white/[0.05] flex items-center justify-between bg-zinc-900">
+        <figcaption className="px-3 py-2 text-[11px] text-fg-subtle border-t border-white/[0.05] flex items-center justify-between bg-surface">
           <span className="font-mono truncate">{displayName}</span>
-          <a href={url} download className="hover:text-amber-400 flex items-center gap-1">
+          <a href={url} download className="hover:text-accent flex items-center gap-1">
             <Download className="w-3 h-3" /> Download
           </a>
         </figcaption>
@@ -105,9 +105,9 @@ export function ArtifactRenderer({
           onError={() => setErrored(true)}
           className="w-full h-[60vh] bg-zinc-50"
         />
-        <figcaption className="px-3 py-2 text-[11px] text-zinc-500 border-t border-white/[0.05] flex items-center justify-between bg-zinc-900">
+        <figcaption className="px-3 py-2 text-[11px] text-fg-subtle border-t border-white/[0.05] flex items-center justify-between bg-surface">
           <span className="font-mono truncate">{displayName}</span>
-          <a href={url} download className="hover:text-amber-400 flex items-center gap-1">
+          <a href={url} download className="hover:text-accent flex items-center gap-1">
             <Download className="w-3 h-3" /> Download
           </a>
         </figcaption>
@@ -122,7 +122,7 @@ export function ArtifactRenderer({
         name={displayName}
         kind="pptx"
         className={className}
-        icon={<Presentation className="w-10 h-10 text-amber-400" />}
+        icon={<Presentation className="w-10 h-10 text-accent" />}
         subtitle="PowerPoint deck"
       />
     );
@@ -157,7 +157,7 @@ function FallbackCard({
 
   if (fallbackSrc && kind === 'image') {
     return (
-      <figure className={`rounded-lg overflow-hidden border border-white/[0.05] bg-zinc-900 ${className || ''}`}>
+      <figure className={`rounded-lg overflow-hidden border border-white/[0.05] bg-surface ${className || ''}`}>
         <div className="aspect-square">
           <img src={fallbackSrc} alt={name} className="w-full h-full object-cover" />
         </div>
@@ -166,14 +166,14 @@ function FallbackCard({
   }
 
   return (
-    <div className={`rounded-lg border border-white/[0.05] bg-zinc-900 p-4 flex flex-col items-center text-center gap-2 ${className || ''}`}>
-      {icon ?? <Icon className="w-10 h-10 text-zinc-500" />}
-      <div className="font-mono text-[11px] text-zinc-300 truncate max-w-full">{name}</div>
-      {subtitle && <div className="text-[10px] text-zinc-500">{subtitle}</div>}
+    <div className={`rounded-lg border border-white/[0.05] bg-surface p-4 flex flex-col items-center text-center gap-2 ${className || ''}`}>
+      {icon ?? <Icon className="w-10 h-10 text-fg-subtle" />}
+      <div className="font-mono text-[11px] text-fg-muted truncate max-w-full">{name}</div>
+      {subtitle && <div className="text-[10px] text-fg-subtle">{subtitle}</div>}
       <a
         href={url}
         download
-        className="mt-1 inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-medium hover:bg-amber-500/20 transition-colors"
+        className="mt-1 inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-accent/10 text-accent border border-accent/20 text-[10px] font-medium hover:bg-accent/20 transition-colors"
       >
         <Download className="w-3 h-3" /> Download
       </a>
@@ -196,7 +196,7 @@ export function ArtifactLink({ url, name, mimeType, className = '' }: Props) {
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className={`inline-flex items-center gap-1.5 text-[11px] text-amber-400 hover:text-amber-300 ${className}`}
+      className={`inline-flex items-center gap-1.5 text-[11px] text-accent hover:text-accent-hover ${className}`}
     >
       <Icon className="w-3 h-3" />
       <span className="truncate max-w-[200px]">{displayName}</span>

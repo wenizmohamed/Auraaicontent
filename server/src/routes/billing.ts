@@ -85,63 +85,89 @@ export async function billingRoutes(app: FastifyInstance) {
   // POST /api/billing/webhook — Stripe webhook receiver. Validates the
   // signature against STRIPE_WEBHOOK_SECRET and flips Organization.plan/status.
   // No authGuard: Stripe's signature IS the auth.
-  app.post('/webhook', { config: { rawBody: true } }, async (request, reply) => {
-    const stripe = await getStripe();
-    if (!stripe) return reply.status(503).send({ error: 'Billing not configured' });
-    if (!WEBHOOK_SECRET) return reply.status(503).send({ error: 'Webhook secret not configured' });
+  //
+  // WHY THE RAW BYTES MATTER: the v1 signature is an HMAC over the exact byte
+  // sequence Stripe put on the wire. Parsing that JSON and re-serialising it
+  // with JSON.stringify produces DIFFERENT bytes (whitespace, unicode escaping
+  // and number formatting are all lost), so constructEvent threw on every real
+  // payload and no paid org was ever upgraded. config:{rawBody:true} did
+  // nothing because no raw-body plugin is installed.
+  //
+  // Fix without a new dependency: the webhook lives in its own encapsulated
+  // Fastify scope whose application/json parser hands the handler the untouched
+  // Buffer. A child context CLONES its parent's parser map, so this swap is
+  // invisible to every other route, including the sibling /checkout and /portal
+  // routes registered above in this same plugin.
+  await app.register(async (webhookScope) => {
+    webhookScope.removeContentTypeParser('application/json');
+    webhookScope.addContentTypeParser(
+      'application/json',
+      { parseAs: 'buffer' },
+      (_request, body, done) => { done(null, body); },
+    );
 
-    const sig = request.headers['stripe-signature'] as string | undefined;
-    if (!sig) return reply.status(400).send({ error: 'Missing signature' });
+    webhookScope.post('/webhook', async (request, reply) => {
+      const stripe = await getStripe();
+      if (!stripe) return reply.status(503).send({ error: 'Billing not configured' });
+      if (!WEBHOOK_SECRET) return reply.status(503).send({ error: 'Webhook secret not configured' });
 
-    const raw = (request.body as any) ?? {};
-    const rawString = typeof raw === 'string' ? raw : JSON.stringify(raw);
+      const sig = request.headers['stripe-signature'] as string | undefined;
+      if (!sig) return reply.status(400).send({ error: 'Missing signature' });
 
-    let event: import('stripe').Stripe.Event;
-    try {
-      event = stripe.webhooks.constructEvent(rawString, sig, WEBHOOK_SECRET);
-    } catch (err) {
-      return reply.status(400).send({ error: `Invalid signature: ${errMessage(err)}` });
-    }
-
-    switch (event.type) {
-      case 'checkout.session.completed': {
-        const s = event.data.object as import('stripe').Stripe.Checkout.Session;
-        const orgId = s.metadata?.orgId || s.client_reference_id;
-        if (orgId) {
-          await db.organization.update({
-            where: { id: orgId },
-            data: { stripeCustomerId: s.customer as string },
-          });
-        }
-        break;
+      // Buffer or nothing. Never fall back to re-serialising, that is the bug.
+      const rawBody = request.body as unknown;
+      if (!Buffer.isBuffer(rawBody)) {
+        request.log.error({ bodyType: typeof rawBody }, '[billing] webhook raw body missing, parser not applied');
+        return reply.status(400).send({ error: 'Webhook body must be raw JSON bytes' });
       }
-      case 'customer.subscription.updated':
-      case 'customer.subscription.created': {
-        const sub = event.data.object as import('stripe').Stripe.Subscription;
-        const orgId = sub.metadata?.orgId;
-        const priceId = sub.items.data[0]?.price.id;
-        const plan = planFromPriceId(priceId);
-        if (orgId && plan) {
-          await db.organization.update({
-            where: { id: orgId },
-            data: { plan, status: sub.status === 'active' || sub.status === 'trialing' ? 'active' : sub.status },
-          });
-        }
-        break;
-      }
-      case 'customer.subscription.deleted': {
-        const sub = event.data.object as import('stripe').Stripe.Subscription;
-        const orgId = sub.metadata?.orgId;
-        if (orgId) {
-          await db.organization.update({
-            where: { id: orgId },
-            data: { plan: 'free', status: 'canceled' },
-          });
-        }
-        break;
-      }
-    }
 
-    return reply.send({ received: true });
+      let event: import('stripe').Stripe.Event;
+      try {
+        event = stripe.webhooks.constructEvent(rawBody, sig, WEBHOOK_SECRET);
+      } catch (err) {
+        return reply.status(400).send({ error: `Invalid signature: ${errMessage(err)}` });
+      }
+
+      switch (event.type) {
+        case 'checkout.session.completed': {
+          const s = event.data.object as import('stripe').Stripe.Checkout.Session;
+          const orgId = s.metadata?.orgId || s.client_reference_id;
+          if (orgId) {
+            await db.organization.update({
+              where: { id: orgId },
+              data: { stripeCustomerId: s.customer as string },
+            });
+          }
+          break;
+        }
+        case 'customer.subscription.updated':
+        case 'customer.subscription.created': {
+          const sub = event.data.object as import('stripe').Stripe.Subscription;
+          const orgId = sub.metadata?.orgId;
+          const priceId = sub.items.data[0]?.price.id;
+          const plan = planFromPriceId(priceId);
+          if (orgId && plan) {
+            await db.organization.update({
+              where: { id: orgId },
+              data: { plan, status: sub.status === 'active' || sub.status === 'trialing' ? 'active' : sub.status },
+            });
+          }
+          break;
+        }
+        case 'customer.subscription.deleted': {
+          const sub = event.data.object as import('stripe').Stripe.Subscription;
+          const orgId = sub.metadata?.orgId;
+          if (orgId) {
+            await db.organization.update({
+              where: { id: orgId },
+              data: { plan: 'free', status: 'canceled' },
+            });
+          }
+          break;
+        }
+      }
+
+      return reply.send({ received: true });
+    });
   });
 }

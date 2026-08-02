@@ -61,7 +61,7 @@ function Card({
       href={sourceUrl}
       target="_blank"
       rel="noopener noreferrer"
-      className="group block rounded-lg overflow-hidden border border-white/[0.05] hover:border-amber-500/30 transition-colors bg-zinc-900"
+      className="group block rounded-lg overflow-hidden border border-white/[0.05] hover:border-accent/30 transition-colors bg-surface"
       title={title || sourceDomain || sourceUrl}
     >
       <div className="aspect-square relative">
@@ -83,7 +83,7 @@ function Card({
         </div>
       </div>
       {sourceDomain && (
-        <div className="px-2 py-1 text-[9px] text-zinc-500 truncate border-t border-white/[0.04]">
+        <div className="px-2 py-1 text-[9px] text-fg-subtle truncate border-t border-white/[0.04]">
           {sourceDomain}
         </div>
       )}
@@ -109,13 +109,13 @@ export default function VisualRefGrid({ post, onSearchClick, className = '', col
     return (
       <div className={className}>
         <div className="flex items-center gap-2 mb-2">
-          <ImageIcon className="w-3.5 h-3.5 text-zinc-500" />
-          <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Visual References</span>
-          <span className="text-[9px] text-zinc-700">({visualRefs.length})</span>
+          <ImageIcon className="w-3.5 h-3.5 text-fg-subtle" />
+          <span className="text-[10px] uppercase tracking-wider text-fg-subtle font-bold">Visual References</span>
+          <span className="text-[9px] text-fg-subtle">({visualRefs.length})</span>
           {onSearchClick && refQuery && (
             <button
               onClick={() => onSearchClick(refQuery)}
-              className="ml-auto text-[10px] text-amber-400 hover:text-amber-300 flex items-center gap-1"
+              className="ml-auto text-[10px] text-accent hover:text-accent-hover flex items-center gap-1"
             >
               <Search className="w-3 h-3" /> Find more
             </button>
@@ -141,13 +141,13 @@ export default function VisualRefGrid({ post, onSearchClick, className = '', col
     return (
       <div className={className}>
         <div className="flex items-center gap-2 mb-2">
-          <ImageIcon className="w-3.5 h-3.5 text-zinc-500" />
-          <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Linked Assets</span>
-          <span className="text-[9px] text-zinc-700">({assets.length})</span>
+          <ImageIcon className="w-3.5 h-3.5 text-fg-subtle" />
+          <span className="text-[10px] uppercase tracking-wider text-fg-subtle font-bold">Linked Assets</span>
+          <span className="text-[9px] text-fg-subtle">({assets.length})</span>
           {onSearchClick && refQuery && (
             <button
               onClick={() => onSearchClick(refQuery)}
-              className="ml-auto text-[10px] text-amber-400 hover:text-amber-300 flex items-center gap-1"
+              className="ml-auto text-[10px] text-accent hover:text-accent-hover flex items-center gap-1"
             >
               <Search className="w-3 h-3" /> Find inspiration
             </button>
@@ -192,9 +192,9 @@ export default function VisualRefGrid({ post, onSearchClick, className = '', col
     return (
       <div className={className}>
         <div className="flex items-center gap-2 mb-2">
-          <ImageIcon className="w-3.5 h-3.5 text-zinc-500" />
-          <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Visual References</span>
-          <span className="text-[9px] text-zinc-700">({legacy.length})</span>
+          <ImageIcon className="w-3.5 h-3.5 text-fg-subtle" />
+          <span className="text-[10px] uppercase tracking-wider text-fg-subtle font-bold">Visual References</span>
+          <span className="text-[9px] text-fg-subtle">({legacy.length})</span>
         </div>
         <div className={`grid ${colsClass} gap-2`}>
           {legacy.map((r, i) => (
@@ -216,19 +216,19 @@ export default function VisualRefGrid({ post, onSearchClick, className = '', col
     return (
       <div className={className}>
         <div className="flex items-center gap-2 mb-2">
-          <ImageIcon className="w-3.5 h-3.5 text-zinc-500" />
-          <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Visual References</span>
+          <ImageIcon className="w-3.5 h-3.5 text-fg-subtle" />
+          <span className="text-[10px] uppercase tracking-wider text-fg-subtle font-bold">Visual References</span>
         </div>
         <div className="rounded-lg border border-dashed border-white/[0.08] bg-white/[0.01] px-4 py-3 flex items-center gap-3">
-          <Search className="w-4 h-4 text-zinc-600 shrink-0" />
+          <Search className="w-4 h-4 text-fg-subtle shrink-0" />
           <div className="flex-1 min-w-0">
-            <p className="text-xs text-zinc-500 truncate">Suggested search:</p>
-            <p className="text-xs text-zinc-300 italic truncate">"{refQuery}"</p>
+            <p className="text-xs text-fg-subtle truncate">Suggested search:</p>
+            <p className="text-xs text-fg-muted italic truncate">"{refQuery}"</p>
           </div>
           {onSearchClick && (
             <button
               onClick={() => onSearchClick(refQuery)}
-              className="shrink-0 px-3 py-1.5 rounded-lg text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition-colors"
+              className="shrink-0 px-3 py-1.5 rounded-lg text-[10px] font-bold bg-accent/10 text-accent border border-accent/20 hover:bg-accent/20 transition-colors"
             >
               Search inspiration
             </button>

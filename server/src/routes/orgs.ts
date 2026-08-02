@@ -19,6 +19,7 @@ import { db } from '../db/prisma.js';
 import { authGuard, type JwtPayload } from '../middleware/auth.js';
 import { sendEmail, inviteEmailHtml, inviteEmailText } from '../lib/email.js';
 import { auditService } from '../services/audit.service.js';
+import { capGuard } from '../lib/plan-caps.js';
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
@@ -43,6 +44,25 @@ function isTeamAdmin(email: string | undefined, orgRole?: string): boolean {
 
 function isPrivileged(orgRole: string | undefined): boolean {
   return orgRole === 'OWNER' || orgRole === 'ADMIN';
+}
+
+// Kill every live refresh token for a user. Called whenever their standing in
+// an org changes (removed, or role changed), so they cannot mint a fresh access
+// token off a stale session. RefreshToken has no hard delete here on purpose:
+// the model carries `revokedAt`, and marking it keeps the row for audit and for
+// the reuse-detection path in /api/auth/refresh.
+//
+// Residual window, deliberate: the access token already in the user's hands is
+// stateless JWT and stays valid until it expires (1h, or 7d when they logged in
+// with rememberMe). Closing that gap fully needs a membership re-check inside
+// authGuard on every request, which is NOT in scope here. Revoking refresh
+// tokens caps the exposure at one access-token TTL instead of the 30-day
+// refresh-token lifetime.
+async function revokeUserRefreshTokens(client: any, userId: string): Promise<void> {
+  await client.refreshToken.updateMany({
+    where: { userId, revokedAt: null },
+    data: { revokedAt: new Date() },
+  });
 }
 
 async function assertOrgPrivilege(
@@ -122,7 +142,7 @@ export async function orgsRoutes(app: FastifyInstance) {
   });
 
   // POST /api/orgs/:orgId/invitations
-  app.post('/:orgId/invitations', { preHandler: [authGuard] }, async (request, reply) => {
+  app.post('/:orgId/invitations', { preHandler: [authGuard, capGuard('seats', 'invitation.create')] }, async (request, reply) => {
     const { orgId } = request.params as { orgId: string };
     const caller = await assertOrgPrivilege(request, reply, orgId);
     if (!caller) return;
@@ -255,9 +275,14 @@ export async function orgsRoutes(app: FastifyInstance) {
       }
     }
 
-    await db.orgMembership.update({
-      where: { userId_orgId: { userId, orgId } },
-      data: { role: next as any },
+    await db.$transaction(async (tx: any) => {
+      await tx.orgMembership.update({
+        where: { userId_orgId: { userId, orgId } },
+        data: { role: next as any },
+      });
+      // The old orgRole is baked into their issued JWT. Revoking refresh tokens
+      // forces a re-login, and the next token they get carries the new role.
+      await revokeUserRefreshTokens(tx, userId);
     });
     auditService.log({
       orgId,
@@ -279,6 +304,8 @@ export async function orgsRoutes(app: FastifyInstance) {
   // If the removed user has currentOrgId pointing to this org we null it
   // so their next token-refresh resolves to a different membership (or
   // bounces them to "no organization").
+  // Their refresh tokens are revoked in the same transaction so the removal
+  // actually ends the session instead of leaving it alive for 30 days.
   app.delete('/:orgId/members/:userId', { preHandler: [authGuard] }, async (request, reply) => {
     const { orgId, userId } = request.params as { orgId: string; userId: string };
     const caller = await assertOrgPrivilege(request, reply, orgId);
@@ -314,6 +341,9 @@ export async function orgsRoutes(app: FastifyInstance) {
       if (u?.currentOrgId === orgId) {
         await tx.user.update({ where: { id: userId }, data: { currentOrgId: null } });
       }
+      // A removed member keeps working access for the full refresh-token
+      // lifetime unless we cut their sessions here.
+      await revokeUserRefreshTokens(tx, userId);
     });
 
     return { success: true };

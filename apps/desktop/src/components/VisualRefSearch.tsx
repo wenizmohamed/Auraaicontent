@@ -57,19 +57,19 @@ export default function VisualRefSearch({ visualIdea, provider = 'gemini', onSel
       {/* Search Bar */}
       <div className="flex gap-2">
         <div className="relative flex-1">
-          <Image className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600" />
+          <Image className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-fg-subtle" />
           <input
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleSearch()}
             placeholder="Describe the visual you need, e.g. 'person using app Dubai split screen family'"
-            className="w-full pl-10 pr-3 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-sm placeholder-zinc-600 focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+            className="w-full pl-10 pr-3 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-sm placeholder:text-fg-subtle focus:ring-2 focus:ring-accent focus:border-transparent"
           />
         </div>
         <button
           onClick={handleSearch}
           disabled={loading || !query.trim()}
-          className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white rounded-xl text-sm font-medium transition-all disabled:opacity-50 shrink-0"
+          className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-accent-pressed to-accent hover:from-accent hover:to-accent-hover text-fg-on-accent rounded-xl text-sm font-medium transition-all disabled:opacity-50 shrink-0"
         >
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
           Find References
@@ -77,18 +77,18 @@ export default function VisualRefSearch({ visualIdea, provider = 'gemini', onSel
       </div>
 
       {error && (
-        <div className="text-red-400 text-xs bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{error}</div>
+        <div className="text-danger text-xs bg-danger/10 border border-danger/20 rounded-lg px-3 py-2">{error}</div>
       )}
 
       {/* Results Grid */}
       {results.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs text-zinc-500">{results.length} references from Wikimedia Commons</span>
+            <span className="text-xs text-fg-subtle">{results.length} references from Wikimedia Commons</span>
             {selected.size > 0 && onSelectMultiple && (
               <button
                 onClick={handleConfirmSelection}
-                className="flex items-center gap-1.5 text-xs bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 px-3 py-1.5 rounded-lg transition-colors"
+                className="flex items-center gap-1.5 text-xs bg-success/20 text-success hover:bg-success/30 px-3 py-1.5 rounded-lg transition-colors"
               >
                 <Check className="w-3 h-3" /> Use {selected.size} selected
               </button>
@@ -105,12 +105,12 @@ export default function VisualRefSearch({ visualIdea, provider = 'gemini', onSel
                   transition={{ delay: i * 0.05 }}
                   className={`relative group rounded-xl overflow-hidden border transition-all cursor-pointer ${
                     selected.has(ref.id)
-                      ? 'border-violet-500 ring-2 ring-violet-500/30'
+                      ? 'border-accent ring-2 ring-accent/30'
                       : 'border-white/10 hover:border-white/20'
                   }`}
                 >
                   {/* Image */}
-                  <div className="aspect-[4/3] bg-zinc-900 relative">
+                  <div className="aspect-[4/3] bg-surface relative">
                     <img
                       src={ref.imageUrl}
                       alt={ref.description}
@@ -127,7 +127,7 @@ export default function VisualRefSearch({ visualIdea, provider = 'gemini', onSel
                         {onSelect && (
                           <button
                             onClick={e => { e.stopPropagation(); onSelect(ref); }}
-                            className="flex items-center gap-1 text-[10px] bg-violet-500 text-white px-2 py-1 rounded-md font-medium hover:bg-violet-400 transition-colors"
+                            className="flex items-center gap-1 text-[10px] bg-accent text-fg-on-accent px-2 py-1 rounded-md font-medium hover:bg-accent-hover transition-colors"
                           >
                             <Pin className="w-3 h-3" /> Use This
                           </button>
@@ -167,7 +167,7 @@ export default function VisualRefSearch({ visualIdea, provider = 'gemini', onSel
                         onClick={e => { e.stopPropagation(); toggleSelect(ref); }}
                         className={`absolute top-2 right-2 w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all ${
                           selected.has(ref.id)
-                            ? 'bg-violet-500 border-violet-500'
+                            ? 'bg-accent border-accent'
                             : 'bg-black/50 border-white/30 opacity-0 group-hover:opacity-100'
                         }`}
                       >
@@ -179,23 +179,23 @@ export default function VisualRefSearch({ visualIdea, provider = 'gemini', onSel
                   {/* Info */}
                   <div className="p-2.5 bg-[#111]">
                     <div className="flex items-center justify-between mb-1">
-                      <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${SOURCE_COLORS[ref.sourceName] || 'bg-white/10 text-zinc-400'}`}>
+                      <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${SOURCE_COLORS[ref.sourceName] || 'bg-white/10 text-fg-muted'}`}>
                         {ref.sourceName}
                       </span>
                       <a
                         href={ref.sourceUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-violet-400 hover:text-violet-300"
+                        className="text-accent hover:text-accent-hover"
                         onClick={e => e.stopPropagation()}
                       >
                         <ExternalLink className="w-3 h-3" />
                       </a>
                     </div>
-                    <p className="text-[10px] text-zinc-500 line-clamp-2 leading-relaxed">{ref.description}</p>
+                    <p className="text-[10px] text-fg-subtle line-clamp-2 leading-relaxed">{ref.description}</p>
                     <div className="flex flex-wrap gap-1 mt-1.5">
                       {ref.tags.slice(0, 3).map((tag, j) => (
-                        <span key={j} className="text-[8px] text-zinc-600 bg-white/5 px-1 py-0.5 rounded">{tag}</span>
+                        <span key={j} className="text-[8px] text-fg-subtle bg-white/5 px-1 py-0.5 rounded">{tag}</span>
                       ))}
                     </div>
                   </div>
@@ -209,17 +209,17 @@ export default function VisualRefSearch({ visualIdea, provider = 'gemini', onSel
       {/* Loading state */}
       {loading && (
         <div className="flex flex-col items-center py-12">
-          <Loader2 className="w-8 h-8 text-violet-500 animate-spin mb-3" />
-          <p className="text-zinc-400 text-sm">Searching for visual references...</p>
-          <p className="text-zinc-600 text-xs mt-1">Searching Wikimedia Commons + Pinterest</p>
+          <Loader2 className="w-8 h-8 text-accent animate-spin mb-3" />
+          <p className="text-fg-muted text-sm">Searching for visual references...</p>
+          <p className="text-fg-subtle text-xs mt-1">Searching Wikimedia Commons + Pinterest</p>
         </div>
       )}
 
       {/* Empty state */}
       {!loading && results.length === 0 && query && (
         <div className="text-center py-8">
-          <Image className="w-8 h-8 text-zinc-700 mx-auto mb-2" />
-          <p className="text-zinc-500 text-sm">Describe a visual and click "Find References"</p>
+          <Image className="w-8 h-8 text-fg-subtle mx-auto mb-2" />
+          <p className="text-fg-subtle text-sm">Describe a visual and click "Find References"</p>
         </div>
       )}
 
@@ -241,7 +241,7 @@ export default function VisualRefSearch({ visualIdea, provider = 'gemini', onSel
                 href={previewRef.sourceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-violet-400 hover:text-violet-300 text-sm font-medium"
+                className="inline-flex items-center gap-2 text-accent hover:text-accent-hover text-sm font-medium"
               >
                 <ExternalLink className="w-4 h-4" />
                 Open on {previewRef.sourceName} →
@@ -259,13 +259,13 @@ export default function VisualRefSearch({ visualIdea, provider = 'gemini', onSel
               )}
               <div className="flex items-center justify-center gap-2 mt-3">
                 {previewRef.tags.map((t, i) => (
-                  <span key={i} className="text-xs bg-white/10 text-zinc-400 px-2 py-0.5 rounded-full">{t}</span>
+                  <span key={i} className="text-xs bg-white/10 text-fg-muted px-2 py-0.5 rounded-full">{t}</span>
                 ))}
               </div>
               {onSelect && (
                 <button
                   onClick={() => { onSelect(previewRef); setPreviewRef(null); }}
-                  className="mt-4 inline-flex items-center gap-2 bg-violet-600 hover:bg-violet-500 text-white px-6 py-2.5 rounded-xl text-sm font-medium transition-colors"
+                  className="mt-4 inline-flex items-center gap-2 bg-accent hover:bg-accent-hover text-fg-on-accent px-6 py-2.5 rounded-xl text-sm font-medium transition-colors"
                 >
                   <Pin className="w-4 h-4" /> Use This Reference
                 </button>

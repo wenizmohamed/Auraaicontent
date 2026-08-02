@@ -64,6 +64,17 @@ function clampImagenSize(size?: string): string | undefined {
   if (!size) return undefined;
   return size === '4K' ? '2K' : size;
 }
+// Gemini accepts temperature 0 to 2. Callers all the way up the stack set one
+// (copywriting.service raises it to 0.95 for variant diversity, the prompt
+// enhancer asks for 0.9, generateMonth.worker requests 0.7, /api/ai/text takes
+// it from the client) but the config object never forwarded it, so every
+// temperature control was a no-op on the primary provider and only the xAI
+// fallback honoured it. Returns undefined when the caller supplied nothing so
+// the field stays off the request and the model default still applies.
+function clampTemperature(t?: number): number | undefined {
+  if (typeof t !== 'number' || !Number.isFinite(t)) return undefined;
+  return Math.min(Math.max(t, 0), 2);
+}
 // Veo 3.1 accepts 4/6/8-second clips; round anything else to the nearest.
 function clampVeoDuration(sec?: number): number | undefined {
   if (!sec || !Number.isFinite(sec)) return undefined;
@@ -334,6 +345,7 @@ export const geminiProvider: AiProvider = {
       'gemini-2.0-flash',
     ]);
     const start = Date.now();
+    const temperature = clampTemperature(req.temperature);
 
     const ladderResult = await runModelLadder('gemini', 'text', ladder, async (entry) => {
       // json:true means a structured payload (e.g. a monthly plan of 18-30 rich
@@ -346,9 +358,12 @@ export const geminiProvider: AiProvider = {
         ai.models.generateContent({
           model: entry.model,
           contents: req.system ? `${req.system}\n\n${req.prompt}` : req.prompt,
-          config: req.json
-            ? { responseMimeType: 'application/json', maxOutputTokens: jsonMax }
-            : { maxOutputTokens: 8192 },
+          config: {
+            ...(req.json
+              ? { responseMimeType: 'application/json', maxOutputTokens: jsonMax }
+              : { maxOutputTokens: 8192 }),
+            ...(temperature !== undefined ? { temperature } : {}),
+          },
         }),
         TIMEOUT, 'text',
       ));
@@ -704,6 +719,9 @@ export const geminiProvider: AiProvider = {
             { text: req.prompt },
           ],
         }],
+        // No temperature forwarded here on purpose: AnalysisRequest carries no
+        // temperature field, so unlike text() there is nothing being silently
+        // dropped. Vision analysis wants deterministic structured output anyway.
         config: { responseMimeType: 'application/json' },
       }),
       TIMEOUT, 'analysis',

@@ -31,10 +31,10 @@ function relTime(iso: string): string {
 function TypeIcon({ mime, className = 'w-5 h-5' }: { mime: string; className?: string }) {
   if (mime?.startsWith('image/')) return <ImageIcon className={`${className} text-violet-400`} aria-label="image" />;
   if (mime?.includes('pdf')) return <FileType className={`${className} text-red-400`} aria-label="pdf" />;
-  if (mime?.includes('text') || mime?.includes('markdown')) return <FileText className={`${className} text-zinc-400`} aria-label="text" />;
+  if (mime?.includes('text') || mime?.includes('markdown')) return <FileText className={`${className} text-fg-muted`} aria-label="text" />;
   if (mime?.includes('word') || mime?.includes('document')) return <FileText className={`${className} text-blue-400`} aria-label="document" />;
   if (mime?.includes('json')) return <FileJson className={`${className} text-emerald-400`} aria-label="json" />;
-  return <Paperclip className={`${className} text-zinc-500`} aria-label="file" />;
+  return <Paperclip className={`${className} text-fg-subtle`} aria-label="file" />;
 }
 
 export default function Knowledge({ embedded = false }: { embedded?: boolean } = {}) {
@@ -222,9 +222,9 @@ export default function Knowledge({ embedded = false }: { embedded?: boolean } =
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ ...motionUI, delay: 0.05 }}
         className="rounded-2xl bg-white/[0.03] border border-white/[0.06] p-4">
         <div className="flex items-center gap-2 mb-3">
-          <Search className="w-4 h-4 text-violet-400" />
-          <h2 className="text-sm font-bold text-zinc-300">Test retrieval</h2>
-          <span className="text-[11px] text-zinc-600">ask a question, see which chunks match</span>
+          <Search className="w-4 h-4 text-accent" />
+          <h2 className="text-sm font-bold text-fg-muted">Test retrieval</h2>
+          <span className="text-[11px] text-fg-subtle">ask a question, see which chunks match</span>
         </div>
         <div className="flex items-center gap-2">
           <input
@@ -233,13 +233,13 @@ export default function Knowledge({ embedded = false }: { embedded?: boolean } =
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') handleRetrieve(); }}
             placeholder="What's our policy on refunds?"
-            className="flex-1 bg-black/40 border border-white/[0.08] rounded-xl px-4 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-violet-500/40"
+            className="flex-1 bg-black/40 border border-white/[0.08] rounded-xl px-4 py-2 text-sm text-white placeholder:text-fg-subtle focus:outline-none focus:border-accent/40"
           />
           <button
             type="button"
             onClick={handleRetrieve}
             disabled={!query.trim() || retrieving}
-            className="flex items-center gap-2 bg-violet-500/20 border border-violet-500/30 text-violet-300 px-4 py-2 rounded-xl text-sm font-semibold hover:bg-violet-500/30 disabled:opacity-50 cursor-pointer"
+            className="flex items-center gap-2 bg-accent/20 border border-accent/30 text-accent px-4 py-2 rounded-xl text-sm font-semibold hover:bg-accent/30 disabled:opacity-50 cursor-pointer"
           >
             {retrieving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
             Retrieve
@@ -252,10 +252,10 @@ export default function Knowledge({ embedded = false }: { embedded?: boolean } =
               {retrieveResults.map((r, i) => (
                 <div key={i} className="rounded-xl bg-white/[0.02] border border-white/[0.04] p-3">
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[10px] uppercase tracking-wider text-violet-400/70 font-bold">{r.itemTitle || `Chunk ${i + 1}`}</span>
-                    <span className="text-[10px] text-zinc-600 font-mono">score {r.score?.toFixed(3)}</span>
+                    <span className="text-[10px] uppercase tracking-wider text-accent/70 font-bold">{r.itemTitle || `Chunk ${i + 1}`}</span>
+                    <span className="text-[10px] text-fg-subtle font-mono">score {r.score?.toFixed(3)}</span>
                   </div>
-                  <p className="text-xs text-zinc-300 leading-relaxed">{r.text}</p>
+                  <p className="text-xs text-fg-muted leading-relaxed">{r.text}</p>
                 </div>
               ))}
             </motion.div>
@@ -321,7 +321,7 @@ export default function Knowledge({ embedded = false }: { embedded?: boolean } =
                     <span className="shrink-0 leading-none mt-0.5"><TypeIcon mime={item.type} className="w-5 h-5" /></span>
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-white truncate" title={item.title}>{item.title}</p>
-                      <p className="text-[10px] text-zinc-600 mt-0.5">
+                      <p className="text-[10px] text-fg-subtle mt-0.5">
                         {item.type.split('/')[1] || item.type} · {relTime(item.createdAt)}
                       </p>
                     </div>
@@ -331,14 +331,14 @@ export default function Knowledge({ embedded = false }: { embedded?: boolean } =
                       <CheckCircle2 className="w-2.5 h-2.5" /> embedded
                     </span>
                   ) : (
-                    <span title="Not yet embedded" className="shrink-0 flex items-center gap-1 text-[9px] uppercase tracking-wider text-zinc-500 bg-white/[0.03] border border-white/[0.06] rounded px-1.5 py-0.5">
+                    <span title="Not yet embedded" className="shrink-0 flex items-center gap-1 text-[9px] uppercase tracking-wider text-fg-subtle bg-white/[0.03] border border-white/[0.06] rounded px-1.5 py-0.5">
                       <AlertCircle className="w-2.5 h-2.5" /> raw
                     </span>
                   )}
                 </div>
 
                 {item.metadata?.size != null && (
-                  <p className="text-[10px] text-zinc-700 mb-3">{formatBytes(item.metadata.size)}</p>
+                  <p className="text-[10px] text-fg-subtle mb-3">{formatBytes(item.metadata.size)}</p>
                 )}
 
                 <div className="flex items-center gap-2">
@@ -346,7 +346,7 @@ export default function Knowledge({ embedded = false }: { embedded?: boolean } =
                     type="button"
                     onClick={() => handleEmbed(item.id)}
                     disabled={isEmbedding}
-                    className="flex-1 flex items-center justify-center gap-1.5 bg-violet-500/10 border border-violet-500/20 text-violet-300 text-xs font-semibold px-2 py-1.5 rounded-lg hover:bg-violet-500/20 disabled:opacity-50 cursor-pointer"
+                    className="flex-1 flex items-center justify-center gap-1.5 bg-accent/10 border border-accent/20 text-accent text-xs font-semibold px-2 py-1.5 rounded-lg hover:bg-accent/20 disabled:opacity-50 cursor-pointer"
                   >
                     {isEmbedding ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
                     {isEmbedding ? 'Embedding…' : 'Re-embed'}

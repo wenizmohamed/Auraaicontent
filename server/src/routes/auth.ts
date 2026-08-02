@@ -372,6 +372,20 @@ export async function authRoutes(app: FastifyInstance) {
       { userId: result.user.id, email: result.user.email, role: result.user.role, orgId: result.orgId, orgRole: result.orgRole },
       Boolean(rememberMe),
     );
+    // Mint a refresh token exactly like /login does. Without this the client
+    // stores refreshToken = null, rotateRefresh() short-circuits, and the
+    // session dies at the 1 hour access-token TTL with no silent refresh.
+    const refresh = mintRefreshToken();
+    const meta = reqMeta(request);
+    await db.refreshToken.create({
+      data: {
+        userId: result.user.id,
+        tokenHash: refresh.hash,
+        expiresAt: refresh.expiresAt,
+        userAgent: meta.userAgent,
+        ip: meta.ip,
+      },
+    });
 
     auditService.log({
       orgId: result.orgId,
@@ -384,6 +398,8 @@ export async function authRoutes(app: FastifyInstance) {
 
     return {
       token,
+      refreshToken: refresh.raw,
+      refreshExpiresAt: refresh.expiresAt.toISOString(),
       rememberMe: Boolean(rememberMe),
       user: { id: result.user.id, email: result.user.email, name: result.user.name, role: result.user.role },
       activeOrgId: result.orgId,

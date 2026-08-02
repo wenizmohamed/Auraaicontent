@@ -15,6 +15,7 @@ import { getStylePack, listStylePacks } from '../services/style-packs.js';
 import { recordMemory } from '../services/memory.service.js';
 import { upscaleImage } from '../services/upscale.service.js';
 import { assertVideoDailyGuardrail } from '../lib/budget.js';
+import { capGuard } from '../lib/plan-caps.js';
 
 // B3 — social safe-zone: appended to the prompt when the user toggles it on, so
 // generated creative keeps the top/bottom platform-UI bands clear (Reels/Stories
@@ -26,7 +27,7 @@ export async function creativeRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authGuard);
 
   // POST /api/creative/images/generate
-  app.post('/creative/images/generate', async (request, reply) => {
+  app.post('/creative/images/generate', { preHandler: capGuard('ai.image', 'image.generate') }, async (request, reply) => {
     const { prompt: rawPrompt, aspectRatio, clientId, quality, model, provider, safeZone, imageSize, enhance, depth, stylePackId } = request.body as { prompt: string; aspectRatio?: string; clientId?: string; quality?: 'standard' | 'ultra'; model?: string; provider?: 'gemini' | 'xai' | 'dashscope'; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K'; enhance?: boolean; depth?: 'raw' | 'low' | 'medium' | 'high'; stylePackId?: string };
     const v = validatePrompt(rawPrompt);
     if (!v.valid) return reply.status(400).send({ error: v.error });
@@ -116,7 +117,7 @@ export async function creativeRoutes(app: FastifyInstance) {
   });
 
   // POST /api/creative/images/edit
-  app.post('/creative/images/edit', async (request, reply) => {
+  app.post('/creative/images/edit', { preHandler: capGuard('ai.image', 'image.edit') }, async (request, reply) => {
     const { prompt: rawEditPrompt, imageBase64, mimeType, aspectRatio, clientId, model, provider, referenceImages, safeZone, imageSize, enhance, depth } = request.body as any;
     if (!rawEditPrompt || !imageBase64) return reply.status(400).send({ error: 'prompt and imageBase64 are required' });
     const ev = validatePrompt(rawEditPrompt);
@@ -267,7 +268,7 @@ export async function creativeRoutes(app: FastifyInstance) {
 
   // POST /api/creative/videos/generate — async via job queue
   // Supports both text-to-video AND image-to-video (when imageBase64 is provided).
-  app.post('/creative/videos/generate', async (request, reply) => {
+  app.post('/creative/videos/generate', { preHandler: capGuard('ai.video', 'video.generate') }, async (request, reply) => {
     // eslint-disable-next-line prefer-const
     let {
       prompt, aspectRatio, durationSeconds, resolution, clientId,

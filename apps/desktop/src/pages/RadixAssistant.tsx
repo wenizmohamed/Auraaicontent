@@ -205,7 +205,7 @@ export default function RadixAssistant() {
         <div className="mt-2 grid grid-cols-3 gap-1.5">
           {r.images.slice(0, 6).map((img: any, i: number) => (
             <a key={i} href={img.pinUrl} target="_blank" rel="noopener noreferrer"
-              className="aspect-square rounded-lg overflow-hidden border border-white/[0.06] hover:border-amber-500/30 transition-colors relative group">
+              className="aspect-square rounded-lg overflow-hidden border border-white/[0.06] hover:border-accent/30 transition-colors relative group">
               <img src={img.thumbUrl} alt={img.title || ''} className="w-full h-full object-cover" loading="lazy" />
               <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                 <ExternalLink className="w-3.5 h-3.5 text-white" />
@@ -219,7 +219,7 @@ export default function RadixAssistant() {
     if (action.type === 'generate_content' && r.jobId) {
       return (
         <button onClick={() => { navigate(`/calendar?client=${selectedClientId}&month=${encodeURIComponent(r.month)}`); setOpen(false); }}
-          className="mt-2 flex items-center gap-2 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-1.5 cursor-pointer hover:bg-amber-500/20 transition-colors">
+          className="mt-2 flex items-center gap-2 text-xs text-accent bg-accent/10 border border-accent/20 rounded-lg px-3 py-1.5 cursor-pointer hover:bg-accent/20 transition-colors">
           <Calendar className="w-3.5 h-3.5" /> View Calendar →
         </button>
       );
@@ -229,7 +229,7 @@ export default function RadixAssistant() {
       const verb = r.created ? 'Created' : 'Already exists';
       return (
         <button onClick={() => { navigate('/clients'); setOpen(false); }}
-          className="mt-2 flex items-center gap-2 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-1.5 cursor-pointer hover:bg-amber-500/20 transition-colors">
+          className="mt-2 flex items-center gap-2 text-xs text-accent bg-accent/10 border border-accent/20 rounded-lg px-3 py-1.5 cursor-pointer hover:bg-accent/20 transition-colors">
           <FileText className="w-3.5 h-3.5" /> {verb}: {r.name} · Open Clients →
         </button>
       );
@@ -239,9 +239,9 @@ export default function RadixAssistant() {
       return (
         <div className="mt-2 space-y-1">
           {r.slice(0, 5).map((c: any) => (
-            <div key={c.id} className="text-[11px] text-zinc-400 bg-white/[0.03] rounded-lg px-2.5 py-1.5 border border-white/[0.04]">
-              <span className="text-zinc-200 font-medium">{c.name}</span>
-              {c.industry && <span className="text-zinc-600 ml-1">· {c.industry}</span>}
+            <div key={c.id} className="text-[11px] text-fg-muted bg-white/[0.03] rounded-lg px-2.5 py-1.5 border border-white/[0.04]">
+              <span className="text-fg font-medium">{c.name}</span>
+              {c.industry && <span className="text-fg-subtle ml-1">· {c.industry}</span>}
             </div>
           ))}
         </div>
@@ -253,9 +253,9 @@ export default function RadixAssistant() {
         <div className="mt-2 space-y-1">
           {r.map((m: any, i: number) => (
             <button key={i} onClick={() => { navigate(`/calendar?client=${selectedClientId}&month=${encodeURIComponent(m.month)}`); setOpen(false); }}
-              className="w-full text-left text-[11px] text-zinc-400 bg-white/[0.03] rounded-lg px-2.5 py-1.5 border border-white/[0.04] cursor-pointer hover:border-white/[0.1] transition-colors">
-              <span className="text-zinc-200 font-medium">{m.month}</span>
-              <span className="text-zinc-600 ml-1">· {m.postCount} posts · {m.status}</span>
+              className="w-full text-left text-[11px] text-fg-muted bg-white/[0.03] rounded-lg px-2.5 py-1.5 border border-white/[0.04] cursor-pointer hover:border-white/[0.1] transition-colors">
+              <span className="text-fg font-medium">{m.month}</span>
+              <span className="text-fg-subtle ml-1">· {m.postCount} posts · {m.status}</span>
             </button>
           ))}
         </div>
@@ -271,8 +271,8 @@ export default function RadixAssistant() {
             { label: 'Approved', value: `${r.approvalRate}%` },
             { label: 'Months', value: r.months },
           ].map(s => (
-            <div key={s.label} className="text-[11px] text-zinc-400 bg-white/[0.03] rounded-lg px-2.5 py-1.5 border border-white/[0.04]">
-              <span className="text-zinc-200 font-bold">{s.value}</span> <span className="text-zinc-600">{s.label}</span>
+            <div key={s.label} className="text-[11px] text-fg-muted bg-white/[0.03] rounded-lg px-2.5 py-1.5 border border-white/[0.04]">
+              <span className="text-fg font-bold">{s.value}</span> <span className="text-fg-subtle">{s.label}</span>
             </div>
           ))}
         </div>
@@ -281,7 +281,7 @@ export default function RadixAssistant() {
 
     if (action.type === 'delete_calendar' && r.deleted) {
       return (
-        <div className="mt-2 text-[11px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-1.5">
+        <div className="mt-2 text-[11px] text-success bg-success/10 border border-success/20 rounded-lg px-3 py-1.5">
           Deleted calendar for {r.month}. You can now regenerate it.
         </div>
       );
@@ -338,7 +338,7 @@ export default function RadixAssistant() {
           >
             {/* Header */}
             <div className="px-4 py-3 border-b border-white/[0.06] flex items-center gap-3">
-              <div className="relative w-8 h-8 rounded-lg overflow-hidden border border-amber-500/30 shrink-0">
+              <div className="relative w-8 h-8 rounded-lg overflow-hidden border border-accent/30 shrink-0">
                 <img src="./radix-dna.jpg" alt="Radix" className="w-full h-full object-cover" />
                 {/* Live status dot — pulses while a run is in flight. */}
                 <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2"
@@ -350,7 +350,7 @@ export default function RadixAssistant() {
                   <span className="text-[9px] font-bold uppercase tracking-wider rounded px-1 py-0.5"
                     style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>Agent</span>
                 </p>
-                <p className="text-[10px] text-zinc-500 truncate">
+                <p className="text-[10px] text-fg-subtle truncate">
                   {loading ? 'Working…' : currentClient ? `${currentClient.name} · ready` : 'ready'}
                 </p>
               </div>
@@ -397,18 +397,18 @@ export default function RadixAssistant() {
             <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
               {messages.length === 0 && !loading && (
                 <div className="h-full flex flex-col items-center justify-center text-center px-4">
-                  <div className="w-14 h-14 rounded-2xl overflow-hidden border border-amber-500/20 mb-3 shadow-[0_0_30px_-8px_rgba(245,158,11,0.3)]">
+                  <div className="w-14 h-14 rounded-2xl overflow-hidden border border-accent/20 mb-3 shadow-[0_0_30px_-8px_rgba(245,158,11,0.3)]">
                     <img src="./radix-dna.jpg" alt="Radix" className="w-full h-full object-cover" />
                   </div>
-                  <p className="text-sm text-zinc-400 mb-1 font-medium">I'm Radix. Your content strategist.</p>
-                  <p className="text-xs text-zinc-600 mb-4">I can generate content, search visual refs, pull your brief, and more.</p>
+                  <p className="text-sm text-fg-muted mb-1 font-medium">I'm Radix. Your content strategist.</p>
+                  <p className="text-xs text-fg-subtle mb-4">I can generate content, search visual refs, pull your brief, and more.</p>
 
                   {/* Quick actions */}
                   <div className="grid grid-cols-2 gap-2 w-full max-w-[280px]">
                     {quickActions.map(qa => (
                       <button key={qa.label} onClick={() => handleSend(qa.prompt)}
-                        className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.03] border border-white/[0.06] text-xs text-zinc-400 hover:text-white hover:border-white/[0.12] transition-all cursor-pointer">
-                        <qa.icon className="w-3.5 h-3.5 text-amber-500/60" />
+                        className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.03] border border-white/[0.06] text-xs text-fg-muted hover:text-white hover:border-white/[0.12] transition-all cursor-pointer">
+                        <qa.icon className="w-3.5 h-3.5 text-accent/60" />
                         {qa.label}
                       </button>
                     ))}
@@ -500,9 +500,9 @@ export default function RadixAssistant() {
               )}
 
               {error && (
-                <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-3 py-2 flex items-start gap-2">
-                  <AlertCircle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
-                  <p className="text-xs text-red-400">{error}</p>
+                <div className="rounded-xl bg-danger/10 border border-danger/20 px-3 py-2 flex items-start gap-2">
+                  <AlertCircle className="w-3.5 h-3.5 text-danger shrink-0 mt-0.5" />
+                  <p className="text-xs text-danger">{error}</p>
                 </div>
               )}
             </div>

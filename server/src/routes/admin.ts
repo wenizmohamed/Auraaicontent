@@ -265,9 +265,17 @@ export async function adminRoutes(app: FastifyInstance) {
     let to: Date;
 
     if (q?.to) {
-      const t = new Date(String(q.to));
+      const raw = String(q.to);
+      const t = new Date(raw);
       if (Number.isNaN(t.getTime())) throw new Error('BAD_TO');
-      to = t;
+      // A date-only "to" (YYYY-MM-DD) parses as MIDNIGHT, which excludes the
+      // whole of the day the user picked. Selecting "to today" then showed zero
+      // calls and read as if the usage data had been wiped. Roll a date-only
+      // bound to the END of that day so the range is inclusive, which is what
+      // anyone picking a date on a report means.
+      to = /^\d{4}-\d{2}-\d{2}$/.test(raw.trim())
+        ? new Date(t.getTime() + 24 * 60 * 60 * 1000 - 1)
+        : t;
     } else {
       to = now;
     }

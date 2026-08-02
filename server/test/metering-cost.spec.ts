@@ -50,6 +50,35 @@ describe('metering: image model with ZERO tokens falls back to perCall', () => {
   });
 });
 
+describe('metering: asymmetric token counts on a token-priced image model', () => {
+  // gemini-3.1-flash-image-preview: promptPerM 0.50, completionPerM 60, perCall 0.10.
+  // The perCall suppression keys off measured COMPLETION tokens only, because
+  // perCall stands in for the per-image OUTPUT cost. Prompt tokens alone never
+  // account for the generated image, so perCall must still apply in that case.
+
+  it('prompt tokens only (1000p + 0c) still bills perCall = $0.1005', () => {
+    // 1000/1M*0.50 = 0.0005 ; 0 completion tokens = 0 ; perCall 0.10 still applies.
+    // total 0.0005 + 0 + 0.10 = 0.1005
+    expect(computeCostUsd('gemini-3.1-flash-image-preview', 1000, 0)).toBeCloseTo(0.1005, 6);
+  });
+
+  it('prompt tokens only is strictly dearer than the token math alone', () => {
+    // Guards the inverse regression: suppressing perCall whenever ANY token is
+    // measured would drop this to $0.0005 and lose the whole image cost.
+    const cost = computeCostUsd('gemini-3.1-flash-image-preview', 1000, 0);
+    expect(cost).toBeGreaterThan(0.0005);
+    expect(cost).toBeCloseTo(0.0005 + 0.10, 6);
+  });
+
+  it('completion tokens only (0p + 1290c) suppresses perCall = $0.0774', () => {
+    // 0 prompt tokens = 0 ; 1290/1M*60 = 0.0774 ; perCall suppressed by the
+    // measured output tokens. total 0.0774
+    const cost = computeCostUsd('gemini-3.1-flash-image-preview', 0, 1290);
+    expect(cost).toBeCloseTo(0.0774, 6);
+    expect(cost).toBeLessThan(0.0774 + 0.10); // not double-billed with perCall
+  });
+});
+
 describe('metering: perCall-only models', () => {
   it('imagen-4.0-generate-001 = exactly $0.04 with zero tokens', () => {
     expect(computeCostUsd('imagen-4.0-generate-001', 0, 0)).toBeCloseTo(0.04, 6);

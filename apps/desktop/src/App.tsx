@@ -45,6 +45,7 @@ const Members           = lazy(() => import('./pages/Members'));
 const AcceptInvite      = lazy(() => import('./pages/AcceptInvite'));
 const ResetPassword     = lazy(() => import('./pages/ResetPassword'));
 const PublicGallery     = lazy(() => import('./pages/PublicGallery'));
+const ReviewLink        = lazy(() => import('./pages/ReviewLink'));
 const Workspace         = lazy(() => import('./pages/Workspace'));
 const Agent             = lazy(() => import('./pages/Agent'));
 const Integrations      = lazy(() => import('./pages/Integrations'));
@@ -718,6 +719,17 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     return (
       <Suspense fallback={<ShellSkeleton />}>
         <Routes><Route path="/g/:token" element={<PublicGallery />} /></Routes>
+      </Suspense>
+    );
+  }
+
+  // Monthly content review. reviewService mints /review/:token and the agency
+  // sends it to its client. The recipient has no account, so this must render
+  // before the auth gate or the link lands on Login.
+  if (location.pathname.startsWith('/review/')) {
+    return (
+      <Suspense fallback={<ShellSkeleton />}>
+        <Routes><Route path="/review/:token" element={<ReviewLink />} /></Routes>
       </Suspense>
     );
   }

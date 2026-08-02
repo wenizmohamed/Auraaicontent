@@ -10,13 +10,14 @@ import { visualRefsBackfillWorker } from '../workers/visualRefsBackfill.worker.j
 import { assertClientInOrg, assertCalendarPostInOrg } from '../lib/tenant.js';
 import { runComplianceCheck, scorePost } from '../services/content-quality.service.js';
 import { reviewService } from '../services/review.service.js';
+import { capGuard } from '../lib/plan-caps.js';
 
 export async function calendarRoutes(app: FastifyInstance) {
 
   app.addHook('preHandler', authGuard);
 
   // POST /api/clients/:clientId/calendar/generate → { jobId }
-  app.post('/clients/:clientId/calendar/generate', async (request, reply) => {
+  app.post('/clients/:clientId/calendar/generate', { preHandler: capGuard('ai.text', 'calendar.generate') }, async (request, reply) => {
     const { clientId } = request.params as { clientId: string };
     const { month, pieceCount } = (request.body as any) || {};
     const orgId = request.orgId!;

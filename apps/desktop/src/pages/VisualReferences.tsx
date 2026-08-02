@@ -95,7 +95,7 @@ export default function VisualReferences() {
         <div>
           <p className="text-[11px] uppercase tracking-[0.14em] font-semibold" style={{ color: 'var(--color-fg-subtle)' }}>Library</p>
           <h1 className="font-display text-3xl sm:text-4xl font-bold" style={{ color: 'var(--color-fg)' }}>Visual References</h1>
-          <p className="text-zinc-500 mt-1">Central image library. Every reference needs a source URL</p>
+          <p className="text-fg-subtle mt-1">Central image library. Every reference needs a source URL</p>
         </div>
         <button onClick={() => setShowAdd(true)} className="flex items-center gap-2 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:opacity-90 transition-opacity" style={{ background: 'var(--color-info)' }}>
           <Plus className="h-4 w-4" /> Import Reference
@@ -105,25 +105,25 @@ export default function VisualReferences() {
       {/* Filters */}
       <div className="flex gap-3 mb-6 flex-wrap">
         <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-600" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-fg-subtle" />
           <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search tags, collections..."
-            className="w-full pl-9 pr-3 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder-zinc-600 focus:ring-2 focus:ring-[color:var(--color-info)] focus:border-transparent" />
+            className="w-full pl-9 pr-3 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder:text-fg-subtle focus:ring-2 focus:ring-[color:var(--color-info)] focus:border-transparent" />
         </div>
         <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-3 py-1">
-          <Filter className="h-3.5 w-3.5 text-zinc-500" />
+          <Filter className="h-3.5 w-3.5 text-fg-subtle" />
           {STATIONS.map(s => (
             <button key={s} onClick={() => setStation(s)}
-              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${station === s ? '' : 'text-zinc-500 hover:text-zinc-300'}`}
+              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${station === s ? '' : 'text-fg-subtle hover:text-fg-muted'}`}
               style={station === s ? { background: 'var(--color-info-subtle)', color: 'var(--color-info)' } : undefined}>
               {s}
             </button>
           ))}
         </div>
         <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-3 py-1">
-          <FolderOpen className="h-3.5 w-3.5 text-zinc-500" />
+          <FolderOpen className="h-3.5 w-3.5 text-fg-subtle" />
           {collections.map(c => (
             <button key={c} onClick={() => setCollection(c)}
-              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${collection === c ? '' : 'text-zinc-500 hover:text-zinc-300'}`}
+              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${collection === c ? '' : 'text-fg-subtle hover:text-fg-muted'}`}
               style={collection === c ? { background: 'var(--color-info-subtle)', color: 'var(--color-info)' } : undefined}>
               {c}
             </button>
@@ -132,7 +132,7 @@ export default function VisualReferences() {
       </div>
 
       {/* Stats */}
-      <div className="flex gap-4 mb-6 text-xs text-zinc-500">
+      <div className="flex gap-4 mb-6 text-xs text-fg-subtle">
         <span>{filtered.length} references</span>
         <span>·</span>
         <span>{collections.length - 1} collections</span>
@@ -167,12 +167,12 @@ export default function VisualReferences() {
                 </a>
                 <div className="flex flex-wrap gap-1 mb-2">
                   {ref.tags.map((tag, i) => (
-                    <span key={i} className="text-[9px] text-zinc-500 bg-white/5 px-1.5 py-0.5 rounded">{tag}</span>
+                    <span key={i} className="text-[9px] text-fg-subtle bg-white/5 px-1.5 py-0.5 rounded">{tag}</span>
                   ))}
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: 'var(--color-info-subtle)', color: 'var(--color-info)' }}>{ref.station}</span>
-                  <span className="text-[10px] text-zinc-600">{ref.collection}</span>
+                  <span className="text-[10px] text-fg-subtle">{ref.collection}</span>
                 </div>
               </div>
             </div>
@@ -180,9 +180,9 @@ export default function VisualReferences() {
         </div>
       ) : refs.length === 0 ? (
         <div className="text-center py-20 bg-[#111] border border-white/10 rounded-xl">
-          <Image className="h-10 w-10 text-zinc-700 mx-auto mb-3" />
-          <p className="text-zinc-400">No visual references found</p>
-          <p className="text-zinc-600 text-sm mt-1">Import references to get started</p>
+          <Image className="h-10 w-10 text-fg-subtle mx-auto mb-3" />
+          <p className="text-fg-muted">No visual references found</p>
+          <p className="text-fg-subtle text-sm mt-1">Import references to get started</p>
         </div>
       ) : (
         <div className="text-center py-20 rounded-xl border" style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border-subtle)' }}>
@@ -200,24 +200,24 @@ export default function VisualReferences() {
           <div className="bg-[#111] border border-white/10 rounded-2xl p-6 w-full max-w-lg" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-white">Import Visual Reference</h2>
-              <button onClick={() => setShowAdd(false)} className="text-zinc-500 hover:text-white"><X className="h-5 w-5" /></button>
+              <button onClick={() => setShowAdd(false)} className="text-fg-subtle hover:text-white"><X className="h-5 w-5" /></button>
             </div>
             <div className="space-y-3">
               <div>
-                <label className="block text-xs text-zinc-500 mb-1">Image URL *</label>
+                <label className="block text-xs text-fg-subtle mb-1">Image URL *</label>
                 <input value={form.imageUrl} onChange={e => setForm({ ...form, imageUrl: e.target.value })} placeholder="https://example.com/image.jpg"
-                  className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder-zinc-600 focus:ring-2 focus:ring-[color:var(--color-info)] focus:border-transparent" />
+                  className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder:text-fg-subtle focus:ring-2 focus:ring-[color:var(--color-info)] focus:border-transparent" />
               </div>
               <div>
-                <label className="block text-xs text-zinc-500 mb-1">Source URL * (mandatory)</label>
+                <label className="block text-xs text-fg-subtle mb-1">Source URL * (mandatory)</label>
                 <input value={form.sourceUrl} onChange={e => setForm({ ...form, sourceUrl: e.target.value })} placeholder="https://dribbble.com/shots/..."
-                  className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder-zinc-600 focus:ring-2 focus:ring-[color:var(--color-info)] focus:border-transparent" />
+                  className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder:text-fg-subtle focus:ring-2 focus:ring-[color:var(--color-info)] focus:border-transparent" />
               </div>
               <input value={form.tags} onChange={e => setForm({ ...form, tags: e.target.value })} placeholder="Tags (comma separated): dark, luxury, editorial"
-                className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder-zinc-600 focus:ring-2 focus:ring-[color:var(--color-info)] focus:border-transparent" />
+                className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder:text-fg-subtle focus:ring-2 focus:ring-[color:var(--color-info)] focus:border-transparent" />
               <div className="grid grid-cols-2 gap-3">
                 <input value={form.collection} onChange={e => setForm({ ...form, collection: e.target.value })} placeholder="Collection name"
-                  className="px-3 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder-zinc-600 focus:ring-2 focus:ring-[color:var(--color-info)] focus:border-transparent" />
+                  className="px-3 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder:text-fg-subtle focus:ring-2 focus:ring-[color:var(--color-info)] focus:border-transparent" />
                 <select value={form.station} onChange={e => setForm({ ...form, station: e.target.value })}
                   className="px-3 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white text-sm">
                   {STATIONS.map(s => <option key={s} value={s}>{s}</option>)}
@@ -251,10 +251,10 @@ export default function VisualReferences() {
               </a>
               <div className="flex items-center justify-center gap-2 mt-3">
                 <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'var(--color-info-subtle)', color: 'var(--color-info)' }}>{preview.station}</span>
-                <span className="text-xs bg-white/10 text-zinc-400 px-2 py-0.5 rounded-full">{preview.collection}</span>
-                {preview.tags.map((t, i) => <span key={i} className="text-xs bg-white/5 text-zinc-500 px-2 py-0.5 rounded-full">{t}</span>)}
+                <span className="text-xs bg-white/10 text-fg-muted px-2 py-0.5 rounded-full">{preview.collection}</span>
+                {preview.tags.map((t, i) => <span key={i} className="text-xs bg-white/5 text-fg-subtle px-2 py-0.5 rounded-full">{t}</span>)}
               </div>
-              <div className="text-xs text-zinc-600 mt-2">Uploaded by {preview.uploadedBy}</div>
+              <div className="text-xs text-fg-subtle mt-2">Uploaded by {preview.uploadedBy}</div>
             </div>
           </div>
         </div>

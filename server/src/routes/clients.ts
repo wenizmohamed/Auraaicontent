@@ -3,6 +3,7 @@ import { errStatus, errMessage } from '../services/providers/errors.js';
 import { clientService } from '../services/client.service.js';
 import { authGuard, denyViewer } from '../middleware/auth.js';
 import { auditService } from '../services/audit.service.js';
+import { capGuard } from '../lib/plan-caps.js';
 
 export async function clientRoutes(app: FastifyInstance) {
 
@@ -15,7 +16,9 @@ export async function clientRoutes(app: FastifyInstance) {
   });
 
   // POST /api/clients
-  app.post('/', async (request, reply) => {
+  // Plan cap on client slots. Inert unless BILLING_ENFORCE=1; with the flag
+  // off it only records the breach so the blast radius is visible first.
+  app.post('/', { preHandler: capGuard('clients', 'client.create') }, async (request, reply) => {
     const { name, industry, website, instagramHandle, primaryColor, logoUrl, locale, dialect, whatsappNumber } =
       request.body as any;
     if (!name) return reply.status(400).send({ error: 'Client name is required' });
