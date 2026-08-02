@@ -119,7 +119,7 @@ export default function PublicGallery() {
                 <button aria-label="Close" onClick={() => setSelected(null)} className="text-zinc-400 hover:text-white shrink-0">✕</button>
               </div>
               <div className="flex-1 space-y-3 mb-4">
-                {feedbackFor(selected.id).length === 0 && <p className="text-xs text-zinc-500 italic">No feedback yet — be the first.</p>}
+                {feedbackFor(selected.id).length === 0 && <p className="text-xs text-zinc-500 italic">No feedback yet. Be the first.</p>}
                 {feedbackFor(selected.id).map((f) => (
                   <div key={f.id} className="bg-white/[0.04] rounded-lg p-3 text-sm">
                     <div className="flex justify-between items-center mb-1">
@@ -143,7 +143,7 @@ export default function PublicGallery() {
                   <button disabled={!name.trim() || !comment.trim() || sending} onClick={() => submit()}
                     className="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-40 text-sm">Comment</button>
                 </div>
-                {justSent && <p className="text-emerald-400 text-xs text-center">✓ Sent — thank you!</p>}
+                {justSent && <p className="text-emerald-400 text-xs text-center">✓ Sent. Thank you!</p>}
               </div>
             </div>
           </div>

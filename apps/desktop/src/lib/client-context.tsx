@@ -42,7 +42,7 @@ export function ClientProvider({ children }: { children: ReactNode }) {
       const stillExists = persisted && data.some(c => c.id === persisted);
       if (!stillExists) {
         if (persisted) {
-          console.warn(`[client-context] Persisted client ${persisted} no longer exists — falling back`);
+          console.warn(`[client-context] Persisted client ${persisted} no longer exists. Falling back`);
         }
         if (data.length > 0) {
           const first = data[0].id;
@@ -139,9 +139,9 @@ export function ClientProvider({ children }: { children: ReactNode }) {
       setSelectedClientId(null);
       localStorage.removeItem('radix_selected_client');
       if (reason === 'refresh-reuse') {
-        setAuthError('Session revoked for security — please log in again.');
+        setAuthError('Session revoked for security. Please log in again.');
       } else if (reason === 'refresh-expired') {
-        setAuthError('Session expired — please log in again.');
+        setAuthError('Session expired. Please log in again.');
       }
     });
     return () => { unsubscribe(); };

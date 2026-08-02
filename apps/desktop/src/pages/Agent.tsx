@@ -92,7 +92,7 @@ export default function Agent() {
             loading={running}
             onApprove={() => {
               setRunning(true);
-              toast.success('Plan approved — execution would start here once /api/agent/sessions/:id/run is wired');
+              toast.success('Plan approved. Execution would start here once /api/agent/sessions/:id/run is wired');
               setTimeout(() => setRunning(false), 1200);
             }}
             onCancel={() => toast('Plan cancelled')}

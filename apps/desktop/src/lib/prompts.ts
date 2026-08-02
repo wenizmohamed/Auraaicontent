@@ -41,7 +41,7 @@ ${toneNotes ? `- Additional Tone Notes: ${toneNotes}` : ''}
 MONTH: ${month}
 
 CAMPAIGNS FOR THIS MONTH:
-${campaigns.map((c, i) => `${i+1}. "${c.name}" — Audience: ${c.targetAudience} | Product: ${c.productFocus} | Objective: ${c.objective} | Key Message: ${c.keyMessage}`).join('\n')}
+${campaigns.map((c, i) => `${i+1}. "${c.name}"Audience: ${c.targetAudience} | Product: ${c.productFocus} | Objective: ${c.objective} | Key Message: ${c.keyMessage}`).join('\n')}
 
 SPECIAL OCCASIONS:
 ${occasions.map(o => `- ${o.name} (${o.date})`).join('\n')}
@@ -56,8 +56,8 @@ TASK: Generate exactly ${pieceCount} content pieces as a JSON array. Distribute 
 {
   "platform": "Instagram" (one of: ${platforms.join(', ')}),
   "format": "Static" (one of: Static, Reel, Carousel, Story, Video, Article),
-  "creativeCopy": "The art direction for the designer — describe the visual composition, colors, mood, layout, elements (2-3 sentences)",
-  "keyMessage": "The key message / copy overlay that goes ON the visual itself (e.g. 'Send money to Syria. USD or Syrian Pound — you choose.')",
+  "creativeCopy": "The art direction for the designer. Describe the visual composition, colors, mood, layout, elements (2-3 sentences)",
+  "keyMessage": "The key message / copy overlay that goes ON the visual itself (e.g. 'Send money to Syria. USD or Syrian Pound. You choose.')",
   "caption": "The social media caption that goes BELOW the post. Platform-optimized, within character limits.",
   "cta": "The call to action (e.g. 'Download AlfaPay today', 'Visit your nearest branch', 'Link in bio')",
   "hashtags": ["hashtag1", "hashtag2"] (array, within platform's hashtag limit),
@@ -72,12 +72,12 @@ CRITICAL RULES:
 2. EVERY post MUST have hashtags within the platform's hashtag limit
 3. The caption should aim for the OPTIMAL length, not just under max
 4. Visual references must be SPECIFIC and SEARCHABLE (not generic)
-5. Creative copy is for the DESIGNER — describe the visual composition, colors, mood, elements
+5. Creative copy is for the DESIGNER. Describe the visual composition, colors, mood, elements
 6. Distribute posts evenly across the month
 7. Include at least one post for each special occasion
 8. Include posts for each campaign
 9. Mix formats (Static, Reel, Carousel, Story) across the month
-10. All content must be CBUAE compliant — no misleading claims, include disclaimers for offers
+10. All content must be CBUAE compliant. No misleading claims, include disclaimers for offers
 11. Hashtags should be in the caption AND in the hashtags array
 
 Return ONLY the JSON array. No markdown, no code fences, no explanation. Use \\n for newlines in strings.`;

@@ -67,10 +67,10 @@ interface AgentAction {
 
 // ─── System Prompt ───────────────────────────────────────────────
 
-const RADIX_PERSONA = `You are **Radix** — the AI assistant inside Radix AI Content Planner, a premium content planning tool for agencies and brands.
+const RADIX_PERSONA = `You are **Radix**. The AI assistant inside Radix AI Content Planner, a premium content planning tool for agencies and brands.
 
 PERSONALITY:
-- Sharp, direct, and efficient — like a senior content strategist at a top Dubai agency
+- Sharp, direct, and efficient. Like a senior content strategist at a top Dubai agency
 - Professional but approachable. Occasionally witty, never sycophantic
 - You give straight answers. No filler like "Great question!" or "I'd be happy to help!"
 - You know social media strategy, content planning, UAE market dynamics, and agency workflows
@@ -79,38 +79,38 @@ PERSONALITY:
 YOU CAN TAKE ACTIONS. When the user asks you to DO something (not just discuss it), respond with a JSON action object. Available actions:
 
 ACTIONS:
-1. list_clients — List all clients in the system
+1. list_clients. List all clients in the system
    → { "type": "action", "action": "list_clients", "params": {} }
 
-1b. create_client — Create a NEW client profile. Always use this when the user asks to "add", "create", or "set up" a client. Don't tell them to use the UI — you CAN do it here.
+1b. create_client. Create a NEW client profile. Always use this when the user asks to "add", "create", or "set up" a client. Don't tell them to use the UI. You CAN do it here.
    → { "type": "action", "action": "create_client", "params": { "name": "Al Fardan Exchange", "industry": "Financial Services", "website": "https://alfardanexchange.com", "instagramHandle": "alfardan" } }
-   (only "name" is required — others are optional)
+   (only "name" is required. Others are optional)
 
-2. get_brief — Get a client's content brief
+2. get_brief. Get a client's content brief
    → { "type": "action", "action": "get_brief", "params": {} }
 
-3. generate_content — Generate a month of content for the current client
+3. generate_content. Generate a month of content for the current client
    → { "type": "action", "action": "generate_content", "params": { "month": "May 2026", "count": 18 } }
 
-4. search_visual_refs — Search Pinterest for visual inspiration
+4. search_visual_refs. Search Pinterest for visual inspiration
    → { "type": "action", "action": "search_visual_refs", "params": { "query": "luxury banking Dubai", "limit": 6 } }
 
-5. get_calendar — Fetch calendar data for a specific month
+5. get_calendar. Fetch calendar data for a specific month
    → { "type": "action", "action": "get_calendar", "params": { "month": "April 2026" } }
 
-6. improve_prompt — Improve a creative prompt for image/video generation
+6. improve_prompt. Improve a creative prompt for image/video generation
    → { "type": "action", "action": "improve_prompt", "params": { "prompt": "a Dubai skyline at sunset" } }
 
-7. delete_calendar — Delete a month's calendar to regenerate it
+7. delete_calendar. Delete a month's calendar to regenerate it
    → { "type": "action", "action": "delete_calendar", "params": { "month": "April 2026" } }
 
-8. get_stats — Get dashboard statistics (clients, posts, approvals)
+8. get_stats. Get dashboard statistics (clients, posts, approvals)
    → { "type": "action", "action": "get_stats", "params": {} }
 
-9. research — Research a topic for content ideas
+9. research. Research a topic for content ideas
    → { "type": "action", "action": "research", "params": { "query": "Ramadan marketing trends UAE 2026" } }
 
-10. update_post — Update a specific post's caption or status
+10. update_post. Update a specific post's caption or status
     → { "type": "action", "action": "update_post", "params": { "postId": "...", "caption": "new caption", "status": "approved" } }
 
 WHEN TO USE ACTIONS vs JUST RESPOND:
@@ -145,7 +145,7 @@ async function executeAction(orgId: string, action: string, params: any, clientI
       const instagramHandle = params?.instagramHandle?.trim();
       const existing = await db.client.findFirst({ where: { orgId, name: { equals: name, mode: 'insensitive' } }, select: { id: true, name: true, slug: true } });
       if (existing) {
-        return { alreadyExists: true, id: existing.id, name: existing.name, slug: existing.slug, message: `"${existing.name}" already exists — selecting it instead.` };
+        return { alreadyExists: true, id: existing.id, name: existing.name, slug: existing.slug, message: `"${existing.name}" already exists. Selecting it instead.` };
       }
       const client = await clientService.create(orgId, {
         name,
@@ -286,7 +286,7 @@ async function executeAction(orgId: string, action: string, params: any, clientI
       if (params?.caption) updateData.caption = params.caption;
       if (params?.status) updateData.status = params.status;
       if (params?.title) updateData.title = params.title;
-      if (Object.keys(updateData).length === 0) return { error: 'Nothing to update — provide caption, status, or title' };
+      if (Object.keys(updateData).length === 0) return { error: 'Nothing to update. Provide caption, status, or title' };
       const post = await db.calendarPost.update({ where: { id: postId, orgId }, data: updateData });
       return { updated: true, postId: post.id, title: post.title, status: post.status };
     }
@@ -353,7 +353,7 @@ export async function assistantRoutes(app: FastifyInstance) {
         systemPrompt = await enrichWithKnowledge(systemPrompt, orgId, clientId, lastUserText, {});
         systemPrompt = await enrichWithMemory(systemPrompt, orgId, clientId, lastUserText, {});
         systemPrompt = await enrichWithBrandKit(systemPrompt, clientId, { orgId });
-      } catch { /* best-effort — never block the chat on enrichment */ }
+      } catch { /* best-effort, never block the chat on enrichment */ }
     }
 
     // Format conversation for the chat API
@@ -431,7 +431,7 @@ export async function assistantRoutes(app: FastifyInstance) {
           const pass2 = await callAssistantLLM(systemPrompt, [
             ...grokMessages,
             { role: 'assistant', content: `[Executed "${actionName}" action]` },
-            { role: 'user', content: `Action result:\n${JSON.stringify(actionResult, null, 2)}\n\nWrite a concise, friendly summary of what happened. Be specific about numbers and details. Don't repeat raw JSON — translate into natural language.` },
+            { role: 'user', content: `Action result:\n${JSON.stringify(actionResult, null, 2)}\n\nWrite a concise, friendly summary of what happened. Be specific about numbers and details. Don't repeat raw JSON. Translate into natural language.` },
           ], meta);
 
           responseText = pass2.text.trim();

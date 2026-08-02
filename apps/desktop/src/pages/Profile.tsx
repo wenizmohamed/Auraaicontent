@@ -30,7 +30,7 @@ function roleBadge(role: string): { label: string; classes: string } {
 function formatJoined(iso: string): string {
   try {
     return new Date(iso).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
-  } catch { return '—'; }
+  } catch { return ''; }
 }
 
 type ToastKind = 'success' | 'error';
@@ -122,7 +122,7 @@ export default function Profile() {
       await authApi.changePassword(pwCurrent, pwNew);
       setPwCurrent(''); setPwNew(''); setPwConfirm('');
       setPwOpen(false);
-      setToast({ kind: 'success', msg: 'Password changed — other sessions revoked' });
+      setToast({ kind: 'success', msg: 'Password changed. Other sessions revoked' });
     } catch (err: any) {
       setToast({ kind: 'error', msg: err?.message || 'Failed to change password' });
     } finally {

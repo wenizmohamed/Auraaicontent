@@ -86,7 +86,7 @@ export default function Billing() {
       const r = await billingApi.portal();
       window.location.href = r.url;
     } catch (e: any) {
-      setErr(e?.message || 'Portal not available — complete a checkout first.');
+      setErr(e?.message || 'Portal not available. Complete a checkout first.');
       setBusy(null);
     }
   }

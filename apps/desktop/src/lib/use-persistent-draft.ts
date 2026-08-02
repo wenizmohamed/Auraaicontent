@@ -59,7 +59,7 @@ export function usePersistentDraft<T>(
       try {
         if (isEmpty(value)) localStorage.removeItem(storageKey);
         else localStorage.setItem(storageKey, JSON.stringify(value));
-      } catch { /* storage unavailable — in-memory only */ }
+      } catch { /* storage unavailable. In-memory only */ }
     }, debounceMs);
     return () => { if (timer.current) clearTimeout(timer.current); };
   }, [value, storageKey, debounceMs]);

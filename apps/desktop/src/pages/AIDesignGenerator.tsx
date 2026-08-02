@@ -106,7 +106,7 @@ export default function AIDesignGenerator() {
                 Brief in. Full design brief out.
               </h1>
               <p className="mt-2 text-sm leading-relaxed max-w-2xl" style={{ color: 'var(--color-fg-muted)' }}>
-                Visual direction, palette, typography, layout, copy, and image prompts — generated in one pass. Pick a starting style to seed the mood.
+                Visual direction, palette, typography, layout, copy, and image prompts. Generated in one pass. Pick a starting style to seed the mood.
               </p>
             </div>
           </div>
@@ -142,7 +142,7 @@ export default function AIDesignGenerator() {
               <input
                 value={topic}
                 onChange={e => setTopic(e.target.value)}
-                placeholder="e.g. AlfaPay app launch — money transfer"
+                placeholder="e.g. AlfaPay app launch. Money transfer"
                 className="w-full mt-2 bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-amber-500/40"
               />
             </div>
@@ -180,7 +180,7 @@ export default function AIDesignGenerator() {
               <textarea
                 value={visualThoughts}
                 onChange={e => setVisualThoughts(e.target.value)}
-                placeholder="Rough thoughts to develop into a concept — e.g. dirham coins forming an upward graph; product hero on marble; show the app saving someone time"
+                placeholder="Rough thoughts to develop into a concept, e.g. dirham coins forming an upward graph; product hero on marble; show the app saving someone time"
                 rows={3}
                 className="w-full mt-2 resize-y bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-amber-500/40"
               />

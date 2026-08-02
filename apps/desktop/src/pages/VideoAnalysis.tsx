@@ -76,7 +76,7 @@ export default function VideoAnalysis() {
           </div>
           <div>
             <h1 className="text-3xl font-black text-white tracking-tight">Video Analysis</h1>
-            <p className="text-sm text-zinc-500 mt-0.5">Get social-media insights from a video URL or upload. <span className="text-amber-400/70">Beta — v1 uses URL/filename context.</span></p>
+            <p className="text-sm text-zinc-500 mt-0.5">Get social-media insights from a video URL or upload. <span className="text-amber-400/70">Beta. v1 uses URL/filename context.</span></p>
           </div>
         </div>
       </motion.div>

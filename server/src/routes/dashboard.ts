@@ -4,6 +4,7 @@ import { authGuard } from '../middleware/auth.js';
 import { getAiTelemetry } from '../services/providers/ai-router.js';
 import { getEnrichmentHealth } from '../lib/enrichment-stats.js';
 import { getCircuitSnapshot } from '../services/providers/circuit-breaker.js';
+import { canSeePricing } from '../lib/pricing-visibility.js';
 
 export async function dashboardRoutes(app: FastifyInstance) {
 
@@ -159,8 +160,8 @@ export async function dashboardRoutes(app: FastifyInstance) {
       const postsTrend = prev7 > 0 ? Math.round(((last7 - prev7) / prev7) * 100) : (last7 > 0 ? 100 : 0);
 
       const insights: { type: 'positive' | 'warning' | 'info'; text: string }[] = [];
-      if (postsTrend >= 25) insights.push({ type: 'positive', text: `Posts up ${postsTrend}% vs last week — momentum is strong` });
-      else if (postsTrend <= -25) insights.push({ type: 'warning', text: `Posts down ${Math.abs(postsTrend)}% vs last week — slowing down` });
+      if (postsTrend >= 25) insights.push({ type: 'positive', text: `Posts up ${postsTrend}% vs last week. Momentum is strong` });
+      else if (postsTrend <= -25) insights.push({ type: 'warning', text: `Posts down ${Math.abs(postsTrend)}% vs last week. Slowing down` });
       if (draftsOlderThan7d >= 5) insights.push({ type: 'warning', text: `${draftsOlderThan7d} drafts have been sitting for 7+ days` });
       if (pendingReview >= 1) insights.push({ type: 'info', text: `${pendingReview} post${pendingReview === 1 ? '' : 's'} need${pendingReview === 1 ? 's' : ''} revision before approval` });
 
@@ -282,6 +283,11 @@ export async function dashboardRoutes(app: FastifyInstance) {
   // guard, so orgId in WHERE is load-bearing for tenant isolation here.
   app.get('/dashboard/usage', async (request, reply) => {
     const orgId = request.orgId!;
+    // Spend figures are owner/admin/accounting only. Hiding the tile in the UI
+    // is not enough on its own: the endpoint must refuse too.
+    if (!canSeePricing(request.user?.email, request.user?.orgRole)) {
+      return reply.status(403).send({ error: 'Not permitted to view spend' });
+    }
     try {
       const monthStart = new Date(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1);
 

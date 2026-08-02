@@ -5,6 +5,7 @@ import { buildPlanningPrompt, parseBriefChannels } from '../services/prompt.serv
 import { visualSearchService } from '../services/visual-search.service.js';
 import { retrieveContext } from '../services/retrieval.service.js';
 import { type Job, updateJob } from './queue.js';
+import { deAiText } from '../lib/human-voice.js';
 
 export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: string; provider: string; model: string; latencyMs: number; fallbackUsed: boolean }> {
   const { orgId, clientId, month, pieceCount } = job.data;
@@ -168,14 +169,16 @@ export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: 
         orgId,
         calendarMonthId: calendarMonth.id,
         date: post.date || '',
-        title: post.title || '',
+        // deAiText on every field a human reads: models reach for em dashes
+        // constantly and they are the loudest "this was written by AI" tell.
+        title: deAiText(post.title || ''),
         pillar: post.pillar || '',
         platform: post.platform, // Already validated/coerced above
         format: post.format || 'Static',
-        hook: post.hook || null,
-        keyMessage: post.keyMessage || null,
-        caption: post.caption || '',
-        cta: post.cta || null,
+        hook: deAiText(post.hook || '') || null,
+        keyMessage: deAiText(post.keyMessage || '') || null,
+        caption: deAiText(post.caption || ''),
+        cta: deAiText(post.cta || '') || null,
         hashtags: post.hashtags || [],
         visualDirection: post.visualDirection || null,
         referenceQuery: post.referenceSearchQuery || null,

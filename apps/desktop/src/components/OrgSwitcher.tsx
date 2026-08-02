@@ -29,7 +29,7 @@ export default function OrgSwitcher({ collapsed }: Props) {
           const payload = JSON.parse(atob(token.split('.')[1]));
           if (payload?.orgId) setActiveOrgId(payload.orgId);
         }
-      } catch { /* legacy token, no orgId — no active org displayed */ }
+      } catch { /* legacy token, no orgId. No active org displayed */ }
     }).catch(() => { /* unauthenticated, hide */ });
   }, []);
 

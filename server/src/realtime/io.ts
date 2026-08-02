@@ -20,7 +20,7 @@ import { verifyToken, type JwtPayload } from '../middleware/auth.js';
 let io: SocketIOServer<ClientToServerEvents, ServerToClientEvents> | null = null;
 
 export function getIO() {
-  if (!io) throw new Error('Socket.IO not initialized — call attachRealtime(app) first');
+  if (!io) throw new Error('Socket.IO not initialized. Call attachRealtime(app) first');
   return io;
 }
 
@@ -123,7 +123,7 @@ export async function attachRealtime(app: FastifyInstance) {
       const orgId = user?.orgId;
       if (!orgId) {
         await emitAndPersist(sessionUid, 'agent:error', {
-          message: 'Socket token missing org scope — re-login',
+          message: 'Socket token missing org scope. Re-login',
           at: new Date().toISOString(),
         });
         return;

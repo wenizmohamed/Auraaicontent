@@ -45,7 +45,7 @@ function complianceSystem(c: { complianceNotes: string | null; brandDont: string
   if (c.complianceNotes?.trim()) p.push(`Compliance notes:\n${c.complianceNotes.trim()}`);
   if (c.mandatoryInclusions?.trim()) p.push(`Mandatory inclusions (flag as HIGH if missing):\n${c.mandatoryInclusions.trim()}`);
   if (!c.brandDont && !c.complianceNotes && !c.mandatoryInclusions) {
-    p.push('(No explicit rules configured — flag only clear regulatory/misleading-claim issues for the sector above.)');
+    p.push('(No explicit rules configured. Flag only clear regulatory/misleading-claim issues for the sector above.)');
   }
   return p.filter(Boolean).join('\n');
 }
@@ -122,13 +122,13 @@ const DIMS = ['clarity', 'relevance', 'toneAlignment', 'platformFit', 'engagemen
 function scoreSystem(): string {
   return [
     'You are a senior social-content strategist grading ONE piece of content for a client, 0-100 per dimension.',
-    'Score five dimensions honestly (be discerning — most first drafts sit 55-80; reserve 90+ for genuinely excellent):',
+    'Score five dimensions honestly (be discerning. Most first drafts sit 55-80; reserve 90+ for genuinely excellent):',
     '- clarity: is the message instantly understood?',
     '- relevance: does it serve the brand objective + audience?',
     '- toneAlignment: does it match the brand tone of voice?',
     '- platformFit: right length/format/hook/hashtags for the platform?',
     '- engagement: hook strength, scroll-stopping potential, CTA pull.',
-    'For each dimension give a score and a ONE-sentence note. Then give ONE concrete topRecommendation — the single highest-impact edit to make (specific, actionable, not generic).',
+    'For each dimension give a score and a ONE-sentence note. Then give ONE concrete topRecommendation. The single highest-impact edit to make (specific, actionable, not generic).',
     'Return ONLY JSON: {"clarity":{"score":N,"note":"..."},"relevance":{"score":N,"note":"..."},"toneAlignment":{"score":N,"note":"..."},"platformFit":{"score":N,"note":"..."},"engagement":{"score":N,"note":"..."},"topRecommendation":"..."}',
   ].join('\n');
 }

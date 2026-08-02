@@ -80,13 +80,13 @@ export default function CompetitorIntel() {
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="rounded-2xl p-5 border border-border bg-surface">
               <h3 className="text-sm font-semibold text-fg flex items-center gap-2 mb-3"><Target className="w-4 h-4 text-fg-muted" /> Content themes</h3>
-              {result.analysis.themes.length ? <Chips items={result.analysis.themes} /> : <p className="text-sm text-fg-subtle">—</p>}
+              {result.analysis.themes.length ? <Chips items={result.analysis.themes} /> : <p className="text-sm text-fg-subtle"></p>}
             </div>
             <div className="rounded-2xl p-5 border border-border bg-surface">
               <h3 className="text-sm font-semibold text-fg flex items-center gap-2 mb-3"><TrendingUp className="w-4 h-4 text-fg-muted" /> Their strengths</h3>
               {result.analysis.strengths.length ? (
                 <ul className="space-y-1.5 text-sm text-fg-muted list-disc ps-4">{result.analysis.strengths.map((s, i) => <li key={i}>{s}</li>)}</ul>
-              ) : <p className="text-sm text-fg-subtle">—</p>}
+              ) : <p className="text-sm text-fg-subtle"></p>}
             </div>
           </div>
 

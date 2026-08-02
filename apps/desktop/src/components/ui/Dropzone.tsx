@@ -49,7 +49,7 @@ export function Dropzone({
   accept = 'image/*,video/*',
   maxSizeBytes = DEFAULT_MAX,
   label = 'Drop files to upload',
-  sublabel = 'or click to browse — images & video, up to 50 MB',
+  sublabel = 'or click to browse. Images & video, up to 50 MB',
   multiple = true,
 }: DropzoneProps) {
   const inputRef = useRef<HTMLInputElement>(null);

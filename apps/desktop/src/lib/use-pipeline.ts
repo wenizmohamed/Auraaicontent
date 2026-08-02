@@ -131,7 +131,7 @@ export function usePipeline() {
     try {
       await calendarApi.updatePost(id, { status: TO_CANONICAL[status] });
     } catch {
-      setPipelineItems(prev); // revert on failure — no silent loss
+      setPipelineItems(prev); // revert on failure. No silent loss
     }
   }, [pipelineItems]);
 

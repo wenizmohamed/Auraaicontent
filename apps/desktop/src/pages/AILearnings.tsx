@@ -102,7 +102,7 @@ export default function AILearnings({ embedded = false }: { embedded?: boolean }
         kind: draftKind,
         clientId: draftScope === 'org' ? null : draftScope,
       });
-      toastSuccess('Learning saved — the AI will apply it from now on');
+      toastSuccess('Learning saved. The AI will apply it from now on');
       setDraft('');
       setComposerOpen(false);
       reload();
@@ -170,7 +170,7 @@ export default function AILearnings({ embedded = false }: { embedded?: boolean }
         <div className="flex items-center justify-between flex-wrap gap-3">
           <p className="text-sm max-w-2xl" style={{ color: 'var(--color-fg-subtle)' }}>
             {currentClient
-              ? <>Lessons the AI applies for {currentClient.name} — including org-wide rules.</>
+              ? <>Lessons the AI applies for {currentClient.name}, including org-wide rules.</>
               : 'Lessons the AI applies across every client.'}
           </p>
           {teachButton}
@@ -188,7 +188,7 @@ export default function AILearnings({ embedded = false }: { embedded?: boolean }
             <div className="flex items-center gap-2 mb-3">
               <Sparkles className="w-4 h-4" style={{ color: 'var(--color-accent)' }} />
               <h2 className="text-sm font-bold" style={{ color: 'var(--color-fg)' }}>Teach the AI a lesson</h2>
-              <span className="text-[11px]" style={{ color: 'var(--color-fg-subtle)' }}>— e.g. “Always end captions with a clear CTA”</span>
+              <span className="text-[11px]" style={{ color: 'var(--color-fg-subtle)' }}>e.g. “Always end captions with a clear CTA”</span>
             </div>
             <textarea
               value={draft}
@@ -334,7 +334,7 @@ export default function AILearnings({ embedded = false }: { embedded?: boolean }
                     type="button"
                     onClick={() => handleArchive(it.id)}
                     aria-pressed={isArmed}
-                    aria-label={isArmed ? 'Confirm archive — click again within 6s' : 'Archive this learning'}
+                    aria-label={isArmed ? 'Confirm archive. Click again within 6s' : 'Archive this learning'}
                     className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg cursor-pointer transition-colors ${isArmed ? 'animate-pulse' : 'opacity-0 group-hover:opacity-100'}`}
                     style={isArmed
                       ? { background: 'var(--color-danger)', color: 'var(--color-fg-on-accent)' }

@@ -136,7 +136,7 @@ export function PublishConfirmDialog({
                 >
                   <AlertTriangle size={12} className="mt-0.5 flex-shrink-0" style={{ color: 'var(--color-warning, #fbbf24)' }} />
                   <p className="text-[11px]" style={{ color: 'var(--color-fg-muted)' }}>
-                    TikTok hasn't audited this app — the post will be visible only to you until they approve (~2-4 weeks).
+                    TikTok hasn't audited this app. The post will be visible only to you until they approve (~2-4 weeks).
                   </p>
                 </div>
               ) : (

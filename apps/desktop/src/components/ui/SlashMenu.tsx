@@ -26,9 +26,9 @@ export interface SlashAction {
 
 export const DEFAULT_SLASH_ACTIONS: SlashAction[] = [
   { id: 'image',     label: '/image',     hint: 'Generate AI image',          icon: ImageIcon, perform: async (q) => `[image: ${q || 'untitled'}]` },
-  { id: 'brief',     label: '/brief',     hint: 'Insert brief snippet',       icon: FileText,  perform: async ()  => '— Brand voice: confident, editorial. Channels: IG/LinkedIn/X. —' },
+  { id: 'brief',     label: '/brief',     hint: 'Insert brief snippet',       icon: FileText,  perform: async ()  => 'Brand voice: confident, editorial. Channels: IG/LinkedIn/X.' },
   { id: 'translate', label: '/translate', hint: 'Translate selection to AR',  icon: Languages, perform: async (q) => q ? `(AR) ${q}` : '(AR) ' },
-  { id: 'plan',      label: '/plan',      hint: 'Insert content plan stub',   icon: Calendar,  perform: async ()  => '\n— Mon: launch teaser\n— Wed: social proof\n— Fri: offer\n' },
+  { id: 'plan',      label: '/plan',      hint: 'Insert content plan stub',   icon: Calendar,  perform: async ()  => '\n. Mon: launch teaser\n. Wed: social proof\n. Fri: offer\n' },
   { id: 'rewrite',   label: '/rewrite',   hint: 'Rewrite as on-brand',        icon: Sparkles,  perform: async (q) => q || '(select text first)' },
   { id: 'gen',       label: '/generate',  hint: 'Generate full caption',      icon: Wand2,     perform: async (q) => `Caption draft: ${q || 'on-brand opener'}` },
 ];

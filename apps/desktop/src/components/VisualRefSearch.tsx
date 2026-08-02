@@ -62,7 +62,7 @@ export default function VisualRefSearch({ visualIdea, provider = 'gemini', onSel
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleSearch()}
-            placeholder="Describe the visual you need — e.g. 'person using app Dubai split screen family'"
+            placeholder="Describe the visual you need, e.g. 'person using app Dubai split screen family'"
             className="w-full pl-10 pr-3 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-sm placeholder-zinc-600 focus:ring-2 focus:ring-violet-500 focus:border-transparent"
           />
         </div>

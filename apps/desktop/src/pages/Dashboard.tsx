@@ -18,6 +18,7 @@ import { BentoGrid, BentoTile } from '../components/ui/BentoGrid';
 import { AIProviderRouter } from '../components/insights/AIProviderRouter';
 import { AnimatedGradientBorder } from '../components/ui/AnimatedGradientBorder';
 import UpdatesTicker from '../components/UpdatesTicker';
+import { usePricingVisibility } from '../lib/use-pricing-visibility';
 
 // Synth a smoothly-rising 12-point sparkline that ends at `target`.
 // Used until per-stat time-series is wired into the backend dashboard API.
@@ -217,7 +218,7 @@ const WALKTHROUGH_STEPS: Array<{
   {
     icon: Calendar,
     title: '3. Generate a Content Calendar',
-    description: 'AI creates a full month of platform-optimized posts — captions, hashtags, visual ideas, and posting schedule. Each post is tailored to the platform (Instagram, TikTok, LinkedIn, X).',
+    description: 'AI creates a full month of platform-optimized posts. Captions, hashtags, visual ideas, and posting schedule. Each post is tailored to the platform (Instagram, TikTok, LinkedIn, X).',
     href: '/calendar',
     cta: 'View Calendar',
     color: (d) => d ? 'text-amber-400' : 'text-amber-600',
@@ -363,6 +364,7 @@ function WalkthroughSection({ isDark, glass, glassStatic, textPrimary, textSecon
 export default function Dashboard() {
   const { clients, currentClient, authenticated } = useClients();
   const { effectiveTheme } = useTheme();
+  const canSeePricing = usePricingVisibility();
   const isDark = effectiveTheme !== 'light';
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [aiStats, setAiStats] = useState<AiStats | null>(null);
@@ -517,7 +519,7 @@ export default function Dashboard() {
                   style={{ color: 'var(--color-fg-muted)', fontFamily: 'var(--font-display)', fontStyle: 'italic', fontWeight: 400 }}
                 >
                   Brief in. Calendar out. Brand-true captions, visuals, and a
-                  publish-ready month — one prompt away.
+                  publish-ready month. One prompt away.
                 </p>
               </div>
 
@@ -550,7 +552,7 @@ export default function Dashboard() {
             >
               <div className="px-6 lg:px-10 py-3 border-r" style={{ borderColor: 'var(--color-border-subtle)' }}>
                 <span style={{ color: 'var(--color-fg-muted)' }}>Total</span>{' '}
-                <span style={{ color: 'var(--color-fg)' }} className="font-semibold tabular-nums">{loading ? '—' : totalPosts}</span>{' '}posts
+                <span style={{ color: 'var(--color-fg)' }} className="font-semibold tabular-nums">{loading ? '' : totalPosts}</span>{' '}posts
               </div>
               <div className="px-6 lg:px-10 py-3 border-r" style={{ borderColor: 'var(--color-border-subtle)' }}>
                 <span style={{ color: 'var(--color-fg-muted)' }}>Approved</span>{' '}
@@ -558,7 +560,7 @@ export default function Dashboard() {
               </div>
               <div className="px-6 lg:px-10 py-3 sm:border-r" style={{ borderColor: 'var(--color-border-subtle)' }}>
                 <span style={{ color: 'var(--color-fg-muted)' }}>Clients</span>{' '}
-                <span style={{ color: 'var(--color-fg)' }} className="font-semibold tabular-nums">{loading ? '—' : (stats?.clients?.total ?? 0)}</span>
+                <span style={{ color: 'var(--color-fg)' }} className="font-semibold tabular-nums">{loading ? '' : (stats?.clients?.total ?? 0)}</span>
               </div>
               <div className="hidden sm:flex px-6 lg:px-10 py-3 items-center gap-2">
                 <span className="inline-flex w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: 'var(--color-success)' }} aria-hidden="true" />
@@ -751,7 +753,7 @@ export default function Dashboard() {
                 value: `${approvalRate}%`,
                 sub: lowApproval
                   ? 'Needs attention'
-                  : approvalRate >= 80 ? 'Healthy' : approvalRate > 0 ? 'Needs review' : '—',
+                  : approvalRate >= 80 ? 'Healthy' : approvalRate > 0 ? 'Needs review' : '',
                 tone: (lowApproval ? 'danger' : 'success') as 'danger' | 'success',
                 href: '/content-review',
                 alert: lowApproval,
@@ -833,7 +835,7 @@ export default function Dashboard() {
                           className="mt-1.5 text-[42px] leading-[0.95] font-black tabular-nums tracking-tight"
                           style={{ color: valueColor }}
                         >
-                          {typeof stat.value === 'number' ? <AnimatedNumber value={stat.value} /> : (stat.value ?? '—')}
+                          {typeof stat.value === 'number' ? <AnimatedNumber value={stat.value} /> : (stat.value ?? '')}
                         </div>
                       </>
                     )}
@@ -929,13 +931,15 @@ export default function Dashboard() {
                     <div className={`text-base font-bold tabular-nums ${textPrimary}`}>{formatTokens(aiStats.totalTokens)}</div>
                     <p className={`text-[10px] font-medium ${isDark ? 'text-zinc-500' : 'text-slate-600'}`}>Tokens</p>
                   </div>
-                  <div className={`rounded-xl p-3 border ${isDark ? 'bg-emerald-500/[0.05] border-emerald-500/15' : 'bg-emerald-50 border-emerald-300'}`}>
-                    <div className={`text-base font-bold tabular-nums flex items-center gap-0.5 ${'text-[color:var(--color-success)]'}`}>
-                      <DollarSign className="w-3 h-3" />
-                      <span>{formatUsd(estimateCostUsd(aiStats.providers)).replace('$', '')}</span>
+                  {canSeePricing && (
+                    <div className={`rounded-xl p-3 border ${isDark ? 'bg-emerald-500/[0.05] border-emerald-500/15' : 'bg-emerald-50 border-emerald-300'}`}>
+                      <div className={`text-base font-bold tabular-nums flex items-center gap-0.5 ${'text-[color:var(--color-success)]'}`}>
+                        <DollarSign className="w-3 h-3" />
+                        <span>{formatUsd(estimateCostUsd(aiStats.providers)).replace('$', '')}</span>
+                      </div>
+                      <p className={`text-[10px] font-medium ${'text-[color:var(--color-success)]'}`}>Est. cost</p>
                     </div>
-                    <p className={`text-[10px] font-medium ${'text-[color:var(--color-success)]'}`}>Est. cost</p>
-                  </div>
+                  )}
                   <div className={`rounded-xl p-3 border ${isDark ? 'bg-white/[0.03] border-white/[0.04]' : 'bg-slate-100 border-slate-300'}`}>
                     <div className={`text-base font-bold tabular-nums flex items-center gap-1 ${textPrimary}`}>
                       {aiStats.totalErrors > 0 && <AlertTriangle className={`w-3 h-3 ${'text-[color:var(--color-warning)]'}`} />}
@@ -1051,8 +1055,8 @@ export default function Dashboard() {
                   </h3>
                   <p className={`text-[11px] mb-3 ${textMuted}`}>
                     {aiStats && aiStats.totalCalls > 0
-                      ? 'Live fallback orbit — primary first, hot-swap on failure.'
-                      : 'Idle — diagram lights up once requests start flowing.'}
+                      ? 'Live fallback orbit. Primary first, hot-swap on failure.'
+                      : 'Idle. Diagram lights up once requests start flowing.'}
                   </p>
                   <div className="flex justify-center">
                     <AIProviderRouter providers={aiStats?.providers ?? []} size={260} />

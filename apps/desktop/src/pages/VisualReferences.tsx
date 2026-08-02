@@ -95,7 +95,7 @@ export default function VisualReferences() {
         <div>
           <p className="text-[11px] uppercase tracking-[0.14em] font-semibold" style={{ color: 'var(--color-fg-subtle)' }}>Library</p>
           <h1 className="font-display text-3xl sm:text-4xl font-bold" style={{ color: 'var(--color-fg)' }}>Visual References</h1>
-          <p className="text-zinc-500 mt-1">Central image library — every reference needs a source URL</p>
+          <p className="text-zinc-500 mt-1">Central image library. Every reference needs a source URL</p>
         </div>
         <button onClick={() => setShowAdd(true)} className="flex items-center gap-2 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:opacity-90 transition-opacity" style={{ background: 'var(--color-info)' }}>
           <Plus className="h-4 w-4" /> Import Reference

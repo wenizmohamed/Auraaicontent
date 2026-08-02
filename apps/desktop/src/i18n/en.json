@@ -57,7 +57,7 @@
   "page.dashboard.upload_briefs": "Upload briefs, brand guides to personalize AI",
   "page.dashboard.no_activity": "No activity yet",
   "page.dashboard.no_activity_sub": "Generate your first month to see it here",
-  "page.dashboard.no_activity_short": "No activity yet — start generating content",
+  "page.dashboard.no_activity_short": "No activity yet. Start generating content",
   "page.dashboard.no_posts": "No posts yet",
   "page.dashboard.total_posts": "Total posts generated",
   "page.dashboard.total_calls": "Total API calls",
@@ -92,7 +92,7 @@
   "page.review.all_platforms": "All Platforms",
   "page.review.all_statuses": "All Statuses",
   "page.review.all_campaigns": "All Campaigns",
-  "page.review.all_approved": "All approved — ready to export ✓",
+  "page.review.all_approved": "All approved. Ready to export ✓",
   "page.review.section.art_direction": "Art Direction",
   "page.review.section.copy": "Copy",
   "page.review.section.key_message": "Key Message (on visual)",
@@ -125,7 +125,7 @@
   "members.members_heading": "Members",
   "members.remove": "Remove member",
   "members.remove_confirm": "Remove {name} from this organization? They'll lose access immediately.",
-  "members.cannot_remove_self_owner": "You're the only OWNER — promote another member first.",
+  "members.cannot_remove_self_owner": "You're the only OWNER. Promote another member first.",
   "members.you": "you",
   "nav.members": "Team",
 
@@ -170,10 +170,10 @@
   "invite.expires": "Invitation expires",
   "invite.accept": "Accept invitation",
   "invite.accepting": "Joining…",
-  "invite.signin_prompt": "To accept, use {email} — create an account or sign in.",
+  "invite.signin_prompt": "To accept, use {email}. Create an account or sign in.",
   "invite.signin": "Sign in",
   "invite.create_account": "Create account & join",
   "invite.have_account": "I already have an account",
   "invite.joined": "Joined {org}. Redirecting…",
-  "invite.replay_failed": "Couldn't auto-join — your account email may not match the invite."
+  "invite.replay_failed": "Couldn't auto-join. Your account email may not match the invite."
 }

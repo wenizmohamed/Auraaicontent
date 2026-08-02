@@ -519,7 +519,7 @@ export default function TopicDesk() {
                           onClick={e => { e.stopPropagation(); handleAIExpand(topic.id); }}
                           disabled={aiLoading === topic.id}
                           className="text-[9px] flex items-center gap-0.5 text-violet-400 bg-violet-500/10 hover:bg-violet-500/20 px-1.5 py-1 rounded-md transition-colors disabled:opacity-50"
-                          title="AI Expand — fill missing fields"
+                          title="AI Expand. Fill missing fields"
                         >
                           {aiLoading === topic.id ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <Sparkles className="w-2.5 h-2.5" />} AI Expand
                         </button>
@@ -1123,7 +1123,7 @@ export default function TopicDesk() {
             <div className="mb-6">
               <div className="text-xs text-zinc-500 mb-2 flex items-center gap-1.5">
                 <Sparkles className="w-3 h-3 text-violet-400" />
-                Search real reference images from Wikimedia Commons — click Pinterest to browse more — click "Use This" to attach
+                Search real reference images from Wikimedia Commons. Click Pinterest to browse more. Click "Use This" to attach
               </div>
               <VisualRefSearch
                 visualIdea={topics.find(t => t.id === refModal)?.description || ''}
@@ -1133,7 +1133,7 @@ export default function TopicDesk() {
                     id: crypto.randomUUID(),
                     url: ref.sourceUrl,
                     type: 'moodboard',
-                    note: `[${ref.sourceName}] ${ref.description} — Image: ${ref.imageUrl}`,
+                    note: `[${ref.sourceName}] ${ref.description}. Image: ${ref.imageUrl}`,
                   };
                   setTopics(prev => prev.map(t => t.id === refModal ? { ...t, references: [...(t.references || []), topicRef] } : t));
                 }}

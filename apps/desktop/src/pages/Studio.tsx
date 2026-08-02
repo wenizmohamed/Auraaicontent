@@ -17,9 +17,9 @@ type Tab = 'pipeline' | 'approvals' | 'analytics';
 
 // Safe date render — post.date may be an ISO date, a day string, or empty.
 function fmtDate(raw: string, opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' }): string {
-  if (!raw) return '—';
+  if (!raw) return '';
   const d = new Date(raw);
-  return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-US', opts);
+  return isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-US', opts);
 }
 
 const COLUMNS: { id: PipelineStatus; label: string }[] = [
@@ -124,7 +124,7 @@ export default function Studio() {
         {!hasClient ? (
           <div className="bg-white/5 rounded-2xl p-10 border border-white/10 text-center">
             <LayoutDashboard className="w-10 h-10 text-zinc-500 mx-auto mb-3 opacity-60" />
-            <p className="text-zinc-400">No clients yet — add a client to start building content.</p>
+            <p className="text-zinc-400">No clients yet. Add a client to start building content.</p>
           </div>
         ) : loading ? (
           <div className="bg-white/5 rounded-2xl p-10 border border-white/10 text-center text-zinc-400">Loading pipeline across all clients…</div>

@@ -44,8 +44,8 @@ export default function Gallery() {
     if (!currentClient) { toastErr('Select a client first'); return; }
     setSharing(true);
     try {
-      const { url } = await galleryShareApi.create(currentClient.id, `${currentClient.name} — gallery`);
-      try { await navigator.clipboard.writeText(url); toastOk('Share link copied — send it to your client'); }
+      const { url } = await galleryShareApi.create(currentClient.id, `${currentClient.name}. Gallery`);
+      try { await navigator.clipboard.writeText(url); toastOk('Share link copied. Send it to your client'); }
       catch { toastOk(`Share link: ${url}`); }
     } catch (e) {
       toastErr(e instanceof Error ? e.message : 'Could not create share link');
@@ -203,7 +203,7 @@ export default function Gallery() {
         >
           <Dropzone
             label={`Drop files to upload to ${currentClient.name}`}
-            sublabel="or click to browse — images & video, up to 50 MB"
+            sublabel="or click to browse. Images & video, up to 50 MB"
             onUpload={async (file) => {
               await assetsApi.upload(currentClient.id, file);
               const fresh = await galleryApi.list({ take: 500 });

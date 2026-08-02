@@ -152,7 +152,7 @@ export default function History() {
             History
           </h1>
           <p className="mt-2 text-sm" style={{ color: 'var(--color-fg-muted)' }}>
-            Every prompt you've ever run — images, videos, research, design briefs.
+            Every prompt you've ever run. Images, videos, research, design briefs.
             {stats && stats.total > 0 && (
               <> <span style={{ color: 'var(--color-fg-subtle)' }}>· {stats.total.toLocaleString()} total</span></>
             )}
@@ -230,7 +230,7 @@ export default function History() {
           title={searchDebounced ? `No history matches "${searchDebounced}"` : 'No generations yet'}
           description={searchDebounced
             ? 'Try a different search or switch tabs.'
-            : 'Open Creative Tools, Studio, or Research and run a prompt — it lands here automatically.'}
+            : 'Open Creative Tools, Studio, or Research and run a prompt. It lands here automatically.'}
         />
       ) : (
         <div className="space-y-8">

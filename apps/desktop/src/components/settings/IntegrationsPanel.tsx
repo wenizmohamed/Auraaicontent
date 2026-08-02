@@ -115,7 +115,7 @@ export function IntegrationsPanel() {
         >
           <Plug className="mx-auto h-6 w-6" style={{ color: 'var(--color-fg-subtle)' }} />
           <p className="mt-3 text-[13px]" style={{ color: 'var(--color-fg-muted)' }}>
-            Create a client first — integrations are scoped per brand.
+            Create a client first. Integrations are scoped per brand.
           </p>
         </div>
       ) : loading ? (

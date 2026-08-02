@@ -70,7 +70,7 @@ export const AL_FARDAN_KB: ClientKB = {
     'Send money to 200+ countries',
     'Trusted by millions of customers',
     'CBUAE regulated and compliant',
-    'Multi-currency Travelez Platinum Card — 22 currencies',
+    'Multi-currency Travelez Platinum Card. 22 currencies',
     'Free transfers via net-banking (AlfaPay first-time offer)',
   ],
   complianceNotes: 'All content must comply with CBUAE Consumer Protection Regulations. No misleading claims about rates, fees, or transfer speeds. Disclaimers required for offers. Terms & conditions must be referenced. No guarantees on exchange rates.',
@@ -81,9 +81,9 @@ export const DEFAULT_CAMPAIGNS = [
   { name: 'Go Global with Al Fardan Exchange', targetAudience: 'Pink/White Collar Workers', productFocus: 'Currency Exchange, Travelez Card', duration: '1 month', objective: 'Product promotion', keyMessage: 'Currency Exchange with attractive rates across our branches. Travelez Platinum Card for seamless travel spending.' },
   { name: 'AlfaPay', targetAudience: 'Pink/White Collar Workers', productFocus: 'AlfaPay App', duration: 'Ongoing', objective: 'Service promotion', keyMessage: 'Promote our app and all services: money transfers, bill payments, real-time rates.' },
   { name: 'Offers by AlfaPay', targetAudience: 'All (Pink/White Collar + WPS customers)', productFocus: 'AlfaPay Offers Feature', duration: 'Ongoing', objective: 'Service promotion', keyMessage: 'Drive subscriptions on Offers by AlfaPay.' },
-  { name: 'Brand Campaign — Fulfilling Journeys Since 1971', targetAudience: 'All', productFocus: 'Brand', duration: 'Until Dec 31, 2025', objective: 'Build brand affinity and awareness', keyMessage: 'Focus on fulfilling dreams back home, supporting loved ones.' },
+  { name: 'Brand Campaign. Fulfilling Journeys Since 1971', targetAudience: 'All', productFocus: 'Brand', duration: 'Until Dec 31, 2025', objective: 'Build brand affinity and awareness', keyMessage: 'Focus on fulfilling dreams back home, supporting loved ones.' },
   { name: 'Money Transfers', targetAudience: 'All', productFocus: 'Service', duration: 'Ongoing', objective: 'Service promotion', keyMessage: 'Highlight 50+ years of trusted service, fast and secure transfers.' },
-  { name: 'Financial Literacy', targetAudience: 'All', productFocus: 'Thought Leadership', duration: 'Ongoing', objective: 'Engagement', keyMessage: 'TBD — Educational content about financial management.' },
+  { name: 'Financial Literacy', targetAudience: 'All', productFocus: 'Thought Leadership', duration: 'Ongoing', objective: 'Engagement', keyMessage: 'TBD. Educational content about financial management.' },
   { name: 'Employer Branding', targetAudience: 'Professional Audiences on LinkedIn', productFocus: 'Brand', duration: 'Ongoing', objective: 'Brand Humanising', keyMessage: 'GPTW Certification, Culture/Life at Al Fardan Exchange.' },
 ];
 

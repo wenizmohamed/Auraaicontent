@@ -2,6 +2,8 @@
 // packages/prompts/ is documentation; tsc can't cross-workspace import,
 // so the actual builder is here. Arabic and English variants live side
 // by side; client.locale picks which one runs.
+import { HUMAN_VOICE_RULE } from '../lib/human-voice.js';
+
 
 const PLATFORM_LIMITS: Record<string, string> = {
   Instagram: 'Instagram: max 2200 chars, 5 hashtags',
@@ -126,8 +128,8 @@ function formatCampaigns(brief: any, pieceCount: number): string[] {
   camps = (Array.isArray(camps) ? camps : []).filter((c) => c && (c.name || c.objective || c.keyMessage || c.targetAudience));
   if (camps.length <= 1) return [];
   const lines: string[] = [];
-  lines.push(`\n=== CAMPAIGNS (${camps.length}) — distribute the ${pieceCount} posts across ALL of these ===`);
-  lines.push("Each post belongs to exactly ONE campaign. Set post.pillar to that campaign's name and use THAT campaign's audience, objective, and key message — do NOT blend campaigns or reuse the first campaign for every post. Spread the posts roughly evenly across the campaigns.");
+  lines.push(`\n=== CAMPAIGNS (${camps.length}). Distribute the ${pieceCount} posts across ALL of these ===`);
+  lines.push("Each post belongs to exactly ONE campaign. Set post.pillar to that campaign's name and use THAT campaign's audience, objective, and key message. Do NOT blend campaigns or reuse the first campaign for every post. Spread the posts roughly evenly across the campaigns.");
   camps.forEach((c, i) => {
     const parts = [`Campaign: ${c.name || `#${i + 1}`}`];
     if (c.targetAudience) parts.push(`Audience: ${c.targetAudience}`);
@@ -193,7 +195,7 @@ function buildEnglishPrompt(p: BuildArgs): string {
   if (holidays.length > 0) {
     s.push('\n=== UPCOMING HOLIDAYS / OCCASIONS ===');
     for (const h of holidays) {
-      s.push(`- ${h.date}: ${h.name}${h.toneGuidance ? ` — ${h.toneGuidance}` : ''}`);
+      s.push(`- ${h.date}: ${h.name}${h.toneGuidance ? `${h.toneGuidance}` : ''}`);
     }
   }
 
@@ -230,13 +232,13 @@ function buildEnglishPrompt(p: BuildArgs): string {
     s.push('\n=== ALREADY PUBLISHED (DO NOT REPEAT THESE ANGLES) ===');
     s.push(`The following ${Math.min(p.priorPosts.length, 30)} posts were already drafted for this client in prior months. Your output must cover DIFFERENT angles, hooks, and key messages. Same brand voice, fresh ideas.`);
     for (const pr of p.priorPosts.slice(0, 30)) {
-      s.push(`- [${pr.month}] ${pr.title}${pr.pillar ? ` · pillar=${pr.pillar}` : ''}${pr.keyMessage ? ` — ${pr.keyMessage.slice(0, 80)}` : ''}`);
+      s.push(`- [${pr.month}] ${pr.title}${pr.pillar ? ` · pillar=${pr.pillar}` : ''}${pr.keyMessage ? `${pr.keyMessage.slice(0, 80)}` : ''}`);
     }
   }
 
   s.push(`\n=== TASK ===\nGenerate exactly ${p.pieceCount} content pieces for ${p.month} as JSON.`);
   s.push('Return: {"strategySummary":{"overview":"...","themes":[...],"channelFocus":{...}},"posts":[{"date":"...","title":"...","pillar":"...","platform":"...","format":"...","hook":"...","keyMessage":"...","caption":"...","cta":"...","hashtags":[...],"visualDirection":"...","referenceSearchQuery":"...","ideaRationale":"...","timing":"..."}]}');
-  s.push('referenceSearchQuery: 3-6 English keywords describing the VISUAL aesthetic to find inspiration for (style, medium, mood, industry) — not the caption. For Reel/Video/Story format posts, include motion words (e.g. "kinetic typography animation", "product reveal motion graphics", "cinemagraph transition"). Keep it English even on Arabic content so image search returns results.');
+  s.push('referenceSearchQuery: 3-6 English keywords describing the VISUAL aesthetic to find inspiration for (style, medium, mood, industry), not the caption. For Reel/Video/Story format posts, include motion words (e.g. "kinetic typography animation", "product reveal motion graphics", "cinemagraph transition"). Keep it English even on Arabic content so image search returns results.');
   const allowedList = channels.length > 0 ? channels.join('|') : 'Instagram';
   s.push(`\nRULES:
 1. Every post.platform MUST be one of: ${allowedList}. No other platforms allowed.
@@ -244,7 +246,8 @@ function buildEnglishPrompt(p: BuildArgs): string {
 3. Vary formats (Static/Carousel/Reel/Video) and pillars across posts.
 4. Distribute posts evenly across the calendar month.
 5. Return ONLY valid JSON. No markdown, no commentary.
-6. ${p.priorPosts && p.priorPosts.length > 0 ? 'NEVER reuse a title, hook, or key message from the "ALREADY PUBLISHED" list above. Pick fresh angles.' : 'Bring fresh angles — do not produce generic stock content.'}`);
+6. ${p.priorPosts && p.priorPosts.length > 0 ? 'NEVER reuse a title, hook, or key message from the "ALREADY PUBLISHED" list above. Pick fresh angles.' : 'Bring fresh angles. Do not produce generic stock content.'}
+7. ${HUMAN_VOICE_RULE}`);
   return s.join('\n');
 }
 
@@ -257,7 +260,7 @@ function buildArabicPrompt(p: BuildArgs): string {
 
   s.push(`أنت استراتيجي محتوى عربي محترف لشركة ${p.client.name}. You are a senior Arabic-language social content strategist for ${p.client.name}, a ${p.client.industry || 'general'} company.`);
   s.push('');
-  s.push(`DIALECT: ${dialect} — ${DIALECT_GUIDANCE[dialect]}`);
+  s.push(`DIALECT: ${dialect}. ${DIALECT_GUIDANCE[dialect]}`);
 
   s.push('\n=== CLIENT ===');
   s.push(`Name: ${p.client.name}`);
@@ -290,7 +293,7 @@ function buildArabicPrompt(p: BuildArgs): string {
   if (holidays.length > 0) {
     s.push('\n=== UPCOMING HOLIDAYS / OCCASIONS ===');
     for (const h of holidays) {
-      s.push(`- ${h.date}: ${h.name}${h.toneGuidance ? ` — ${h.toneGuidance}` : ''}`);
+      s.push(`- ${h.date}: ${h.name}${h.toneGuidance ? `${h.toneGuidance}` : ''}`);
     }
     s.push('Tone guidance: For Ramadan posts, avoid food/drink imagery before iftar. Emphasize community, family, charity, reflection. For Eid posts, celebratory tone (عيد مبارك). For National Days, patriotic but not jingoistic.');
   }
@@ -317,14 +320,14 @@ function buildArabicPrompt(p: BuildArgs): string {
   // Prior-month diversity guard (Arabic prompt mirror — same logic as English).
   if (p.priorPosts && p.priorPosts.length > 0) {
     s.push('\n=== ALREADY PUBLISHED (DO NOT REPEAT THESE ANGLES) ===');
-    s.push(`The following posts were drafted for this client in prior months. Cover DIFFERENT angles, hooks, and key messages — same brand voice, fresh ideas:`);
+    s.push(`The following posts were drafted for this client in prior months. Cover DIFFERENT angles, hooks, and key messages. Same brand voice, fresh ideas:`);
     for (const pr of p.priorPosts.slice(0, 30)) {
-      s.push(`- [${pr.month}] ${pr.title}${pr.pillar ? ` · ${pr.pillar}` : ''}${pr.keyMessage ? ` — ${pr.keyMessage.slice(0, 80)}` : ''}`);
+      s.push(`- [${pr.month}] ${pr.title}${pr.pillar ? ` · ${pr.pillar}` : ''}${pr.keyMessage ? `${pr.keyMessage.slice(0, 80)}` : ''}`);
     }
   }
 
   s.push(`\n=== TASK ===\nGenerate exactly ${p.pieceCount} content pieces for ${p.month} as JSON.`);
-  s.push('CRITICAL — write all user-facing strings (title, hook, keyMessage, caption, cta, hashtags) in ARABIC using the dialect above.');
+  s.push('CRITICAL. Write all user-facing strings (title, hook, keyMessage, caption, cta, hashtags) in ARABIC using the dialect above.');
   s.push('Keep JSON keys, platform names, and date strings in English/numeric form. referenceSearchQuery stays in English so Pinterest/DDG returns visual references.');
   s.push('Hashtags: prefer Arabic when audience-natural (#رمضان_كريم), mix with English for international reach.');
 
@@ -335,7 +338,8 @@ function buildArabicPrompt(p: BuildArgs): string {
 2. كل caption يجب أن يحترم حدود الأحرف.
 3. توزيع التدوينات على مدار الشهر.
 4. مزج الصيغ والركائز.
-5. أعد JSON صحيحاً فقط — بدون Markdown أو تعليقات.
-6. ${p.priorPosts && p.priorPosts.length > 0 ? 'لا تكرر أي عنوان أو افتتاحية أو رسالة أساسية من قائمة "ALREADY PUBLISHED" أعلاه. اختر زوايا جديدة.' : 'اختر زوايا جديدة وتجنب المحتوى العام.'}`);
+5. أعد JSON صحيحاً فقط. بدون Markdown أو تعليقات.
+6. ${p.priorPosts && p.priorPosts.length > 0 ? 'لا تكرر أي عنوان أو افتتاحية أو رسالة أساسية من قائمة "ALREADY PUBLISHED" أعلاه. اختر زوايا جديدة.' : 'اختر زوايا جديدة وتجنب المحتوى العام.'}
+7. ممنوع استخدام الشرطة الطويلة نهائياً في أي نص. استخدم نقطة أو فاصلة بدلاً منها. اكتب بأسلوب بشري طبيعي وتجنب العبارات التسويقية الجاهزة.`);
   return s.join('\n');
 }

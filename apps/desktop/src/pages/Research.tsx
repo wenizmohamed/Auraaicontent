@@ -168,7 +168,7 @@ export default function Research() {
       {/* Loading skeleton — mirrors the Summary / Key Points / Sources result layout */}
       {loading && !summary && keyPoints.length === 0 && sources.length === 0 && (
         <div className="space-y-5">
-          <SkeletonAnnouncer label="Researching — building summary, key points and sources…" />
+          <SkeletonAnnouncer label="Researching. Building summary, key points and sources…" />
           {/* Summary card */}
           <div className="bg-[#0c0c0c] border border-white/[0.06] rounded-2xl p-5 shadow-sm">
             <Skeleton width="30%" height={10} radius="sm" />

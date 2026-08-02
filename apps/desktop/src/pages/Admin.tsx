@@ -131,7 +131,7 @@ export default function Admin() {
   }, [usageOrgId, usageFrom, usageTo]);
 
   const topModelName = useMemo(() => {
-    if (!usageTotals?.topModels?.length) return '—';
+    if (!usageTotals?.topModels?.length) return '';
     return usageTotals.topModels[0].model;
   }, [usageTotals]);
 
@@ -179,7 +179,7 @@ export default function Admin() {
       {metrics && (
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Tile card={card} text={text} sub={sub} num={numeric} icon={<DollarSign size={16} />} label="MRR (subscription revenue)" value={fmtUsd(metrics.mrr)} foot={`ARR ${fmtUsd(metrics.arr)} — what clients pay us`} />
+            <Tile card={card} text={text} sub={sub} num={numeric} icon={<DollarSign size={16} />} label="MRR (subscription revenue)" value={fmtUsd(metrics.mrr)} foot={`ARR ${fmtUsd(metrics.arr)}. What clients pay us`} />
             <Tile card={card} text={text} sub={sub} num={numeric} icon={<TrendingUp size={16} />} label="AI cost (this month)" value={fmtUsd(metrics.monthAiCostUsd)} foot={`${metrics.monthAiCalls} calls · ${fmtTokens(metrics.monthAiTokens)} tokens`} />
             <Tile card={card} text={text} sub={sub} num={numeric} icon={<DollarSign size={16} />} label="Net margin (mo)" value={fmtUsd(metrics.monthGrossMarginUsd)} foot={`MRR − AI cost`} />
             <Tile card={card} text={text} sub={sub} num={numeric} icon={<Users size={16} />} label="Total seats" value={String(metrics.totalSeats)} foot={`${metrics.paidOrgs} paying · ${metrics.trialOrgs} trial`} />
@@ -187,7 +187,7 @@ export default function Admin() {
           <div className={`${card} rounded-xl px-4 py-3 text-[12px] ${sub} flex gap-2 items-start`}>
             <AlertCircle size={14} className="mt-0.5 shrink-0" />
             <div>
-              <span className={isDark ? 'text-amber-400' : 'text-amber-700'}>Note —</span>{' '}
+              <span className={isDark ? 'text-amber-400' : 'text-amber-700'}>Note</span>{' '}
               AI cost data is reliable from <strong>2026-05-08 18:00 UTC</strong> onward. 12 callsites were silently
               unbilled before that fix; earlier months/orgs showing <strong>$0</strong> are undercounted, not zero-spend.
               Going forward every call writes a UsageEvent row with orgId + userId + clientId.
@@ -256,7 +256,7 @@ export default function Admin() {
       <section className={`${card} rounded-2xl overflow-hidden`}>
         <div className={`px-5 py-3 border-b ${isDark ? 'border-white/[0.06]' : 'border-slate-200'} flex items-center gap-2`}>
           <BarChart3 size={16} className={sub} />
-          <h2 className={`text-sm font-semibold ${text}`}>Usage reports — finance</h2>
+          <h2 className={`text-sm font-semibold ${text}`}>Usage reports. Finance</h2>
         </div>
 
         {/* Filter bar */}
@@ -319,7 +319,7 @@ export default function Admin() {
             <Tile card={card} text={text} sub={sub} num={numeric} icon={<Activity size={16} />} label="Calls" value={String(usageTotals.calls)} foot={`${Object.keys(usageTotals.byKind).length} kinds`} />
             <Tile card={card} text={text} sub={sub} num={numeric} icon={<Boxes size={16} />} label="Tokens / units" value={fmtTokens(usageTotals.units)} foot={`${usageTotals.units.toLocaleString()} raw`} />
             <Tile card={card} text={text} sub={sub} num={numeric} icon={<DollarSign size={16} />} label="Cost (USD)" value={fmtUsdPrecise(usageTotals.costUsd)} foot={`${Object.keys(usageTotals.byProvider).length} providers`} />
-            <Tile card={card} text={text} sub={sub} num={numeric} icon={<TrendingUp size={16} />} label="Top model" value={topModelName} foot={usageTotals.topModels[0] ? fmtUsdPrecise(usageTotals.topModels[0].costUsd) : '—'} />
+            <Tile card={card} text={text} sub={sub} num={numeric} icon={<TrendingUp size={16} />} label="Top model" value={topModelName} foot={usageTotals.topModels[0] ? fmtUsdPrecise(usageTotals.topModels[0].costUsd) : ''} />
           </div>
         )}
 
@@ -440,7 +440,7 @@ export default function Admin() {
               {auditLog.map((a) => (
                 <tr key={a.id} className={isDark ? 'border-t border-white/[0.04]' : 'border-t border-slate-100'}>
                   <td className={`px-5 py-2.5 text-[12px] ${sub} tabular-nums`}>{fmtDateTime(a.createdAt)}</td>
-                  <td className="px-3 py-2.5 text-[12px]">{a.userEmail || a.userId || '—'}</td>
+                  <td className="px-3 py-2.5 text-[12px]">{a.userEmail || a.userId || ''}</td>
                   <td className={`px-3 py-2.5 text-[12px] ${numeric}`}>{a.action}</td>
                   <td className={`px-5 py-2.5 text-[12px] ${sub}`}>
                     {a.entityType}{a.entityId ? ` · ${a.entityId.slice(0, 8)}` : ''}

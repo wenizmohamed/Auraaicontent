@@ -24,6 +24,7 @@ import { useClients } from '../lib/client-context';
 import { readJson } from '../lib/safe-storage';
 import { motionUI, motionBase } from '../lib/motion';
 import { FeatureCard } from '../components/ui';
+import { usePricingVisibility } from '../lib/use-pricing-visibility';
 
 // ─── Prompt History ─────────────────────────────────────────────
 
@@ -131,7 +132,7 @@ const MODES: ModeDef[] = [
     id: 'upscale',
     label: 'Upscale',
     shortLabel: 'Upscale',
-    description: 'Enlarge an image up to 16K — fast, or AI-enhanced with real detail.',
+    description: 'Enlarge an image up to 16K. Fast, or AI-enhanced with real detail.',
     icon: Maximize2,
     needsImage: true,
     outputType: 'image',
@@ -204,12 +205,12 @@ interface VideoEngine {
   model: string; i2vModel?: string; refOnly?: boolean; tier: 'draft' | 'hd'; perSec: number; modes: Mode[]; hint: string;
 }
 const VIDEO_ENGINES: VideoEngine[] = [
-  { value: 'veo',   label: 'Veo · Google',           provider: 'gemini',    model: 'veo-3.1-generate-preview', tier: 'hd',    perSec: 0.20, modes: ['text-to-video', 'image-to-video'], hint: 'Google Veo 3.1 — highest quality, supports 1080p and start/end frames' },
-  { value: 'grok',  label: 'Grok · xAI',             provider: 'xai',       model: 'grok-imagine-video',       i2vModel: 'grok-imagine-video-1.5', tier: 'draft', perSec: 0.05, modes: ['text-to-video', 'image-to-video'], hint: 'xAI Grok Imagine — fastest & cheapest; image→video uses Grok Imagine 1.5' },
-  { value: 'omni',  label: 'Omni Flash · Google',    provider: 'gemini',    model: 'gemini-omni-flash-preview',tier: 'draft', perSec: 0.10, modes: ['text-to-video', 'image-to-video'], hint: 'Google Omni Flash — fast, strong character consistency' },
-  { value: 'wan',   label: 'Wan 2.7 · Alibaba',      provider: 'dashscope', model: 'wan2.7-t2v',               i2vModel: 'wan2.7-i2v', tier: 'draft', perSec: 0.10, modes: ['text-to-video', 'image-to-video'], hint: "Alibaba Wan 2.7 — cinematic; image→video via Wan 2.7 i2v (slower, ~2-3 min)" },
+  { value: 'veo',   label: 'Veo · Google',           provider: 'gemini',    model: 'veo-3.1-generate-preview', tier: 'hd',    perSec: 0.20, modes: ['text-to-video', 'image-to-video'], hint: 'Google Veo 3.1. Highest quality, supports 1080p and start/end frames' },
+  { value: 'grok',  label: 'Grok · xAI',             provider: 'xai',       model: 'grok-imagine-video',       i2vModel: 'grok-imagine-video-1.5', tier: 'draft', perSec: 0.05, modes: ['text-to-video', 'image-to-video'], hint: 'xAI Grok Imagine. Fastest & cheapest; image→video uses Grok Imagine 1.5' },
+  { value: 'omni',  label: 'Omni Flash · Google',    provider: 'gemini',    model: 'gemini-omni-flash-preview',tier: 'draft', perSec: 0.10, modes: ['text-to-video', 'image-to-video'], hint: 'Google Omni Flash. Fast, strong character consistency' },
+  { value: 'wan',   label: 'Wan 2.7 · Alibaba',      provider: 'dashscope', model: 'wan2.7-t2v',               i2vModel: 'wan2.7-i2v', tier: 'draft', perSec: 0.10, modes: ['text-to-video', 'image-to-video'], hint: "Alibaba Wan 2.7. Cinematic; image→video via Wan 2.7 i2v (slower, ~2-3 min)" },
   // Reference→video: only offered WHEN product reference images are attached.
-  { value: 'wanr2v',label: 'Wan R2V · Alibaba',      provider: 'dashscope', model: 'wan2.7-r2v',               tier: 'draft', perSec: 0.10, modes: ['text-to-video', 'image-to-video'], refOnly: true, hint: 'Alibaba Wan R2V — locks your exact product/subject from the reference images (multi-reference)' },
+  { value: 'wanr2v',label: 'Wan R2V · Alibaba',      provider: 'dashscope', model: 'wan2.7-r2v',               tier: 'draft', perSec: 0.10, modes: ['text-to-video', 'image-to-video'], refOnly: true, hint: 'Alibaba Wan R2V. Locks your exact product/subject from the reference images (multi-reference)' },
 ];
 // Engines usable when product reference images are attached (both keep the
 // subject consistent): Veo "ingredients" + Wan R2V.
@@ -243,6 +244,8 @@ function fileToBase64(file: File): Promise<{ base64: string; mimeType: string }>
 
 export default function CreativeTools() {
   const { selectedClientId, currentClient } = useClients();
+  // Rates and cost estimates are owner/admin/accounting only.
+  const canSeePricing = usePricingVisibility();
 
   // Tab state — read from query (?tab=image-edit) for deep linking
   const initialTab: Mode = (() => {
@@ -946,7 +949,7 @@ export default function CreativeTools() {
                         <button
                           type="button"
                           onClick={() => cycleRefRole(i)}
-                          title="How this reference is used — click to change: Style (look/colour), Product (keep the subject), Layout (composition)"
+                          title="How this reference is used. Click to change: Style (look/colour), Product (keep the subject), Layout (composition)"
                           className="w-16 text-[9px] py-0.5 rounded border border-white/[0.12] bg-white/[0.03] hover:border-[color:var(--color-accent)] transition-colors truncate"
                           style={{ color: 'var(--color-accent)' }}
                         >
@@ -988,7 +991,7 @@ export default function CreativeTools() {
               <div>
                 <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold flex items-center gap-2">
                   End Frame
-                  <span className="text-[9px] font-normal text-zinc-600 normal-case tracking-normal">optional — leave blank for free interpolation</span>
+                  <span className="text-[9px] font-normal text-zinc-600 normal-case tracking-normal">optional. Leave blank for free interpolation</span>
                 </label>
                 {!endPreview ? (
                   <button
@@ -1047,7 +1050,7 @@ export default function CreativeTools() {
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${upscaleAi ? '' : 'bg-white/[0.03] text-zinc-400 border-white/[0.06]'}`}
                   style={upscaleAi ? { background: 'var(--color-accent-subtle)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' } : undefined}>✨ AI detail (~30s)</button>
               </div>
-              <p className="text-[10px] text-zinc-600 mt-1.5">{upscaleAi ? 'Regenerates with real added detail via the selected engine below, then scales.' : 'Sharp Lanczos resample — instant, no new detail. Great for clean AI images.'}</p>
+              <p className="text-[10px] text-zinc-600 mt-1.5">{upscaleAi ? 'Regenerates with real added detail via the selected engine below, then scales.' : 'Sharp Lanczos resample. Instant, no new detail. Great for clean AI images.'}</p>
             </div>
           </div>
         )}
@@ -1107,7 +1110,7 @@ export default function CreativeTools() {
               type="button"
               onClick={handleImprovePrompt}
               disabled={!prompt.trim() || improving || loading}
-              title="Magic pen — improve prompt"
+              title="Magic pen. Improve prompt"
               className="absolute bottom-2 right-2 w-8 h-8 rounded-lg border hover:bg-[color:var(--color-info-subtle)] disabled:opacity-30 disabled:cursor-not-allowed transition-all flex items-center justify-center"
               style={{ background: 'var(--color-info-subtle)', borderColor: 'var(--color-info)', color: 'var(--color-info)' }}
             >
@@ -1173,7 +1176,7 @@ export default function CreativeTools() {
               <div className="rounded-xl border bg-gradient-to-br from-[color:var(--color-info-subtle)] to-transparent p-4" style={{ borderColor: 'var(--color-info)' }}>
                 <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider font-bold mb-2" style={{ color: 'var(--color-info)' }}>
                   <Sparkles className="w-3 h-3" />
-                  AI-improved version — review before applying
+                  AI-improved version. Review before applying
                 </div>
                 <p className="text-sm text-zinc-200 leading-relaxed whitespace-pre-wrap">{improvedPreview}</p>
                 <div className="mt-3 flex items-center gap-2">
@@ -1209,7 +1212,7 @@ export default function CreativeTools() {
             style={{ color: 'var(--color-info)' }}
           >
             <ChevronUp className="w-3 h-3 rotate-180" />
-            Undo improve — restore original prompt
+            Undo improve. Restore original prompt
           </button>
         )}
 
@@ -1312,7 +1315,7 @@ export default function CreativeTools() {
                         const m = dataUrl.match(/^data:([^;]+);base64,(.*)$/);
                         if (m) { setSourceMime(m[1]); setSourceBase64(m[2]); }
                       } catch {
-                        setError('Could not load that image as a source — re-upload it.');
+                        setError('Could not load that image as a source. Re-upload it.');
                       }
                     }
                     setResultUrl(asset.url);
@@ -1416,9 +1419,9 @@ export default function CreativeTools() {
             <div className="flex items-center gap-2 mt-2">
               {([
                 { v: 'off' as const, label: 'Off', hint: 'Send your exact words, untouched.' },
-                { v: 'raw' as const, label: 'Raw', hint: 'Keep your wording — only translate for the engine (e.g. Arabic→English for video) and add technical negatives. Never reinterprets your idea.' },
+                { v: 'raw' as const, label: 'Raw', hint: 'Keep your wording. Only translate for the engine (e.g. Arabic→English for video) and add technical negatives. Never reinterprets your idea.' },
                 { v: 'medium' as const, label: '✨ Pro', hint: 'Full rewrite into a production-grade prompt for the selected engine (composition, lighting, cinematography, audio).' },
-                { v: 'high' as const, label: 'Max', hint: 'Pushes art direction to the limit — most specific composition, lighting and palette.' },
+                { v: 'high' as const, label: 'Max', hint: 'Pushes art direction to the limit. Most specific composition, lighting and palette.' },
               ]).map(o => (
                 <button
                   key={o.v}
@@ -1504,7 +1507,7 @@ export default function CreativeTools() {
                     style={imageModel === im.value
                       ? { background: 'var(--color-accent-subtle)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' }
                       : undefined}
-                    title={im.provider === 'dashscope' ? 'Alibaba DashScope — higher-fidelity stills' : 'Default engine with automatic fallback'}
+                    title={im.provider === 'dashscope' ? 'Alibaba DashScope. Higher-fidelity stills' : 'Default engine with automatic fallback'}
                   >
                     {im.label}
                   </button>
@@ -1549,7 +1552,7 @@ export default function CreativeTools() {
                     key={ve.value}
                     type="button"
                     onClick={() => setVideoEngine(ve.value)}
-                    title={`${ve.hint} · ~$${ve.perSec.toFixed(2)}/s`}
+                    title={canSeePricing ? `${ve.hint} · ~$${ve.perSec.toFixed(2)}/s` : ve.hint}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
                       videoEngine === ve.value ? '' : 'bg-white/[0.03] text-zinc-500 border-white/[0.06] hover:border-white/[0.1]'
                     }`}
@@ -1596,9 +1599,13 @@ export default function CreativeTools() {
                   price is just that engine's rate × duration. No hidden tier. */}
               {(() => {
                 const eng = videoEngineDef(videoEngine);
+                // Cost line is owner/admin/accounting only; everyone else still
+                // sees which engine and how long the clip is, just no money.
                 return (
                   <p className="text-[10px]" style={{ color: 'var(--color-fg-muted)' }}>
-                    ≈ ${(eng.perSec * duration).toFixed(2)} for this {duration}s clip · {eng.label} (${eng.perSec.toFixed(2)}/s)
+                    {canSeePricing
+                      ? <>≈ ${(eng.perSec * duration).toFixed(2)} for this {duration}s clip · {eng.label} (${eng.perSec.toFixed(2)}/s)</>
+                      : <>{duration}s clip · {eng.label}</>}
                   </p>
                 );
               })()}
@@ -1617,7 +1624,7 @@ export default function CreativeTools() {
                     key={r}
                     type="button"
                     onClick={() => { setVideoRes(r); if (r === '1080p') setDuration(8); }}
-                    title={r === '1080p' ? 'Full HD — requires an 8s clip' : 'Standard'}
+                    title={r === '1080p' ? 'Full HD. Requires an 8s clip' : 'Standard'}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
                       videoRes === r ? '' : 'bg-white/[0.03] text-zinc-500 border-white/[0.06] hover:border-white/[0.1]'
                     }`}
@@ -1671,7 +1678,7 @@ export default function CreativeTools() {
                   <button
                     type="button"
                     onClick={() => videoRefInputRef.current?.click()}
-                    title="Attach up to 3 images of the exact product/subject — Veo keeps them consistent (8s clips)"
+                    title="Attach up to 3 images of the exact product/subject. Veo keeps them consistent (8s clips)"
                     className="w-9 h-9 rounded-lg border border-dashed border-white/[0.12] text-zinc-500 text-sm hover:border-white/[0.25] hover:text-zinc-300 transition-colors"
                   >+</button>
                 )}
@@ -1792,7 +1799,7 @@ export default function CreativeTools() {
                     <button
                       type="button"
                       disabled={voted !== null}
-                      title="Good one — the AI will lean toward this style for this client"
+                      title="Good one. The AI will lean toward this style for this client"
                       onClick={async () => { setVoted('up'); try { await creativeApi.feedback(genId, true); } catch { /* best-effort */ } }}
                       className={`p-1 rounded-md border transition-all ${voted === 'up' ? '' : 'border-white/[0.06] text-zinc-500 hover:text-zinc-300 hover:border-white/[0.1]'} ${voted === 'down' ? 'opacity-30' : ''}`}
                       style={voted === 'up' ? { color: 'var(--color-success)', background: 'var(--color-success-subtle)', borderColor: 'var(--color-success)' } : undefined}
@@ -1802,7 +1809,7 @@ export default function CreativeTools() {
                     <button
                       type="button"
                       disabled={voted !== null}
-                      title="Off-brand — the AI will avoid this direction for this client"
+                      title="Off-brand. The AI will avoid this direction for this client"
                       onClick={async () => { setVoted('down'); try { await creativeApi.feedback(genId, false); } catch { /* best-effort */ } }}
                       className={`p-1 rounded-md border transition-all ${voted === 'down' ? '' : 'border-white/[0.06] text-zinc-500 hover:text-zinc-300 hover:border-white/[0.1]'} ${voted === 'up' ? 'opacity-30' : ''}`}
                       style={voted === 'down' ? { color: 'var(--color-danger)', background: 'var(--color-danger-subtle)', borderColor: 'var(--color-danger)' } : undefined}
@@ -1857,7 +1864,7 @@ export default function CreativeTools() {
                     type="button"
                     disabled={upscaling !== null}
                     onClick={() => setUpscaleAi(v => !v)}
-                    title={upscaleAi ? 'AI detail: regenerates with real added detail via our models (Gemini/Qwen), then scales — slower, sharper' : 'Fast: instant Lanczos resample (no new detail)'}
+                    title={upscaleAi ? 'AI detail: regenerates with real added detail via our models (Gemini/Qwen), then scales. Slower, sharper' : 'Fast: instant Lanczos resample (no new detail)'}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all disabled:opacity-50 ${
                       upscaleAi ? '' : 'bg-white/[0.03] text-zinc-400 border-white/[0.06] hover:border-white/[0.12]'
                     }`}

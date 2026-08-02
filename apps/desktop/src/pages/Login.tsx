@@ -195,7 +195,7 @@ export default function Login() {
                   color: 'var(--color-fg-muted)',
                 }}
               >
-                Joining via invitation — using <span style={{ color: 'var(--color-fg)' }}>{inviteEmail}</span>
+                Joining via invitation. Using <span style={{ color: 'var(--color-fg)' }}>{inviteEmail}</span>
               </div>
             )}
 
@@ -247,7 +247,7 @@ export default function Login() {
               >
                 <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" style={{ color: 'var(--color-accent)' }} />
                 <span className="text-[12px]">
-                  If <span style={{ color: 'var(--color-fg)' }}>{email.trim()}</span> is registered, a reset link is on its way. Check your inbox — the link expires in 1 hour.
+                  If <span style={{ color: 'var(--color-fg)' }}>{email.trim()}</span> is registered, a reset link is on its way. Check your inbox. The link expires in 1 hour.
                 </span>
               </motion.div>
             )}
@@ -348,7 +348,7 @@ export default function Login() {
               className="mx-auto mt-6 max-w-[340px] text-[14px] leading-relaxed"
               style={{ color: 'var(--color-fg-muted)' }}
             >
-              One workspace for briefs, calendar, and AI-generated posts —
+              One workspace for briefs, calendar, and AI-generated posts. 
               tuned for agencies running multiple brands.
             </p>
           </motion.div>

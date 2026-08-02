@@ -11,6 +11,7 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Gauge } from 'lucide-react';
 import { usageApi } from '../lib/backend-api';
+import { usePricingVisibility } from '../lib/use-pricing-visibility';
 
 interface Props { collapsed: boolean }
 
@@ -23,12 +24,18 @@ function fmtUsd(n: number): string {
 }
 
 export default function UsageMeter({ collapsed }: Props) {
+  // Spend is owner/admin/accounting only. Gate BEFORE the query so we never
+  // even ask for the numbers (the endpoint 403s for everyone else anyway).
+  const canSeePricing = usePricingVisibility();
   const { data, isLoading, isError } = useQuery({
     queryKey: ['usage', 'org'],
     queryFn: () => usageApi.currentOrg(),
     refetchInterval: 30_000,
     staleTime: 0,
+    enabled: canSeePricing,
   });
+
+  if (!canSeePricing) return null;
 
   // Loading skeleton — keep the same footprint so the footer doesn't jump.
   if (isLoading) {

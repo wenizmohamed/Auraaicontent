@@ -5,6 +5,7 @@ import { db } from '../db/prisma.js';
 import { signToken, authGuard, mintRefreshToken, hashRefreshToken, type JwtPayload } from '../middleware/auth.js';
 import { auditService } from '../services/audit.service.js';
 import { sendEmail, resetEmailHtml, resetEmailText } from '../lib/email.js';
+import { canSeePricing } from '../lib/pricing-visibility.js';
 
 // Single source of truth for password length. Lowered 12 → 6 (2026-06-29):
 // users kept getting locked out and there was no self-serve recovery, so a
@@ -201,10 +202,13 @@ export async function authRoutes(app: FastifyInstance) {
       where: { userId },
       include: { org: { select: { id: true, name: true, slug: true, plan: true } } },
     });
+    const activeMembership = memberships.find((m: any) => m.orgId === request.orgId);
     return {
       ...user,
       activeOrgId: request.orgId,
       memberships: memberships.map((m: any) => ({ orgId: m.orgId, role: m.role, org: m.org })),
+      // Costs/prices are owner, admin and accounting only (ACCOUNTING_EMAILS).
+      canSeePricing: canSeePricing(user.email, (activeMembership as any)?.role ?? request.user?.orgRole),
     };
   });
 

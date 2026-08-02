@@ -52,7 +52,7 @@ export function PublishButton({
 
   const disabled = busy || isPublished || postStatus !== 'approved' || !hasConnection;
   const tooltip =
-    isPublished               ? 'Published — click ↗ to open' :
+    isPublished               ? 'Published. Click ↗ to open' :
     postStatus !== 'approved' ? 'Approve the post before publishing' :
     !hasConnection            ? `Connect ${platform.replace('_', ' ')} in Settings → Integrations first` :
                                 'Publish to ' + platform.replace('_', ' ');
@@ -75,7 +75,7 @@ export function PublishButton({
         const job = await jobsApi.get(jobId);
         if (job.status === 'completed') {
           const url = (job.result as any)?.url;
-          toast.success(`Published${url ? ' — opening…' : ''}`);
+          toast.success(`Published${url ? ', opening…' : ''}`);
           if (url) window.open(url, '_blank', 'noopener,noreferrer');
           onPublished?.();
           return;

@@ -105,7 +105,7 @@ export default function Onboarding() {
           />
           <div className="relative">
             <p className="text-center text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: 'var(--color-fg-subtle)' }}>
-              Welcome to Radix — Step {step + 1} of {STEPS.length}
+              Welcome to Radix. Step {step + 1} of {STEPS.length}
             </p>
 
             {/* Progress arc + numbered dots */}

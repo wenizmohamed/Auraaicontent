@@ -24,7 +24,7 @@ export const NoKnowledge: Story = {
   args: {
     icon: Database,
     title: 'No knowledge items yet',
-    description: 'Upload briefs, brand guides, references — anything the AI should know about. Documents are auto-embedded for retrieval-augmented generation.',
+    description: 'Upload briefs, brand guides, references. Anything the AI should know about. Documents are auto-embedded for retrieval-augmented generation.',
     primary: <EmptyStateAction><Upload className="w-4 h-4" /> Upload first document</EmptyStateAction>,
   },
 };

@@ -105,7 +105,7 @@ function PostQualityTools({ piece }: { piece: any }) {
           {compliance.issues.slice(0, 4).map((iss: any, i: number) => (
             <li key={i} className="flex items-start gap-1.5 text-[11px] [color:var(--color-fg-muted)]">
               <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" style={{ color: SEV_COLOR[iss.severity] || SEV_COLOR.low }} />
-              <span><b style={{ color: SEV_COLOR[iss.severity] || SEV_COLOR.low }}>{iss.rule_violated}</b> — {iss.suggestion}</span>
+              <span><b style={{ color: SEV_COLOR[iss.severity] || SEV_COLOR.low }}>{iss.rule_violated}</b>{iss.suggestion}</span>
             </li>
           ))}
         </ul>
@@ -842,7 +842,7 @@ export default function ContentReview() {
                 <>
                   <span className="[color:var(--color-success)] tabular-nums">{stats.approved}</span>
                   <span className="[color:var(--color-fg-subtle)]">/{stats.total}</span>
-                  {' approved — '}
+                  {' approved'}
                   <span className="[color:var(--color-fg-muted)] tabular-nums">
                     {stats.total > 0 ? Math.round((stats.approved / stats.total) * 100) : 0}% complete
                   </span>
@@ -1000,7 +1000,7 @@ export default function ContentReview() {
                           className="text-sm [color:var(--color-accent)] font-medium mt-0.5 rounded-lg px-3 py-2 border [border-color:var(--color-accent-subtle)]"
                           style={{ background: 'rgba(245,158,11,0.06)' }}
                         >
-                          {piece.keyMessage || '—'}
+                          {piece.keyMessage || ''}
                         </p>
                       </div>
                     )}
@@ -1030,7 +1030,7 @@ export default function ContentReview() {
                           className="text-sm [color:var(--color-success)] font-medium mt-0.5 rounded-lg px-3 py-2 border [border-color:var(--color-success-subtle)]"
                           style={{ background: 'rgba(16,185,129,0.06)' }}
                         >
-                          {piece.cta || '—'}
+                          {piece.cta || ''}
                         </p>
                       </div>
                     )}

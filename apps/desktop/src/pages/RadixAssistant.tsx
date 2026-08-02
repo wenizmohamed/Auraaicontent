@@ -55,7 +55,7 @@ export default function RadixAssistant() {
   const navigate = useNavigate();
   const { selectedClientId, currentClient, fetchClients, setSelectedClientId } = useClients();
   const [open, setOpen] = useState(false);
-  const [expanded, setExpanded] = useState(false); // focus mode — larger panel for agent runs
+  const [expanded, setExpanded] = useState(false); // focus mode. Larger panel for agent runs
   const [messages, setMessages] = useState<EnrichedMessage[]>([]);
   // Draft survives refresh — the prompt you were typing is restored on reload.
   const [input, setInput] = usePersistentDraft('assistant.input', '');
@@ -400,7 +400,7 @@ export default function RadixAssistant() {
                   <div className="w-14 h-14 rounded-2xl overflow-hidden border border-amber-500/20 mb-3 shadow-[0_0_30px_-8px_rgba(245,158,11,0.3)]">
                     <img src="./radix-dna.jpg" alt="Radix" className="w-full h-full object-cover" />
                   </div>
-                  <p className="text-sm text-zinc-400 mb-1 font-medium">I'm Radix — your content strategist.</p>
+                  <p className="text-sm text-zinc-400 mb-1 font-medium">I'm Radix. Your content strategist.</p>
                   <p className="text-xs text-zinc-600 mb-4">I can generate content, search visual refs, pull your brief, and more.</p>
 
                   {/* Quick actions */}
@@ -697,7 +697,7 @@ function MessageRow({ message, isLast, onRetry, renderAction }: MessageRowProps)
       setCopied(true);
       setTimeout(() => setCopied(false), 1400);
     } catch {
-      toast.error('Copy failed — clipboard unavailable');
+      toast.error('Copy failed. Clipboard unavailable');
     }
   };
 

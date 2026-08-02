@@ -84,7 +84,7 @@ export default function Copywriting() {
       });
       setVariants(out.variants || []);
       setMeta({ provider: out.provider, latencyMs: out.latencyMs, groundingChunks: out.groundingChunks });
-      if (!out.variants?.length) setError('No copy was returned — try rewording the brief.');
+      if (!out.variants?.length) setError('No copy was returned. Try rewording the brief.');
     } catch (err: any) {
       setError(err?.message || 'Copywriting generation failed');
     } finally {
@@ -125,7 +125,7 @@ export default function Copywriting() {
           <div>
             <h1 className="text-4xl font-black tracking-tight" style={{ color: 'var(--color-fg)' }}>AI Copywriting</h1>
             <p className="text-sm text-zinc-500 mt-0.5">
-              Brand-grounded website copy — headlines, descriptions, articles.
+              Brand-grounded website copy. Headlines, descriptions, articles.
               {currentClient && <span className="ml-1 text-amber-400/80">Client: {currentClient.name}</span>}
             </p>
           </div>
@@ -191,11 +191,11 @@ export default function Copywriting() {
 
         {/* Brief */}
         <div>
-          <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Brief — what is the copy about?</label>
+          <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Brief. What is the copy about?</label>
           <textarea
             value={brief}
             onChange={e => setBrief(e.target.value)}
-            placeholder="e.g. Homepage hero for the infant-nutrition range — emphasise trusted heritage, regional expertise, and pediatric backing."
+            placeholder="e.g. Homepage hero for the infant-nutrition range. Emphasise trusted heritage, regional expertise, and pediatric backing."
             rows={4}
             className="w-full mt-2 bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-amber-500/40 resize-y"
           />
@@ -288,7 +288,7 @@ export default function Copywriting() {
                     <BookOpen className="w-3 h-3" />
                     {meta.groundingChunks > 0
                       ? `Grounded on ${meta.groundingChunks} brand doc${meta.groundingChunks > 1 ? 's' : ''}`
-                      : 'No brand docs — generic copy'}
+                      : 'No brand docs. Generic copy'}
                   </span>
                   <span>{meta.provider} · {(meta.latencyMs / 1000).toFixed(1)}s</span>
                 </div>
@@ -311,7 +311,7 @@ export default function Copywriting() {
                   <button
                     type="button"
                     onClick={() => handleFavorite(v, i)}
-                    title="Favor this — teaches the AI your preferred style for next time"
+                    title="Favor this. Teaches the AI your preferred style for next time"
                     className="w-7 h-7 rounded-lg bg-white/[0.04] border border-white/10 text-zinc-500 hover:text-amber-400 hover:border-amber-500/30 transition-all flex items-center justify-center"
                   >
                     {favoritedIdx === i

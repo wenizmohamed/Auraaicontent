@@ -41,7 +41,7 @@ export default function AIMemory() {
           )}
         </h1>
         <p className="text-sm mt-1 max-w-3xl" style={{ color: 'var(--color-fg-muted)' }}>
-          Everything the AI knows and has learned about this client — its documents (Knowledge) and
+          Everything the AI knows and has learned about this client. Its documents (Knowledge) and
           the lessons it adapts from your feedback (Learnings). Both ground every generation.
         </p>
       </motion.div>

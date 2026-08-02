@@ -16,7 +16,7 @@ export type PlatformId = 'meta_ig' | 'tiktok' | 'linkedin';
 const PLATFORM_META: Record<PlatformId, { label: string; subtitle: string }> = {
   meta_ig:  { label: 'Instagram Business', subtitle: 'Native publish to your IG Business account' },
   tiktok:   { label: 'TikTok Business',    subtitle: 'Direct-post photos and videos' },
-  linkedin: { label: 'LinkedIn',           subtitle: 'Personal share — Pages support coming v2' },
+  linkedin: { label: 'LinkedIn',           subtitle: 'Personal share. Pages support coming v2' },
 };
 
 export interface PlatformConnection {
@@ -126,7 +126,7 @@ export function ConnectorCard({ platform, connection, onConnect, onDisconnect, b
             color: 'var(--color-fg-muted)',
           }}
         >
-          TikTok hasn't audited this app yet — published posts are only visible to you until they approve (~2-4 weeks).
+          TikTok hasn't audited this app yet. Published posts are only visible to you until they approve (~2-4 weeks).
         </p>
       )}
 

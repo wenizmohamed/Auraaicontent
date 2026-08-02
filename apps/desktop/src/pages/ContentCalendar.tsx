@@ -218,7 +218,7 @@ export default function ContentCalendar() {
           next.set('month', latest);
           setSearchParams(next, { replace: true });
         }
-      } catch { /* ignore — empty calendar is the same UX */ }
+      } catch { /* ignore. Empty calendar is the same UX */ }
       finally { setLoadingBackend(false); }
     }
   }, [activeClientId, urlMonth, autoLoadAttempted, searchParams]);
@@ -369,7 +369,7 @@ export default function ContentCalendar() {
           return;
         }
       }
-      showStatus('Backfill still running — check back in a moment.', 'ok', 6000);
+      showStatus('Backfill still running. Check back in a moment.', 'ok', 6000);
     } catch (err: any) {
       showStatus('Backfill failed: ' + (err?.message || 'unknown'), 'error', 6000);
     } finally {
@@ -591,8 +591,8 @@ export default function ContentCalendar() {
             <span className="text-xs" style={{ color: 'var(--color-fg-subtle)' }}>·</span>
             <p className="text-xs" style={{ color: 'var(--color-fg-muted)' }}>
               {loadingBackend ? 'Loading from server...' :
-                backendMonth ? `${backendMonth.month} — ${totalPieces} posts (${backendMonth.status})` :
-                activeClientId ? 'No content yet — create a brief first' :
+                backendMonth ? `${backendMonth.month}. ${totalPieces} posts (${backendMonth.status})` :
+                activeClientId ? 'No content yet. Create a brief first' :
                 'Pick a client to load their calendar'}
             </p>
           </div>
@@ -646,7 +646,7 @@ export default function ContentCalendar() {
               <History className="w-4 h-4" /> Previous Months
             </button>
             <button onClick={handleArchiveMonth}
-              title="Archive this month — reversible. Posts are preserved in Previous Months."
+              title="Archive this month. Reversible. Posts are preserved in Previous Months."
               className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer transition-all hover:-translate-y-0.5"
               style={{ background: 'var(--color-accent-subtle)', border: '1px solid color-mix(in srgb, var(--color-accent) 24%, transparent)', color: 'var(--color-accent)' }}>
               <Archive className="w-4 h-4" /> Archive Month
@@ -881,7 +881,7 @@ export default function ContentCalendar() {
                         ))}
                         {pieces.length > 3 && (
                           <p className="text-center text-[10px]" style={{ color: 'var(--color-fg-subtle)' }}>
-                            + {pieces.length - 3} more — click to open
+                            + {pieces.length - 3} more. Click to open
                           </p>
                         )}
                       </div>
@@ -913,7 +913,7 @@ export default function ContentCalendar() {
                 <div className="relative z-10 flex items-center justify-between mb-5">
                   <h3 className="text-sm font-bold flex items-center gap-2" style={{ color: 'var(--color-fg)' }}>
                     <span className="inline-block w-1 h-4 rounded-full" style={{ background: 'var(--color-accent)' }} />
-                    {displayDate.toLocaleString('en-US', { month: 'long' })} {selectedDay} — {selectedPieces.length} piece{selectedPieces.length > 1 ? 's' : ''}
+                    {displayDate.toLocaleString('en-US', { month: 'long' })} {selectedDay}. {selectedPieces.length} piece{selectedPieces.length > 1 ? 's' : ''}
                   </h3>
                   <button onClick={() => setSelectedDay(null)} aria-label="Close day detail"
                     className="p-1.5 rounded-lg transition-colors cursor-pointer"
@@ -1215,7 +1215,7 @@ export default function ContentCalendar() {
                   <div className="text-center py-12">
                     <Archive className="w-10 h-10 text-zinc-800 mx-auto mb-3" />
                     <p className="text-sm text-zinc-500">No archived months yet.</p>
-                    <p className="text-xs text-zinc-600 mt-1">When you archive a month it shows up here — restore anytime.</p>
+                    <p className="text-xs text-zinc-600 mt-1">When you archive a month it shows up here. Restore anytime.</p>
                   </div>
                 )}
 

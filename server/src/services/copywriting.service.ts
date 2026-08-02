@@ -9,6 +9,7 @@
 
 import { aiRouter } from './providers/ai-router.js';
 import { retrieveContext } from './retrieval.service.js';
+import { HUMAN_VOICE_RULE, deAiText } from '../lib/human-voice.js';
 
 export type CopyType = 'headline' | 'description' | 'article' | 'cta';
 export type CopyLanguage = 'en' | 'ar' | 'fr';
@@ -53,9 +54,9 @@ const LANGUAGE_NAMES: Record<CopyLanguage, string> = {
 const LANGUAGE_DIRECTIVES: Record<CopyLanguage, string> = {
   en: 'Write in natural, idiomatic English.',
   ar: 'Write in natural, idiomatic Modern Standard Arabic for a regional MENA audience. '
-    + 'This is NOT a translation of English copy — generate native Arabic that reads as if '
+    + 'This is NOT a translation of English copy. Generate native Arabic that reads as if '
     + 'originally written in Arabic, respecting Arabic rhetorical style and cultural nuance.',
-  fr: 'Write in natural, idiomatic French. This is native French copy, not a translation — '
+  fr: 'Write in natural, idiomatic French. This is native French copy, not a translation'
     + 'respect French rhetorical style and phrasing.',
 };
 
@@ -114,15 +115,12 @@ export async function generateCopy(req: CopywritingRequest): Promise<Copywriting
     LANGUAGE_DIRECTIVES[language],
     tone ? `Tone of voice: ${tone}.` : 'Tone of voice: warm, clear, brand-appropriate.',
     // De-jargon / humanize (C2): users complained variants read AI-generated.
-    'Write like a sharp human copywriter, not an AI. Avoid AI-tell phrases and '
-      + 'corporate jargon ("unlock", "elevate", "seamless", "in today\'s fast-paced world", '
-      + '"game-changer", "leverage", "robust", "delve", "tapestry", "—"-stuffed sentences). '
-      + 'Prefer concrete, specific, natural wording over generic hype.',
+    HUMAN_VOICE_RULE,
     brandContext
       ? 'Ground every line in the client brand material below. Match its vocabulary, '
         + 'claims, and voice. Never invent product facts it does not support.\n\n'
         + `--- BRAND MATERIAL ---\n${brandContext}\n--- END BRAND MATERIAL ---`
-      : 'No brand material was provided — stay on-brief and avoid inventing specific product claims.',
+      : 'No brand material was provided. Stay on-brief and avoid inventing specific product claims.',
   ].join('\n\n');
 
   // 3. User prompt — ask for a JSON array of GENUINELY DISTINCT variants.
@@ -131,7 +129,7 @@ export async function generateCopy(req: CopywritingRequest): Promise<Copywriting
     `Write ${count} ${spec.label} option${count > 1 ? 's' : ''} in ${langName}.`,
     `Each should be ${lengthHint}. ${spec.guidance}`,
     count > 1
-      ? 'Make the options GENUINELY DIFFERENT from each other — vary the angle, the opening, '
+      ? 'Make the options GENUINELY DIFFERENT from each other. Vary the angle, the opening, '
         + 'the structure, and the emphasis. Do NOT produce minor rewordings of the same idea.'
       : '',
     avoid.length
@@ -142,7 +140,7 @@ export async function generateCopy(req: CopywritingRequest): Promise<Copywriting
     'Brief / subject:',
     brief.trim(),
     '',
-    'Return ONLY a JSON array of strings — no preamble, no markdown. Example: ["option one", "option two"].',
+    'Return ONLY a JSON array of strings. No preamble, no markdown. Example: ["option one", "option two"].',
   ].filter(Boolean).join('\n');
 
   // 4. Generate via the multi-provider router (Gemini primary, xAI fallback).
@@ -169,7 +167,7 @@ export async function generateCopy(req: CopywritingRequest): Promise<Copywriting
     const arr = obj.options || obj.variants || obj.copy || Object.values(obj)[0];
     variants = Array.isArray(arr) ? arr.map(String) : [JSON.stringify(raw)];
   }
-  variants = variants.map(v => v.trim()).filter(Boolean).slice(0, count);
+  variants = variants.map(v => deAiText(v.trim())).filter(Boolean).slice(0, count);
 
   return {
     variants,

@@ -256,6 +256,10 @@ export interface MeRecord {
   name: string;
   role: string;
   createdAt: string;
+  activeOrgId?: string;
+  memberships?: { orgId: string; role: string }[];
+  /** Owner/admin/accounting only: may see prices, rates and spend. */
+  canSeePricing?: boolean;
 }
 
 // ─── Clients ─────────────────────────────────────────────────────

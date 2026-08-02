@@ -57,14 +57,14 @@ export function runOnboardingTour({ orgId, force = false }: RunOpts) {
         element: 'a[href="/"]',
         popover: {
           title: 'Welcome to Radix',
-          description: 'Your bilingual AR/EN content calendar OS for Gulf-region agencies. 45-second tour — covers every part of the app.',
+          description: 'Your bilingual AR/EN content calendar OS for Gulf-region agencies. 45-second tour. Covers every part of the app.',
         },
       },
       {
         element: 'a[href="/clients"]',
         popover: {
           title: 'Strategy → Add a brand',
-          description: 'Each client keeps its own brief, knowledge base, brand kit (logos, colors, voice — feeds every AI generation), and asset library.',
+          description: 'Each client keeps its own brief, knowledge base, brand kit (logos, colors, voice. Feeds every AI generation), and asset library.',
         },
       },
       {
@@ -98,8 +98,8 @@ export function runOnboardingTour({ orgId, force = false }: RunOpts) {
       {
         element: '[aria-label="Search or ask Radix…"], button[title*="Search"]',
         popover: {
-          title: 'Pro tip — ⌘K everywhere',
-          description: 'Press <b>⌘K</b> (Ctrl+K) to <b>search your content</b> — find any client, post, or piece by name — plus jump between surfaces, run actions, switch theme/locale. <b>?</b> shows all shortcuts.',
+          title: 'Pro tip. ⌘K everywhere',
+          description: 'Press <b>⌘K</b> (Ctrl+K) to <b>search your content</b>find any client, post, or piece by name, plus jump between surfaces, run actions, switch theme/locale. <b>?</b> shows all shortcuts.',
         },
       },
     ],

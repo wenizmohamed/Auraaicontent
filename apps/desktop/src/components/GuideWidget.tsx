@@ -38,10 +38,10 @@ interface Step {
 
 const STEPS: Step[] = [
   { id: 'brand',    title: 'Add your first brand',        desc: 'Each client gets its own brief, brand kit & asset library.', href: '/clients',      icon: Building2 },
-  { id: 'brandkit', title: 'Set up the Brand Kit',         desc: 'Logos, colors & voice rules — feeds every AI generation.',    href: '/brand-kit',    icon: Palette },
+  { id: 'brandkit', title: 'Set up the Brand Kit',         desc: 'Logos, colors & voice rules. Feeds every AI generation.',    href: '/brand-kit',    icon: Palette },
   { id: 'brief',    title: 'Write a brief',                desc: 'Voice, channels, products. Richer brief = smarter output.',   href: '/brief',        icon: FileText },
   { id: 'calendar', title: 'Generate a content calendar',  desc: 'One click → a month of bilingual AR/EN posts.',               href: '/calendar',     icon: Calendar },
-  { id: 'connect',  title: 'Connect a platform',           desc: 'Meta, TikTok & LinkedIn — publish on schedule.',              href: '/integrations', icon: Plug },
+  { id: 'connect',  title: 'Connect a platform',           desc: 'Meta, TikTok & LinkedIn. Publish on schedule.',              href: '/integrations', icon: Plug },
 ];
 
 function decodeOrgId(): string {
@@ -126,7 +126,7 @@ export default function GuideWidget() {
         transition={motionUI}
         style={{ zIndex: Z.widget, background: panelBg, borderColor: border, color: fg }}
         className="fixed bottom-[5.5rem] right-6 inline-flex items-center gap-2 h-9 pl-1.5 pr-3 rounded-full border shadow-lg cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] focus-visible:ring-offset-2"
-        title={open ? 'Close guide' : `Get started — ${doneCount}/${total} done`}
+        title={open ? 'Close guide' : `Get started. ${doneCount}/${total} done`}
         aria-label={open ? 'Close getting-started guide' : `Open getting-started guide, ${doneCount} of ${total} steps complete`}
         aria-expanded={open}
       >

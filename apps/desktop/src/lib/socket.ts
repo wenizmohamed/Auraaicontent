@@ -40,7 +40,7 @@ function getSocket(): Socket | null {
   const token = getAuthToken();
   if (!token) return null;
   if (_socket?.connected) return _socket;
-  if (_socket) return _socket; // still connecting — let it finish
+  if (_socket) return _socket; // still connecting. Let it finish
 
   const url = resolveSocketUrl();
   _socket = io(url, {

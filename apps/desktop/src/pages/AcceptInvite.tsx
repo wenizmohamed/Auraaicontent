@@ -74,7 +74,7 @@ export default function AcceptInvite() {
   // (Jasper-style welcoming onboarding). Bilingual line is first-class for Gulf.
   const perks = [
     { icon: Calendar, label: 'Plan & schedule content across every channel' },
-    { icon: Sparkles, label: 'Generate on-brand posts with AI — Arabic & English' },
+    { icon: Sparkles, label: 'Generate on-brand posts with AI. Arabic & English' },
     { icon: Users, label: 'Review, comment, and approve together' },
   ];
 

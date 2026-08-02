@@ -223,7 +223,7 @@ export default function BrandKit() {
         sampleImages: cleanedImages,
       });
       setKit(updated);
-      setToast({ kind: 'success', msg: `Saved — v${updated.version}` });
+      setToast({ kind: 'success', msg: `Saved. V${updated.version}` });
       // Re-fetch versions (the prior state was just snapshotted)
       brandKitApi.listVersions(selectedClientId).then(setVersions).catch(() => {});
     } catch (err: any) {
@@ -278,7 +278,7 @@ export default function BrandKit() {
             Brand Kit
           </h1>
           <p className="text-sm text-zinc-400 mt-1.5 max-w-xl">
-            Per-client visual identity, voice and anchor imagery. Every save is versioned —
+            Per-client visual identity, voice and anchor imagery. Every save is versioned. 
             you can roll back to any prior snapshot.
           </p>
         </div>
@@ -406,7 +406,7 @@ export default function BrandKit() {
                 <MessageSquare className="w-4 h-4 text-[color:var(--color-accent)]" />
                 Voice
               </h2>
-              <p className="text-xs text-zinc-500 mt-1">Voice training needs volume — 5+ samples per platform yields the best calibration.</p>
+              <p className="text-xs text-zinc-500 mt-1">Voice training needs volume. 5+ samples per platform yields the best calibration.</p>
 
               {/* Per-platform voice instructions */}
               <h3 className="mt-5 text-xs font-medium uppercase tracking-wider text-zinc-500">Per-platform tone</h3>
@@ -486,7 +486,7 @@ export default function BrandKit() {
               </div>
               <div className="mt-3 space-y-2">
                 {form.voiceDoNotRules.length === 0 && (
-                  <p className="text-xs text-zinc-600 italic">No rules yet — e.g. "Never use gradients", "Avoid emoji in headlines".</p>
+                  <p className="text-xs text-zinc-600 italic">No rules yet, e.g. "Never use gradients", "Avoid emoji in headlines".</p>
                 )}
                 {form.voiceDoNotRules.map((r, i) => (
                   <div key={i} className="flex items-center gap-2">
@@ -742,7 +742,7 @@ function SampleImageRow({ index, image, onChange }: SampleImageRowProps) {
           type="url"
           value={image.url}
           onChange={e => onChange({ url: e.target.value })}
-          placeholder={`Image URL #${index + 1} (CDN — no base64)`}
+          placeholder={`Image URL #${index + 1} (CDN. No base64)`}
           className="rounded-lg bg-white/[0.04] border border-white/[0.08] px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-[color:var(--color-accent)]/50 focus:outline-none transition-colors"
         />
         <input
@@ -872,7 +872,7 @@ function BrandIdentityShowcase({
                         {c.locked && <ShieldAlert className="h-3 w-3" style={{ color: 'var(--color-fg-subtle)' }} aria-label="Locked from Client" />}
                       </div>
                       <p className="text-[10px] font-mono mt-0.5" style={{ color: 'var(--color-fg-subtle)' }}>
-                        {c.value || '—'}
+                        {c.value || ''}
                       </p>
                     </div>
                   </div>

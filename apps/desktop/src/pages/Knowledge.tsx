@@ -75,7 +75,7 @@ export default function Knowledge({ embedded = false }: { embedded?: boolean } =
     try {
       const created = await knowledgeApi.upload(selectedClientId, file);
       setItems((prev) => [created, ...prev]);
-      toastSuccess(`Uploaded ${file.name} — embedding in background`);
+      toastSuccess(`Uploaded ${file.name}. Embedding in background`);
       // NOTE: the server now auto-embeds on upload (fire-and-forget), so we do NOT
       // call /embed here — running both races the worker's deleteMany+recreate.
       // Refresh shortly to surface the chunk count once the server finishes.
@@ -224,7 +224,7 @@ export default function Knowledge({ embedded = false }: { embedded?: boolean } =
         <div className="flex items-center gap-2 mb-3">
           <Search className="w-4 h-4 text-violet-400" />
           <h2 className="text-sm font-bold text-zinc-300">Test retrieval</h2>
-          <span className="text-[11px] text-zinc-600">— ask a question, see which chunks match</span>
+          <span className="text-[11px] text-zinc-600">ask a question, see which chunks match</span>
         </div>
         <div className="flex items-center gap-2">
           <input
@@ -278,7 +278,7 @@ export default function Knowledge({ embedded = false }: { embedded?: boolean } =
           icon={Database}
           spotlight
           title="No knowledge items yet"
-          description="Upload briefs, brand guides, references — anything the AI should know about. Documents are auto-embedded for retrieval-augmented generation."
+          description="Upload briefs, brand guides, references. Anything the AI should know about. Documents are auto-embedded for retrieval-augmented generation."
           primary={
             <EmptyStateAction onClick={() => fileInputRef.current?.click()}>
               <Upload className="w-4 h-4" /> Upload first document

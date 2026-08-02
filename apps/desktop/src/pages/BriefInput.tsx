@@ -233,7 +233,7 @@ export default function BriefInput() {
           return;
         }
       }
-    } catch { /* corrupt draft — fall through */ }
+    } catch { /* corrupt draft. Fall through */ }
     (async () => {
       try {
         const all = await briefsApi.list(selectedClientId).catch(() => [] as any[]);
@@ -277,7 +277,7 @@ export default function BriefInput() {
         } else {
           localStorage.removeItem(draftKey);
         }
-      } catch { /* storage unavailable — in-memory only */ }
+      } catch { /* storage unavailable. In-memory only */ }
     }, 400);
     return () => clearTimeout(t);
   }, [selectedClientId, selectedMonth, campaigns, occasions, selectedPlatforms, toneNotes, lookFeel]);
@@ -450,7 +450,7 @@ export default function BriefInput() {
       const stepLabel = step === 'save_brief' ? 'Save brief' : 'Generate content';
 
       if (msg.includes('timed out') || msg.includes('timeout')) {
-        alert(`${stepLabel} is taking longer than expected. Check the calendar in a few minutes — the server may still be processing.`);
+        alert(`${stepLabel} is taking longer than expected. Check the calendar in a few minutes. The server may still be processing.`);
       } else if (msg.includes('401') || msg.includes('Unauthorized')) {
         alert(`${stepLabel} failed: session expired. Please refresh the page and try again.`);
       } else if (msg.includes('409') || msg.includes('already exists')) {
@@ -648,7 +648,7 @@ export default function BriefInput() {
                 {currentClient.name}
               </span>
             ) : (
-              <span className="text-sm" style={{ color: 'var(--color-accent)' }}>no client selected — pick one on /clients first</span>
+              <span className="text-sm" style={{ color: 'var(--color-accent)' }}>no client selected. Pick one on /clients first</span>
             )}
           </div>
         </motion.div>
@@ -1038,7 +1038,7 @@ export default function BriefInput() {
               <textarea
                 value={lookFeel}
                 onChange={e => setLookFeel(e.target.value)}
-                placeholder="Mood, palette, and style in words — e.g. warm minimal, gold + cream, editorial photography, lots of negative space"
+                placeholder="Mood, palette, and style in words, e.g. warm minimal, gold + cream, editorial photography, lots of negative space"
                 rows={3}
                 className="w-full resize-none rounded-lg border border-white/5 bg-white/5 px-3 py-2 text-xs text-zinc-300 outline-none placeholder:text-zinc-700 focus:border-fuchsia-500/30"
               />

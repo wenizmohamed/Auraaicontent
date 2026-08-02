@@ -32,7 +32,7 @@ export const PLATFORM_LIMITS: Record<string, PlatformLimits> = {
       },
       {
         name: 'Story',
-        caption: { max: 2200, optimal: 150, truncateAt: 150, note: 'Text overlay — keep under 150 for readability. Max 100 stories/24hrs' },
+        caption: { max: 2200, optimal: 150, truncateAt: 150, note: 'Text overlay. Keep under 150 for readability. Max 100 stories/24hrs' },
         hashtags: { max: 5, optimal: 2, note: 'Max 5 per Story' },
       },
       {
@@ -73,7 +73,7 @@ export const PLATFORM_LIMITS: Record<string, PlatformLimits> = {
       },
       {
         name: 'Article',
-        title: { max: 100, note: 'Article headline — keep compelling' },
+        title: { max: 100, note: 'Article headline. Keep compelling' },
         caption: { max: 125000, optimal: 2000, truncateAt: 300, note: '~125K chars (25K words). About section shows ~300 before truncate' },
         description: { max: 2000, note: 'Article description/subtitle' },
         hashtags: { max: 30, optimal: 5, note: '3-5 recommended' },
@@ -131,8 +131,8 @@ export const PLATFORM_LIMITS: Record<string, PlatformLimits> = {
       },
       {
         name: 'Ad (Headline)',
-        caption: { max: 40, optimal: 25, truncateAt: 25, note: 'Ad headline — 25-40 chars. Keep punchy' },
-        description: { max: 125, note: 'Ad primary text — 90-125 chars recommended' },
+        caption: { max: 40, optimal: 25, truncateAt: 25, note: 'Ad headline. 25-40 chars. Keep punchy' },
+        description: { max: 125, note: 'Ad primary text. 90-125 chars recommended' },
         hashtags: { max: 0, optimal: 0, note: 'No hashtags in ads' },
       },
     ],

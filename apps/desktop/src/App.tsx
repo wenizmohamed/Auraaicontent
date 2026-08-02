@@ -587,7 +587,7 @@ function Layout({ children }: { children: React.ReactNode }) {
             {!isCollapsed && (
               <div className="flex-1 min-w-0">
                 <p className={`text-[13px] font-medium truncate ${isDark ? 'text-zinc-200' : 'text-slate-800'}`}>{me?.name || 'Your account'}</p>
-                <p className={`text-[10px] truncate ${isDark ? 'text-zinc-600' : 'text-slate-400'}`}>{me?.email || '—'}</p>
+                <p className={`text-[10px] truncate ${isDark ? 'text-zinc-600' : 'text-slate-400'}`}>{me?.email || ''}</p>
               </div>
             )}
           </Link>
