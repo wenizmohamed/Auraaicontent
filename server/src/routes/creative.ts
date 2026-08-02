@@ -10,7 +10,7 @@ import { db } from '../db/prisma.js';
 import { searchPinterest, searchPinterestMulti, fetchPinterestImageBase64 } from '../services/pinterest.service.js';
 import { historyService } from '../services/history.service.js';
 import { sanitizePrompt, validatePrompt } from '../middleware/sanitize.js';
-import { enhanceCreativePrompt, type EnhanceMode } from '../services/prompt-enhancer.service.js';
+import { enhanceCreativePrompt, enhanceCreativeVariants, type EnhanceMode, type EnhanceVariant } from '../services/prompt-enhancer.service.js';
 import { getStylePack, listStylePacks } from '../services/style-packs.js';
 import { recordMemory } from '../services/memory.service.js';
 import { upscaleImage } from '../services/upscale.service.js';
@@ -429,7 +429,7 @@ export async function creativeRoutes(app: FastifyInstance) {
     const enhanceMode: EnhanceMode = validModes.includes(mode as EnhanceMode) ? (mode as EnhanceMode) : 'text-to-image';
 
     try {
-      const result = await enhanceCreativePrompt({
+      const enhanceInput = {
         prompt,
         mode: enhanceMode,
         clientId: clientId || undefined,
@@ -438,7 +438,22 @@ export async function creativeRoutes(app: FastifyInstance) {
         safeZone: Boolean(safeZone),
         hasRefs: Boolean(hasRefs),
         stylePack: getStylePack(stylePackId),
-      });
+      };
+      // Multi-direction improve: 3 distinct creative angles the user picks from.
+      // A variants failure (parse/truncation/provider) must never 5xx a request
+      // the single-shot path can still serve — catch and fall through.
+      let variants: EnhanceVariant[] = [];
+      let vmeta: { provider: string; model: string; latencyMs: number } | null = null;
+      try {
+        const vres = await enhanceCreativeVariants(enhanceInput, 3);
+        variants = vres.variants;
+        vmeta = vres;
+      } catch (e) {
+        request.log.warn(`variants enhancer failed — falling back to single-shot: ${errMessage(e)}`);
+      }
+      const result = variants.length > 0 && vmeta
+        ? { prompt: variants[0].prompt, negativePrompt: variants[0].negativePrompt, provider: vmeta.provider, model: vmeta.model, latencyMs: vmeta.latencyMs }
+        : await enhanceCreativePrompt(enhanceInput);
       await historyService.record({
         orgId: request.orgId,
         userId: request.user?.userId,
@@ -446,16 +461,26 @@ export async function creativeRoutes(app: FastifyInstance) {
         type: 'text',
         surface: 'creative_tools',
         prompt: `[improve:${enhanceMode}] ${prompt}`,
-        outputText: result.prompt,
+        // The pick happens client-side — logging variants[0] as THE output would
+        // attribute a prompt the user may never use. Log every direction offered.
+        outputText: variants.length > 0
+          ? variants.map((v, i) => `[${i + 1}] ${v.label}: ${v.prompt}`).join('\n\n')
+          : result.prompt,
         provider: result.provider,
         model: result.model,
         latencyMs: result.latencyMs,
-        metadata: { mode: enhanceMode, kind: 'prompt-improver', negativePrompt: result.negativePrompt || null },
+        metadata: {
+          mode: enhanceMode, kind: 'prompt-improver', negativePrompt: result.negativePrompt || null,
+          variantCount: variants.length || null,
+          variantLabels: variants.length ? variants.map(v => v.label) : null,
+        },
       });
       return {
         original: prompt,
         improved: result.prompt,
         negativePrompt: result.negativePrompt || null,
+        // 3 distinct creative directions to choose from (empty → FE uses `improved`).
+        variants,
         mode: enhanceMode,
         provider: result.provider,
         latencyMs: result.latencyMs,

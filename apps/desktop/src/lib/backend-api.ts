@@ -553,7 +553,7 @@ export const creativeApi = {
   getJob: (jobId: string) =>
     request<{ id: string; status: string; progress: number; result?: any; error?: string }>(`/api/creative/jobs/${jobId}`),
   improvePrompt: (prompt: string, mode?: string, opts?: { clientId?: string; safeZone?: boolean; hasRefs?: boolean; stylePackId?: string }) =>
-    request<{ original: string; improved: string; negativePrompt: string | null; mode: string | null; provider: string; latencyMs: number }>(
+    request<{ original: string; improved: string; negativePrompt: string | null; variants?: { label: string; prompt: string; negativePrompt?: string }[]; mode: string | null; provider: string; latencyMs: number }>(
       '/api/creative/prompt/improve',
       { method: 'POST', body: JSON.stringify({ prompt, mode, ...(opts || {}) }) },
       { timeoutMs: 60000 },

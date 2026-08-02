@@ -348,7 +348,13 @@ export default function CreativeTools() {
   // user's text instantly, so the AI version dominated the textarea. Now the
   // improved version sits in a banner above the textarea — accept/discard.
   const [improvedPreview, setImprovedPreview] = useState<string | null>(null);
+  // Multi-direction improve: 3 distinct creative angles the user picks from.
+  const [improvedVariants, setImprovedVariants] = useState<{ label: string; prompt: string; negativePrompt?: string }[]>([]);
   const [originalBeforeImprove, setOriginalBeforeImprove] = useState<string | null>(null);
+  const [originalNegBeforeImprove, setOriginalNegBeforeImprove] = useState<string | null>(null);
+  // Last Avoid-field value WE auto-filled (vs user-typed) — lets a repeat pick
+  // replace its own earlier auto-fill without ever clobbering user input.
+  const autoNegRef = useRef<string | null>(null);
 
   // Recent assets (inline thumbnail strip — workshop fix 2026-05-06)
   const [recentAssets, setRecentAssets] = useState<RecentAsset[]>(loadRecentAssets);
@@ -366,6 +372,11 @@ export default function CreativeTools() {
     setGenId(null); setVoted(null); setUpscaled(null); setUpscaling(null);
     setProvider('');
     setProgress(0);
+    // A pending improve preview/picker was written for the previous mode's
+    // prompt grammar (video prompts end in SFX/Ambient lines) — never carry it
+    // across modes where "Use this" would paste the wrong dialect.
+    setImprovedPreview(null);
+    setImprovedVariants([]);
     // If the next mode doesn't need an image, clear the source so the upload box collapses
     const nextDef = MODES.find(m => m.id === next)!;
     if (!nextDef.needsImage) {
@@ -709,6 +720,7 @@ export default function CreativeTools() {
     setImproving(true);
     setError('');
     setImprovedPreview(null);
+    setImprovedVariants([]);
     try {
       const out = await creativeApi.improvePrompt(prompt.trim(), mode, {
         clientId: selectedClientId || undefined,
@@ -716,14 +728,16 @@ export default function CreativeTools() {
         hasRefs: extraRefs.length > 0 || !!sourceBase64,
         ...(stylePackId ? { stylePackId } : {}),
       });
-      // Video modes: the enhancer also proposes shot-specific avoid-terms —
-      // pre-fill the Avoid field only if the user hasn't typed their own.
-      if (out?.negativePrompt && (mode === 'text-to-video' || mode === 'image-to-video')) {
-        setNegPrompt(prev => prev.trim() ? prev : out.negativePrompt!);
-      }
-      // Non-destructive: surface the AI version in a preview banner so the user
-      // can accept, discard, or keep editing their original. Workshop ask 2026-05-06.
-      if (out?.improved && out.improved.trim() && out.improved.trim() !== prompt.trim()) {
+      // Non-destructive: surface AI options so the user can pick one, discard,
+      // or keep their original. Prefer 3 distinct directions; fall back to the
+      // single improved version if the model didn't return variants.
+      const vs = Array.isArray(out?.variants) ? out.variants.filter(v => v?.prompt?.trim()) : [];
+      // Seed avoid-terms on arrival (auto-fill—tracked): even if the user later
+      // dismisses the picker, the model's avoid-terms aren't silently lost.
+      seedNegPrompt(out?.negativePrompt);
+      if (vs.length > 1) {
+        setImprovedVariants(vs);
+      } else if (out?.improved && out.improved.trim() && out.improved.trim() !== prompt.trim()) {
         setImprovedPreview(out.improved);
       }
     } catch (err: any) {
@@ -734,20 +748,50 @@ export default function CreativeTools() {
     }
   };
 
+  // Seed the Avoid field from an AI negative: overwrite only when the field is
+  // empty or still holds OUR previous auto-fill — never the user's own text.
+  const seedNegPrompt = (neg?: string | null) => {
+    if (!neg || !(mode === 'text-to-video' || mode === 'image-to-video')) return;
+    setNegPrompt(prev => {
+      if (prev.trim() && prev !== autoNegRef.current) return prev;
+      autoNegRef.current = neg;
+      return neg;
+    });
+  };
+
   const acceptImprovedPrompt = () => {
     if (!improvedPreview) return;
     setOriginalBeforeImprove(prompt);
+    setOriginalNegBeforeImprove(negPrompt);
     setPrompt(improvedPreview);
     setImprovedPreview(null);
   };
 
   const discardImprovedPrompt = () => {
     setImprovedPreview(null);
+    setImprovedVariants([]);
+  };
+
+  // Apply a chosen creative direction (from the 3-variant picker).
+  const applyVariant = (v: { prompt: string; negativePrompt?: string }) => {
+    setOriginalBeforeImprove(prompt);
+    setOriginalNegBeforeImprove(negPrompt);
+    setPrompt(v.prompt);
+    seedNegPrompt(v.negativePrompt);
+    setImprovedVariants([]);
+    setImprovedPreview(null);
   };
 
   const undoImprovedPrompt = () => {
     if (originalBeforeImprove === null) return;
     setPrompt(originalBeforeImprove);
+    // Also restore the Avoid field that apply/accept overwrote — a half-reverted
+    // prompt/negative pair would ship the wrong art direction on next generate.
+    if (originalNegBeforeImprove !== null) {
+      setNegPrompt(originalNegBeforeImprove);
+      autoNegRef.current = null;
+      setOriginalNegBeforeImprove(null);
+    }
     setOriginalBeforeImprove(null);
   };
 
@@ -1075,7 +1119,49 @@ export default function CreativeTools() {
         </div>
         )}
 
-        {/* Improve-with-AI preview banner — non-destructive (workshop fix 2026-05-06) */}
+        {/* Improve-with-AI — 3 distinct creative directions to pick from. */}
+        <AnimatePresence>
+          {improvedVariants.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="rounded-xl border bg-gradient-to-br from-[color:var(--color-info-subtle)] to-transparent p-4" style={{ borderColor: 'var(--color-info)' }}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider font-bold" style={{ color: 'var(--color-info)' }}>
+                    <Sparkles className="w-3 h-3" />
+                    Pick a creative direction
+                  </div>
+                  <button type="button" onClick={discardImprovedPrompt} className="text-[10px] text-[color:var(--color-fg-subtle)] hover:text-[color:var(--color-fg)] inline-flex items-center gap-1"><X className="w-3 h-3" /> Dismiss</button>
+                </div>
+                <div className="grid gap-2.5 sm:grid-cols-3">
+                  {improvedVariants.map((v, i) => (
+                    <div key={i} className="flex flex-col rounded-lg border border-white/10 bg-white/[0.03] p-3 hover:border-[color:var(--color-info)] transition-colors">
+                      <div className="text-xs font-bold text-white mb-1.5 flex items-center gap-1.5">
+                        <span className="inline-flex items-center justify-center w-4 h-4 rounded text-[9px] font-black" style={{ background: 'var(--color-info-subtle)', color: 'var(--color-info)' }}>{i + 1}</span>
+                        {v.label}
+                      </div>
+                      <p className="text-[11px] text-[color:var(--color-fg-muted)] leading-relaxed flex-1 mb-2.5 max-h-44 overflow-y-auto whitespace-pre-wrap">{v.prompt}</p>
+                      <button
+                        type="button"
+                        onClick={() => applyVariant(v)}
+                        className="mt-auto inline-flex items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-[11px] font-semibold hover:bg-[color:var(--color-info-subtle)] transition-all"
+                        style={{ background: 'var(--color-info-subtle)', borderColor: 'var(--color-info)', color: 'var(--color-info)' }}
+                      >
+                        <CheckCircle2 className="w-3 h-3" /> Use this
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-2.5 text-[10px] text-[color:var(--color-fg-subtle)]">Your original prompt stays untouched until you pick one.</p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Improve-with-AI preview banner — single-version fallback (workshop fix 2026-05-06) */}
         <AnimatePresence>
           {improvedPreview && (
             <motion.div
@@ -1084,7 +1170,7 @@ export default function CreativeTools() {
               exit={{ opacity: 0, height: 0 }}
               className="overflow-hidden"
             >
-              <div className="rounded-xl border bg-gradient-to-br from-violet-500/[0.07] to-fuchsia-500/[0.04] p-4" style={{ borderColor: 'var(--color-info)' }}>
+              <div className="rounded-xl border bg-gradient-to-br from-[color:var(--color-info-subtle)] to-transparent p-4" style={{ borderColor: 'var(--color-info)' }}>
                 <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider font-bold mb-2" style={{ color: 'var(--color-info)' }}>
                   <Sparkles className="w-3 h-3" />
                   AI-improved version — review before applying
@@ -1113,8 +1199,9 @@ export default function CreativeTools() {
           )}
         </AnimatePresence>
 
-        {/* Undo improve — surfaces only after the user accepted an improvement */}
-        {originalBeforeImprove !== null && !improvedPreview && (
+        {/* Undo improve — surfaces only after the user accepted an improvement,
+            never while a fresh preview/picker (which touched nothing yet) is open */}
+        {originalBeforeImprove !== null && !improvedPreview && improvedVariants.length === 0 && (
           <button
             type="button"
             onClick={undoImprovedPrompt}

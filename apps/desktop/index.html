@@ -6,6 +6,33 @@
     <title>RADIX — AI Content Planner</title>
     <link rel="icon" href="/radix-logo.jpg" />
     <script>
+      // Self-heal: unregister any stale service worker from a prior PWA build,
+      // clear its caches, then reload ONCE. The current build registers no SW.
+      // Order matters: the one-shot sessionStorage flag is set only AFTER
+      // cleanup succeeds (a failed attempt simply retries next load), and every
+      // cache delete is awaited before the reload so nothing is orphaned. Fully
+      // try/caught so a rejection can never reach window.onunhandledrejection
+      // (which would overwrite the radix_last_crash diagnostic slot). nginx's
+      // 410 + Clear-Site-Data kill-switch on /sw.js stays the authoritative
+      // layer — this only helps clients that receive a fresh index.html while
+      // still carrying an old registration.
+      (async function () {
+        try {
+          if (!('serviceWorker' in navigator)) return;
+          if (sessionStorage.getItem('__radix_sw_cleared')) return;
+          var rs = await navigator.serviceWorker.getRegistrations();
+          if (!rs || !rs.length) return;
+          await Promise.all(rs.map(function (r) { return r.unregister(); }));
+          if (window.caches && caches.keys) {
+            var ks = await caches.keys();
+            await Promise.all(ks.map(function (k) { return caches.delete(k); }));
+          }
+          sessionStorage.setItem('__radix_sw_cleared', '1');
+          location.reload();
+        } catch (e) { /* retry on next load; never surface */ }
+      })();
+    </script>
+    <script>
       // Pre-React lang/dir sync (A11Y WCAG 3.1.1). Runs before main.tsx so
       // first paint already reflects the user's chosen locale instead of
       // briefly flashing English LTR for Arabic users.
@@ -42,4 +69,3 @@
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

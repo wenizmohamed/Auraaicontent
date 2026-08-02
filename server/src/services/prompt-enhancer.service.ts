@@ -215,25 +215,10 @@ export async function enhanceCreativePrompt(input: EnhanceInput): Promise<Enhanc
     system = `${base}${dialect ? `\n${dialect}` : ''}${DEPTH_NOTES[depth]}${QUALITY_GATE}`;
   }
 
-  const notes: string[] = [];
-  if (input.mode === 'image-to-video') {
-    // Motion-first hard switch (technique #1 / G2 prompt-half): the attached
-    // frame IS the subject — re-describing it is what makes the model reinvent
-    // the product. Describe ONLY motion/camera/timing.
-    notes.push('HARD RULE — the shot animates FROM a provided still image that IS frame one. Describe ONLY the motion, camera movement, pacing and audio. Do NOT re-describe, restyle, or replace the subject/product — it already exists in the frame and must stay pixel-identical. If you name the subject at all, name it only to say what it DOES, never what it looks like.');
-  }
-  if (input.hasRefs) {
-    notes.push('Reference images of the exact product/subject are attached — the output must keep that subject identical; never invent a substitute.');
-  }
-  if (input.safeZone) {
-    notes.push('Composition constraint: keep the top ~15% and bottom ~15% of the frame free of key elements and any rendered text (platform UI bands).');
-  }
-  if (input.stylePack) {
-    // The pack is a precision design contract (exact hexes, materials, light)
-    // — the motionsites.ai lesson: specificity is what makes output premium.
-    const directive = isVideo ? input.stylePack.video : input.stylePack.image;
-    notes.push(`STYLE PACK "${input.stylePack.name}" — the art direction below is a HARD constraint; weave its exact palette, materials, lighting and mood into the prompt (the user's subject stays the hero): ${directive}`);
-  }
+  // Shared with enhanceCreativeVariants — one source of truth for the
+  // motion-first/edit/refs/safe-zone/style-pack guards (the 2026-08-02 review
+  // traced three bugs to this block having silently diverged copies).
+  const notes = enhanceNotes(input, isVideo);
   // Brand lookup + reference-image vision run in PARALLEL — enhancement must
   // stay fast even when both are needed.
   const [brand, refContext] = await Promise.all([
@@ -265,4 +250,88 @@ export async function enhanceCreativePrompt(input: EnhanceInput): Promise<Enhanc
     model: result.model,
     latencyMs: result.latencyMs,
   };
+}
+
+export interface EnhanceVariant { label: string; prompt: string; negativePrompt?: string; }
+export interface EnhanceVariantsResult { variants: EnhanceVariant[]; provider: string; model: string; latencyMs: number; }
+
+// Build the shared context notes (motion-first, refs, safe-zone, style pack).
+function enhanceNotes(input: EnhanceInput, isVideo: boolean): string[] {
+  const notes: string[] = [];
+  if (input.mode === 'image-to-video') {
+    notes.push('HARD RULE — the shot animates FROM a provided still image that IS frame one. Describe ONLY the motion, camera movement, pacing and audio. Do NOT re-describe, restyle, or replace the subject/product — it already exists in the frame and must stay pixel-identical. If you name the subject at all, name it only to say what it DOES, never what it looks like.');
+  }
+  if (input.mode === 'image-edit') {
+    notes.push('This is an EDIT of an existing image: change ONLY what the user asked for. Subject identity, brand elements and every region the user did not mention stay untouched, with lighting and color continuity to the original.');
+  }
+  if (input.hasRefs) notes.push('Reference images of the exact product/subject are attached — the output must keep that subject identical; never invent a substitute.');
+  if (input.safeZone) notes.push('Composition constraint: keep the top ~15% and bottom ~15% of the frame free of key elements and any rendered text (platform UI bands).');
+  if (input.stylePack) {
+    const directive = isVideo ? input.stylePack.video : input.stylePack.image;
+    notes.push(`STYLE PACK "${input.stylePack.name}" — the art direction below is a HARD constraint; weave its exact palette, materials, lighting and mood into the prompt (the user's subject stays the hero): ${directive}`);
+  }
+  return notes;
+}
+
+// Multi-direction "Improve with AI": returns N genuinely DIFFERENT creative
+// directions for the same idea (each a full production-grade prompt), so the
+// user explores angles instead of accepting one guess. One AI call (fast/cheap).
+export async function enhanceCreativeVariants(input: EnhanceInput, count = 3): Promise<EnhanceVariantsResult> {
+  // depth='raw' is a brand-exact contract (translate-only, never rewrite) — 3
+  // "creative directions" would violate it by definition. Honor it through the
+  // single-shot raw path and return that as the one variant.
+  if (input.depth === 'raw') {
+    const r = await enhanceCreativePrompt(input);
+    return {
+      variants: [{ label: 'Faithful (raw)', prompt: r.prompt, ...(r.negativePrompt ? { negativePrompt: r.negativePrompt } : {}) }],
+      provider: r.provider, model: r.model, latencyMs: r.latencyMs,
+    };
+  }
+  const isVideo = input.mode === 'text-to-video' || input.mode === 'image-to-video';
+  // 'raw' already returned above, so what remains types as the non-raw depths.
+  const depth: Exclude<EnhanceDepth, 'raw'> = input.depth ?? 'medium';
+  const base = isVideo ? VIDEO_SYSTEM : (input.mode === 'image-edit' ? EDIT_SYSTEM : IMAGE_SYSTEM);
+  const dialect = engineDialect(input.mode, input.engine, input.model);
+  // What the directions may VARY is mode-dependent: for image-to-video the start
+  // frame pins subject+setting (varying them re-triggers the product-swap
+  // regression the HARD RULE exists for); for edits, continuity IS the contract.
+  const varianceAxis = input.mode === 'image-to-video'
+    ? 'vary ONLY the motion design — camera movement, pacing, action beats and audio treatment. NEVER vary, re-describe or restyle the subject, its look, or the setting: frame one already fixes those'
+    : input.mode === 'image-edit'
+      ? 'vary the EDIT TREATMENT — what is adjusted and how the result is finished (grade, mood, background handling where the user asked). Subject identity, brand elements and everything the user did not ask to change stay untouched in EVERY direction'
+      : 'vary the composition, mood, lighting, setting or storytelling approach';
+  const variantsDirective = `\n\nOUTPUT CONTRACT OVERRIDE — this section supersedes every earlier instruction about the output JSON shape (the single-object {"prompt": ...} form no longer applies).\nNOW PRODUCE ${count} DISTINCT CREATIVE DIRECTIONS for the SAME user idea. Each must be a GENUINELY different angle — ${varianceAxis} — NOT reworded versions of one another. Give each a short 2-4 word Title-Case LABEL naming its angle (e.g. "Cinematic Hero", "Lifestyle Editorial", "Bold Graphic"). Each direction's "prompt" must INDEPENDENTLY follow every rule above except the superseded output shape.\nThe ONLY valid output is compact single-line JSON with exactly ${count} items: {"variants":[{"label":"...","prompt":"..."${isVideo ? ',"negativePrompt":"..."' : ''}}]}. Any other shape is invalid.`;
+  const system = `${base}${dialect ? `\n${dialect}` : ''}${DEPTH_NOTES[depth]}${QUALITY_GATE}${variantsDirective}`;
+
+  const notes = enhanceNotes(input, isVideo);
+  const [brand, refContext] = await Promise.all([brandContext(input.clientId, input.orgId), describeReference(input)]);
+  const userMsg = `${notes.length ? notes.map(n => `NOTE: ${n}`).join('\n') + '\n\n' : ''}User idea:\n"${input.prompt.trim()}"${brand}${refContext}`;
+
+  const result = await aiRouter.text(
+    // No maxTokens on purpose: gemini's json path ignores it (own 65536 budget)
+    // and passing 2200 to the xai fallback truncated 3 full directions + its
+    // thinking tokens into unparseable JSON. temperature still reaches the
+    // providers that honor it (xai/dashscope) for direction spread.
+    { prompt: userMsg, system, json: true, temperature: 0.9, model: process.env.PROMPT_ENHANCER_MODEL || 'gemini-flash-latest' },
+    { orgId: input.orgId, userId: input.userId, clientId: input.clientId },
+  );
+  const out = result.output as any;
+  const raw = Array.isArray(out?.variants) ? out.variants : [];
+  const variants: EnhanceVariant[] = raw
+    .filter((v: any) => v && typeof v.prompt === 'string' && v.prompt.trim())
+    .slice(0, count)
+    .map((v: any, i: number) => {
+      // Style-pack negatives are a curated art-direction contract — they stand
+      // even when the model omits its own negativePrompt (parity with the
+      // single-shot merge above).
+      const modelNeg = typeof v.negativePrompt === 'string' && v.negativePrompt.trim() ? v.negativePrompt.trim() : undefined;
+      const neg = isVideo ? ([modelNeg, input.stylePack?.negative].filter(Boolean).join(', ').slice(0, 400) || undefined) : undefined;
+      return {
+        label: (typeof v.label === 'string' && v.label.trim() ? v.label.trim() : `Direction ${i + 1}`).slice(0, 40),
+        prompt: v.prompt.trim(),
+        ...(neg ? { negativePrompt: neg } : {}),
+      };
+    });
+
+  return { variants, provider: result.provider, model: result.model, latencyMs: result.latencyMs };
 }
