@@ -16,6 +16,18 @@ export interface ChangelogEntry {
 
 const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-08-14',
+    tag: 'new',
+    title: 'Radix is now AURAAI',
+    body: 'The product has a new name and logo: AURAAI. Nothing else changes. Same workspace, same login, same team. Everything you have built stays exactly where it was, your clients, calendars, briefs, galleries and history are all untouched. You may need to refresh once for the new name to show.',
+  },
+  {
+    date: '2026-08-14',
+    tag: 'improved',
+    title: 'The newest AI engines across the board',
+    body: 'Every engine now runs its latest version. Text, images and video moved to the newest Gemini, Grok and Qwen releases, so results come back sharper and hold your brief more closely. Long documents and big calendars also get a wider fallback engine when the main one is busy, so generations are less likely to stall. Usage is priced per model behind the scenes, so your finance reports stay accurate.',
+  },
+  {
     date: '2026-08-02',
     tag: 'fixed',
     title: 'Client review links now open properly',
