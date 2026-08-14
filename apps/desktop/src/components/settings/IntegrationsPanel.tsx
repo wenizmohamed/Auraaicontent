@@ -87,7 +87,7 @@ export function IntegrationsPanel() {
             Integrations
           </h1>
           <p className="mt-1 text-[12px]" style={{ color: 'var(--color-fg-muted)' }}>
-            Connect your platforms once and Radix can publish drafted posts directly from the calendar.
+            Connect your platforms once and AURAAI can publish drafted posts directly from the calendar.
           </p>
         </div>
 

@@ -173,7 +173,7 @@ export default function GuideWidget() {
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <h2 className="text-[15px] font-bold" style={{ color: fg }}>
-                    {allDone ? "You're all set 🎉" : 'Get started with Radix'}
+                    {allDone ? "You're all set 🎉" : 'Get started with AURAAI'}
                   </h2>
                   <p className="text-[12px] mt-0.5" style={{ color: fgMuted }}>
                     {allDone ? 'Every setup step is complete.' : `${doneCount} of ${total} steps complete`}

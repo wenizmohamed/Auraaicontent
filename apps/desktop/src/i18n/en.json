@@ -1,6 +1,6 @@
 {
   "cmdk.placeholder": "Search or jump to…",
-  "cmdk.trigger": "Search or ask Radix…",
+  "cmdk.trigger": "Search or ask AURAAI…",
   "cmdk.empty": "No matches. Try “calendar”, “invite”, or “theme”.",
   "nav.dashboard": "Dashboard",
   "nav.workspace": "Workspace",
@@ -50,7 +50,7 @@
   "page.admin.title": "Admin · Cross-org metrics",
   "page.dashboard.no_clients_title": "No clients yet",
   "page.dashboard.no_clients_body": "Create your first client to start generating AI-powered content.",
-  "page.dashboard.how_radix_works": "How Radix Works",
+  "page.dashboard.how_radix_works": "How AURAAI Works",
   "page.dashboard.needs_attention": "Needs Your Attention",
   "page.dashboard.smart_insights": "Smart Insights",
   "page.dashboard.smart_insights_sub": "Auto-detected from your data",
@@ -163,7 +163,7 @@
   "billing.over_quota": "You've reached your monthly limit on the {plan} plan.",
 
   "invite.eyebrow": "You've been invited",
-  "invite.title": "Join an organization on Radix",
+  "invite.title": "Join an organization on AURAAI",
   "invite.loading": "Loading invitation…",
   "invite.for": "For",
   "invite.join_as": "You'll join as",

@@ -50,7 +50,7 @@
   "page.admin.title": "Ø§ÙØ¥Ø¯Ø§Ø±Ø© Â· Ø§ÙÙØ¤Ø´Ø±Ø§Øª Ø¨ÙÙ Ø§ÙÙØ¤Ø³Ø³Ø§Øª",
   "page.dashboard.no_clients_title": "ÙØ§ ÙÙØ¬Ø¯ Ø¹ÙÙØ§Ø¡ Ø¨Ø¹Ø¯",
   "page.dashboard.no_clients_body": "Ø£ÙØ´Ø¦ Ø£ÙÙ Ø¹ÙÙÙ ÙÙ ÙØªØ¨Ø¯Ø£ ØªÙÙÙØ¯ Ø§ÙÙØ­ØªÙÙ Ø§ÙÙØ¯Ø¹ÙÙ Ø¨Ø§ÙØ°ÙØ§Ø¡ Ø§ÙØ§ØµØ·ÙØ§Ø¹Ù.",
-  "page.dashboard.how_radix_works": "ÙÙÙ ÙØ¹ÙÙ Radix",
+  "page.dashboard.how_radix_works": "ÙÙÙ ÙØ¹ÙÙ AURAAI",
   "page.dashboard.needs_attention": "Ø¨Ø­Ø§Ø¬Ø© Ø¥ÙÙ Ø§ÙØªØ¨Ø§ÙÙ",
   "page.dashboard.smart_insights": "Ø±Ø¤Ù Ø°ÙÙØ©",
   "page.dashboard.smart_insights_sub": "ÙÙØªØ´ÙØ© ØªÙÙØ§Ø¦ÙØ§Ù ÙÙ Ø¨ÙØ§ÙØ§ØªÙ",
@@ -163,7 +163,7 @@
   "billing.over_quota": "ÙÙØ¯ Ø¨ÙØºØª Ø§ÙØ­Ø¯ Ø§ÙØ£ÙØµÙ Ø§ÙØ´ÙØ±Ù ÙØ¨Ø§ÙØ© {plan}.",
 
   "invite.eyebrow": "ØªÙØª Ø¯Ø¹ÙØªÙ",
-  "invite.title": "Ø§ÙØ¶Ù Ø¥ÙÙ ÙØ¤Ø³Ø³Ø© Ø¹ÙÙ Radix",
+  "invite.title": "Ø§ÙØ¶Ù Ø¥ÙÙ ÙØ¤Ø³Ø³Ø© Ø¹ÙÙ AURAAI",
   "invite.loading": "Ø¬Ø§Ø±Ù ØªØ­ÙÙÙ Ø§ÙØ¯Ø¹ÙØ©â¦",
   "invite.for": "ÙÙØ¨Ø±ÙØ¯",
   "invite.join_as": "Ø³ØªÙØ¶Ù Ø¨ØµÙØ§Ø­ÙØ©",

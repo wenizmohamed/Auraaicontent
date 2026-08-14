@@ -20,10 +20,10 @@ const STATIONS = ['All', 'Lebanon', 'Abu Dhabi', 'Investigations', 'Clips'];
 
 const SEED_REFS: VisualRef[] = [
   { id: '1', imageUrl: 'https://picsum.photos/seed/ref1/600/400', sourceUrl: 'https://dribbble.com/shots/example1', tags: ['editorial', 'dark', 'luxury'], collection: 'Brand Identity', station: 'Abu Dhabi', topicId: '', uploadedBy: 'Sarah J.', createdAt: new Date().toISOString() },
-  { id: '2', imageUrl: 'https://picsum.photos/seed/ref2/400/600', sourceUrl: 'https://behance.net/gallery/example2', tags: ['vibrant', 'social', 'youth'], collection: 'Social Media', station: 'Clips', topicId: '', uploadedBy: 'Radix Team', createdAt: new Date().toISOString() },
+  { id: '2', imageUrl: 'https://picsum.photos/seed/ref2/400/600', sourceUrl: 'https://behance.net/gallery/example2', tags: ['vibrant', 'social', 'youth'], collection: 'Social Media', station: 'Clips', topicId: '', uploadedBy: 'AURAAI Team', createdAt: new Date().toISOString() },
   { id: '3', imageUrl: 'https://picsum.photos/seed/ref3/500/400', sourceUrl: 'https://pinterest.com/pin/example3', tags: ['investigative', 'bold', 'red'], collection: 'News Graphics', station: 'Investigations', topicId: '', uploadedBy: 'Elena R.', createdAt: new Date().toISOString() },
   { id: '4', imageUrl: 'https://picsum.photos/seed/ref4/600/500', sourceUrl: 'https://unsplash.com/photos/example4', tags: ['landscape', 'mediterranean', 'warm'], collection: 'Brand Identity', station: 'Lebanon', topicId: '', uploadedBy: 'Sarah J.', createdAt: new Date().toISOString() },
-  { id: '5', imageUrl: 'https://picsum.photos/seed/ref5/400/400', sourceUrl: 'https://dribbble.com/shots/example5', tags: ['minimal', 'clean', 'typography'], collection: 'Social Media', station: 'All', topicId: '', uploadedBy: 'Radix Team', createdAt: new Date().toISOString() },
+  { id: '5', imageUrl: 'https://picsum.photos/seed/ref5/400/400', sourceUrl: 'https://dribbble.com/shots/example5', tags: ['minimal', 'clean', 'typography'], collection: 'Social Media', station: 'All', topicId: '', uploadedBy: 'AURAAI Team', createdAt: new Date().toISOString() },
   { id: '6', imageUrl: 'https://picsum.photos/seed/ref6/500/700', sourceUrl: 'https://behance.net/gallery/example6', tags: ['gradient', 'abstract', 'dark'], collection: 'News Graphics', station: 'Investigations', topicId: '', uploadedBy: 'Elena R.', createdAt: new Date().toISOString() },
 ];
 

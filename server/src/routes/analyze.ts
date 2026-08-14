@@ -36,7 +36,7 @@ export async function analyzeRoutes(app: FastifyInstance) {
     // Block adult/violent content — this is a client-facing agency tool
     if (isBlockedUrl(videoUrl)) {
       return reply.status(422).send({
-        error: 'This URL has been blocked by Radix content policy. The video analysis tool is designed for brand-safe social media content only.',
+        error: 'This URL has been blocked by AURAAI content policy. The video analysis tool is designed for brand-safe social media content only.',
         code: 'CONTENT_BLOCKED',
       });
     }
@@ -49,7 +49,7 @@ export async function analyzeRoutes(app: FastifyInstance) {
 
     const llmPrompt = [
       `You are a social-media strategist analyzing a video for a professional agency. You only have the URL/filename and the user's instructions.`,
-      `CONTENT POLICY: If the URL or filename suggests adult, pornographic, violent, or illegal content, respond with: { "error": "Content blocked by Radix policy. This tool only analyzes brand-safe content." } and nothing else.`,
+      `CONTENT POLICY: If the URL or filename suggests adult, pornographic, violent, or illegal content, respond with: { "error": "Content blocked by AURAAI policy. This tool only analyzes brand-safe content." } and nothing else.`,
       `Reason about the likely contents based on the filename, file type, and any clues in the URL.`,
       ``,
       `Video URL: ${videoUrl}`,

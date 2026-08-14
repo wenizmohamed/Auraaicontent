@@ -56,7 +56,7 @@ export function runOnboardingTour({ orgId, force = false }: RunOpts) {
       {
         element: 'a[href="/"]',
         popover: {
-          title: 'Welcome to Radix',
+          title: 'Welcome to AURAAI',
           description: 'Your bilingual AR/EN content calendar OS for Gulf-region agencies. 45-second tour. Covers every part of the app.',
         },
       },
@@ -92,11 +92,11 @@ export function runOnboardingTour({ orgId, force = false }: RunOpts) {
         element: 'a[href="/integrations"]',
         popover: {
           title: 'Distribute → Connect platforms',
-          description: 'Wire up Meta, TikTok, and LinkedIn so approved posts publish straight from Radix at their scheduled time.',
+          description: 'Wire up Meta, TikTok, and LinkedIn so approved posts publish straight from AURAAI at their scheduled time.',
         },
       },
       {
-        element: '[aria-label="Search or ask Radix…"], button[title*="Search"]',
+        element: '[aria-label="Search or ask AURAAI…"], button[title*="Search"]',
         popover: {
           title: 'Pro tip. ⌘K everywhere',
           description: 'Press <b>⌘K</b> (Ctrl+K) to <b>search your content</b>find any client, post, or piece by name, plus jump between surfaces, run actions, switch theme/locale. <b>?</b> shows all shortcuts.',

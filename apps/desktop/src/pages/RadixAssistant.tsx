@@ -1065,7 +1065,7 @@ function PromptBox({ value, onChange, onSend, loading, maxChars, textareaRef, pl
             }
           }}
           rows={1}
-          placeholder={loading ? 'Working…' : (placeholder || 'Ask Radix anything…  (Enter to send, Shift+Enter for newline)')}
+          placeholder={loading ? 'Working…' : (placeholder || 'Ask AURAAI anything…  (Enter to send, Shift+Enter for newline)')}
           disabled={loading}
           className="flex-1 resize-none bg-transparent text-sm leading-snug outline-none placeholder:opacity-50 disabled:opacity-50"
           style={{ color: 'var(--color-fg)', minHeight: '22px', maxHeight: '132px' }}

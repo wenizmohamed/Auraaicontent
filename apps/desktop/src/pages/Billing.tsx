@@ -43,7 +43,7 @@ const PLANS: Plan[] = [
     name: 'Starter',
     price: '$49',
     cadence: '/mo',
-    description: 'For solo operators trying Radix on one brand.',
+    description: 'For solo operators trying AURAAI on one brand.',
     features: ['1 client workspace', '50 AI generations / mo', '25 image generations', 'Single seat'],
   },
   {

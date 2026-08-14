@@ -407,13 +407,13 @@ function Layout({ children }: { children: React.ReactNode }) {
         {/* Logo */}
         <div className={`h-[72px] flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-5'} border-b ${isDark ? 'border-white/[0.06]' : 'border-slate-200/60'}`}>
           {isCollapsed ? (
-            <img src="/radix-logo.jpg" alt="Radix" className="w-9 h-9 rounded-xl object-cover ring-1 ring-white/10" />
+            <img src="/radix-logo.jpg" alt="AURAAI" className="w-9 h-9 rounded-xl object-cover ring-1 ring-white/10" />
           ) : (
             <div className="flex items-center gap-3">
-              <img src="/radix-logo.jpg" alt="Radix" className="w-10 h-10 rounded-xl object-cover ring-1 ring-white/10" />
+              <img src="/radix-logo.jpg" alt="AURAAI" className="w-10 h-10 rounded-xl object-cover ring-1 ring-white/10" />
               <div>
                 <span className={`text-lg font-black tracking-[0.3em] uppercase ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                  RADIX
+                  AURAAI
                 </span>
                 <div className={`text-[9px] font-semibold uppercase tracking-[0.2em] ${isDark ? 'text-amber-500/70' : 'text-amber-600/70'}`}>
                   AI Content Planner
@@ -754,7 +754,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
           </div>
           <h2 className="text-2xl font-bold text-white mb-2 tracking-tight">Backend offline</h2>
           <p className="text-zinc-500 text-sm mb-6 max-w-sm mx-auto leading-relaxed">
-            {authError || 'The Radix backend server is not reachable. Make sure it is running and try again.'}
+            {authError || 'The AURAAI backend server is not reachable. Make sure it is running and try again.'}
           </p>
           <button
             onClick={() => window.location.reload()}

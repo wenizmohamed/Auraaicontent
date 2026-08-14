@@ -1,4 +1,4 @@
-// "What's new on Radix AI" — product changelog surfaced on every user's
+// "What's new on AURAAI" — product changelog surfaced on every user's
 // Dashboard. Entries are maintained here in git (newest first) and shipped
 // with each deploy; no DB table needed. Keep entries user-facing: what THEY
 // can now do, never internal refactor talk. Add an entry with every big ship.
@@ -19,7 +19,7 @@ const CHANGELOG: ChangelogEntry[] = [
     date: '2026-08-02',
     tag: 'fixed',
     title: 'Client review links now open properly',
-    body: 'Share a month with a client and their link now opens the review page as intended. Previously it sent them to a sign-in screen, so they could not see the work. Your client browses the month, approves posts, requests changes and leaves comments per post, with no account needed. Feedback lands straight back in Radix.',
+    body: 'Share a month with a client and their link now opens the review page as intended. Previously it sent them to a sign-in screen, so they could not see the work. Your client browses the month, approves posts, requests changes and leaves comments per post, with no account needed. Feedback lands straight back in AURAAI.',
   },
   {
     date: '2026-08-02',
@@ -49,7 +49,7 @@ const CHANGELOG: ChangelogEntry[] = [
     date: '2026-07-21',
     tag: 'fixed',
     title: 'No more cut-off captions + the newest AI models',
-    body: 'Long generations (big calendars, detailed briefs) no longer come back truncated mid-sentence. Output limits were raised across engines. Radix also moved to the latest models across providers (Grok 4.5, Gemini 3.5 Flash, the newest image models), and when an engine wrongly blocks safe content, Radix now automatically retries on another engine instead of failing.',
+    body: 'Long generations (big calendars, detailed briefs) no longer come back truncated mid-sentence. Output limits were raised across engines. AURAAI also moved to the latest models across providers (Grok 4.5, Gemini 3.5 Flash, the newest image models), and when an engine wrongly blocks safe content, AURAAI now automatically retries on another engine instead of failing.',
   },
   {
     date: '2026-07-15',
@@ -85,7 +85,7 @@ const CHANGELOG: ChangelogEntry[] = [
     date: '2026-07-14',
     tag: 'new',
     title: 'Check compliance on any post',
-    body: 'On the Review page, hit Compliance on a post and Radix audits the caption against that client\'s brief rules, flagging risky claims, missing disclaimers and sensitive wording by severity, each with a suggested fix. Built for financial, fraud-awareness and other regulated content.',
+    body: 'On the Review page, hit Compliance on a post and AURAAI audits the caption against that client\'s brief rules, flagging risky claims, missing disclaimers and sensitive wording by severity, each with a suggested fix. Built for financial, fraud-awareness and other regulated content.',
   },
   {
     date: '2026-07-14',
@@ -97,7 +97,7 @@ const CHANGELOG: ChangelogEntry[] = [
     date: '2026-07-14',
     tag: 'new',
     title: 'Quick notes & teach-the-AI thumbs',
-    body: 'Leave a quick note on any post for your team, and thumbs-up / thumbs-down any generated image or video so Radix learns each client\'s taste and leans that way next time.',
+    body: 'Leave a quick note on any post for your team, and thumbs-up / thumbs-down any generated image or video so AURAAI learns each client\'s taste and leans that way next time.',
   },
   {
     date: '2026-07-14',
@@ -121,13 +121,13 @@ const CHANGELOG: ChangelogEntry[] = [
     date: '2026-07-06',
     tag: 'new',
     title: 'Competitor Intel. Read a competitor, find your opening',
-    body: 'New Strategy tool: drop in any competitor (brand, handle or website) and Radix reads their content strategy. Themes, tone, posting cadence, what they do well. Pick a client and it turns their playbook into concrete gaps that client can exploit. Grounds the read on the competitor\'s real site when you paste a URL.',
+    body: 'New Strategy tool: drop in any competitor (brand, handle or website) and AURAAI reads their content strategy. Themes, tone, posting cadence, what they do well. Pick a client and it turns their playbook into concrete gaps that client can exploit. Grounds the read on the competitor\'s real site when you paste a URL.',
   },
   {
     date: '2026-07-06',
     tag: 'new',
     title: 'Share client galleries with a public link',
-    body: 'From the Gallery, hit "Share with client" to get a clean, branded review page. No login needed. Your client browses the work, downloads finals, and leaves per-asset approve / request-changes feedback that lands straight back in Radix. Links are private-by-token and scoped to your org.',
+    body: 'From the Gallery, hit "Share with client" to get a clean, branded review page. No login needed. Your client browses the work, downloads finals, and leaves per-asset approve / request-changes feedback that lands straight back in AURAAI. Links are private-by-token and scoped to your org.',
   },
   {
     date: '2026-07-06',
@@ -169,7 +169,7 @@ const CHANGELOG: ChangelogEntry[] = [
     date: '2026-06-30',
     tag: 'improved',
     title: 'Copywriting learns from your feedback',
-    body: 'Thumbs-up a variant and Radix remembers your preference per client. Future copy leans toward what you approved. Variants are also more diverse, with a new length control.',
+    body: 'Thumbs-up a variant and AURAAI remembers your preference per client. Future copy leans toward what you approved. Variants are also more diverse, with a new length control.',
   },
 ];
 

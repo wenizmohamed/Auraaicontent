@@ -191,7 +191,7 @@ export async function orgsRoutes(app: FastifyInstance) {
     const orgName = org?.name ?? 'an organization';
     sendEmail({
       to: invite.email,
-      subject: `You're invited to join ${orgName} on Radix`,
+      subject: `You're invited to join ${orgName} on AURAAI`,
       html: inviteEmailHtml({ orgName, inviterName: inviter?.name, role: invite.role, inviteUrl, expiresAt }),
       text: inviteEmailText({ orgName, inviterName: inviter?.name, role: invite.role, inviteUrl, expiresAt }),
     }).catch((e) => console.error('[invite-email] send failed', e));

@@ -118,7 +118,7 @@ export default function MobileMenu({ navGroups, onSearch }: MobileMenuProps) {
         <Link to="/" className="flex items-center gap-2 min-w-0 flex-1">
           <img src="/radix-logo.jpg" alt="" aria-hidden="true" className="w-8 h-8 rounded-lg object-cover ring-1 ring-white/10" />
           <span className="font-display text-sm font-black tracking-[0.22em] uppercase truncate" style={{ color: 'var(--color-fg)' }}>
-            RADIX
+            AURAAI
           </span>
         </Link>
 
@@ -184,7 +184,7 @@ export default function MobileMenu({ navGroups, onSearch }: MobileMenuProps) {
                 <div className="flex items-center gap-3">
                   <img src="/radix-logo.jpg" alt="" aria-hidden="true" className="w-9 h-9 rounded-xl object-cover ring-1 ring-white/10" />
                   <div>
-                    <span className="font-display text-base font-black tracking-[0.3em] uppercase" style={{ color: 'var(--color-fg)' }}>RADIX</span>
+                    <span className="font-display text-base font-black tracking-[0.3em] uppercase" style={{ color: 'var(--color-fg)' }}>AURAAI</span>
                     <div className="text-[9px] font-semibold uppercase tracking-[0.2em]" style={{ color: 'var(--color-accent)' }}>
                       AI Content Planner
                     </div>

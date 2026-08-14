@@ -498,7 +498,7 @@ export async function authRoutes(app: FastifyInstance) {
     // an admin can hand it over — the flow still works without a provider.
     sendEmail({
       to: user.email,
-      subject: 'Reset your Radix password',
+      subject: 'Reset your AURAAI password',
       html: resetEmailHtml({ name: user.name, resetUrl, expiresAt }),
       text: resetEmailText({ name: user.name, resetUrl, expiresAt }),
     }).catch((e) => console.error('[reset-email] send failed', e?.message));

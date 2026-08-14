@@ -58,7 +58,7 @@ export default function ResetPassword() {
             style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>
             <KeyRound size={16} />
           </span>
-          <span className="text-sm font-black tracking-tight" style={{ color: 'var(--color-fg)' }}>RADIX</span>
+          <span className="text-sm font-black tracking-tight" style={{ color: 'var(--color-fg)' }}>AURAAI</span>
         </div>
 
         <div className={`text-xs uppercase tracking-[0.2em] ${sub}`}>Password reset</div>

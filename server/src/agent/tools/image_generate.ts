@@ -51,7 +51,7 @@ function sniffMime(buf: Buffer): 'image/png' | 'image/jpeg' {
 export const tool = defineTool<Args, Result>({
   name: 'image_generate',
   description:
-    'Generate an image via the Radix AI router (xAI / Gemini). ' +
+    'Generate an image via the AURAAI router (xAI / Gemini). ' +
     'Saves to uploads/, creates an Asset row tied to the active client, ' +
     'and emits an agent:artifact event so the UI previews it inline.',
   input_schema: {

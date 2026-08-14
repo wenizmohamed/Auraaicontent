@@ -3,7 +3,7 @@
  *
  * Left rail (max ~520px): branded form card with mode toggle, multi-step
  * transitions between sign-in / sign-up. Right rail (hidden < lg): full-bleed
- * brand panel with Bodoni "Radix" wordmark and a quiet paper-shader texture.
+ * brand panel with Bodoni "AURAAI" wordmark and a quiet paper-shader texture.
  *
  * All form logic preserved from the previous flat layout; only chrome changed.
  */
@@ -117,7 +117,7 @@ export default function Login() {
               <Sparkles size={16} />
             </span>
             <span className="font-display text-[20px] font-bold tracking-tight" style={{ color: 'var(--color-fg)' }}>
-              Radix
+              AURAAI
             </span>
           </div>
 

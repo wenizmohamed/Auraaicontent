@@ -90,9 +90,9 @@ export default function AcceptInvite() {
         {/* Wordmark */}
         <div className="flex items-center gap-2 mb-6">
           <div className="w-9 h-9 rounded-xl overflow-hidden border" style={{ borderColor: 'color-mix(in srgb, var(--color-accent) 40%, transparent)' }}>
-            <img src="./radix-dna.jpg" alt="Radix" className="w-full h-full object-cover" />
+            <img src="./radix-dna.jpg" alt="AURAAI" className="w-full h-full object-cover" />
           </div>
-          <span className="text-sm font-black tracking-tight" style={{ color: 'var(--color-fg)' }}>RADIX</span>
+          <span className="text-sm font-black tracking-tight" style={{ color: 'var(--color-fg)' }}>AURAAI</span>
         </div>
 
         <div className={`text-xs uppercase tracking-[0.2em] ${sub}`}>{t('invite.eyebrow')}</div>

@@ -291,7 +291,7 @@ function WalkthroughSection({ isDark, glass, glassStatic, textPrimary, textSecon
         <button
           onClick={toggle}
           aria-expanded={open}
-          aria-label={open ? 'Collapse Radix walkthrough' : 'Expand Radix walkthrough'}
+          aria-label={open ? 'Collapse AURAAI walkthrough' : 'Expand AURAAI walkthrough'}
           className={`w-full flex items-center justify-between p-6 text-start cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] rounded-2xl ${isDark ? 'hover:bg-white/[0.02]' : 'hover:bg-slate-50'}`}
         >
           <div className="flex items-center gap-3">
@@ -372,7 +372,7 @@ export default function Dashboard() {
   const [activity, setActivity] = useState<ActivityEntry[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState<string | null>(null);
-  // "What's new on Radix AI" — everyone sees the latest product updates.
+  // "What's new on AURAAI" — everyone sees the latest product updates.
   // The NEW badge lights up until the user has seen the newest entry.
   const [changelog, setChangelog] = useState<ChangelogEntry[]>([]);
   const [changelogUnseen, setChangelogUnseen] = useState(false);
@@ -473,7 +473,7 @@ export default function Dashboard() {
               style={{ borderColor: 'var(--color-border-subtle)' }}
             >
               <span className="text-[10px] uppercase tracking-[0.28em]" style={{ color: 'var(--color-fg-subtle)' }}>
-                Radix · Vol. 02 · No. {String(Math.ceil((Date.now() - new Date(new Date().getFullYear(), 0, 1).getTime()) / 86400000)).padStart(3, '0')}
+                AURAAI · Vol. 02 · No. {String(Math.ceil((Date.now() - new Date(new Date().getFullYear(), 0, 1).getTime()) / 86400000)).padStart(3, '0')}
               </span>
               <span className="text-[10px] uppercase tracking-[0.28em] hidden sm:inline" style={{ color: 'var(--color-fg-subtle)' }}>
                 {currentDate}
@@ -512,7 +512,7 @@ export default function Dashboard() {
                       />
                     </svg>
                   </span>{' '}
-                  on Radix.
+                  on AURAAI.
                 </h1>
                 <p
                   className="mt-5 max-w-lg text-[15px] leading-[1.55]"
@@ -870,13 +870,13 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* ─── What's new on Radix AI — product changelog, visible to everyone.
+      {/* ─── What's new on AURAAI — product changelog, visible to everyone.
           Entries ship with each deploy (server/src/routes/changelog.ts). ─── */}
       {changelog.length > 0 && (
         <motion.div {...fadeUp(0.22)} className={`rounded-2xl overflow-hidden ${glassStatic}`}>
           <div className="px-5 pt-4 pb-1 flex items-center gap-2">
             <Sparkles className="w-4 h-4" style={{ color: 'var(--color-accent)' }} />
-            <h2 className={`text-sm font-bold ${textPrimary}`}>What's new on Radix AI</h2>
+            <h2 className={`text-sm font-bold ${textPrimary}`}>What's new on AURAAI</h2>
             {changelogUnseen && (
               <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider"
                 style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>

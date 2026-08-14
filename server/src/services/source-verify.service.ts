@@ -23,7 +23,7 @@ async function checkOne(url: string, timeoutMs: number): Promise<boolean> {
       const res = await fetch(url, {
         method,
         redirect: 'follow',
-        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; RadixBot/1.0)', ...(method === 'GET' ? { Range: 'bytes=0-1024' } : {}) },
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AURAAIBot/1.0)', ...(method === 'GET' ? { Range: 'bytes=0-1024' } : {}) },
         signal: AbortSignal.timeout(timeoutMs),
       });
       return res.status;

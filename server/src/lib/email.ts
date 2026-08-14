@@ -8,7 +8,7 @@
 //   2. Verify a sender domain (e.g. radixmedia.ae)
 //   3. Add to /opt/radix-v2/server/.env:
 //        RESEND_API_KEY=re_xxx
-//        EMAIL_FROM="Radix <invites@radixmedia.ae>"
+//        EMAIL_FROM="AURAAI <invites@radixmedia.ae>"
 //   4. pm2 restart radix-api
 
 export interface SendEmailArgs {
@@ -24,7 +24,7 @@ export interface SendEmailResult {
   detail?: string;
 }
 
-const FROM_DEFAULT = 'Radix <onboarding@resend.dev>';
+const FROM_DEFAULT = 'AURAAI <onboarding@resend.dev>';
 
 // ─── Microsoft Graph (Microsoft 365) sender ──────────────────────────────
 // Modern app-only sending via OAuth2 client-credentials → Graph /sendMail.
@@ -172,7 +172,7 @@ export function inviteEmailHtml(opts: {
 <html><body style="margin:0;padding:24px;background:#f7f7f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#0f172a;">
   <div style="max-width:520px;margin:0 auto;background:#ffffff;border-radius:16px;padding:32px;border:1px solid #e2e8f0;">
     <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#64748b;">You've been invited</div>
-    <h1 style="margin:8px 0 16px;font-size:22px;color:#0f172a;">Join ${escapeHtml(opts.orgName)} on Radix</h1>
+    <h1 style="margin:8px 0 16px;font-size:22px;color:#0f172a;">Join ${escapeHtml(opts.orgName)} on AURAAI</h1>
     <p style="margin:0 0 20px;color:#475569;font-size:14px;line-height:1.5;">
       ${opts.inviterName ? `${escapeHtml(opts.inviterName)} invited you ` : 'You were invited '}
       to join <strong>${escapeHtml(opts.orgName)}</strong> as <strong>${escapeHtml(opts.role)}</strong>.
@@ -194,7 +194,7 @@ export function inviteEmailText(opts: {
   expiresAt: Date;
 }): string {
   const inviter = opts.inviterName ? `${opts.inviterName} invited you` : 'You were invited';
-  return `${inviter} to join ${opts.orgName} on Radix as ${opts.role}.
+  return `${inviter} to join ${opts.orgName} on AURAAI as ${opts.role}.
 
 Accept: ${opts.inviteUrl}
 
@@ -207,7 +207,7 @@ export function resetEmailHtml(opts: { name?: string; resetUrl: string; expiresA
 <html><body style="margin:0;padding:24px;background:#f7f7f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#0f172a;">
   <div style="max-width:520px;margin:0 auto;background:#ffffff;border-radius:16px;padding:32px;border:1px solid #e2e8f0;">
     <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#64748b;">Password reset</div>
-    <h1 style="margin:8px 0 16px;font-size:22px;color:#0f172a;">Reset your Radix password</h1>
+    <h1 style="margin:8px 0 16px;font-size:22px;color:#0f172a;">Reset your AURAAI password</h1>
     <p style="margin:0 0 20px;color:#475569;font-size:14px;line-height:1.5;">
       ${opts.name ? `Hi ${escapeHtml(opts.name)}, ` : ''}we got a request to reset your password.
       Click the button below to choose a new one. If you didn't request this, you can safely ignore this email.
@@ -222,7 +222,7 @@ export function resetEmailHtml(opts: { name?: string; resetUrl: string; expiresA
 }
 
 export function resetEmailText(opts: { name?: string; resetUrl: string; expiresAt: Date }): string {
-  return `${opts.name ? `Hi ${opts.name}, ` : ''}we got a request to reset your Radix password.
+  return `${opts.name ? `Hi ${opts.name}, ` : ''}we got a request to reset your AURAAI password.
 
 Reset it here: ${opts.resetUrl}
 

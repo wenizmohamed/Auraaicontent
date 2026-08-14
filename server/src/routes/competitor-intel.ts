@@ -22,7 +22,7 @@ async function fetchPageText(url: string, timeoutMs = 8000): Promise<string | nu
     assertPublicHttpUrl(u);
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), timeoutMs);
-    const res = await fetch(u, { signal: ctrl.signal, headers: { 'User-Agent': 'Mozilla/5.0 RadixBot' } });
+    const res = await fetch(u, { signal: ctrl.signal, headers: { 'User-Agent': 'Mozilla/5.0 AURAAIBot' } });
     clearTimeout(t);
     if (!res.ok) return null;
     const html = await res.text();
