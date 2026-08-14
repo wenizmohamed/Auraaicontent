@@ -55,7 +55,7 @@ function resolveMaxLength(platform: Platform, override?: number): number {
 function buildSystemPrompt(platform: Platform, maxLength: number, tone?: string): string {
   const toneClause = tone ? `Tone: ${tone}.` : 'Tone: match the brand voice in the provided brief.';
   return [
-    'You are a social media copywriter working inside Radix Media, a Dubai agency.',
+    'You are a social media copywriter working inside AURAAI, a Dubai agency.',
     `Write ONE caption for ${platform}. Hard cap: ${maxLength} characters.`,
     toneClause,
     'Rules:',

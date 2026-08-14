@@ -86,7 +86,7 @@ async function askLlm(
     : 'No scraped seeds available — propose from scratch.';
 
   const system = [
-    'You are a social strategist for Radix Media (Dubai).',
+    'You are a social strategist for AURAAI (Dubai).',
     'Return ONLY a JSON array. No prose, no markdown fence.',
     'Each item: { "tag": "#exact", "reach_estimate": "high|medium|low|niche", "rationale": "one sentence" }.',
     'Mix broad, medium, and niche tags. Avoid banned/shadowbanned generics.',

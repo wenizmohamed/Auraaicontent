@@ -49,7 +49,7 @@ interface BriefConstraints {
 
 function buildSystemPrompt(constraints: BriefConstraints): string {
   const parts: string[] = [
-    'You are a compliance auditor for Radix Media client content (Dubai market).',
+    'You are a compliance auditor for AURAAI client content (Dubai market).',
     'Evaluate the submitted text against the rules below.',
     'Return ONLY a JSON object — no prose, no markdown fence.',
     'Shape: { "issues": [ { "severity": "high"|"med"|"low", "quote": "...", "rule_violated": "...", "suggestion": "..." } ] }',

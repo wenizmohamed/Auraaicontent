@@ -229,6 +229,23 @@ export async function orgsRoutes(app: FastifyInstance) {
     return { success: true };
   });
 
+  // PATCH /api/orgs/:orgId — rename the workspace. OWNER/ADMIN only
+  // (assertOrgPrivilege checks membership in THIS org + privilege).
+  // Added 2026-08-14 for the AURAAI rebrand: the org display name renders in
+  // the switcher/topbar and there was no sanctioned way to change it.
+  app.patch('/:orgId', { preHandler: [authGuard] }, async (request, reply) => {
+    const { orgId } = request.params as { orgId: string };
+    const { name } = (request.body ?? {}) as { name?: string };
+    const caller = await assertOrgPrivilege(request, reply, orgId);
+    if (!caller) return;
+    const trimmed = (name ?? '').trim();
+    if (!trimmed || trimmed.length > 80) {
+      return reply.status(400).send({ error: 'Name must be 1-80 characters.' });
+    }
+    const org = await db.organization.update({ where: { id: orgId }, data: { name: trimmed } });
+    return { id: org.id, name: org.name };
+  });
+
   // PATCH /api/orgs/:orgId/members/:userId — change a member's role.
   // Same guards as remove-member: caller must be team-admin AND OWNER/ADMIN
   // of the org; ADMIN cannot promote anyone to OWNER or demote an OWNER;

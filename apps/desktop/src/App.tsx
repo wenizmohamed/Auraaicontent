@@ -407,10 +407,10 @@ function Layout({ children }: { children: React.ReactNode }) {
         {/* Logo */}
         <div className={`h-[72px] flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-5'} border-b ${isDark ? 'border-white/[0.06]' : 'border-slate-200/60'}`}>
           {isCollapsed ? (
-            <img src="/radix-logo.jpg" alt="AURAAI" className="w-9 h-9 rounded-xl object-cover ring-1 ring-white/10" />
+            <img src="/radix-logo.jpg?v=2" alt="AURAAI" className="w-9 h-9 rounded-xl object-cover ring-1 ring-white/10" />
           ) : (
             <div className="flex items-center gap-3">
-              <img src="/radix-logo.jpg" alt="AURAAI" className="w-10 h-10 rounded-xl object-cover ring-1 ring-white/10" />
+              <img src="/radix-logo.jpg?v=2" alt="AURAAI" className="w-10 h-10 rounded-xl object-cover ring-1 ring-white/10" />
               <div>
                 <span className={`text-lg font-black tracking-[0.3em] uppercase ${isDark ? 'text-white' : 'text-slate-900'}`}>
                   AURAAI

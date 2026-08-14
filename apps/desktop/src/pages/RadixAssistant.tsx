@@ -676,8 +676,8 @@ export default function RadixAssistant() {
         transition={motionUI}
         style={{ zIndex: Z.widget, background: 'linear-gradient(135deg, var(--color-accent-hover), var(--color-accent))' }}
         className="fixed bottom-6 right-6 w-14 h-14 rounded-full shadow-2xl cursor-pointer overflow-hidden grid place-items-center"
-        title={open ? 'Close assistant' : 'Open Radix Assistant'}
-        aria-label={open ? 'Close assistant' : 'Open Radix Assistant'}
+        title={open ? 'Close assistant' : 'Open AURAAI Assistant'}
+        aria-label={open ? 'Close assistant' : 'Open AURAAI Assistant'}
         aria-expanded={open}
       >
         <motion.span
