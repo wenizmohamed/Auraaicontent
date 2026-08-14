@@ -12,9 +12,20 @@ import {
 } from '../src/lib/ai-pricing';
 
 describe('metering: text models (token math)', () => {
-  it('gemini-flash-latest: 200k prompt + 400k completion = $1.06', () => {
-    // 200,000 / 1M * 0.30 = 0.06 ; 400,000 / 1M * 2.50 = 1.00 ; total 1.06
-    expect(computeCostUsd('gemini-flash-latest', 200_000, 400_000)).toBeCloseTo(1.06, 6);
+  it('gemini-flash-latest: 200k prompt + 400k completion = $1.65', () => {
+    // 3.7-flash promo card (2026-08-14):
+    // 200,000 / 1M * 0.75 = 0.15 ; 400,000 / 1M * 3.75 = 1.50 ; total 1.65
+    expect(computeCostUsd('gemini-flash-latest', 200_000, 400_000)).toBeCloseTo(1.65, 6);
+  });
+
+  it('grok-4.6: 100k prompt + 50k completion = $0.50', () => {
+    // 100,000 / 1M * 2.00 = 0.20 ; 50,000 / 1M * 6.00 = 0.30 ; total 0.50
+    expect(computeCostUsd('grok-4.6', 100_000, 50_000)).toBeCloseTo(0.5, 6);
+  });
+
+  it('qwen3.8-max: 1M prompt + 1M completion = $8.00', () => {
+    // 1M / 1M * 2.00 = 2.00 ; 1M / 1M * 6.00 = 6.00 ; total 8.00
+    expect(computeCostUsd('qwen3.8-max', 1_000_000, 1_000_000)).toBeCloseTo(8.0, 6);
   });
 
   it('gemini-3.1-pro-preview: 500k prompt + 250k completion = $4.00', () => {
@@ -103,6 +114,11 @@ describe('metering: video per-second pricing', () => {
     // Hand math for the constant's documented current value: 0.20/s * 8s = 1.60.
     expect(DEFAULT_VIDEO_DURATION_S).toBe(8);
     expect(noDuration).toBeCloseTo(1.60, 6);
+  });
+
+  it('grok-imagine-video-1.5 with 8s duration = $0.64', () => {
+    // Repriced 2026-08-14 to the xAI card: 0.08/s * 8s = 0.64 (was 0.05/s).
+    expect(computeCostUsd('grok-imagine-video-1.5', 0, 0, 1, 8)).toBeCloseTo(0.64, 6);
   });
 });
 

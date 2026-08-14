@@ -161,7 +161,7 @@ function clientFor(p: ProviderName, geminiModelOverride?: string): ProviderClien
       cached = new OpenAI({ apiKey: key, baseURL: DASHSCOPE_BASE });
       cache.set(p, cached);
     }
-    return { client: cached, model: process.env.DASHSCOPE_TEXT_MODEL || 'qwen3.7-max', provider: p };
+    return { client: cached, model: process.env.DASHSCOPE_TEXT_MODEL || 'qwen3.8-max', provider: p };
   }
   // moonshot
   const key = process.env.MOONSHOT_API_KEY;
@@ -401,8 +401,8 @@ export function chainStatus(chain: ProviderName[] = DEFAULT_CHAIN): Array<{ prov
       : p === 'dashscope' ? 'DASHSCOPE_API_KEY'
       : 'MOONSHOT_API_KEY';
     const modelEnv = p === 'gemini' ? (process.env.GEMINI_CHAT_MODEL || 'gemini-3.1-pro-preview')
-      : p === 'xai' ? (process.env.XAI_TEXT_MODEL || 'grok-4.20')
-      : p === 'dashscope' ? (process.env.DASHSCOPE_TEXT_MODEL || 'qwen3.7-max')
+      : p === 'xai' ? (process.env.XAI_TEXT_MODEL || 'grok-4.6')
+      : p === 'dashscope' ? (process.env.DASHSCOPE_TEXT_MODEL || 'qwen3.8-max')
       : (process.env.MOONSHOT_MODEL || 'kimi-k2.6');
     return { provider: p, configured: !!process.env[envKey], model: modelEnv };
   });

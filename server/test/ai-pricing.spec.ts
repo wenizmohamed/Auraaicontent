@@ -29,16 +29,27 @@ const REQUIRED_MODELS = [
   'gemini-pro-latest',
   'gemini-flash-latest',
   'gemini-flash-lite-latest',
+  // 2026-08-14 refresh: current prod .env models — must stay priced forever
+  'gemini-3.7-flash',
+  'gemini-3.1-flash-image',
+  'gemini-3-pro-image',
   // xAI
   'grok-4.20',
+  'grok-4.5',
+  'grok-4.6',
   'grok-imagine-image',
+  'grok-imagine-image-2.0',
   'grok-imagine-video',
+  'grok-imagine-video-1.5',
   // Moonshot Kimi
   'kimi-k2.6',
   // DashScope (provider defaults)
   'qwen3.7-max',
+  'qwen3.8-max',
+  'qwen3.7-plus',
   'qwen3.6-plus',
   'qwen-image-2.0-pro',
+  'qwen-image-3.0-pro',
   'wan2.7-image-pro',
   // Anthropic assistant (chat.ts CLAUDE_ASSISTANT_MODEL)
   'claude-sonnet-4-20250514',

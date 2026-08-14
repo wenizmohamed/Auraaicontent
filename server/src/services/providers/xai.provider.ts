@@ -110,7 +110,7 @@ export const xaiProvider: AiProvider = {
   name: 'xai',
 
   async text(req: TextRequest): Promise<ProviderResult<string | object>> {
-    const model = process.env.XAI_TEXT_MODEL || 'grok-4.20';
+    const model = process.env.XAI_TEXT_MODEL || 'grok-4.6';
     const start = Date.now();
     // 8192 covers month-strategy JSON (~6KB typical) without tripping the
     // model's default cap that was truncating responses mid-string and
@@ -145,7 +145,7 @@ export const xaiProvider: AiProvider = {
   },
 
   async image(req: ImageRequest): Promise<ProviderResult<{ url?: string; base64?: string }>> {
-    const model = process.env.XAI_IMAGE_MODEL || 'grok-imagine-image';
+    const model = process.env.XAI_IMAGE_MODEL || 'grok-imagine-image-2.0';
     const start = Date.now();
     // aspect_ratio: xAI enum verified live 2026-07-02 —
     // 1:1, 3:4, 4:3, 9:16, 16:9, 2:3, 3:2, 9:19.5, 19.5:9. Map the nano-only
@@ -174,7 +174,7 @@ export const xaiProvider: AiProvider = {
   },
 
   async imageEdit(req: ImageRequest): Promise<ProviderResult<{ url?: string; base64?: string }>> {
-    const model = process.env.XAI_IMAGE_MODEL || 'grok-imagine-image';
+    const model = process.env.XAI_IMAGE_MODEL || 'grok-imagine-image-2.0';
     const start = Date.now();
     const data = await xaiFetch('/images/edits', {
       model, prompt: req.prompt,
@@ -190,14 +190,14 @@ export const xaiProvider: AiProvider = {
   },
 
   async video(req: VideoRequest): Promise<ProviderResult<{ url: string }>> {
-    // Model ladder: grok-imagine-video → fast variant if quota tight.
+    // Model ladder: grok-imagine-video-1.5 primary (newest, i2v-capable,
+    // $0.08/s), base grok-imagine-video as the cheaper t2v-only fallback.
     // Override via XAI_VIDEO_LADDER (colon-sep).
-    // Ladder matches xAI's LIVE /v1/models (checked 2026-07-03):
-    // grok-imagine-video + grok-imagine-video-1.5 exist; '-fast' and '-2'
-    // were removed upstream and 404'd on every draft call.
+    // Ladder matches xAI's LIVE /v1/video-generation-models (checked
+    // 2026-08-14): only base + 1.5 exist; '-fast' and '-2' stay removed.
     const ladder = readLadder('XAI_VIDEO_LADDER', [
-      process.env.XAI_VIDEO_MODEL || 'grok-imagine-video',
-      'grok-imagine-video-1.5',
+      process.env.XAI_VIDEO_MODEL || 'grok-imagine-video-1.5',
+      'grok-imagine-video',
     ]);
     // Honor req.fast (drafts): pull grok-imagine-video-fast ($0.03/s) ahead of
     // the standard model so the cheap/fast variant runs first. Keeps the rest of

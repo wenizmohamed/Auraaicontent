@@ -193,7 +193,7 @@ export async function buildApp() {
         },
         grok: {
           configured: !!process.env.XAI_API_KEY,
-          model: process.env.XAI_TEXT_MODEL || 'grok-4.20',
+          model: process.env.XAI_TEXT_MODEL || 'grok-4.6',
           baseURL: process.env.XAI_BASE_URL || 'https://api.x.ai/v1',
           role: 'fallback (text + image + video)',
           rank: 2,
@@ -201,8 +201,8 @@ export async function buildApp() {
         kimi: { ...kimiStatus(), role: 'tertiary. Long-context (text only)', rank: 3 },
         dashscope: {
           configured: !!process.env.DASHSCOPE_API_KEY,
-          textModel: process.env.DASHSCOPE_TEXT_MODEL || 'qwen3.7-max',
-          imageModel: process.env.DASHSCOPE_IMAGE_MODEL || 'qwen-image-2.0-pro',
+          textModel: process.env.DASHSCOPE_TEXT_MODEL || 'qwen3.8-max',
+          imageModel: process.env.DASHSCOPE_IMAGE_MODEL || 'qwen-image-3.0-pro',
           baseURL: process.env.DASHSCOPE_BASE_URL || 'https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1',
           role: 'fallback (text + image). Qwen/DeepSeek/GLM/MiniMax/Kimi + Qwen/Wan image; no video',
           rank: 4,

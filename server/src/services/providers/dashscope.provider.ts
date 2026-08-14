@@ -2,11 +2,12 @@
 //
 // Verified live 2026-06-04 against the plan's exclusive base URLs:
 //   - TEXT  : OpenAI-compatible  {BASE}/chat/completions   (BASE includes /compatible-mode/v1)
-//             models: qwen3.7-max, qwen3.6-plus/flash, deepseek-v4-pro/flash/v3.2,
-//                     glm-5.1/glm-5, MiniMax-M2.5, kimi-k2.6/k2.5
+//             models: qwen3.8-max, qwen3.7-max/plus, qwen3.6-plus/flash,
+//                     deepseek-v4-pro/flash/v3.2, glm-5.1/glm-5, MiniMax-M2.5,
+//                     kimi-k2.6/k2.5 (qwen3.8-max verified on this base 2026-08-14)
 //   - IMAGE : native multimodal-generation (sync, returns an OSS image URL)
 //             {HOST}/api/v1/services/aigc/multimodal-generation/generation
-//             models: qwen-image-2.0(-pro), wan2.7-image(-pro)
+//             models: qwen-image-3.0(-pro), qwen-image-2.0(-pro), wan2.7-image(-pro)
 //   - VIDEO : LIVE since 2026-07-03 on the ws-5idw8yndpkd149fa workspace key —
 //             Wan 2.7 t2v via native video-synthesis (async task + poll). Text→
 //             video only; image-conditioned throws 503 so Veo keeps those.
@@ -28,8 +29,8 @@ const BASE_URL = process.env.DASHSCOPE_BASE_URL
 const NATIVE_URL = process.env.DASHSCOPE_NATIVE_URL
   || `${BASE_URL.replace(/\/compatible-mode\/v1\/?$/, '')}/api/v1/services/aigc/multimodal-generation/generation`;
 
-const TEXT_MODEL = process.env.DASHSCOPE_TEXT_MODEL || 'qwen3.7-max';
-const IMAGE_MODEL = process.env.DASHSCOPE_IMAGE_MODEL || 'qwen-image-2.0-pro';
+const TEXT_MODEL = process.env.DASHSCOPE_TEXT_MODEL || 'qwen3.8-max';
+const IMAGE_MODEL = process.env.DASHSCOPE_IMAGE_MODEL || 'qwen-image-3.0-pro';
 const TIMEOUT_MS = parseInt(process.env.DASHSCOPE_TIMEOUT_MS || '120000', 10);
 
 let _client: OpenAI | null = null;
@@ -144,7 +145,7 @@ async function generateImage(req: ImageRequest, model: string): Promise<Provider
 // path routed to text-only chat() and dropped the image → hallucinations.
 async function analyze(req: AnalysisRequest): Promise<ProviderResult<object>> {
   const client = getClient();
-  const model = process.env.DASHSCOPE_VISION_MODEL || 'qwen3.6-plus';
+  const model = process.env.DASHSCOPE_VISION_MODEL || 'qwen3.7-plus';
   const start = Date.now();
   const r = await client.chat.completions.create({
     model,

@@ -38,7 +38,13 @@ export const AI_PRICING: Record<string, PricePoint> = {
   // priced per IMAGE not per-token in disguise). Effective ~$0.045/img
   // at low-res, $0.151/img at high-res; perCall set to a 1024px midpoint.
   'gemini-3.1-flash-image-preview':    { promptPerM: 0.50, completionPerM: 60.00, perCall: 0.10 },
-  'nano-banana-pro-preview':           { promptPerM: 0.50, completionPerM: 120.00, perCall: 0.15 },  // newest premium image (approx — refine w/ real card)
+  // gemini-3.1-flash-image: GA of the preview above, same card ($0.50 in /
+  // $60 image-out per M ≈ $0.067 per 1K image). Verified live 2026-08-14.
+  'gemini-3.1-flash-image':            { promptPerM: 0.50, completionPerM: 60.00, perCall: 0.10 },
+  // nano-banana-pro = gemini-3-pro-image family: $2.00 in / $120 image-out
+  // per M ≈ $0.134 per 1K/2K image, $0.24 at 4K (Google card 2026-08-14).
+  'nano-banana-pro-preview':           { promptPerM: 2.00, completionPerM: 120.00, perCall: 0.15 },
+  'gemini-3-pro-image':                { promptPerM: 2.00, completionPerM: 120.00, perCall: 0.14 },  // GA premium image (ultra tier)
   // imagen-4.0-ultra: $0.06/image (unchanged).
   'imagen-4.0-ultra-generate-001':     { promptPerM: 0,    completionPerM: 0,    perCall: 0.06 },
   // veo-3.1-generate-preview: $0.40 (720p) – $0.60 (4k) per SECOND of video.
@@ -72,8 +78,13 @@ export const AI_PRICING: Record<string, PricePoint> = {
   // These are the rolling pointers Google exposes; without them every text/
   // analysis/chat call was costed at $0. Mapped to their versioned price.
   'gemini-pro-latest':                 { promptPerM: 2.00, completionPerM: 12.00 }, // = 3.1 Pro
-  'gemini-flash-latest':               { promptPerM: 0.30, completionPerM: 2.50 },  // 3.1 Flash (approx)
-  'gemini-3.5-flash':                  { promptPerM: 0.30, completionPerM: 2.50 },  // newest flash (2026-05), = flash-latest tier
+  // gemini-3.7-flash: $0.75/$3.75 promo through 2026-12-31, then $1.50/$7.50
+  // (Google pricing page, verified 2026-08-14). Bump these two on 2027-01-01.
+  'gemini-3.7-flash':                  { promptPerM: 0.75, completionPerM: 3.75 },
+  'gemini-flash-latest':               { promptPerM: 0.75, completionPerM: 3.75 },  // rolling alias = newest stable flash (3.7)
+  // gemini-3.5-flash: real card is $1.50/$9.00 — the $0.30/$2.50 recorded
+  // here until 2026-08-14 was the OLD 2.5-flash tier (under-recorded ~5x).
+  'gemini-3.5-flash':                  { promptPerM: 1.50, completionPerM: 9.00 },
   'gemini-flash-lite-latest':          { promptPerM: 0.25, completionPerM: 1.50 },  // = flash-lite
   'gemini-2.5-flash':                  { promptPerM: 0.15, completionPerM: 0.60 },  // legacy flash
   'gemini-2.0-flash':                  { promptPerM: 0.10, completionPerM: 0.40 },  // text ladder floor rung — was UNPRICED ($0 leak)
@@ -91,13 +102,17 @@ export const AI_PRICING: Record<string, PricePoint> = {
   // ─── xAI Grok ───────────────────────────────────────────────────
   // grok-4.20 was $5/$15 a few months ago; xAI cut it sharply in 2026.
   'grok-4.20':                         { promptPerM: 1.25, completionPerM: 2.50 },
-  'grok-4.5':                          { promptPerM: 2.00, completionPerM: 10.00 },  // newest grok flagship (approx — refine w/ real card)
+  // grok-4.5 / 4.6: $2.00/$6.00 (≤200k) per xAI's live /v1/language-models,
+  // 2026-08-14. 4.5 completion was wrongly $10 here (over-recorded 67%).
+  'grok-4.5':                          { promptPerM: 2.00, completionPerM: 6.00 },
+  'grok-4.6':                          { promptPerM: 2.00, completionPerM: 6.00 },  // newest grok flagship
   // grok-imagine image: $0.02 per generated image (was $0.07).
   'grok-imagine-image':                { promptPerM: 0,    completionPerM: 0,    perCall: 0.02 },
-  'grok-imagine-image-quality':        { promptPerM: 0,    completionPerM: 0,    perCall: 0.03 },  // newest quality-tier image
+  'grok-imagine-image-quality':        { promptPerM: 0,    completionPerM: 0,    perCall: 0.05 },  // $0.05 per live xAI API 2026-08-14 (was mis-recorded 0.03)
+  'grok-imagine-image-2.0':            { promptPerM: 0,    completionPerM: 0,    perCall: 0.04 },  // newest image gen, $0.04/img (docs + API standard tier)
   // grok-imagine video: $0.05 per SECOND of clip (was modeled as flat per-call).
   'grok-imagine-video':                { promptPerM: 0,    completionPerM: 0,    perSecond: 0.05 },
-  'grok-imagine-video-1.5':            { promptPerM: 0,    completionPerM: 0,    perSecond: 0.05 },  // video ladder r2 — was UNPRICED ($0 leak)
+  'grok-imagine-video-1.5':            { promptPerM: 0,    completionPerM: 0,    perSecond: 0.08 },  // $0.08/s per xAI docs 2026-08-14 (was mis-recorded 0.05)
   'grok-imagine-video-fast':           { promptPerM: 0,    completionPerM: 0,    perSecond: 0.03 },
 
   // ─── Moonshot Kimi ──────────────────────────────────────────────
@@ -112,6 +127,9 @@ export const AI_PRICING: Record<string, PricePoint> = {
   // plan bills a fixed quota of "units", so these are for the cost meter
   // only). Text via OpenAI-compatible; image is per generated image.
   'qwen3.7-max':                       { promptPerM: 1.60, completionPerM: 6.40 },
+  // qwen3.8-max: $2.00/$6.00 intl (multiple published sources, 2026-08-14).
+  'qwen3.8-max':                       { promptPerM: 2.00, completionPerM: 6.00 },
+  'qwen3.7-plus':                      { promptPerM: 0.40, completionPerM: 1.60 },  // vision-capable plus tier (intl card 2026-08-14)
   'qwen3.6-plus':                      { promptPerM: 0.40, completionPerM: 1.20 },
   'qwen3.6-flash':                     { promptPerM: 0.05, completionPerM: 0.40 },
   'deepseek-v4-pro':                   { promptPerM: 0.55, completionPerM: 2.20 },
@@ -124,6 +142,9 @@ export const AI_PRICING: Record<string, PricePoint> = {
   // Image models (per generated image).
   'qwen-image-2.0':                    { promptPerM: 0, completionPerM: 0, perCall: 0.025 },
   'qwen-image-2.0-pro':                { promptPerM: 0, completionPerM: 0, perCall: 0.05 },
+  // qwen-image-3.0-pro: $0.036 per 1K image / $0.071 at 2K (Alibaba card
+  // 2026-08-14); flat midpoint since DashScope usage doesn't report the tier.
+  'qwen-image-3.0-pro':                { promptPerM: 0, completionPerM: 0, perCall: 0.05 },
   'wan2.7-image':                      { promptPerM: 0, completionPerM: 0, perCall: 0.025 },
   'wan2.7-image-pro':                  { promptPerM: 0, completionPerM: 0, perCall: 0.05 },
 };
