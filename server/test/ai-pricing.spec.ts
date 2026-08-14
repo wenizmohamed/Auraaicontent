@@ -43,6 +43,7 @@ const REQUIRED_MODELS = [
   'grok-imagine-video-1.5',
   // Moonshot Kimi
   'kimi-k2.6',
+  'k3',
   // DashScope (provider defaults)
   'qwen3.7-max',
   'qwen3.8-max',

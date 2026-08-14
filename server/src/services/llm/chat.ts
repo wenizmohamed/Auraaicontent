@@ -176,10 +176,11 @@ function clientFor(p: ProviderName, geminiModelOverride?: string): ProviderClien
 // Default chain — Gemini PRIMARY (Radix company-card key), Grok fallback,
 // Kimi tertiary.  Override per-call when a feature has a different routing
 // preference (e.g. agent orchestrator wants the model named in AGENT_MODEL).
-// moonshot/kimi dropped 2026-07-21 — the key returns 401 access_terminated
-// (quota terminated), so it was a dead tertiary that only added a failing hop.
-// Restore it here (or via chat env override) once Kimi billing is renewed.
-export const DEFAULT_CHAIN: ProviderName[] = ['gemini', 'xai', 'dashscope'];
+// moonshot/kimi restored 2026-08-14 — fresh Kimi plan key on the
+// api.kimi.com/coding/v1 base (MOONSHOT_BASE_URL), model k3 (1M context).
+// It had been dropped 2026-07-21 when the old key 401'd access_terminated.
+// Final rung: only reached when gemini + xai + dashscope all fail.
+export const DEFAULT_CHAIN: ProviderName[] = ['gemini', 'xai', 'dashscope', 'moonshot'];
 
 function resolveChain(env: string | undefined, fallbackChain: ProviderName[] = DEFAULT_CHAIN): ProviderName[] {
   if (!env) return fallbackChain;

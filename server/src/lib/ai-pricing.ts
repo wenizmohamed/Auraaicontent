@@ -121,6 +121,10 @@ export const AI_PRICING: Record<string, PricePoint> = {
   // so cost reports never under-attribute. If cache-aware accounting is
   // added later, swap to a weighted average.
   'kimi-k2.6':                         { promptPerM: 0.95, completionPerM: 4.00 },
+  // k3 (1M ctx): public API card $3/$15 (2026-08-14). Our key is a flat-rate
+  // Kimi plan, so this is the shadow-price of the equivalent public API —
+  // keeps k3 usage visible in cost reports instead of logging $0.
+  'k3':                                { promptPerM: 3.00, completionPerM: 15.00 },
 
   // ─── DashScope (Alibaba Model Studio "Token Plan") ──────────────
   // APPROXIMATE intl per-M rates (verify vs the plan's unit billing — the

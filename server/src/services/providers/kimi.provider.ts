@@ -60,11 +60,11 @@ export async function callKimi(
   return text;
 }
 
-// Long-context variant — use `moonshot-v1-128k` (or `-256k` if configured) for
-// brand-history synthesis tasks where Grok would need multi-round chunking.
+// Long-context variant — k3 carries 1M context natively on the kimi.com
+// base (the old moonshot-v1-128k id died with the api.moonshot.ai key).
 // Perfect for: full calendar history + brief + competitor scrape in one call,
 // or long KB documents that don't fit in Gemini 3's 1M with reasoning room.
-const LONG_MODEL = process.env.MOONSHOT_LONG_MODEL || 'moonshot-v1-128k';
+const LONG_MODEL = process.env.MOONSHOT_LONG_MODEL || 'k3';
 
 export async function callKimiLong(
   system: string,
