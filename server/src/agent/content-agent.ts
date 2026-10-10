@@ -4,7 +4,7 @@
 
 import { db as prisma } from '../db/prisma.js';
 import { emitAndPersist } from '../realtime/io.js';
-import { runAgentLoop, type RunAgentResult } from './loop.js';
+import { runAgentLoop, type RunAgentResult, type AgentHistoryTurn } from './loop.js';
 import type { ToolContext } from './tool-types.js';
 import type { AgentEventType, AgentEventPayloads } from '../realtime/events.js';
 
@@ -21,10 +21,56 @@ export interface RunContentAgentArgs {
   /** Active organization for tenant-scoped writes. Required for new sessions;
    *  existing-session runs inherit their existing orgId. */
   orgId: string;
+  /** Earlier turns of the conversation as the user saw them (chat and agent
+   *  turns alike), oldest first. Untrusted client input: sanitized below. */
+  history?: unknown;
+}
+
+// Conversation carry-over limits. Enough for a real back-and-forth, small
+// enough that a long chat cannot crowd out the tool budget.
+const HISTORY_MAX_TURNS = 16;
+const HISTORY_MAX_CHARS_PER_TURN = 6000;
+
+function sanitizeHistory(raw: unknown): AgentHistoryTurn[] {
+  if (!Array.isArray(raw)) return [];
+  const turns: AgentHistoryTurn[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const role = (item as { role?: unknown }).role;
+    const content = (item as { content?: unknown }).content;
+    if ((role !== 'user' && role !== 'assistant') || typeof content !== 'string') continue;
+    const text = content.trim();
+    if (!text) continue;
+    turns.push({ role, content: text.slice(0, HISTORY_MAX_CHARS_PER_TURN) });
+  }
+  return turns.slice(-HISTORY_MAX_TURNS);
 }
 
 export async function runContentAgent(args: RunContentAgentArgs): Promise<RunAgentResult> {
   const { sessionUid, input, clientId, userId, orgId } = args;
+
+  // Conversation memory. The widget sends what the user has on screen; when it
+  // sends nothing (HTTP callers, older builds) fall back to the turns already
+  // stored for this session, read BEFORE the new user message is written.
+  let history = sanitizeHistory(args.history);
+  if (history.length === 0) {
+    const prior = await prisma.agentMessage.findMany({
+      where: { orgId, session: { uid: sessionUid, orgId } },
+      orderBy: { createdAt: 'desc' },
+      take: HISTORY_MAX_TURNS,
+      select: { role: true, content: true },
+    });
+    history = sanitizeHistory(prior.reverse());
+  }
+
+  let clientName: string | null = null;
+  if (clientId) {
+    const c = await prisma.client.findUnique({ where: { id: clientId, orgId }, select: { name: true } });
+    // A client id from another org (or a deleted client) must not ride into the
+    // session row or the prompt.
+    if (!c) throw new Error('Client not found');
+    clientName = c.name;
+  }
 
   // Cancel any prior run on the same session
   const prior = activeRuns.get(sessionUid);
@@ -84,7 +130,7 @@ export async function runContentAgent(args: RunContentAgentArgs): Promise<RunAge
   };
 
   try {
-    const result = await runAgentLoop({ input, ctx });
+    const result = await runAgentLoop({ input, ctx, history, clientName });
 
     // Persist final assistant message — content may be string or null (when
     // the assistant only emitted tool_calls). Coerce null/array to string.

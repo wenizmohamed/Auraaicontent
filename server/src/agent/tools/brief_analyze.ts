@@ -1,7 +1,9 @@
 import { defineTool } from '../tool-types.js';
+import { briefService } from '../../services/brief.service.js';
 
 interface Args {
   clientId: string;
+  month?: string;
   overrideBrief?: string;
 }
 
@@ -51,6 +53,7 @@ export const tool = defineTool<Args, Result>({
     type: 'object',
     properties: {
       clientId: { type: 'string', description: 'Client UUID' },
+      month: { type: 'string', description: 'YYYY-MM. Loads that month\'s brief when one exists, else the client default brief' },
       overrideBrief: { type: 'string', description: 'Optional objective override' },
     },
     required: ['clientId'],
@@ -74,9 +77,13 @@ export const tool = defineTool<Args, Result>({
 
     assertNotAborted(ctx.signal);
 
-    const briefRow = (client as any).briefs?.[0] ?? null;
+    // Month-aware: the month's own brief when present, else the default brief,
+    // else the most recent one (same resolution the rest of the app uses).
+    const briefRow: any = await briefService.getByClientId(ctx.orgId, client.id, args.month);
     if (!briefRow) {
-      throw new Error(`Client ${client.name} has no ClientBrief row`);
+      throw new Error(
+        `${client.name} has no saved brief yet. If the user asked for a brief, write one from their request and the client's knowledge and save it with brief_save. Otherwise ask the user for the objective, audience and tone. Do not switch to another client.`,
+      );
     }
 
     const knowledgeItemCount = client.knowledgeItems.length;

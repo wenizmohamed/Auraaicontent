@@ -92,6 +92,8 @@ const TOOL_LABELS: Record<string, string> = {
   asset_search: 'Searching brand assets',
   web_research: 'Researching the web',
   post_schedule: 'Scheduling the post',
+  brief_save: 'Saving the brief',
+  video_generate: 'Generating a video',
 };
 
 function toolLabel(tool: string): string {
@@ -157,6 +159,10 @@ function summarizeToolResult(tool: string, result: unknown): string {
     }
     case 'image_generate':
       return r.url ? 'Image generated and saved to the gallery' : 'Image generated';
+    case 'video_generate':
+      return r.url ? 'Video generated and saved to History' : 'Video generated';
+    case 'brief_save':
+      return r.created ? 'Brief created and saved' : 'Brief updated';
     case 'competitor_scrape': {
       const n = Array.isArray(r.handles) ? r.handles.length : 0;
       return `${n} competitor profile${n === 1 ? '' : 's'} scanned`;
@@ -187,6 +193,10 @@ function linkForStep(tool: string, result: unknown, clientId?: string | null): {
       return r.persistedPostId ? { to: '/content-review', label: 'See it in Content Review' } : undefined;
     case 'image_generate':
       return r.assetId || r.url ? { to: '/gallery', label: 'Open the gallery' } : undefined;
+    case 'video_generate':
+      return r.url ? { to: '/history', label: 'Open History' } : undefined;
+    case 'brief_save':
+      return r.briefId ? { to: `/brief${q}`, label: 'Open the brief' } : undefined;
     default:
       return undefined;
   }
@@ -471,7 +481,15 @@ export default function RadixAssistant() {
       await runChat(chatFallback, []);
       return;
     }
-    socket.emit('agent:run', { sessionUid, input: content, clientId: selectedClientId || undefined });
+    // Carry the conversation. Each run is its own session server-side, so
+    // without the earlier turns a follow-up ("do it", "this is for RTA") reached
+    // the agent with nothing to refer to. chatFallback ends with this message.
+    const history = chatFallback
+      .slice(0, -1)
+      .filter(m => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
+      .slice(-16)
+      .map(m => ({ role: m.role, content: m.content.slice(0, 6000) }));
+    socket.emit('agent:run', { sessionUid, input: content, clientId: selectedClientId || undefined, history });
   };
 
   const handleStop = () => {

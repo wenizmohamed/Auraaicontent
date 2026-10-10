@@ -112,7 +112,7 @@ export async function attachRealtime(app: FastifyInstance) {
       socket.emit('session:left', { sessionUid });
     });
 
-    socket.on('agent:run', async ({ sessionUid, input, clientId }) => {
+    socket.on('agent:run', async ({ sessionUid, input, clientId, history }) => {
       if (!(await assertOwner(sessionUid))) {
         await emitAndPersist(sessionUid, 'agent:error', {
           message: 'Session not found',
@@ -129,7 +129,7 @@ export async function attachRealtime(app: FastifyInstance) {
         return;
       }
       // Fire and forget — loop emits events to the session room as it runs.
-      runContentAgent({ sessionUid, input, clientId, userId: user?.userId, orgId }).catch(async (err) => {
+      runContentAgent({ sessionUid, input, clientId, userId: user?.userId, orgId, history }).catch(async (err) => {
         const msg = err instanceof Error ? err.message : String(err);
         app.log.error({ sessionUid, err: msg }, '[rt/agent] run failed');
         await emitAndPersist(sessionUid, 'agent:error', {

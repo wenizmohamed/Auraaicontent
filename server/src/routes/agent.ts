@@ -95,7 +95,7 @@ export async function agentRoutes(app: FastifyInstance) {
     return { session };
   });
 
-  app.post<{ Body: { sessionUid?: string; input: string; clientId?: string } }>('/runs', async (req, reply) => {
+  app.post<{ Body: { sessionUid?: string; input: string; clientId?: string; history?: unknown } }>('/runs', async (req, reply) => {
     const { userId } = ownerOf(req);
     const orgId = req.orgId!;
     const { input, clientId } = req.body ?? { input: '' };
@@ -119,7 +119,7 @@ export async function agentRoutes(app: FastifyInstance) {
       return reply.code(404).send({ error: 'Session not found' });
     }
 
-    runContentAgent({ sessionUid, input, clientId, userId, orgId }).catch(async (err) => {
+    runContentAgent({ sessionUid, input, clientId, userId, orgId, history: req.body.history }).catch(async (err) => {
       const msg = err instanceof Error ? err.message : String(err);
       req.log.error({ sessionUid, err: msg }, '[agent/run] failed');
       try {

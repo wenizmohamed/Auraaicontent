@@ -157,6 +157,28 @@ export const tool = defineTool<Args, Result>({
       ? Math.min(Math.floor(args.pieceCount), 60)
       : DEFAULT_PIECE_COUNT;
 
+    // The model sometimes passes a partial brief (or none, when brief_analyze
+    // failed). Normalize so a missing list never crashes the run with
+    // "Cannot read properties of undefined (reading 'join')".
+    const rawBrief = (args.brief ?? {}) as Partial<NormalizedBrief>;
+    const asList = (v: unknown): string[] =>
+      Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && x.trim().length > 0) : [];
+    args.brief = {
+      objective: typeof rawBrief.objective === 'string' ? rawBrief.objective : '',
+      audience: typeof rawBrief.audience === 'string' ? rawBrief.audience : '',
+      tone: typeof rawBrief.tone === 'string' ? rawBrief.tone : '',
+      platforms: asList(rawBrief.platforms),
+      mandatoryInclusions: typeof rawBrief.mandatoryInclusions === 'string' ? rawBrief.mandatoryInclusions : '',
+      complianceNotes: typeof rawBrief.complianceNotes === 'string' ? rawBrief.complianceNotes : '',
+      competitors: typeof rawBrief.competitors === 'string' ? rawBrief.competitors : '',
+      pillars: asList(rawBrief.pillars),
+    };
+    if (!args.brief.objective.trim()) {
+      throw new Error(
+        'pieces_generate needs a brief with an objective. Call brief_analyze first; if the client has no saved brief, create one with brief_save or ask the user for the objective, audience and tone.',
+      );
+    }
+
     const platforms = selectPlatforms(args.brief);
     await ctx.emit('agent:thought', {
       text: `Drafting ${count} pieces across ${platforms.join(', ')}\u2026`,

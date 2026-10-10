@@ -60,7 +60,7 @@ export type AgentEvent<T extends AgentEventType = AgentEventType> = {
 export interface ClientToServerEvents {
   'session:join': (data: { sessionUid: string }) => void;
   'session:leave': (data: { sessionUid: string }) => void;
-  'agent:run': (data: { sessionUid: string; input: string; clientId?: string }) => void;
+  'agent:run': (data: { sessionUid: string; input: string; clientId?: string; history?: Array<{ role: 'user' | 'assistant'; content: string }> }) => void;
   'agent:cancel': (data: { sessionUid: string }) => void;
 }
 

@@ -15,6 +15,8 @@ import { tool as calendarRead } from './calendar_read.js';
 import { tool as assetSearch } from './asset_search.js';
 import { tool as webResearch } from './web_research.js';
 import { tool as postSchedule } from './post_schedule.js';
+import { tool as briefSave } from './brief_save.js';
+import { tool as videoGenerate } from './video_generate.js';
 import type { Tool } from '../tool-types.js';
 
 // Cast each typed tool to the erased registry type. Runtime behavior is
@@ -41,6 +43,8 @@ export const TOOLS: AnyTool[] = [
   assetSearch as unknown as AnyTool,
   webResearch as unknown as AnyTool,
   postSchedule as unknown as AnyTool,
+  briefSave as unknown as AnyTool,
+  videoGenerate as unknown as AnyTool,
 ];
 
 export const TOOL_BY_NAME: Record<string, AnyTool> = Object.fromEntries(

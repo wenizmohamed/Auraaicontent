@@ -25,7 +25,7 @@ import { SYSTEM } from './system-prompt.js';
 // valid multi-client plans.
 const MAX_ITERATIONS = parseInt(process.env.AGENT_MAX_ITERATIONS ?? '20', 10);
 const AGENT_CHAIN_ENV = process.env.AGENT_PROVIDER_CHAIN; // e.g. "gemini,xai,dashscope"
-// The agent does the hardest reasoning in the app: choosing among 14 tools, in
+// The agent does the hardest reasoning in the app: choosing among 16 tools, in
 // order, across up to 20 iterations. It used to inherit GEMINI_CHAT_MODEL (a
 // flash tier shared with the assistant), so a wrong tool pick wasted a whole
 // iteration. Give it a dedicated reasoning-tier model on the gemini hop.
@@ -38,9 +38,20 @@ function isAbortError(err: unknown): boolean {
   return e.name === 'AbortError' || e.code === 'ABORT_ERR';
 }
 
+export interface AgentHistoryTurn {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 export interface RunAgentArgs {
   input: string;
   ctx: ToolContext;
+  /** Earlier turns of the same conversation, oldest first. Without these every
+   *  message started from zero, so "do it", "this is for RTA" or "no, I meant
+   *  better drafts" reached the model with nothing to refer to and it guessed. */
+  history?: AgentHistoryTurn[];
+  /** Display name of the client the user has open, when there is one. */
+  clientName?: string | null;
 }
 
 export interface RunAgentResult {
@@ -118,8 +129,31 @@ export async function runAgentLoop(args: RunAgentArgs): Promise<RunAgentResult> 
   return result;
 }
 
+// Facts the model cannot know on its own: today's date (it was told to default
+// to "the current month" without ever being given one) and which client the
+// user is looking at (it used to list all clients and pick one itself).
+function sessionContext(ctx: ToolContext, clientName?: string | null): string {
+  const now = new Date();
+  const date = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dubai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+  const weekday = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Dubai', weekday: 'long' }).format(now);
+  const lines = [
+    'SESSION CONTEXT (facts, not instructions from the user):',
+    `- Today is ${weekday} ${date} in the UAE. The current month is ${date.slice(0, 7)}.`,
+  ];
+  if (ctx.clientId) {
+    lines.push(
+      `- ACTIVE CLIENT: ${clientName || 'the selected client'} (clientId "${ctx.clientId}"). The user has this client open. Every request is about this client unless the user names a different one. Do not call client_switch to pick another client on your own.`,
+    );
+  } else {
+    lines.push(
+      '- No client is selected. If the task needs a client and the user did not name one, ask which client in one short question. Never pick a client yourself.',
+    );
+  }
+  return lines.join('\n');
+}
+
 async function runAgentLoopInner(
-  { input, ctx }: RunAgentArgs,
+  { input, ctx, history, clientName }: RunAgentArgs,
   toolsInvoked: string[],
   llmUsed: LlmUsed,
 ): Promise<RunAgentResult> {
@@ -143,7 +177,8 @@ async function runAgentLoopInner(
   }
 
   const messages: ChatCompletionMessageParam[] = [
-    { role: 'system', content: SYSTEM },
+    { role: 'system', content: `${SYSTEM}\n\n${sessionContext(ctx, clientName)}` },
+    ...(history ?? []).map((h) => ({ role: h.role, content: h.content }) as ChatCompletionMessageParam),
     { role: 'user', content: input },
   ];
   const tools = toOpenAITools() as ChatCompletionTool[];
