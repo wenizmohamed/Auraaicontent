@@ -9,7 +9,7 @@ import { SkeletonRow, SkeletonAnnouncer } from '../components/ui/Skeleton';
 import { motionUI } from '../lib/motion';
 import { useMultiSelect } from '../lib/use-multi-select';
 import { BulkActionBar } from '../components/ui/BulkActionBar';
-import { Square, CheckSquare } from 'lucide-react';
+import { Square, CheckSquare, FolderUp } from 'lucide-react';
 
 function formatBytes(bytes: number): string {
   if (!bytes) return '--';
@@ -40,6 +40,49 @@ function TypeIcon({ mime, className = 'w-5 h-5' }: { mime: string; className?: s
 // Server accepts up to 50 MB per file.
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 
+// What a whole-folder upload keeps. A project folder is full of things that are
+// not knowledge (code, lock files, caches); single-file uploads are not filtered.
+const DOCUMENT_EXT = /\.(pdf|txt|md|csv|json|html?|rtf|docx?|pptx?|xlsx?|jpe?g|png|webp|gif|avif|bmp|tiff?|mp4|mov|webm|m4v|mp3|wav|m4a)$/i;
+const SKIP_PATH = /(^|\/)(node_modules|\.git|__pycache__|\.venv|dist|build)(\/|$)/;
+const SKIP_NAME = /^(thumbs\.db|desktop\.ini|\.ds_store)$|^~\$/i;
+
+function keepFromFolder(file: File, relPath: string): boolean {
+  return file.size > 0 && !SKIP_PATH.test(relPath) && !SKIP_NAME.test(file.name) && DOCUMENT_EXT.test(file.name);
+}
+
+/** Every file under whatever was dropped: loose files and whole folders alike. */
+async function filesFromDrop(dt: DataTransfer): Promise<{ files: File[]; leftOut: number; hadFolder: boolean }> {
+  const roots = Array.from(dt.items || [])
+    .map(it => (it.kind === 'file' ? (it as any).webkitGetAsEntry?.() : null))
+    .filter(Boolean) as any[];
+  if (roots.length === 0) return { files: Array.from(dt.files || []), leftOut: 0, hadFolder: false };
+  const files: File[] = [];
+  let leftOut = 0;
+  let hadFolder = false;
+  const readAll = (reader: any) => new Promise<any[]>((resolve) => {
+    const all: any[] = [];
+    const next = () => reader.readEntries((batch: any[]) => {
+      if (!batch.length) return resolve(all);
+      all.push(...batch);
+      next(); // readEntries returns at most 100 entries per call
+    }, () => resolve(all));
+    next();
+  });
+  const visit = async (entry: any, inFolder: boolean): Promise<void> => {
+    if (entry.isFile) {
+      const file: File = await new Promise((resolve, reject) => entry.file(resolve, reject));
+      const rel = String(entry.fullPath || file.name).replace(/^\//, '');
+      if (!inFolder || keepFromFolder(file, rel)) files.push(file); else leftOut += 1;
+    } else if (entry.isDirectory) {
+      hadFolder = true;
+      if (SKIP_PATH.test(`${entry.fullPath}/`)) return;
+      for (const child of await readAll(entry.createReader())) await visit(child, true);
+    }
+  };
+  for (const root of roots) await visit(root, false).catch(() => {});
+  return { files, leftOut, hadFolder };
+}
+
 export default function Knowledge({ embedded = false }: { embedded?: boolean } = {}) {
   const { selectedClientId, currentClient } = useClients();
   const { success: toastSuccess, error: toastError } = useToast();
@@ -47,6 +90,30 @@ export default function Knowledge({ embedded = false }: { embedded?: boolean } =
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const dragDepth = useRef(0);
+
+  // Whole folder picked with the Upload Folder button.
+  function handleFolderPicked(picked: File[]) {
+    const keep = picked.filter(f => keepFromFolder(f, (f as any).webkitRelativePath || f.name));
+    const leftOut = picked.length - keep.length;
+    if (keep.length === 0) { toastError('No documents found in that folder.'); return; }
+    if (leftOut > 0) toastSuccess(`${keep.length} documents found. ${leftOut} other files (code, system files) left out`);
+    handleUpload(keep);
+  }
+
+  // Files or folders dropped anywhere on the page.
+  async function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    dragDepth.current = 0;
+    setDragOver(false);
+    if (uploading) return;
+    const { files, leftOut, hadFolder } = await filesFromDrop(e.dataTransfer);
+    if (files.length === 0) { toastError(hadFolder ? 'No documents found in that folder.' : 'Nothing to upload.'); return; }
+    if (leftOut > 0) toastSuccess(`${files.length} documents found. ${leftOut} other files (code, system files) left out`);
+    handleUpload(files);
+  }
   const [embeddingId, setEmbeddingId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [retrieving, setRetrieving] = useState(false);
@@ -204,6 +271,30 @@ export default function Knowledge({ embedded = false }: { embedded?: boolean } =
         {uploading
           ? (uploadProgress && uploadProgress.total > 1 ? `Uploading ${uploadProgress.current} of ${uploadProgress.total}…` : 'Uploading…')
           : 'Upload Files'}
+      </button>
+      <input
+        ref={folderInputRef}
+        type="file"
+        className="hidden"
+        multiple
+        // Non-standard but supported everywhere that matters: pick a whole folder.
+        {...({ webkitdirectory: '', directory: '' } as Record<string, string>)}
+        onChange={(e) => {
+          const picked = Array.from(e.target.files ?? []);
+          e.target.value = '';
+          if (picked.length) handleFolderPicked(picked);
+        }}
+      />
+      <button
+        type="button"
+        onClick={() => folderInputRef.current?.click()}
+        disabled={uploading || !selectedClientId}
+        title="Upload every document in a folder, including its subfolders"
+        className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border disabled:opacity-50 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
+        style={{ borderColor: 'var(--color-border)', color: 'var(--color-fg)', background: 'var(--color-surface)' }}
+      >
+        <FolderUp className="w-4 h-4" />
+        Upload Folder
       </button>
     </div>
   );
@@ -434,6 +525,32 @@ export default function Knowledge({ embedded = false }: { embedded?: boolean } =
     </>
   );
 
-  if (embedded) return <div className="space-y-6">{body}</div>;
-  return <div className="max-w-[1400px] mx-auto p-6 space-y-6">{body}</div>;
+  // The whole page is a drop target: drag files or a folder in from the desktop.
+  const dropProps = {
+    onDragEnter: (e: React.DragEvent) => {
+      if (!Array.from(e.dataTransfer?.types || []).includes('Files')) return;
+      e.preventDefault();
+      dragDepth.current += 1;
+      setDragOver(true);
+    },
+    onDragOver: (e: React.DragEvent) => {
+      if (Array.from(e.dataTransfer?.types || []).includes('Files')) e.preventDefault();
+    },
+    onDragLeave: () => {
+      dragDepth.current = Math.max(0, dragDepth.current - 1);
+      if (dragDepth.current === 0) setDragOver(false);
+    },
+    onDrop: handleDrop,
+  };
+  const dropHint = dragOver && (
+    <div
+      className="rounded-2xl border-2 border-dashed p-6 text-center text-sm font-semibold"
+      style={{ borderColor: 'var(--color-accent)', color: 'var(--color-accent)', background: 'var(--color-surface)' }}
+    >
+      Drop files or a whole folder to add them to {currentClient?.name || 'this client'}'s knowledge base
+    </div>
+  );
+
+  if (embedded) return <div className="space-y-6" {...dropProps}>{dropHint}{body}</div>;
+  return <div className="max-w-[1400px] mx-auto p-6 space-y-6" {...dropProps}>{dropHint}{body}</div>;
 }
