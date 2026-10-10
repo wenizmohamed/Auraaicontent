@@ -116,3 +116,31 @@ describe('agent registry + scope rules', () => {
     expect(SYSTEM).not.toMatch(/[–—]/);
   });
 });
+
+// Gemini 3 signs each tool-calling step and 400s when the signature is not
+// sent back; other providers do not know the field (2026-10-10).
+describe('shapeToolHistoryFor', () => {
+  const call = (extra?: unknown) => ({ id: 'c1', type: 'function', function: { name: 't', arguments: '{}' }, ...(extra ? { extra_content: extra } : {}) });
+  const signed = { google: { thought_signature: 'real-sig' } };
+
+  it('keeps a real Gemini signature for gemini and strips it for other providers', async () => {
+    const { shapeToolHistoryFor } = await import('../src/services/llm/chat.js');
+    const messages = [{ role: 'user', content: 'hi' }, { role: 'assistant', content: null, tool_calls: [call(signed)] }];
+    expect(shapeToolHistoryFor('gemini', messages)).toEqual(messages);
+    for (const p of ['xai', 'dashscope', 'moonshot'] as const) {
+      const out = shapeToolHistoryFor(p, messages) as typeof messages;
+      expect(out[1].tool_calls![0]).not.toHaveProperty('extra_content');
+      expect(out[1].tool_calls![0].function).toEqual({ name: 't', arguments: '{}' });
+    }
+  });
+
+  it('adds the validator-skip signature for gemini when a fallback provider made the step', async () => {
+    const { shapeToolHistoryFor } = await import('../src/services/llm/chat.js');
+    const messages = [{ role: 'assistant', content: null, tool_calls: [call(), call()] }];
+    const out = shapeToolHistoryFor('gemini', messages) as any[];
+    expect(out[0].tool_calls[0].extra_content.google.thought_signature).toBe('skip_thought_signature_validator');
+    expect(out[0].tool_calls[1]).not.toHaveProperty('extra_content');
+    // input untouched
+    expect(messages[0].tool_calls[0]).not.toHaveProperty('extra_content');
+  });
+});

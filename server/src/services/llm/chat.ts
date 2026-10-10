@@ -270,6 +270,30 @@ export async function withFallback<T>(
   throw new Error(`All providers failed: ${summary}`);
 }
 
+// Tool-call history is provider-shaped. Gemini 3 signs each tool-calling step
+// (tool_calls[0].extra_content.google.thought_signature) and rejects the next
+// request with a 400 when that signature is missing. Other providers do not
+// know the field. So, per provider, right before the request:
+//  - gemini: keep real signatures; where a step has none (it was produced by a
+//    fallback provider) add Google's documented validator-skip value so one
+//    foreign step does not push the whole run off Gemini.
+//  - everyone else: strip extra_content.
+const GEMINI_SKIP_SIGNATURE = 'skip_thought_signature_validator';
+
+export function shapeToolHistoryFor<M extends { role: string }>(provider: ProviderName, messages: M[]): M[] {
+  return messages.map((m) => {
+    const calls = (m as { tool_calls?: Array<Record<string, any>> }).tool_calls;
+    if (m.role !== 'assistant' || !Array.isArray(calls) || calls.length === 0) return m;
+    if (provider === 'gemini') {
+      if (calls[0]?.extra_content?.google?.thought_signature) return m;
+      const first = { ...calls[0], extra_content: { google: { thought_signature: GEMINI_SKIP_SIGNATURE } } };
+      return { ...m, tool_calls: [first, ...calls.slice(1)] };
+    }
+    if (!calls.some((c) => c && 'extra_content' in c)) return m;
+    return { ...m, tool_calls: calls.map(({ extra_content: _drop, ...rest }) => rest) };
+  });
+}
+
 // Sugar: non-streaming chat completion with fallback. Returns text + meta.
 export interface ChatTextResult {
   text: string;
@@ -294,8 +318,8 @@ export async function chatText(
   const messages = options?.enrich
     ? await enrichLastUserTurn(params.messages, options.meta)
     : params.messages;
-  const out = await withFallback(async ({ client, model }) => {
-    const r: ChatCompletion = await client.chat.completions.create({ ...params, messages, model, stream: false });
+  const out = await withFallback(async ({ client, model, provider }) => {
+    const r: ChatCompletion = await client.chat.completions.create({ ...params, messages: shapeToolHistoryFor(provider, messages), model, stream: false });
     const choice = r.choices?.[0]?.message as
       | { content?: string | null; reasoning_content?: string | null }
       | undefined;
@@ -357,9 +381,9 @@ export async function chatStream(
     stream: true,
     stream_options: { include_usage: true, ...(params as any).stream_options },
   } as ChatCompletionCreateParamsStreaming;
-  const out = await withFallback(async ({ client, model }) => {
+  const out = await withFallback(async ({ client, model, provider }) => {
     const stream = await client.chat.completions.create(
-      { ...paramsWithUsage, model },
+      { ...paramsWithUsage, messages: shapeToolHistoryFor(provider, paramsWithUsage.messages), model },
       { signal: options?.signal },
     );
     return stream;

@@ -65,6 +65,11 @@ interface PartialToolCall {
   id?: string;
   name?: string;
   argsBuf: string;
+  /** Provider extras on the tool call. Gemini 3 puts a thought_signature here
+   *  and REQUIRES it back on the next request: dropped, every step after the
+   *  first tool call 400s on Gemini and the run silently finishes on the
+   *  fallback provider (verified live 2026-10-10). */
+  extra?: unknown;
 }
 
 // Provider/model actually used for the run, tracked for observability.
@@ -276,6 +281,8 @@ async function runAgentLoopInner(
             if (tc.id) entry.id = tc.id;
             if (tc.function?.name) entry.name = tc.function.name;
             if (tc.function?.arguments) entry.argsBuf += tc.function.arguments;
+            const extra = (tc as { extra_content?: unknown }).extra_content;
+            if (extra) entry.extra = extra;
           }
         }
 
@@ -306,6 +313,7 @@ async function runAgentLoopInner(
         id: e.id ?? `call_${Date.now()}_${idx}`,
         type: 'function' as const,
         function: { name: e.name ?? '', arguments: e.argsBuf || '{}' },
+        ...(e.extra ? { extra_content: e.extra } : {}),
       }));
 
     const assistantMsg: ChatCompletionMessageParam =
