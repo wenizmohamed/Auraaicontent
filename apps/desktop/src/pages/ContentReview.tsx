@@ -14,6 +14,7 @@ import { useClients } from '../lib/client-context';
 import { calendarApi, reviewApi, visualRefsApi, exportsApi, jobsApi, integrationsApi, type IntegrationSummary } from '../lib/backend-api';
 import { ContentStatus, STATUS_LABEL, STATUS_COLOR, normalizeStatus } from '../lib/status-enum';
 import { EmptyState } from '../components/ui/EmptyState';
+import { Select } from '../components/ui/Select';
 import { motionUI, motionInstant, motionBase } from '../lib/motion';
 import VisualRefGrid from '../components/VisualRefGrid';
 import { PublishButton } from '../components/calendar/PublishButton';
@@ -186,45 +187,56 @@ const PLATFORM_DOT_FALLBACK = '#94a3b8';
 
 export default function ContentReview() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const briefId = searchParams.get('briefId') || '';
   const urlMonth = searchParams.get('month') || '';
   const urlClient = searchParams.get('client') || '';
 
   const { contentBriefs, updateContentBrief } = useStore();
-  const { selectedClientId, currentClient } = useClients();
+  const { selectedClientId, currentClient, clients } = useClients();
 
   // Try backend first, then local brief.
   // Fallback chain for the URL params (so the sidebar Review link "just works"):
   //   1. ?client=&month= (explicit URL)
   //   2. selectedClientId from context + most recent month for that client
   const [backendMonth, setBackendMonth] = useState<any>(null);
-  const [autoLoadAttempted, setAutoLoadAttempted] = useState(false);
+  // Every month this client has content for. Powers the month picker in the
+  // header: the page used to open the newest month with no way to reach any
+  // other one, and it kept showing the old client's month after a client switch.
+  const [monthOptions, setMonthOptions] = useState<{ month: string; postCount: number }[]>([]);
 
   useEffect(() => {
     const cId = urlClient || selectedClientId;
-    if (cId && urlMonth) {
-      calendarApi.getMonth(cId, decodeURIComponent(urlMonth))
-        .then(setBackendMonth)
-        .catch(() => setBackendMonth(null));
-      return;
-    }
-    // No explicit month — fetch the list of all months for this client and pick the most recent.
-    // Works for arbitrary month names (timestamp-named, freeform, calendar-style).
-    if (cId && !urlMonth && !autoLoadAttempted) {
-      setAutoLoadAttempted(true);
-      (async () => {
-        try {
-          const months = await calendarApi.listMonths(cId);
-          if (months.length > 0) {
-            const latest = months[0].month;
-            const data = await calendarApi.getMonth(cId, latest);
-            setBackendMonth(data);
-          }
-        } catch { /* ignore */ }
-      })();
-    }
-  }, [urlClient, urlMonth, selectedClientId, autoLoadAttempted]);
+    if (!cId) { setBackendMonth(null); setMonthOptions([]); return; }
+    let cancelled = false;
+    (async () => {
+      let months: { month: string; postCount: number }[] = [];
+      try {
+        months = (await calendarApi.listMonths(cId)).map(m => ({ month: m.month, postCount: m.postCount }));
+      } catch { /* the month list is a convenience; the load below still runs */ }
+      if (cancelled) return;
+      setMonthOptions(months);
+      // Explicit ?month= wins; otherwise open the most recent month.
+      const target = urlMonth ? decodeURIComponent(urlMonth) : months[0]?.month;
+      if (!target) { setBackendMonth(null); return; }
+      try {
+        const data = await calendarApi.getMonth(cId, target);
+        if (!cancelled) setBackendMonth(data);
+      } catch {
+        if (!cancelled) setBackendMonth(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [urlClient, urlMonth, selectedClientId]);
+
+  const selectMonth = (month: string) => {
+    const next = new URLSearchParams(searchParams);
+    const cId = urlClient || selectedClientId;
+    if (cId) next.set('client', cId);
+    next.set('month', month);
+    next.delete('briefId');
+    setSearchParams(next);
+  };
 
   // Map a backend CalendarPost asset link to a visualRefImages entry
   const mapAssetsToVisualRefs = (post: any) => {
@@ -273,7 +285,9 @@ export default function ContentReview() {
         createdAt: backendMonth.createdAt,
       }
     : contentBriefs.find(b => b.id === briefId);
-  const client = currentClient;
+  // The page can be opened for a client other than the one selected in the
+  // sidebar (?client= from a link or the agent), so name the client being shown.
+  const client = (urlClient && clients.find(c => c.id === urlClient)) || currentClient;
 
   // Local state
   const [pieces, setPieces] = useState<GeneratedPiece[]>([]);
@@ -663,6 +677,22 @@ export default function ContentReview() {
               {' \u00B7 '}
               <span className="[color:var(--color-fg-subtle)]">{pieces.length} pieces</span>
             </p>
+            {monthOptions.length > 1 && (
+              <div className="mt-3 flex items-center gap-2">
+                <span className="text-[12px] [color:var(--color-fg-subtle)]">Month</span>
+                <Select
+                  value={monthOptions.some(m => m.month === brief.month) ? brief.month : ''}
+                  onValueChange={selectMonth}
+                  placeholder="Choose a month"
+                >
+                  {monthOptions.map(m => (
+                    <Select.Item key={m.month} value={m.month}>
+                      {m.month} ({m.postCount} {m.postCount === 1 ? 'post' : 'posts'})
+                    </Select.Item>
+                  ))}
+                </Select>
+              </div>
+            )}
           </div>
 
           {/* Stats bar — eyebrow label → hero metric (Dashboard premium bar) */}

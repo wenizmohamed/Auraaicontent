@@ -199,32 +199,24 @@ export const tool = defineTool<Args, Result>({
       },
     );
 
+    // The model's output here is raw JSON for the database, not something to
+    // read. It used to be streamed into the chat as agent:message, so the user
+    // got the whole {"pieces":[...]} blob pasted above the real answer. Progress
+    // goes out as a thought (the activity timeline) instead.
     let buffer = '';
-    let flushed = 0;
-    const CHUNK_FLUSH = 160;
+    let announced = 0;
 
     for await (const chunk of opened.stream) {
       assertNotAborted(ctx.signal);
       const delta = chunk.choices?.[0]?.delta?.content;
       if (typeof delta === 'string' && delta.length > 0) {
         buffer += delta;
-        if (buffer.length - flushed >= CHUNK_FLUSH) {
-          await ctx.emit('agent:message', {
-            text: buffer.slice(flushed),
-            streaming: true,
-            at: now(),
-          });
-          flushed = buffer.length;
+        const drafted = (buffer.match(/"visualDirection"\s*:/g) || []).length;
+        if (drafted >= announced + 6) {
+          announced = drafted;
+          await ctx.emit('agent:thought', { text: `Drafted ${drafted} of ${count} posts…`, at: now() });
         }
       }
-    }
-
-    if (buffer.length > flushed) {
-      await ctx.emit('agent:message', {
-        text: buffer.slice(flushed),
-        streaming: true,
-        at: now(),
-      });
     }
 
     const parsed = extractJson(buffer);

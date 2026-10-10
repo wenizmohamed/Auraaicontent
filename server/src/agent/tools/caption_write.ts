@@ -162,12 +162,10 @@ export const tool = defineTool<Args, Result>({
       if (ctx.signal.aborted) throw new Error('aborted');
       const delta = chunk.choices?.[0]?.delta?.content;
       if (typeof delta === 'string' && delta.length > 0) {
+        // Not streamed to the chat: a run that rewrites many captions would
+        // paste every draft into the conversation. The saved caption is
+        // surfaced once below as an artifact preview.
         caption += delta;
-        await ctx.emit('agent:message', {
-          text: delta,
-          streaming: true,
-          at: new Date().toISOString(),
-        });
       }
     }
 

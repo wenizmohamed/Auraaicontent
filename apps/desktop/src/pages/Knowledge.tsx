@@ -37,12 +37,16 @@ function TypeIcon({ mime, className = 'w-5 h-5' }: { mime: string; className?: s
   return <Paperclip className={`${className} text-fg-subtle`} aria-label="file" />;
 }
 
+// Server accepts up to 50 MB per file.
+const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+
 export default function Knowledge({ embedded = false }: { embedded?: boolean } = {}) {
   const { selectedClientId, currentClient } = useClients();
   const { success: toastSuccess, error: toastError } = useToast();
   const [items, setItems] = useState<KnowledgeItemRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const [embeddingId, setEmbeddingId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [retrieving, setRetrieving] = useState(false);
@@ -66,28 +70,56 @@ export default function Knowledge({ embedded = false }: { embedded?: boolean } =
       .finally(() => setLoading(false));
   }, [selectedClientId, toastError]);
 
-  async function handleUpload(file: File) {
+  // Upload one or many files. They go up one after another (the endpoint takes
+  // a single file per request) with a running count on the button, and one
+  // summary at the end instead of a toast per file.
+  async function handleUpload(files: File[]) {
     if (!selectedClientId) {
       toastError('Select a client before uploading.');
       return;
     }
+    if (files.length === 0) return;
+    const clientId = selectedClientId;
     setUploading(true);
+    const failed: string[] = [];
+    let done = 0;
     try {
-      const created = await knowledgeApi.upload(selectedClientId, file);
-      setItems((prev) => [created, ...prev]);
-      toastSuccess(`Uploaded ${file.name}. Embedding in background`);
-      // NOTE: the server now auto-embeds on upload (fire-and-forget), so we do NOT
+      for (const file of files) {
+        setUploadProgress({ current: done + failed.length + 1, total: files.length });
+        if (file.size > MAX_UPLOAD_BYTES) {
+          failed.push(`${file.name} (over 50 MB)`);
+          continue;
+        }
+        try {
+          const created = await knowledgeApi.upload(clientId, file);
+          setItems((prev) => [created, ...prev]);
+          done += 1;
+        } catch (err: any) {
+          failed.push(`${file.name}${err?.message ? ` (${err.message})` : ''}`);
+        }
+      }
+      if (done > 0) {
+        toastSuccess(
+          files.length === 1
+            ? `Uploaded ${files[0].name}. Reading it in the background`
+            : `Uploaded ${done} of ${files.length} files. Reading them in the background`,
+        );
+      }
+      if (failed.length > 0) toastError(`Could not upload: ${failed.join(', ')}`);
+      // NOTE: the server auto-embeds on upload (fire-and-forget), so we do NOT
       // call /embed here — running both races the worker's deleteMany+recreate.
-      // Refresh shortly to surface the chunk count once the server finishes.
-      setEmbeddingId(created.id);
-      setTimeout(() => {
-        if (selectedClientId) knowledgeApi.list(selectedClientId).then(setItems).catch(() => {});
-        setEmbeddingId(null);
-      }, 6000);
-    } catch (err: any) {
-      toastError(err?.message || 'Upload failed');
+      // Refresh twice to surface chunk counts: text files finish in seconds,
+      // images, audio and video take longer because a model has to read them.
+      if (done > 0) {
+        for (const delay of [6000, 25000]) {
+          setTimeout(() => {
+            knowledgeApi.list(clientId).then(setItems).catch(() => {});
+          }, delay);
+        }
+      }
     } finally {
       setUploading(false);
+      setUploadProgress(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   }
@@ -155,10 +187,10 @@ export default function Knowledge({ embedded = false }: { embedded?: boolean } =
         ref={fileInputRef}
         type="file"
         className="hidden"
-        accept=".pdf,.txt,.md,.docx,.json,.csv,image/*"
+        multiple
         onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) handleUpload(f);
+          const picked = Array.from(e.target.files ?? []);
+          if (picked.length) handleUpload(picked);
         }}
       />
       <button
@@ -169,7 +201,9 @@ export default function Knowledge({ embedded = false }: { embedded?: boolean } =
         style={{ background: 'var(--color-accent)', color: 'var(--color-fg-on-accent)' }}
       >
         {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-        {uploading ? 'Uploading…' : 'Upload File'}
+        {uploading
+          ? (uploadProgress && uploadProgress.total > 1 ? `Uploading ${uploadProgress.current} of ${uploadProgress.total}…` : 'Uploading…')
+          : 'Upload Files'}
       </button>
     </div>
   );
@@ -326,17 +360,24 @@ export default function Knowledge({ embedded = false }: { embedded?: boolean } =
                       </p>
                     </div>
                   </div>
-                  {item.metadata?.embedded ? (
-                    <span title="Embedded" className="shrink-0 flex items-center gap-1 text-[9px] uppercase tracking-wider rounded px-1.5 py-0.5" style={{ color: 'var(--color-success)', background: 'var(--color-success-subtle)', border: '1px solid var(--color-success)' }}>
-                      <CheckCircle2 className="w-2.5 h-2.5" /> embedded
+                  {(item.metadata?.embedded || ((item as any)._count?.chunks ?? 0) > 0) ? (
+                    <span title="Read and searchable by the AI" className="shrink-0 flex items-center gap-1 text-[9px] uppercase tracking-wider rounded px-1.5 py-0.5" style={{ color: 'var(--color-success)', background: 'var(--color-success-subtle)', border: '1px solid var(--color-success)' }}>
+                      <CheckCircle2 className="w-2.5 h-2.5" /> ready
+                    </span>
+                  ) : item.metadata?.readError ? (
+                    <span title={String(item.metadata.readError)} className="shrink-0 flex items-center gap-1 text-[9px] uppercase tracking-wider rounded px-1.5 py-0.5" style={{ color: 'var(--color-danger)', background: 'var(--color-danger-subtle)', border: '1px solid var(--color-danger)' }}>
+                      <AlertCircle className="w-2.5 h-2.5" /> could not read
                     </span>
                   ) : (
-                    <span title="Not yet embedded" className="shrink-0 flex items-center gap-1 text-[9px] uppercase tracking-wider text-fg-subtle bg-white/[0.03] border border-white/[0.06] rounded px-1.5 py-0.5">
-                      <AlertCircle className="w-2.5 h-2.5" /> raw
+                    <span title="Not read yet" className="shrink-0 flex items-center gap-1 text-[9px] uppercase tracking-wider text-fg-subtle bg-white/[0.03] border border-white/[0.06] rounded px-1.5 py-0.5">
+                      <AlertCircle className="w-2.5 h-2.5" /> reading
                     </span>
                   )}
                 </div>
 
+                {item.metadata?.readError && !(((item as any)._count?.chunks ?? 0) > 0) && (
+                  <p className="text-[10px] mb-3" style={{ color: 'var(--color-danger)' }}>{String(item.metadata.readError)}</p>
+                )}
                 {item.metadata?.size != null && (
                   <p className="text-[10px] text-fg-subtle mb-3">{formatBytes(item.metadata.size)}</p>
                 )}
@@ -349,7 +390,7 @@ export default function Knowledge({ embedded = false }: { embedded?: boolean } =
                     className="flex-1 flex items-center justify-center gap-1.5 bg-accent/10 border border-accent/20 text-accent text-xs font-semibold px-2 py-1.5 rounded-lg hover:bg-accent/20 disabled:opacity-50 cursor-pointer"
                   >
                     {isEmbedding ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
-                    {isEmbedding ? 'Embedding…' : 'Re-embed'}
+                    {isEmbedding ? 'Reading…' : 'Read again'}
                   </button>
                   <button
                     type="button"
