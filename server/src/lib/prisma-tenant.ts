@@ -12,6 +12,7 @@
 import { Prisma } from '@prisma/client';
 
 const TENANT_MODELS = new Set([
+  'AssistantConversation',
   'Client',
   'ApiKey',
   'ContentPiece',

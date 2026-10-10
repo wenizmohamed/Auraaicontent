@@ -234,17 +234,34 @@ interface PendingRun {
   startedAt: number;
 }
 
+/** A chat-mode reply still being generated. The server keeps the finished
+ * reply under this turn id, so a reload can collect it. */
+interface PendingChat {
+  turnId: string;
+  startedAt: number;
+}
+
 interface StoredConversation {
   v: 1;
   messages: EnrichedMessage[];
   mode: 'chat' | 'agent';
   pendingRun?: PendingRun | null;
+  pendingChat?: PendingChat | null;
+  /** ms timestamp of the last change. The copy with the higher value wins
+   * between this browser and the server (another tab or device). */
+  rev?: number;
 }
 
 const CONVERSATION_PREFIX = 'radix.assistant.conversation.v1.';
 const MAX_STORED_MESSAGES = 80;
 const MAX_STORED_CHARS = 600_000; // well inside the ~5 MB localStorage quota
 const RESUME_WINDOW_MS = 30 * 60 * 1000; // a run older than this is not resumed
+const CHAT_RESUME_WINDOW_MS = 5 * 60 * 1000; // a chat reply is collected for this long
+const SERVER_SAVE_DEBOUNCE_MS = 800;
+
+function newTurnId(): string {
+  return `turn_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+}
 
 /** Storage key scoped to the signed-in user and org, read from the auth token. */
 function conversationKey(): string | null {
@@ -271,31 +288,44 @@ function loadConversation(): StoredConversation | null {
     const messages = parsed.messages.filter(
       m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string',
     );
-    return { v: 1, messages, mode: parsed.mode === 'agent' ? 'agent' : 'chat', pendingRun: parsed.pendingRun ?? null };
+    return {
+      v: 1, messages, mode: parsed.mode === 'agent' ? 'agent' : 'chat',
+      pendingRun: parsed.pendingRun ?? null, pendingChat: parsed.pendingChat ?? null,
+      rev: typeof parsed.rev === 'number' ? parsed.rev : 0,
+    };
   } catch {
     return null;
   }
 }
 
-function saveConversation(state: { messages: EnrichedMessage[]; mode: 'chat' | 'agent'; pendingRun: PendingRun | null }): void {
+type ConversationState = {
+  messages: EnrichedMessage[];
+  mode: 'chat' | 'agent';
+  pendingRun: PendingRun | null;
+  pendingChat: PendingChat | null;
+  rev: number;
+};
+
+/** Trim to the storage budget (oldest turns go first). Returns what is saved
+ * both locally and on the server, so the two copies are identical. */
+function packConversation(state: ConversationState): StoredConversation {
+  let messages = state.messages.slice(-MAX_STORED_MESSAGES);
+  const pack = (): StoredConversation => ({
+    v: 1, messages, mode: state.mode, pendingRun: state.pendingRun, pendingChat: state.pendingChat, rev: state.rev,
+  });
+  while (JSON.stringify(pack()).length > MAX_STORED_CHARS && messages.length > 2) {
+    messages = messages.slice(Math.ceil(messages.length / 4));
+  }
+  return pack();
+}
+
+function saveConversation(packed: StoredConversation): void {
   const key = conversationKey();
   if (!key) return;
   try {
-    if (state.messages.length === 0 && !state.pendingRun) {
-      // Keep only the mode choice once the conversation is cleared.
-      localStorage.setItem(key, JSON.stringify({ v: 1, messages: [], mode: state.mode, pendingRun: null }));
-      return;
-    }
-    let messages = state.messages.slice(-MAX_STORED_MESSAGES);
-    let raw = JSON.stringify({ v: 1, messages, mode: state.mode, pendingRun: state.pendingRun });
-    // Oldest turns go first if a few very large replies push past the budget.
-    while (raw.length > MAX_STORED_CHARS && messages.length > 2) {
-      messages = messages.slice(Math.ceil(messages.length / 4));
-      raw = JSON.stringify({ v: 1, messages, mode: state.mode, pendingRun: state.pendingRun });
-    }
-    localStorage.setItem(key, raw);
+    localStorage.setItem(key, JSON.stringify(packed));
   } catch {
-    // Storage blocked or full: the conversation simply stays in memory.
+    // Storage blocked or full: the server copy still holds the conversation.
   }
 }
 
@@ -331,6 +361,13 @@ export default function RadixAssistant() {
   const [mode, setMode] = useState<'chat' | 'agent'>(() => restoredRef.current?.mode ?? 'chat');
   // The agent run in flight, if any. Saved so a reload can pick it back up.
   const [pendingRun, setPendingRun] = useState<PendingRun | null>(() => restoredRef.current?.pendingRun ?? null);
+  // The chat reply in flight, if any (see PendingChat).
+  const [pendingChat, setPendingChat] = useState<PendingChat | null>(() => restoredRef.current?.pendingChat ?? null);
+  const revRef = useRef<number>(restoredRef.current?.rev ?? 0);
+  const firstSaveRef = useRef(true); // the mount pass is a restore, not a change
+  const fromServerRef = useRef(false); // the next save pass applies a server copy as-is
+  const serverSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const chatResumeStopRef = useRef(false); // Stop or Clear pressed while collecting a reply
   const [agentRun, setAgentRun] = useState<AgentRunView | null>(null);
   const agentRunRef = useRef<AgentRunView | null>(null); // socket handlers read the live value
   const agentSocketRef = useRef<Socket | null>(null);
@@ -342,10 +379,102 @@ export default function RadixAssistant() {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, loading, agentRun]);
 
-  // Save the conversation on every change.
+  // Save the conversation on every change: to this browser at once, and to the
+  // server shortly after so it is there on any other device.
   useEffect(() => {
-    saveConversation({ messages, mode, pendingRun });
-  }, [messages, mode, pendingRun]);
+    if (firstSaveRef.current) { firstSaveRef.current = false; return; }
+    const adopted = fromServerRef.current;
+    fromServerRef.current = false;
+    if (!adopted) revRef.current = Date.now();
+    const packed = packConversation({ messages, mode, pendingRun, pendingChat, rev: revRef.current });
+    saveConversation(packed);
+    if (adopted) return; // it came from the server; nothing to send back
+    if (serverSaveTimer.current) clearTimeout(serverSaveTimer.current);
+    serverSaveTimer.current = setTimeout(() => {
+      assistantApi.saveConversation(packed, packed.rev ?? 0).catch(() => { /* offline: the local copy stands */ });
+    }, SERVER_SAVE_DEBOUNCE_MS);
+  }, [messages, mode, pendingRun, pendingChat]);
+
+  // Load the server copy on open and whenever the tab regains focus. Whichever
+  // side changed last wins: a newer server copy (another device or tab)
+  // replaces what is on screen, a newer local copy is pushed up.
+  useEffect(() => {
+    let cancelled = false;
+    const sync = async () => {
+      if (agentRunRef.current || abortRef.current) return; // never swap the transcript mid-answer
+      try {
+        const remote = await assistantApi.getConversation();
+        if (cancelled || agentRunRef.current || abortRef.current) return;
+        const data = remote.data as StoredConversation | null;
+        if (data && Array.isArray(data.messages) && remote.rev > revRef.current) {
+          revRef.current = remote.rev;
+          fromServerRef.current = true;
+          setMessages(data.messages.filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string'));
+          setMode(data.mode === 'agent' ? 'agent' : 'chat');
+        } else if (revRef.current > remote.rev || !data) {
+          // Local is newer, or the server has nothing yet (a conversation from
+          // before server saving existed): push this browser's copy up.
+          const local = loadConversation();
+          if (local && local.messages.length > 0) {
+            if (!revRef.current) revRef.current = Date.now();
+            assistantApi.saveConversation({ ...local, rev: revRef.current }, revRef.current).catch(() => {});
+          }
+        }
+      } catch {
+        // Offline or signed out: carry on with the local copy.
+      }
+    };
+    sync();
+    const onFocus = () => { sync(); };
+    window.addEventListener('focus', onFocus);
+    return () => { cancelled = true; window.removeEventListener('focus', onFocus); };
+  }, []);
+
+  // Collect a chat-mode reply that was still being generated when the page
+  // reloaded. The request died with the old page, but the server finished the
+  // answer and kept it under the turn id.
+  useEffect(() => {
+    const pending = restoredRef.current?.pendingChat;
+    if (!pending) return;
+    if (Date.now() - pending.startedAt > CHAT_RESUME_WINDOW_MS) { setPendingChat(null); return; }
+    let stopped = false;
+    chatResumeStopRef.current = false;
+    setLoading(true);
+    const deadline = Date.now() + 150 * 1000;
+    const tick = async () => {
+      if (stopped || chatResumeStopRef.current) return;
+      try {
+        const out = await assistantApi.getTurn(pending.turnId);
+        if (stopped || chatResumeStopRef.current) return;
+        if (out.ready && out.turn) {
+          const turn = out.turn;
+          if (turn.message) {
+            const action = turn.action as ActionResult | undefined;
+            setMessages(prev => [...prev, { ...turn.message!, action, provider: turn.provider, latencyMs: turn.latencyMs }]);
+            if (action?.type === 'create_client' && action.result?.id) fetchClients().catch(() => {});
+          } else {
+            setError(turn.error || 'Chat failed');
+          }
+          setPendingChat(null);
+          setLoading(false);
+          return;
+        }
+      } catch {
+        // network blip: keep trying until the deadline
+      }
+      if (Date.now() > deadline) {
+        setPendingChat(null);
+        setLoading(false);
+        setError('That reply did not finish before the page reloaded. Send it again');
+        return;
+      }
+      setTimeout(tick, 2000);
+    };
+    tick();
+    return () => { stopped = true; };
+    // Runs once on mount by design: it collects whatever was pending before the reload.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Pick up an agent run that was still working when the page reloaded. The
   // run keeps going server-side regardless of the browser, so poll its session
@@ -455,8 +584,10 @@ export default function RadixAssistant() {
   const runChat = async (chatMessages: ChatMessage[], atts: typeof attachments) => {
     const controller = new AbortController();
     abortRef.current = controller;
+    const turnId = newTurnId();
+    setPendingChat({ turnId, startedAt: Date.now() });
     try {
-      const out = await assistantApi.chat(chatMessages, selectedClientId || undefined, controller.signal, atts.length ? atts : undefined);
+      const out = await assistantApi.chat(chatMessages, selectedClientId || undefined, controller.signal, atts.length ? atts : undefined, turnId);
       const action = (out as any).action as ActionResult | undefined;
       // The backend may surface RAG citations + reasoning trace on the response;
       // both are optional, both render only when present.
@@ -493,6 +624,7 @@ export default function RadixAssistant() {
       }
     } finally {
       setLoading(false);
+      setPendingChat(null);
       abortRef.current = null;
     }
   };
@@ -660,12 +792,16 @@ export default function RadixAssistant() {
     }
     abortRef.current?.abort();
     abortRef.current = null;
+    chatResumeStopRef.current = true;
+    setPendingChat(null);
     setLoading(false);
   };
 
   const handleClear = () => {
+    chatResumeStopRef.current = true;
     setMessages([]);
     setPendingRun(null);
+    setPendingChat(null);
     setError('');
     setAttachments([]);
     abortRef.current?.abort();

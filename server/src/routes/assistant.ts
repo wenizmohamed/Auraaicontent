@@ -57,6 +57,9 @@ interface ChatBody {
   // straight to the vision model; docs arrive as extracted text appended to the
   // message; video is not yet supported on the chat path.
   attachments?: ChatAttachment[];
+  // Client-generated id for this turn. When present the finished reply is also
+  // kept server-side so a reload mid-answer does not lose it.
+  turnId?: string;
 }
 
 interface AgentAction {
@@ -298,11 +301,82 @@ async function executeAction(orgId: string, action: string, params: any, clientI
 
 // ─── Route ───────────────────────────────────────────────────────
 
+// ─── Conversation store ──────────────────────────────────────────
+// One row per (org, user): the widget's transcript, so it follows the user
+// across devices, plus the latest chat reply keyed by the client's turn id.
+
+const CONVERSATION_MAX_BYTES = 800_000;
+const TURN_ID_RE = /^[A-Za-z0-9_-]{8,64}$/;
+
+/** Keep the finished chat reply so the widget can collect it after a reload
+ * that happened while the reply was still being generated. Best-effort. */
+async function saveTurn(orgId: string, userId: string | undefined, turnId: unknown, payload: Record<string, unknown>): Promise<void> {
+  if (!userId || typeof turnId !== 'string' || !TURN_ID_RE.test(turnId)) return;
+  const lastTurn = { turnId, at: new Date().toISOString(), ...payload } as any;
+  try {
+    await db.assistantConversation.upsert({
+      where: { orgId_userId: { orgId, userId } },
+      create: { orgId, userId, data: {}, rev: 0, lastTurn },
+      update: { lastTurn },
+    });
+  } catch (err: any) {
+    console.warn('[assistant] turn persist failed:', err?.message || err);
+  }
+}
+
 export async function assistantRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authGuard);
 
+  // Load the saved conversation for the signed-in user in the active org.
+  app.get('/assistant/conversation', async (request, reply) => {
+    const orgId = request.orgId!;
+    const userId = request.user?.userId;
+    if (!userId) return reply.status(401).send({ error: 'Not signed in' });
+    const row = await db.assistantConversation.findUnique({ where: { orgId_userId: { orgId, userId } } });
+    return { data: row?.data ?? null, rev: row?.rev ?? 0 };
+  });
+
+  // Save it. `rev` is the client's timestamp of its last change: an older
+  // write never overwrites a newer one (two tabs, or a second device).
+  app.put('/assistant/conversation', async (request, reply) => {
+    const orgId = request.orgId!;
+    const userId = request.user?.userId;
+    if (!userId) return reply.status(401).send({ error: 'Not signed in' });
+    const body = (request.body ?? {}) as { data?: unknown; rev?: unknown };
+    const data = body.data as { messages?: unknown } | undefined;
+    const rev = typeof body.rev === 'number' && Number.isFinite(body.rev) ? body.rev : 0;
+    if (!data || typeof data !== 'object' || !Array.isArray(data.messages)) {
+      return reply.status(400).send({ error: 'data.messages array is required' });
+    }
+    if (Buffer.byteLength(JSON.stringify(data)) > CONVERSATION_MAX_BYTES) {
+      return reply.status(413).send({ error: 'Conversation is too large to save' });
+    }
+    const existing = await db.assistantConversation.findUnique({ where: { orgId_userId: { orgId, userId } }, select: { rev: true, data: true } });
+    if (existing && existing.rev > rev) {
+      return { saved: false, stale: true, data: existing.data, rev: existing.rev };
+    }
+    await db.assistantConversation.upsert({
+      where: { orgId_userId: { orgId, userId } },
+      create: { orgId, userId, data: data as any, rev },
+      update: { data: data as any, rev },
+    });
+    return { saved: true, rev };
+  });
+
+  // Collect a chat reply by its turn id (see saveTurn).
+  app.get('/assistant/turns/:turnId', async (request, reply) => {
+    const orgId = request.orgId!;
+    const userId = request.user?.userId;
+    const { turnId } = request.params as { turnId: string };
+    if (!userId) return reply.status(401).send({ error: 'Not signed in' });
+    const row = await db.assistantConversation.findUnique({ where: { orgId_userId: { orgId, userId } }, select: { lastTurn: true } });
+    const last = row?.lastTurn as { turnId?: string } | null | undefined;
+    if (!last || last.turnId !== turnId) return { ready: false };
+    return { ready: true, turn: last };
+  });
+
   app.post('/assistant/chat', async (request, reply) => {
-    const { messages, clientId, attachments } = (request.body as ChatBody) || {};
+    const { messages, clientId, attachments, turnId } = (request.body as ChatBody) || {};
     const orgId = request.orgId!;
     if (!Array.isArray(messages) || messages.length === 0) {
       return reply.status(400).send({ error: 'messages array is required' });
@@ -442,13 +516,16 @@ export async function assistantRoutes(app: FastifyInstance) {
         // Not JSON — it's a plain text response, which is fine
       }
 
-      return {
+      const payload = {
         message: { role: 'assistant' as const, content: responseText },
         action: actionTaken,
         provider: providerUsed,
         latencyMs: totalLatency,
       };
+      await saveTurn(orgId, request.user?.userId, turnId, payload);
+      return payload;
     } catch (err) {
+      await saveTurn(orgId, request.user?.userId, turnId, { error: err instanceof Error ? err.message.slice(0, 300) : 'Assistant call failed' });
       return sendAiError(reply, err, 'Assistant call failed');
     }
   });

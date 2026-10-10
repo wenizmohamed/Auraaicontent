@@ -655,9 +655,21 @@ export interface ChatMessage {
 export const assistantApi = {
   // `signal` lets the caller abort an in-flight agent run (Stop button).
   // `attachments` = files on the latest user turn (images → vision model).
-  chat: (messages: ChatMessage[], clientId?: string, signal?: AbortSignal, attachments?: { dataUrl: string; mimeType: string; name?: string; kind?: 'image' | 'video' | 'doc' }[]) =>
+  chat: (messages: ChatMessage[], clientId?: string, signal?: AbortSignal, attachments?: { dataUrl: string; mimeType: string; name?: string; kind?: 'image' | 'video' | 'doc' }[], turnId?: string) =>
     request<{ message: ChatMessage; action?: { type: string; params: Record<string, any>; result: any }; provider: string; latencyMs: number }>(
-      '/api/assistant/chat', { method: 'POST', body: JSON.stringify({ messages, clientId, attachments }), signal }, { timeoutMs: 120000 }
+      '/api/assistant/chat', { method: 'POST', body: JSON.stringify({ messages, clientId, attachments, turnId }), signal }, { timeoutMs: 120000 }
+    ),
+  // The widget transcript, saved per user so it follows them across devices.
+  getConversation: () =>
+    request<{ data: any | null; rev: number }>('/api/assistant/conversation'),
+  saveConversation: (data: unknown, rev: number) =>
+    request<{ saved: boolean; stale?: boolean; data?: any; rev: number }>(
+      '/api/assistant/conversation', { method: 'PUT', body: JSON.stringify({ data, rev }) },
+    ),
+  // Collect a chat reply by turn id (it is kept server-side when a turnId was sent).
+  getTurn: (turnId: string) =>
+    request<{ ready: boolean; turn?: { turnId: string; message?: ChatMessage; action?: { type: string; params: Record<string, any>; result: any }; provider?: string; latencyMs?: number; error?: string } }>(
+      `/api/assistant/turns/${encodeURIComponent(turnId)}`,
     ),
 };
 

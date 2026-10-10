@@ -54,6 +54,7 @@ model Organization {
   platformConnections PlatformConnection[]
   generations     Generation[]
   memories        Memory[]
+  assistantConversations AssistantConversation[]
 }
 
 enum OrgRole {
@@ -114,6 +115,7 @@ model User {
   generations    Generation[]
   memories       Memory[]
   passwordResets PasswordReset[]
+  assistantConversations AssistantConversation[]
 }
 
 model RefreshToken {
@@ -642,6 +644,28 @@ model AuditLog {
 }
 
 // ─── Agent platform (Phase 1: real-time spine) ────────────────────────
+// The assistant widget's transcript (chat + agent turns), one row per user per
+// org, so the conversation follows the user across devices and survives a
+// refresh. lastTurn holds the most recent chat reply keyed by a client turn id
+// so a reply still lands when the page reloaded while it was being generated.
+// Table created by prisma/manual/2026-10-10_assistant-conversation.sql.
+model AssistantConversation {
+  id        String   @id @default(cuid())
+  orgId     String
+  userId    String
+  data      Json     @default("{}")
+  rev       Float    @default(0) // client ms timestamp of the last change; highest wins
+  lastTurn  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, userId])
+  @@index([orgId])
+}
+
 model AgentSession {
   id        String   @id @default(cuid())
   orgId     String
