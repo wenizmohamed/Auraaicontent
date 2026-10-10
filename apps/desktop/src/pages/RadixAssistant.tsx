@@ -221,12 +221,99 @@ const PROVIDER_TIERS: Record<string, { label: string; tint: string; ring: string
   moonshot:  { label: 'Kimi',    tint: 'color-mix(in srgb, var(--color-fg) 6%, transparent)',     ring: 'var(--color-fg-subtle)' },
 };
 
+// ─── Conversation persistence ────────────────────────────────────────
+// The transcript lived only in React state, so a refresh wiped the whole
+// conversation and both modes lost their context (the agent is sent these
+// turns as its memory). It is now saved to localStorage per signed-in user and
+// org, restored on load, and an agent run that was still working when the page
+// reloaded is picked back up from the server.
+
+interface PendingRun {
+  sessionUid: string;
+  clientId?: string | null;
+  startedAt: number;
+}
+
+interface StoredConversation {
+  v: 1;
+  messages: EnrichedMessage[];
+  mode: 'chat' | 'agent';
+  pendingRun?: PendingRun | null;
+}
+
+const CONVERSATION_PREFIX = 'radix.assistant.conversation.v1.';
+const MAX_STORED_MESSAGES = 80;
+const MAX_STORED_CHARS = 600_000; // well inside the ~5 MB localStorage quota
+const RESUME_WINDOW_MS = 30 * 60 * 1000; // a run older than this is not resumed
+
+/** Storage key scoped to the signed-in user and org, read from the auth token. */
+function conversationKey(): string | null {
+  try {
+    const token = localStorage.getItem('radix_auth_token');
+    const part = token?.split('.')[1];
+    if (!part) return null;
+    const payload = JSON.parse(atob(part.replace(/-/g, '+').replace(/_/g, '/'))) as { userId?: string; orgId?: string };
+    if (!payload.userId) return null;
+    return `${CONVERSATION_PREFIX}${payload.orgId || 'org'}.${payload.userId}`;
+  } catch {
+    return null;
+  }
+}
+
+function loadConversation(): StoredConversation | null {
+  const key = conversationKey();
+  if (!key) return null;
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as StoredConversation;
+    if (parsed?.v !== 1 || !Array.isArray(parsed.messages)) return null;
+    const messages = parsed.messages.filter(
+      m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string',
+    );
+    return { v: 1, messages, mode: parsed.mode === 'agent' ? 'agent' : 'chat', pendingRun: parsed.pendingRun ?? null };
+  } catch {
+    return null;
+  }
+}
+
+function saveConversation(state: { messages: EnrichedMessage[]; mode: 'chat' | 'agent'; pendingRun: PendingRun | null }): void {
+  const key = conversationKey();
+  if (!key) return;
+  try {
+    if (state.messages.length === 0 && !state.pendingRun) {
+      // Keep only the mode choice once the conversation is cleared.
+      localStorage.setItem(key, JSON.stringify({ v: 1, messages: [], mode: state.mode, pendingRun: null }));
+      return;
+    }
+    let messages = state.messages.slice(-MAX_STORED_MESSAGES);
+    let raw = JSON.stringify({ v: 1, messages, mode: state.mode, pendingRun: state.pendingRun });
+    // Oldest turns go first if a few very large replies push past the budget.
+    while (raw.length > MAX_STORED_CHARS && messages.length > 2) {
+      messages = messages.slice(Math.ceil(messages.length / 4));
+      raw = JSON.stringify({ v: 1, messages, mode: state.mode, pendingRun: state.pendingRun });
+    }
+    localStorage.setItem(key, raw);
+  } catch {
+    // Storage blocked or full: the conversation simply stays in memory.
+  }
+}
+
 export default function RadixAssistant() {
   const navigate = useNavigate();
   const { selectedClientId, currentClient, fetchClients, setSelectedClientId } = useClients();
-  const [open, setOpen] = useState(false);
+  // Reopen after a refresh if it was open, so the restored conversation is in view.
+  const [open, setOpen] = useState(() => {
+    try { return sessionStorage.getItem('radix.assistant.open') === '1'; } catch { return false; }
+  });
+  useEffect(() => {
+    try { sessionStorage.setItem('radix.assistant.open', open ? '1' : '0'); } catch { /* storage blocked */ }
+  }, [open]);
   const [expanded, setExpanded] = useState(false); // focus mode. Larger panel for agent runs
-  const [messages, setMessages] = useState<EnrichedMessage[]>([]);
+  // Restored once, on first render, from the last saved conversation.
+  const restoredRef = useRef<StoredConversation | null | undefined>(undefined);
+  if (restoredRef.current === undefined) restoredRef.current = loadConversation();
+  const [messages, setMessages] = useState<EnrichedMessage[]>(() => restoredRef.current?.messages ?? []);
   // Draft survives refresh — the prompt you were typing is restored on reload.
   const [input, setInput] = usePersistentDraft('assistant.input', '');
   // Multimodal attachments for the next turn (images go to the vision model;
@@ -241,7 +328,9 @@ export default function RadixAssistant() {
   // ── Agent mode ──────────────────────────────────────────────────
   // 'chat' = the existing single-turn assistant (actions + citations).
   // 'agent' = the real multi-step tool loop streamed over Socket.IO.
-  const [mode, setMode] = useState<'chat' | 'agent'>('chat');
+  const [mode, setMode] = useState<'chat' | 'agent'>(() => restoredRef.current?.mode ?? 'chat');
+  // The agent run in flight, if any. Saved so a reload can pick it back up.
+  const [pendingRun, setPendingRun] = useState<PendingRun | null>(() => restoredRef.current?.pendingRun ?? null);
   const [agentRun, setAgentRun] = useState<AgentRunView | null>(null);
   const agentRunRef = useRef<AgentRunView | null>(null); // socket handlers read the live value
   const agentSocketRef = useRef<Socket | null>(null);
@@ -252,6 +341,74 @@ export default function RadixAssistant() {
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, loading, agentRun]);
+
+  // Save the conversation on every change.
+  useEffect(() => {
+    saveConversation({ messages, mode, pendingRun });
+  }, [messages, mode, pendingRun]);
+
+  // Pick up an agent run that was still working when the page reloaded. The
+  // run keeps going server-side regardless of the browser, so poll its session
+  // until it finishes, rebuilding the activity timeline from the stored events.
+  useEffect(() => {
+    const pending = restoredRef.current?.pendingRun;
+    if (!pending) return;
+    if (Date.now() - pending.startedAt > RESUME_WINDOW_MS) { setPendingRun(null); return; }
+    let stopped = false;
+    const run: AgentRunView = { sessionUid: pending.sessionUid, phase: 'running', text: '', steps: [], clientId: pending.clientId };
+    agentRunRef.current = run;
+    agentSessionRef.current = pending.sessionUid;
+    setAgentRun(run);
+    setLoading(true);
+    const deadline = Date.now() + 15 * 60 * 1000;
+    let misses = 0; // consecutive failed lookups (the run may never have started)
+    const tick = async () => {
+      if (stopped || agentRunRef.current?.sessionUid !== pending.sessionUid) return;
+      try {
+        const { session } = await agentApi.getSession(pending.sessionUid);
+        if (stopped || agentRunRef.current?.sessionUid !== pending.sessionUid) return;
+        const steps: AgentToolStep[] = [];
+        let text = '';
+        let errorMessage: string | undefined;
+        for (const ev of session.events) {
+          const p = (ev.payload ?? {}) as Record<string, any>;
+          if (ev.type === 'agent:message' && typeof p.text === 'string') text += p.text;
+          else if (ev.type === 'agent:tool_start') steps.push({ id: p.toolCallId, tool: p.tool, status: 'running' });
+          else if (ev.type === 'agent:tool_result') {
+            const st = steps.find(x => x.id === p.toolCallId);
+            if (st) {
+              const soft = p.ok ? resultFailure(p.result) : null;
+              const failed = !p.ok || soft != null;
+              st.status = failed ? 'failed' : 'done';
+              st.summary = failed ? undefined : summarizeToolResult(p.tool, p.result);
+              st.error = failed ? (p.error || soft || 'No detail returned') : undefined;
+              st.link = failed ? undefined : linkForStep(p.tool, p.result, pending.clientId);
+            }
+          } else if (ev.type === 'agent:error' && typeof p.message === 'string') errorMessage = p.message;
+        }
+        misses = 0;
+        const finished = session.status === 'completed' || session.status === 'failed';
+        if (finished) {
+          // Long runs can exceed the event page; the saved reply is the source of truth.
+          const saved = [...session.messages].reverse().find(m => m.role === 'assistant')?.content || '';
+          agentRunRef.current = { ...run, steps, text: saved || text };
+          finalizeRun(session.status === 'failed' ? (errorMessage || 'The run stopped before finishing') : undefined);
+          return;
+        }
+        patchRun(prev => ({ ...prev, steps, text }));
+      } catch {
+        // Session not found (the reload beat the run's start) or a network blip.
+        misses += 1;
+        if (misses >= 5) { finalizeRun('That run did not start before the page reloaded. Send it again'); return; }
+      }
+      if (Date.now() > deadline) { finalizeRun('Lost track of the run. Check Session history'); return; }
+      setTimeout(tick, 3000);
+    };
+    tick();
+    return () => { stopped = true; };
+    // Runs once on mount by design: it resumes whatever was saved before the reload.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Tear the agent socket down with the widget.
   useEffect(() => () => {
@@ -357,6 +514,7 @@ export default function RadixAssistant() {
     if (!run) return;
     agentRunRef.current = null;
     setAgentRun(null);
+    setPendingRun(null);
     setLoading(false);
     const text = run.text.trim() || (summary ?? '').trim();
     const msg: EnrichedMessage = {
@@ -490,11 +648,13 @@ export default function RadixAssistant() {
       .slice(-16)
       .map(m => ({ role: m.role, content: m.content.slice(0, 6000) }));
     socket.emit('agent:run', { sessionUid, input: content, clientId: selectedClientId || undefined, history });
+    setPendingRun({ sessionUid, clientId: selectedClientId, startedAt: Date.now() });
   };
 
   const handleStop = () => {
     if (agentRunRef.current) {
-      agentSocketRef.current?.emit('agent:cancel', { sessionUid: agentRunRef.current.sessionUid });
+      // A run resumed after a reload has no socket yet; open one so Stop still reaches the server.
+      (agentSocketRef.current ?? getAgentSocket())?.emit('agent:cancel', { sessionUid: agentRunRef.current.sessionUid });
       finalizeRun('Stopped by you');
       return;
     }
@@ -505,6 +665,7 @@ export default function RadixAssistant() {
 
   const handleClear = () => {
     setMessages([]);
+    setPendingRun(null);
     setError('');
     setAttachments([]);
     abortRef.current?.abort();
