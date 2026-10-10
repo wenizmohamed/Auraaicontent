@@ -193,7 +193,7 @@ export async function buildApp() {
         },
         grok: {
           configured: !!process.env.XAI_API_KEY,
-          model: process.env.XAI_TEXT_MODEL || 'grok-4.6',
+          model: process.env.XAI_TEXT_MODEL || 'grok-4.7',
           baseURL: process.env.XAI_BASE_URL || 'https://api.x.ai/v1',
           role: 'fallback (text + image + video)',
           rank: 2,

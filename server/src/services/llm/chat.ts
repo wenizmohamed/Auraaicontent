@@ -402,7 +402,7 @@ export function chainStatus(chain: ProviderName[] = DEFAULT_CHAIN): Array<{ prov
       : p === 'dashscope' ? 'DASHSCOPE_API_KEY'
       : 'MOONSHOT_API_KEY';
     const modelEnv = p === 'gemini' ? (process.env.GEMINI_CHAT_MODEL || 'gemini-3.1-pro-preview')
-      : p === 'xai' ? (process.env.XAI_TEXT_MODEL || 'grok-4.6')
+      : p === 'xai' ? (process.env.XAI_TEXT_MODEL || 'grok-4.7')
       : p === 'dashscope' ? (process.env.DASHSCOPE_TEXT_MODEL || 'qwen3.8-max')
       : (process.env.MOONSHOT_MODEL || 'kimi-k2.6');
     return { provider: p, configured: !!process.env[envKey], model: modelEnv };

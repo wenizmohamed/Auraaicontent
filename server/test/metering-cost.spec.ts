@@ -23,6 +23,17 @@ describe('metering: text models (token math)', () => {
     expect(computeCostUsd('grok-4.6', 100_000, 50_000)).toBeCloseTo(0.5, 6);
   });
 
+  it('gemini-3.8-flash: 200k prompt + 400k completion = $1.65', () => {
+    // same promo card as 3.7 (2026-10-10):
+    // 200,000 / 1M * 0.75 = 0.15 ; 400,000 / 1M * 3.75 = 1.50 ; total 1.65
+    expect(computeCostUsd('gemini-3.8-flash', 200_000, 400_000)).toBeCloseTo(1.65, 6);
+  });
+
+  it('grok-4.7: 100k prompt + 50k completion = $0.50', () => {
+    // 100,000 / 1M * 2.00 = 0.20 ; 50,000 / 1M * 6.00 = 0.30 ; total 0.50
+    expect(computeCostUsd('grok-4.7', 100_000, 50_000)).toBeCloseTo(0.5, 6);
+  });
+
   it('qwen3.8-max: 1M prompt + 1M completion = $8.00', () => {
     // 1M / 1M * 2.00 = 2.00 ; 1M / 1M * 6.00 = 6.00 ; total 8.00
     expect(computeCostUsd('qwen3.8-max', 1_000_000, 1_000_000)).toBeCloseTo(8.0, 6);

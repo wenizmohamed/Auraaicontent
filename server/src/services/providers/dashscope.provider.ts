@@ -181,7 +181,11 @@ export const dashscopeProvider: AiProvider = {
     // the clip is persisted to our storage immediately). Image-conditioned
     // requests are not wired (wan i2v needs a public img_url) — 503 keeps
     // them on Veo via the router.
-    const key = process.env.DASHSCOPE_API_KEY;
+    // The 2026-10 Token Plan key (token-plan.maas.qwencloudapi.com) serves text,
+    // vision and images but has NO wan video models (404 "Model not exist",
+    // verified live 2026-10-10). Video can therefore run on its own key + host
+    // (the ws workspace that still has wan2.7); both fall back to the main pair.
+    const key = process.env.DASHSCOPE_VIDEO_API_KEY || process.env.DASHSCOPE_API_KEY;
     if (!key) throw new AiProviderError('dashscope', 'video', 'DASHSCOPE_API_KEY not set', 401);
     // Wan has no end-frame mode — those stay on Veo.
     if (req.endImageBase64) {
@@ -201,7 +205,7 @@ export const dashscopeProvider: AiProvider = {
     const model = req.model && /wan/i.test(req.model)
       ? req.model
       : isR2V ? 'wan2.7-r2v' : isI2V ? 'wan2.7-i2v' : (process.env.DASHSCOPE_VIDEO_MODEL || 'wan2.7-t2v');
-    const host = BASE_URL.replace(/\/compatible-mode\/v1\/?$/, '');
+    const host = (process.env.DASHSCOPE_VIDEO_BASE_URL || BASE_URL).replace(/\/compatible-mode\/v1\/?$/, '');
     const size = req.aspectRatio === '9:16' ? '720*1280' : '1280*720';
     const duration = Math.min(Math.max(Math.round(req.durationSeconds || 5), 3), 10);
     const start = Date.now();

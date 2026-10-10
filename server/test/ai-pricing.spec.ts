@@ -31,12 +31,14 @@ const REQUIRED_MODELS = [
   'gemini-flash-lite-latest',
   // 2026-08-14 refresh: current prod .env models — must stay priced forever
   'gemini-3.7-flash',
+  'gemini-3.8-flash',
   'gemini-3.1-flash-image',
   'gemini-3-pro-image',
   // xAI
   'grok-4.20',
   'grok-4.5',
   'grok-4.6',
+  'grok-4.7',
   'grok-imagine-image',
   'grok-imagine-image-2.0',
   'grok-imagine-video',

@@ -110,7 +110,7 @@ export const xaiProvider: AiProvider = {
   name: 'xai',
 
   async text(req: TextRequest): Promise<ProviderResult<string | object>> {
-    const model = process.env.XAI_TEXT_MODEL || 'grok-4.6';
+    const model = process.env.XAI_TEXT_MODEL || 'grok-4.7';
     const start = Date.now();
     // 8192 covers month-strategy JSON (~6KB typical) without tripping the
     // model's default cap that was truncating responses mid-string and

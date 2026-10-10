@@ -81,7 +81,10 @@ export const AI_PRICING: Record<string, PricePoint> = {
   // gemini-3.7-flash: $0.75/$3.75 promo through 2026-12-31, then $1.50/$7.50
   // (Google pricing page, verified 2026-08-14). Bump these two on 2027-01-01.
   'gemini-3.7-flash':                  { promptPerM: 0.75, completionPerM: 3.75 },
-  'gemini-flash-latest':               { promptPerM: 0.75, completionPerM: 3.75 },  // rolling alias = newest stable flash (3.7)
+  // gemini-3.8-flash: same card and same promo window as 3.7 (Google pricing
+  // page, verified 2026-10-10). gemini-flash-latest now resolves to it.
+  'gemini-3.8-flash':                  { promptPerM: 0.75, completionPerM: 3.75 },
+  'gemini-flash-latest':               { promptPerM: 0.75, completionPerM: 3.75 },  // rolling alias = newest stable flash (3.8)
   // gemini-3.5-flash: real card is $1.50/$9.00 — the $0.30/$2.50 recorded
   // here until 2026-08-14 was the OLD 2.5-flash tier (under-recorded ~5x).
   'gemini-3.5-flash':                  { promptPerM: 1.50, completionPerM: 9.00 },
@@ -105,7 +108,10 @@ export const AI_PRICING: Record<string, PricePoint> = {
   // grok-4.5 / 4.6: $2.00/$6.00 (≤200k) per xAI's live /v1/language-models,
   // 2026-08-14. 4.5 completion was wrongly $10 here (over-recorded 67%).
   'grok-4.5':                          { promptPerM: 2.00, completionPerM: 6.00 },
-  'grok-4.6':                          { promptPerM: 2.00, completionPerM: 6.00 },  // newest grok flagship
+  'grok-4.6':                          { promptPerM: 2.00, completionPerM: 6.00 },
+  // grok-4.7: $2.00/$6.00 (≤200k), identical to 4.6 per xAI's live
+  // /v1/language-models, 2026-10-10.
+  'grok-4.7':                          { promptPerM: 2.00, completionPerM: 6.00 },  // newest grok flagship
   // grok-imagine image: $0.02 per generated image (was $0.07).
   'grok-imagine-image':                { promptPerM: 0,    completionPerM: 0,    perCall: 0.02 },
   'grok-imagine-image-quality':        { promptPerM: 0,    completionPerM: 0,    perCall: 0.05 },  // $0.05 per live xAI API 2026-08-14 (was mis-recorded 0.03)

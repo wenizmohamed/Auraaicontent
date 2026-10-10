@@ -339,10 +339,11 @@ export const geminiProvider: AiProvider = {
       // snappy rewrites instead of the pro reasoning model).
       ...(req.model && /gemini/i.test(req.model) ? [req.model] : []),
       process.env.GEMINI_TEXT_MODEL || 'gemini-3.1-pro-preview',
-      process.env.GEMINI_FLASH_TEXT_MODEL || 'gemini-3.5-flash',
-      'gemini-3.5-flash',  // newest flash (2026-05) as an explicit rung
+      process.env.GEMINI_FLASH_TEXT_MODEL || 'gemini-3.8-flash',
+      'gemini-3.5-flash',  // older flash kept as an explicit rung
       'gemini-2.5-flash',
-      'gemini-2.0-flash',
+      // gemini-2.0-flash removed 2026-10-10: retired by Google (404 "no longer
+      // available"), and as the last rung its 404 masked the real upstream error.
     ]);
     const start = Date.now();
     const temperature = clampTemperature(req.temperature);
