@@ -33,4 +33,7 @@ COPY --from=build /app/server/package.json ./
 RUN npx prisma generate
 COPY --from=build /app/server/dist ./dist
 EXPOSE 8080
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]
+# db push, not migrate deploy: the migration history can't build an empty DB
+# (5 models were never given a creating migration — the first ALTER on
+# PlatformConnection fails), and this DB is always fresh and thrown away.
+CMD ["sh", "-c", "npx prisma db push --skip-generate && node dist/index.js"]

@@ -17,6 +17,9 @@ services:
       # Auto-runs `CREATE EXTENSION vector;` on first boot, before prisma
       # migrate deploy connects.
       - ./.ci/postgres-init:/docker-entrypoint-initdb.d:ro
+    # Exposed so the DB-backed specs (tenancy, agent-loop) run on the CI host.
+    ports:
+      - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U radix -d radix_planner"]
       interval: 2s
