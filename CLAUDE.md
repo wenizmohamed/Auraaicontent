@@ -18,8 +18,10 @@ local tree is current.
 - The only working branch is **`main`**. Never create stray branches without
   being told to.
 - `v2-migration` was fast-forwarded into `main` on 2026-10-13 and retired. If
-  your checkout is still on it, switch once:
-  `git fetch origin && git checkout main && git branch -u origin/main && git pull --ff-only`.
+  your checkout is still on it, run `bash scripts/retire-v2-migration.sh` once
+  before anything else. It backs up local edits, switches to `main` (stopping
+  if an edit isn't on `main` yet), archives and deletes the old remote branches
+  and makes `main` the default. If it stops, show the user its output.
 
 ## Git discipline — the orphan-prevention rules
 
