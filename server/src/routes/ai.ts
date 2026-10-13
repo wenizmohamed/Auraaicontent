@@ -8,7 +8,7 @@
 import { FastifyInstance } from 'fastify';
 import { authGuard } from '../middleware/auth.js';
 import { aiRouter } from '../services/providers/ai-router.js';
-import { sendAiError } from '../services/providers/errors.js';
+import { sendAiError, errStatus, errMessage } from '../services/providers/errors.js';
 import { assertClientInOrg } from '../lib/tenant.js';
 
 interface AiTextBody {
@@ -31,7 +31,7 @@ export async function aiRoutes(app: FastifyInstance) {
     // knowledge, memory are all client-scoped context).
     if (clientId) {
       try { await assertClientInOrg(clientId, request.orgId); }
-      catch (e: any) { return reply.status(e?.statusCode || 404).send({ error: e?.message || 'Client not found' }); }
+      catch (e) { return reply.status(errStatus(e, 404)).send({ error: errMessage(e, 'Client not found') }); }
     }
     try {
       const result = await aiRouter.text(

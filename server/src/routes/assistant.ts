@@ -1,4 +1,10 @@
 import { FastifyInstance } from 'fastify';
+import type { Prisma } from '@prisma/client';
+import type {
+  ChatCompletionAssistantMessageParam,
+  ChatCompletionContentPartImage,
+  ChatCompletionUserMessageParam,
+} from 'openai/resources/chat/completions';
 import { authGuard } from '../middleware/auth.js';
 import { sendAiError } from '../services/providers/errors.js';
 import { db } from '../db/prisma.js';
@@ -13,6 +19,10 @@ import { enrichWithKnowledge } from '../lib/knowledge-enricher.js';
 import { enrichWithMemory } from '../lib/memory-enricher.js';
 import { enrichWithBrandKit } from '../lib/brand-kit-enricher.js';
 
+// A non-system chat turn passed to the LLM: plain text, or (user only) an
+// OpenAI multimodal parts array.
+type AssistantTurn = ChatCompletionUserMessageParam | ChatCompletionAssistantMessageParam;
+
 // ─── Assistant LLM ───────────────────────────────────────────────
 // 2026-04-23: Weni's directive — Gemini 3.1 Pro is PRIMARY (Radix
 // company-card key), Grok is fallback, Kimi K2 tertiary. The chain is
@@ -21,7 +31,7 @@ async function callAssistantLLM(
   system: string,
   // content is string for plain turns, or an OpenAI multimodal parts array
   // ({type:'text'} + {type:'image_url'}) when the user attached image(s).
-  messages: { role: 'user' | 'assistant'; content: any }[],
+  messages: AssistantTurn[],
   meta?: { orgId?: string; userId?: string; clientId?: string },
 ): Promise<{ text: string; provider: ProviderName; model: string; latencyMs: number; fallbackUsed: boolean }> {
   // 4096 budget: Gemini 3 / Kimi K2 are thinking models that may burn
@@ -64,8 +74,26 @@ interface ChatBody {
 
 interface AgentAction {
   type: string;
-  params: Record<string, any>;
-  result: any;
+  params: Record<string, unknown>;
+  result: unknown;
+}
+
+// Fields executeAction reads from the model-emitted action params (see the
+// ACTIONS list in RADIX_PERSONA). Not validated at runtime.
+interface ActionParams {
+  name?: string;
+  industry?: string;
+  website?: string;
+  instagramHandle?: string;
+  month?: string;
+  count?: number;
+  query?: string;
+  limit?: number;
+  prompt?: string;
+  postId?: string;
+  caption?: string;
+  status?: string;
+  title?: string;
 }
 
 // ─── System Prompt ───────────────────────────────────────────────
@@ -131,7 +159,7 @@ CRITICAL: When responding as plain text, do NOT wrap it in JSON. Just write natu
 
 // ─── Action Executor ─────────────────────────────────────────────
 
-async function executeAction(orgId: string, action: string, params: any, clientId: string | null, userId?: string): Promise<any> {
+async function executeAction(orgId: string, action: string, params: ActionParams, clientId: string | null, userId?: string): Promise<unknown> {
   switch (action) {
     case 'list_clients':
       return db.client.findMany({
@@ -219,7 +247,7 @@ async function executeAction(orgId: string, action: string, params: any, clientI
           take: 5,
           select: { id: true, month: true, status: true, _count: { select: { posts: true } } },
         });
-        return months.map((m: any) => ({ month: m.month, status: m.status, postCount: m._count.posts }));
+        return months.map((m) => ({ month: m.month, status: m.status, postCount: m._count.posts }));
       }
       const cal = await db.calendarMonth.findFirst({
         where: { orgId, clientId, month },
@@ -229,7 +257,7 @@ async function executeAction(orgId: string, action: string, params: any, clientI
       return {
         month: cal.month,
         status: cal.status,
-        posts: cal.posts.map((p: any) => ({
+        posts: cal.posts.map((p) => ({
           title: p.title,
           platform: p.platform,
           status: p.status,
@@ -285,7 +313,7 @@ async function executeAction(orgId: string, action: string, params: any, clientI
       if (!postId) return { error: 'postId is required' };
       const existing = await db.calendarPost.findUnique({ where: { id: postId, orgId }, select: { orgId: true } });
       if (!existing) return { error: 'post not found' };
-      const updateData: any = {};
+      const updateData: Prisma.CalendarPostUpdateInput = {};
       if (params?.caption) updateData.caption = params.caption;
       if (params?.status) updateData.status = params.status;
       if (params?.title) updateData.title = params.title;
@@ -312,15 +340,15 @@ const TURN_ID_RE = /^[A-Za-z0-9_-]{8,64}$/;
  * that happened while the reply was still being generated. Best-effort. */
 async function saveTurn(orgId: string, userId: string | undefined, turnId: unknown, payload: Record<string, unknown>): Promise<void> {
   if (!userId || typeof turnId !== 'string' || !TURN_ID_RE.test(turnId)) return;
-  const lastTurn = { turnId, at: new Date().toISOString(), ...payload } as any;
+  const lastTurn = { turnId, at: new Date().toISOString(), ...payload } as Prisma.InputJsonObject;
   try {
     await db.assistantConversation.upsert({
       where: { orgId_userId: { orgId, userId } },
       create: { orgId, userId, data: {}, rev: 0, lastTurn },
       update: { lastTurn },
     });
-  } catch (err: any) {
-    console.warn('[assistant] turn persist failed:', err?.message || err);
+  } catch (err) {
+    console.warn('[assistant] turn persist failed:', (err as { message?: unknown } | null | undefined)?.message || err);
   }
 }
 
@@ -357,8 +385,8 @@ export async function assistantRoutes(app: FastifyInstance) {
     }
     await db.assistantConversation.upsert({
       where: { orgId_userId: { orgId, userId } },
-      create: { orgId, userId, data: data as any, rev },
-      update: { data: data as any, rev },
+      create: { orgId, userId, data: data as Prisma.InputJsonObject, rev },
+      update: { data: data as Prisma.InputJsonObject, rev },
     });
     return { saved: true, rev };
   });
@@ -388,7 +416,7 @@ export async function assistantRoutes(app: FastifyInstance) {
       try {
         const client = await db.client.findUnique({ where: { id: clientId, orgId }, include: { briefs: { orderBy: { month: 'asc' }, take: 1 } } });
         if (client) {
-          const cb: any = (client as any).briefs?.[0] ?? null;
+          const cb = client.briefs?.[0] ?? null;
           clientContext = `\n\nCURRENT CLIENT: ${client.name}`;
           if (client.industry) clientContext += ` (${client.industry})`;
           if (cb?.objective) clientContext += `\nObjective: ${cb.objective}`;
@@ -408,7 +436,7 @@ export async function assistantRoutes(app: FastifyInstance) {
             select: { month: true, status: true, _count: { select: { posts: true } } },
           });
           if (calStats.length > 0) {
-            clientContext += `\nRecent calendars: ${calStats.map((c: any) => `${c.month} (${c._count.posts} posts, ${c.status})`).join(', ')}`;
+            clientContext += `\nRecent calendars: ${calStats.map((c) => `${c.month} (${c._count.posts} posts, ${c.status})`).join(', ')}`;
           }
         }
       } catch { /* best-effort */ }
@@ -431,7 +459,7 @@ export async function assistantRoutes(app: FastifyInstance) {
     }
 
     // Format conversation for the chat API
-    const grokMessages: { role: 'user' | 'assistant'; content: any }[] = messages
+    const grokMessages: AssistantTurn[] = messages
       .filter(m => m.role !== 'system')
       .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
 
@@ -453,7 +481,7 @@ export async function assistantRoutes(app: FastifyInstance) {
           role: 'user',
           content: [
             { type: 'text', text: textPart },
-            ...imageAtts.map(a => ({ type: 'image_url', image_url: { url: a.dataUrl } })),
+            ...imageAtts.map((a): ChatCompletionContentPartImage => ({ type: 'image_url', image_url: { url: a.dataUrl } })),
           ],
         };
       }

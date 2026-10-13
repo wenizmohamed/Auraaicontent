@@ -49,7 +49,7 @@ export async function competitorIntelRoutes(app: FastifyInstance) {
           select: { name: true, industry: true, briefs: { select: { audience: true, objective: true, tone: true }, orderBy: { month: 'asc' }, take: 1 } },
         });
         if (client) {
-          const cb = (client as any).briefs?.[0];
+          const cb = client.briefs?.[0];
           clientContext = `\n\nOUR CLIENT (find gaps THEY can exploit):\n- Brand: ${client.name}${client.industry ? ` (${client.industry})` : ''}` +
             (cb ? `\n- Audience: ${cb.audience ?? '—'}\n- Objective: ${cb.objective ?? '—'}\n- Tone: ${cb.tone ?? '—'}` : '');
         }
@@ -67,7 +67,14 @@ export async function competitorIntelRoutes(app: FastifyInstance) {
         `"strengths":["...",max 4],"opportunities":["a concrete gap OUR CLIENT can exploit",...max 5]}`;
 
       const result = await aiRouter.text({ prompt, json: true }, { orgId: request.orgId, userId: request.user?.userId, clientId });
-      const out = result.output as any;
+      const out = result.output as {
+        summary?: unknown;
+        themes?: unknown;
+        tone?: unknown;
+        cadenceSignals?: unknown;
+        strengths?: unknown;
+        opportunities?: unknown;
+      } | null | undefined;
       return {
         competitor: competitor.trim(),
         website: website || null,

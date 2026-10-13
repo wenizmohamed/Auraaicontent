@@ -6,7 +6,7 @@ import { callKimiLong } from '../services/providers/kimi.provider.js';
 import { chatText } from '../services/llm/chat.js';
 import { db } from '../db/prisma.js';
 import { historyService } from '../services/history.service.js';
-import { verifySources } from '../services/source-verify.service.js';
+import { verifySources, type RawSource } from '../services/source-verify.service.js';
 
 interface ResearchBody {
   query?: string;
@@ -50,25 +50,25 @@ export async function researchRoutes(app: FastifyInstance) {
 
     try {
       const result = await aiRouter.text({ prompt, json: true }, { orgId: request.orgId, userId: request.user?.userId });
-      const out = result.output as any;
+      const out = result.output as { summary?: unknown; keyPoints?: unknown; sources?: unknown } | null | undefined;
 
       // Tolerate non-conforming outputs
       const summary = typeof out?.summary === 'string' ? out.summary : (typeof out === 'string' ? out : '');
-      const keyPoints = Array.isArray(out?.keyPoints) ? out.keyPoints.filter((s: any) => typeof s === 'string') : [];
+      const keyPoints = Array.isArray(out?.keyPoints) ? out.keyPoints.filter((s: unknown): s is string => typeof s === 'string') : [];
       const rawSources = Array.isArray(out?.sources)
         ? out.sources
-            .filter((s: any) => s && typeof s === 'object')
-            .map((s: any) => ({
+            .filter((s: unknown) => s && typeof s === 'object')
+            .map((s: { title?: unknown; url?: unknown; snippet?: unknown }) => ({
               title: typeof s.title === 'string' ? s.title : 'Untitled',
               url: typeof s.url === 'string' ? s.url : '',
               snippet: typeof s.snippet === 'string' ? s.snippet : undefined,
             }))
-            .filter((s: any) => s.url)
+            .filter((s) => s.url)
         : [];
       // Habiba 2026-07-14: verify every source URL actually resolves before
       // returning it — drops dead/hallucinated links so users never see a
       // broken or fake citation. Best-effort; on verifier failure keep raw.
-      let sources = rawSources;
+      let sources: RawSource[] = rawSources;
       try {
         sources = await verifySources(rawSources, { timeoutMs: 4000, concurrency: 5, dropDead: true });
       } catch { /* keep raw sources if the verifier itself fails */ }
@@ -121,19 +121,19 @@ export async function researchRoutes(app: FastifyInstance) {
       },
     });
     if (!client) return reply.status(404).send({ error: 'client not found' });
-    const cb: any = (client as any).briefs?.[0] ?? null;
+    const cb = client.briefs?.[0] ?? null;
 
     const briefBlock = cb
       ? `BRIEF\n  objective: ${cb.objective}\n  audience: ${cb.audience}\n  tone: ${cb.tone}\n  pillars: ${JSON.stringify(cb.pillars)}\n  products: ${JSON.stringify(cb.products)}\n  do: ${cb.brandDo}\n  don't: ${cb.brandDont}\n  compliance: ${cb.complianceNotes || '(none)'}\n`
       : '(no brief)';
 
     const knowledgeBlock = client.knowledgeItems.length
-      ? client.knowledgeItems.map((k: any, i: any) => `[kb-${i + 1}] ${k.title} (${k.type})\n${(k.textContent || '').slice(0, 4000)}`).join('\n\n')
+      ? client.knowledgeItems.map((k, i) => `[kb-${i + 1}] ${k.title} (${k.type})\n${(k.textContent || '').slice(0, 4000)}`).join('\n\n')
       : '(no knowledge items)';
 
     const calendarBlock = client.calendarMonths.length
-      ? client.calendarMonths.map((m: any) => {
-          const posts = m.posts.map((p: any) => `  - [${p.platform}/${p.status}] ${p.title}: ${(p.caption || '').slice(0, 200)}`).join('\n');
+      ? client.calendarMonths.map((m) => {
+          const posts = m.posts.map((p) => `  - [${p.platform}/${p.status}] ${p.title}: ${(p.caption || '').slice(0, 200)}`).join('\n');
           return `MONTH ${m.month} (${m.status}, ${m.posts.length} posts)\n${posts}`;
         }).join('\n\n')
       : '(no calendars yet)';
@@ -182,7 +182,7 @@ export async function researchRoutes(app: FastifyInstance) {
         enrich: true, // ground the brand-synthesis in the client's KB + learned memory
       });
       const stripped = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
-      let parsed: any = null;
+      let parsed: Record<string, unknown> | null = null;
       try { parsed = JSON.parse(stripped); } catch {
         await historyService.record({
           orgId: request.orgId,

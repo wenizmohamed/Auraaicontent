@@ -14,6 +14,7 @@
 // flow to land the file in storage, then references the returned URLs.
 
 import type { FastifyInstance } from 'fastify';
+import type { Prisma } from '@prisma/client';
 import { db } from '../db/prisma.js';
 import { authGuard } from '../middleware/auth.js';
 import { auditService } from '../services/audit.service.js';
@@ -28,12 +29,12 @@ export async function productReferenceRoutes(app: FastifyInstance) {
       const { clientId } = request.params;
       const orgId = request.orgId!;
       // Confirm the client belongs to this org before exposing its refs
-      const client = await (db as any).client.findFirst({
+      const client = await db.client.findFirst({
         where: { id: clientId, orgId },
         select: { id: true },
       });
       if (!client) return reply.status(404).send({ error: 'Client not found' });
-      const refs = await (db as any).productReference.findMany({
+      const refs = await db.productReference.findMany({
         where: { clientId, orgId },
         orderBy: { createdAt: 'desc' },
       });
@@ -48,22 +49,24 @@ export async function productReferenceRoutes(app: FastifyInstance) {
       const { clientId } = request.params;
       const orgId = request.orgId!;
       const userId = request.user?.userId;
-      const body = request.body as { name: string; description?: string; angles: any[]; tags?: any };
+      const body = request.body as { name: string; description?: string; angles: Prisma.InputJsonValue[]; tags?: Prisma.InputJsonValue };
       if (!body?.name || !Array.isArray(body?.angles) || body.angles.length === 0) {
         return reply.status(400).send({ error: 'name + at least one angle required' });
       }
-      const client = await (db as any).client.findFirst({
+      const client = await db.client.findFirst({
         where: { id: clientId, orgId },
         select: { id: true },
       });
       if (!client) return reply.status(404).send({ error: 'Client not found' });
-      const created = await (db as any).productReference.create({
+      const created = await db.productReference.create({
         data: {
           orgId, clientId,
           name: body.name,
           description: body.description ?? null,
           angles: body.angles,
-          tags: body.tags ?? null,
+          // NOTE(types): bare `null` kept as before; Prisma's Json? input type
+          // only admits Prisma.JsonNull / DbNull, hence the assertion.
+          tags: (body.tags ?? null) as Prisma.InputJsonValue,
         },
       });
       auditService.log({
@@ -83,12 +86,12 @@ export async function productReferenceRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const { clientId, id } = request.params;
       const orgId = request.orgId!;
-      const body = request.body as Partial<{ name: string; description: string; angles: any[]; tags: any }>;
-      const existing = await (db as any).productReference.findFirst({
+      const body = request.body as Partial<{ name: string; description: string; angles: Prisma.InputJsonValue[]; tags: Prisma.InputJsonValue }>;
+      const existing = await db.productReference.findFirst({
         where: { id, clientId, orgId },
       });
       if (!existing) return reply.status(404).send({ error: 'Not found' });
-      const updated = await (db as any).productReference.update({
+      const updated = await db.productReference.update({
         where: { id },
         data: {
           ...(body.name !== undefined ? { name: body.name } : {}),
@@ -108,12 +111,12 @@ export async function productReferenceRoutes(app: FastifyInstance) {
       const { clientId, id } = request.params;
       const orgId = request.orgId!;
       const userId = request.user?.userId;
-      const existing = await (db as any).productReference.findFirst({
+      const existing = await db.productReference.findFirst({
         where: { id, clientId, orgId },
         select: { id: true, name: true },
       });
       if (!existing) return reply.status(404).send({ error: 'Not found' });
-      await (db as any).productReference.delete({ where: { id } });
+      await db.productReference.delete({ where: { id } });
       auditService.log({
         orgId, userId, clientId,
         action: 'product-ref.delete',

@@ -19,7 +19,7 @@ export async function calendarRoutes(app: FastifyInstance) {
   // POST /api/clients/:clientId/calendar/generate → { jobId }
   app.post('/clients/:clientId/calendar/generate', { preHandler: capGuard('ai.text', 'calendar.generate') }, async (request, reply) => {
     const { clientId } = request.params as { clientId: string };
-    const { month, pieceCount } = (request.body as any) || {};
+    const { month, pieceCount } = (request.body as { month?: string; pieceCount?: number }) || {};
     const orgId = request.orgId!;
 
     if (!month) return reply.status(400).send({ error: 'month is required (e.g. "August 2026")' });
@@ -96,7 +96,7 @@ export async function calendarRoutes(app: FastifyInstance) {
         _count: { select: { posts: true } },
       },
     });
-    return months.map((m: any) => ({
+    return months.map((m) => ({
       id: m.id,
       month: m.month,
       status: m.status,
@@ -209,7 +209,7 @@ export async function calendarRoutes(app: FastifyInstance) {
       orderBy: { archivedAt: 'desc' },
       select: { id: true, month: true, status: true, isTest: true, createdAt: true, archivedAt: true, _count: { select: { posts: true } } },
     });
-    return months.map((m: any) => ({
+    return months.map((m) => ({
       id: m.id, month: m.month, status: m.status, isTest: m.isTest,
       createdAt: m.createdAt, archivedAt: m.archivedAt,
       postCount: m._count.posts,
@@ -274,13 +274,13 @@ export async function calendarRoutes(app: FastifyInstance) {
     ) {
       data.status = 'scheduled';
       // Clear any stale schedule error from a previous failed attempt.
-      (data as any).scheduleError = null;
+      data.scheduleError = null;
     }
     const updated = await db.calendarPost.update({ where: { id: postId, orgId: request.orgId }, data });
     auditService.log({
       orgId: request.orgId,
       userId: request.user?.userId,
-      clientId: (updated as any)?.clientId ?? undefined,
+      clientId: (updated as typeof updated & { clientId?: string | null })?.clientId ?? undefined,
       action: 'post.upsert',
       entityType: 'CalendarPost',
       entityId: postId,
@@ -308,11 +308,11 @@ export async function calendarRoutes(app: FastifyInstance) {
     auditService.log({
       orgId: request.orgId,
       userId: request.user?.userId,
-      clientId: (existing as any)?.calendarMonth?.clientId ?? undefined,
+      clientId: existing?.calendarMonth?.clientId ?? undefined,
       action: 'post.delete',
       entityType: 'CalendarPost',
       entityId: postId,
-      payload: { calendarMonthId: (existing as any)?.calendarMonthId ?? null },
+      payload: { calendarMonthId: existing?.calendarMonthId ?? null },
     }).catch(() => {});
     return { success: true, deletedId: postId };
   });
@@ -332,7 +332,11 @@ export async function calendarRoutes(app: FastifyInstance) {
     const decodedMonth = decodeURIComponent(month);
     const cm = await db.calendarMonth.findFirst({ where: { orgId, clientId, month: decodedMonth }, select: { id: true } });
     if (!cm) return reply.status(404).send({ error: `No calendar exists for "${decodedMonth}". Generate it first, then add custom posts.` });
-    const b = (request.body as any) || {};
+    const b = (request.body as {
+      platform?: string; date?: string; title?: string; pillar?: string; format?: string;
+      hook?: string; keyMessage?: string; caption?: string; cta?: string; hashtags?: unknown;
+      visualDirection?: string; referenceQuery?: string; timing?: string;
+    }) || {};
     if (!b.platform || typeof b.platform !== 'string') return reply.status(400).send({ error: 'platform is required' });
     const created = await db.calendarPost.create({
       data: {

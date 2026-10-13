@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify';
+import type { Prisma } from '@prisma/client';
 import { errStatus, errMessage } from '../services/providers/errors.js';
 import { authGuard, denyViewer } from '../middleware/auth.js';
 import { assetService } from '../services/asset.service.js';
@@ -17,7 +18,7 @@ export async function assetRoutes(app: FastifyInstance) {
     const orgId = request.orgId!;
     const q = (request.query || {}) as { type?: string; clientId?: string; q?: string; take?: string };
     const take = Math.min(parseInt(q.take || '200', 10) || 200, 500);
-    const where: any = { orgId };
+    const where: Prisma.AssetWhereInput = { orgId };
     if (q.clientId) where.clientId = q.clientId;
     if (q.type === 'image') where.mimeType = { startsWith: 'image/' };
     else if (q.type === 'video') where.mimeType = { startsWith: 'video/' };
@@ -29,7 +30,7 @@ export async function assetRoutes(app: FastifyInstance) {
       take,
       include: { client: { select: { id: true, name: true } } },
     });
-    return assets.map((a: any) => ({
+    return assets.map((a) => ({
       id: a.id,
       name: a.name,
       fileUrl: a.fileUrl,
@@ -84,7 +85,7 @@ export async function assetRoutes(app: FastifyInstance) {
       clientId,
       action: 'asset.upload',
       entityType: 'Asset',
-      entityId: (asset as any)?.id,
+      entityId: asset?.id,
       payload: { mimeType: file.mimetype, sizeBytes: buffer.length },
     }).catch(() => {});
 
@@ -107,7 +108,7 @@ export async function assetRoutes(app: FastifyInstance) {
   app.patch('/assets/:assetId', async (request, reply) => {
     const { assetId } = request.params as { assetId: string };
     const orgId = request.orgId!;
-    const { name, tags, safeForClient } = request.body as any;
+    const { name, tags, safeForClient } = request.body as Parameters<typeof assetService.update>[2];
     try {
       return await assetService.update(orgId, assetId, { name, tags, safeForClient });
     } catch (err) {
@@ -128,11 +129,11 @@ export async function assetRoutes(app: FastifyInstance) {
     auditService.log({
       orgId,
       userId: request.user?.userId,
-      clientId: (asset as any)?.clientId ?? undefined,
+      clientId: asset?.clientId ?? undefined,
       action: 'asset.delete',
       entityType: 'Asset',
       entityId: assetId,
-      payload: { mimeType: (asset as any)?.mimeType },
+      payload: { mimeType: asset?.mimeType },
     }).catch(() => {});
     return { success: true };
   });

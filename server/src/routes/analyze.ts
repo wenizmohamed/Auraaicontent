@@ -10,6 +10,17 @@ interface AnalyzeVideoBody {
   clientId?: string;
 }
 
+// Untrusted LLM JSON output — every field is narrowed at runtime before use.
+type VideoAnalysisOutput = {
+  error?: unknown;
+  summary?: unknown;
+  themes?: unknown;
+  targetAudience?: unknown;
+  socialHooks?: unknown;
+  timestamps?: unknown;
+  suggestions?: unknown;
+} | null | undefined;
+
 // ─── Content Moderation ─────────────────────────────────────────
 const BLOCKED_DOMAINS = [
   'pornhub', 'xvideos', 'xnxx', 'xhamster', 'redtube', 'youporn',
@@ -71,7 +82,7 @@ export async function analyzeRoutes(app: FastifyInstance) {
 
     try {
       const result = await aiRouter.text({ prompt: llmPrompt, json: true }, { orgId: request.orgId, userId: request.user?.userId, clientId });
-      const out = result.output as any;
+      const out = result.output as VideoAnalysisOutput;
 
       // If the LLM flagged it as blocked content
       if (out?.error && typeof out.error === 'string') {
@@ -80,18 +91,18 @@ export async function analyzeRoutes(app: FastifyInstance) {
 
       const safe = {
         summary: typeof out?.summary === 'string' ? out.summary : '',
-        themes: Array.isArray(out?.themes) ? out.themes.filter((t: any) => typeof t === 'string') : [],
+        themes: Array.isArray(out?.themes) ? out.themes.filter((t: unknown): t is string => typeof t === 'string') : [],
         targetAudience: typeof out?.targetAudience === 'string' ? out.targetAudience : '',
-        socialHooks: Array.isArray(out?.socialHooks) ? out.socialHooks.filter((h: any) => typeof h === 'string') : [],
+        socialHooks: Array.isArray(out?.socialHooks) ? out.socialHooks.filter((h: unknown): h is string => typeof h === 'string') : [],
         timestamps: Array.isArray(out?.timestamps)
           ? out.timestamps
-              .filter((t: any) => t && typeof t === 'object')
-              .map((t: any) => ({
+              .filter((t: unknown) => t && typeof t === 'object')
+              .map((t: { time?: unknown; description?: unknown }) => ({
                 time: typeof t.time === 'string' ? t.time : '',
                 description: typeof t.description === 'string' ? t.description : '',
               }))
           : [],
-        suggestions: Array.isArray(out?.suggestions) ? out.suggestions.filter((s: any) => typeof s === 'string') : [],
+        suggestions: Array.isArray(out?.suggestions) ? out.suggestions.filter((s: unknown): s is string => typeof s === 'string') : [],
       };
 
       await historyService.record({

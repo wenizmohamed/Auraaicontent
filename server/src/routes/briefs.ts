@@ -40,7 +40,7 @@ export async function briefRoutes(app: FastifyInstance) {
   app.put('/clients/:clientId/brief', async (request, reply) => {
     const { clientId } = request.params as { clientId: string };
     const { month } = (request.query as { month?: string }) || {};
-    const bodyMonth = (request.body as any)?.month;
+    const bodyMonth = (request.body as { month?: unknown } | null | undefined)?.month;
     const targetMonth = typeof month === 'string' && month ? month : (typeof bodyMonth === 'string' ? bodyMonth : '');
     try {
       await assertClientInOrg(clientId, request.orgId);
@@ -59,10 +59,10 @@ export async function briefRoutes(app: FastifyInstance) {
         clientId,
         action: 'brief.save',
         entityType: 'ClientBrief',
-        entityId: (saved as any)?.id,
+        entityId: saved?.id,
         payload: {
           mode: existingBefore ? 'update' : 'create',
-          fields: Object.keys((request.body as any) || {}),
+          fields: Object.keys((request.body as Record<string, unknown> | null | undefined) || {}),
         },
       }).catch(() => {});
       return saved;

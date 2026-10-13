@@ -13,6 +13,7 @@
 // schema.prisma line 691 comment.
 
 import type { FastifyInstance } from 'fastify';
+import type { BrandKit, Prisma } from '@prisma/client';
 import { db } from '../db/prisma.js';
 import { authGuard } from '../middleware/auth.js';
 import { auditService } from '../services/audit.service.js';
@@ -23,7 +24,7 @@ interface BrandKitUpsertBody {
   fontPrimary?: string | null;
   fontSecondary?: string | null;
   voiceSamples?: Array<{ context?: string; sample?: string }>;
-  voiceDoNot?: { rules?: string[] } | Record<string, any>;
+  voiceDoNot?: { rules?: string[] } | Prisma.InputJsonObject;
   voicePerPlatform?: Record<string, string>;
   sampleImages?: Array<{ url: string; label?: string; primary?: boolean; mimeType?: string }>;
 }
@@ -37,12 +38,12 @@ export async function brandKitRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const { clientId } = request.params;
       const orgId = request.orgId!;
-      const client = await (db as any).client.findFirst({
+      const client = await db.client.findFirst({
         where: { id: clientId, orgId },
         select: { id: true, primaryColor: true },
       });
       if (!client) return reply.status(404).send({ error: 'Client not found' });
-      const kit = await (db as any).brandKit.findUnique({
+      const kit = await db.brandKit.findUnique({
         where: { clientId },
       });
       // Hand the frontend the Client.primaryColor too so it can display the
@@ -61,33 +62,36 @@ export async function brandKitRoutes(app: FastifyInstance) {
       const userId = request.user?.userId;
       const body = (request.body || {}) as BrandKitUpsertBody;
 
-      const client = await (db as any).client.findFirst({
+      const client = await db.client.findFirst({
         where: { id: clientId, orgId },
         select: { id: true, primaryColor: true },
       });
       if (!client) return reply.status(404).send({ error: 'Client not found' });
 
-      const existing = await (db as any).brandKit.findUnique({ where: { clientId } });
+      const existing = await db.brandKit.findUnique({ where: { clientId } });
 
       // Normalize the payload — Prisma Json[] fields need arrays (not undefined)
       // and Json? fields accept null to clear.
-      const data: Record<string, any> = {
+      // NOTE(types): a bare `null` on the Json? columns is passed through as
+      // before; Prisma's input type only admits Prisma.JsonNull / DbNull there,
+      // hence the assertions on voiceDoNot / voicePerPlatform.
+      const data = {
         primaryColor: client.primaryColor ?? null,  // mirror from Client for compute simplicity
         secondaryColor: body.secondaryColor ?? null,
         accentColor: body.accentColor ?? null,
         fontPrimary: body.fontPrimary ?? null,
         fontSecondary: body.fontSecondary ?? null,
         voiceSamples: Array.isArray(body.voiceSamples) ? body.voiceSamples : [],
-        voiceDoNot: body.voiceDoNot ?? null,
-        voicePerPlatform: body.voicePerPlatform ?? null,
+        voiceDoNot: (body.voiceDoNot ?? null) as Prisma.InputJsonValue,
+        voicePerPlatform: (body.voicePerPlatform ?? null) as Prisma.InputJsonValue,
         sampleImages: Array.isArray(body.sampleImages) ? body.sampleImages : [],
       };
 
-      let saved: any;
+      let saved: BrandKit;
       if (existing) {
         // Snapshot prior state — full row minus relations — before mutating.
-        const { id: _id, changelogEntries: _ce, org: _org, client: _cl, createdAt: _ca, updatedAt: _ua, ...snapshot } = existing as any;
-        await (db as any).brandKitVersion.create({
+        const { id: _id, changelogEntries: _ce, org: _org, client: _cl, createdAt: _ca, updatedAt: _ua, ...snapshot } = existing as BrandKit & { changelogEntries?: unknown; org?: unknown; client?: unknown };
+        await db.brandKitVersion.create({
           data: {
             brandKitId: existing.id,
             version: existing.version,
@@ -95,7 +99,7 @@ export async function brandKitRoutes(app: FastifyInstance) {
             snapshot,
           },
         });
-        saved = await (db as any).brandKit.update({
+        saved = await db.brandKit.update({
           where: { id: existing.id },
           data: {
             ...data,
@@ -103,7 +107,7 @@ export async function brandKitRoutes(app: FastifyInstance) {
           },
         });
       } else {
-        saved = await (db as any).brandKit.create({
+        saved = await db.brandKit.create({
           data: {
             orgId,
             clientId,
@@ -137,17 +141,17 @@ export async function brandKitRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const { clientId } = request.params;
       const orgId = request.orgId!;
-      const client = await (db as any).client.findFirst({
+      const client = await db.client.findFirst({
         where: { id: clientId, orgId },
         select: { id: true },
       });
       if (!client) return reply.status(404).send({ error: 'Client not found' });
-      const kit = await (db as any).brandKit.findUnique({
+      const kit = await db.brandKit.findUnique({
         where: { clientId },
         select: { id: true },
       });
       if (!kit) return [];
-      const versions = await (db as any).brandKitVersion.findMany({
+      const versions = await db.brandKitVersion.findMany({
         where: { brandKitId: kit.id },
         orderBy: { version: 'desc' },
         take: 50,
@@ -163,17 +167,17 @@ export async function brandKitRoutes(app: FastifyInstance) {
       const { clientId } = request.params;
       const orgId = request.orgId!;
       const userId = request.user?.userId;
-      const client = await (db as any).client.findFirst({
+      const client = await db.client.findFirst({
         where: { id: clientId, orgId },
         select: { id: true },
       });
       if (!client) return reply.status(404).send({ error: 'Client not found' });
-      const kit = await (db as any).brandKit.findUnique({
+      const kit = await db.brandKit.findUnique({
         where: { clientId },
         select: { id: true, version: true },
       });
       if (!kit) return reply.status(404).send({ error: 'No brand kit to delete' });
-      await (db as any).brandKit.delete({ where: { id: kit.id } });
+      await db.brandKit.delete({ where: { id: kit.id } });
       auditService.log({
         orgId,
         userId,

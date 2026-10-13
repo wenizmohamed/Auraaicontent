@@ -52,7 +52,7 @@ export async function knowledgeRoutes(app: FastifyInstance) {
       clientId,
       action: 'knowledge.upload',
       entityType: 'KnowledgeItem',
-      entityId: (item as any)?.id,
+      entityId: item?.id,
       payload: { title: file.filename, sizeBytes: buffer.length },
     }).catch(() => {});
 
@@ -61,7 +61,7 @@ export async function knowledgeRoutes(app: FastifyInstance) {
     // (API/integration uploads get embedded too). Without it, an un-embedded doc is
     // invisible to the agent's RAG enricher. The frontend no longer calls /embed,
     // so there's no race on the worker's deleteMany+recreate.
-    const itemId = (item as any)?.id;
+    const itemId = item?.id;
     if (itemId) {
       embedKnowledgeItem(orgId, itemId)
         .then((r) => request.log.info({ itemId, ...r }, 'knowledge.autoEmbed.done'))

@@ -1,5 +1,6 @@
 import { errStatus, errMessage } from '../services/providers/errors.js';
 import { FastifyInstance } from 'fastify';
+import type { Prisma } from '@prisma/client';
 import { authGuard } from '../middleware/auth.js';
 import { aiRouter, getAiTelemetry } from '../services/providers/ai-router.js';
 import { sendAiError } from '../services/providers/errors.js';
@@ -118,7 +119,7 @@ export async function creativeRoutes(app: FastifyInstance) {
 
   // POST /api/creative/images/edit
   app.post('/creative/images/edit', { preHandler: capGuard('ai.image', 'image.edit') }, async (request, reply) => {
-    const { prompt: rawEditPrompt, imageBase64, mimeType, aspectRatio, clientId, model, provider, referenceImages, safeZone, imageSize, enhance, depth } = request.body as any;
+    const { prompt: rawEditPrompt, imageBase64, mimeType, aspectRatio, clientId, model, provider, referenceImages, safeZone, imageSize, enhance, depth } = request.body as { prompt?: string; imageBase64?: string; mimeType?: string; aspectRatio?: string; clientId?: string; model?: string; provider?: 'gemini' | 'xai' | 'dashscope'; referenceImages?: { base64: string; mimeType: string; role?: 'content' | 'style' | 'character' }[]; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K'; enhance?: boolean; depth?: 'raw' | 'low' | 'medium' | 'high' };
     if (!rawEditPrompt || !imageBase64) return reply.status(400).send({ error: 'prompt and imageBase64 are required' });
     const ev = validatePrompt(rawEditPrompt);
     if (!ev.valid) return reply.status(400).send({ error: ev.error });
@@ -129,9 +130,9 @@ export async function creativeRoutes(app: FastifyInstance) {
       // imageEdit inlines imageBase64 (primary) + every referenceImage, with the
       // optional per-image `role` (content/style/character) preserved (B1).
       const refs = Array.isArray(referenceImages)
-        ? referenceImages.filter((r: any) => r?.base64 && r?.mimeType)
+        ? referenceImages.filter((r) => r?.base64 && r?.mimeType)
             .slice(0, 8)
-            .map((r: any) => ({ base64: r.base64, mimeType: r.mimeType, ...(r.role ? { role: r.role } : {}) }))
+            .map((r) => ({ base64: r.base64, mimeType: r.mimeType, ...(r.role ? { role: r.role } : {}) }))
         : undefined;
       // Auto pro-prompt (default ON) — precise edit instructions beat vague ones.
       let enhancedPrompt: string | null = null;
@@ -202,7 +203,10 @@ export async function creativeRoutes(app: FastifyInstance) {
   // existing asset/generation). Fast tier (sharp Lanczos) by default; ai tier
   // (fal) when configured, else transparently falls back to fast.
   app.post('/creative/images/upscale', async (request, reply) => {
-    const { imageBase64, mimeType, sourceUrl, scale, targetLongEdge, format, mode, model, provider, clientId } = (request.body as any) || {};
+    const { imageBase64, mimeType, sourceUrl, scale, targetLongEdge, format, mode, model, provider, clientId } = (request.body as {
+      imageBase64?: string; mimeType?: string; sourceUrl?: string; scale?: unknown; targetLongEdge?: unknown;
+      format?: unknown; mode?: unknown; model?: unknown; provider?: unknown; clientId?: string;
+    }) || {};
     if (!imageBase64 && !sourceUrl) return reply.status(400).send({ error: 'imageBase64 or sourceUrl is required' });
     try {
       const result = await upscaleImage({
@@ -249,7 +253,7 @@ export async function creativeRoutes(app: FastifyInstance) {
     }
     const gen = await db.generation.findFirst({ where: { id: generationId, orgId: request.orgId! } });
     if (!gen) return reply.status(404).send({ error: 'Generation not found' });
-    const styled = ((gen.metadata as any)?.enhancedPrompt as string | undefined) || gen.prompt;
+    const styled = ((gen.metadata as Prisma.JsonObject | null)?.enhancedPrompt as string | undefined) || gen.prompt;
     const memoryId = await recordMemory({
       orgId: request.orgId!,
       clientId: gen.clientId,
@@ -285,7 +289,14 @@ export async function creativeRoutes(app: FastifyInstance) {
       enhance,
       depth,
       stylePackId,
-    } = request.body as any;
+    } = request.body as {
+      prompt?: string; aspectRatio?: string; durationSeconds?: number; resolution?: '720p' | '1080p' | '4k'; clientId?: string;
+      imageBase64?: string; mimeType?: string;
+      startImageBase64?: string; startMimeType?: string; endImageBase64?: string; endMimeType?: string;
+      tier?: string; safeZone?: boolean; negativePrompt?: unknown;
+      referenceImages?: { base64: string; mimeType: string }[];
+      model?: string; enhance?: boolean; depth?: 'raw' | 'low' | 'medium' | 'high'; stylePackId?: string;
+    };
     if (!prompt) return reply.status(400).send({ error: 'prompt is required' });
     {
       const vv = validatePrompt(prompt);
@@ -317,7 +328,7 @@ export async function creativeRoutes(app: FastifyInstance) {
     if (enhance !== false) {
       try {
         const e = await enhanceCreativePrompt({
-          prompt, mode: videoMode as any, engine: enhEngine, model, depth,
+          prompt, mode: videoMode, engine: enhEngine, model, depth,
           clientId: clientId || undefined,
           orgId: request.orgId, userId: request.user?.userId,
           safeZone: Boolean(safeZone), hasRefs: hasVideoRefs,
@@ -343,9 +354,9 @@ export async function creativeRoutes(app: FastifyInstance) {
     // enforced in the provider). Routed Veo-primary via imageConditioned.
     const videoRefs = Array.isArray(referenceImages)
       ? referenceImages
-          .filter((r: any) => r?.base64 && r?.mimeType)
+          .filter((r) => r?.base64 && r?.mimeType)
           .slice(0, 3)
-          .map((r: any) => ({ base64: r.base64, mimeType: r.mimeType }))
+          .map((r) => ({ base64: r.base64, mimeType: r.mimeType }))
       : undefined;
 
     // Both Gemini Veo and xAI grok-imagine-video only accept 16:9 and 9:16.
@@ -387,7 +398,7 @@ export async function creativeRoutes(app: FastifyInstance) {
     if (job) {
       // Tenant check — job ids are guessable-ish UUIDs and the payload carries
       // result URLs + enhanced prompts. Matches the guard in routes/jobs.ts.
-      const jobOrgId = (job as any)?.data?.orgId;
+      const jobOrgId = (job?.data as { orgId?: string } | undefined)?.orgId;
       if (jobOrgId && jobOrgId !== request.orgId) {
         return reply.status(404).send({ error: 'Job not found' });
       }
@@ -415,7 +426,7 @@ export async function creativeRoutes(app: FastifyInstance) {
   // Mirrors the dashboard's filter — returning the raw buffer exposed every
   // org's orgId/clientId/jobId/error strings to any authenticated user.
   app.get('/creative/telemetry', async (request) => {
-    return getAiTelemetry().filter((e: any) => !e.orgId || e.orgId === request.orgId);
+    return getAiTelemetry().filter((e) => !e.orgId || e.orgId === request.orgId);
   });
 
   // POST /api/creative/prompt/improve

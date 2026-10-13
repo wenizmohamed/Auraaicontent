@@ -20,7 +20,7 @@ export async function clientRoutes(app: FastifyInstance) {
   // off it only records the breach so the blast radius is visible first.
   app.post('/', { preHandler: capGuard('clients', 'client.create') }, async (request, reply) => {
     const { name, industry, website, instagramHandle, primaryColor, logoUrl, locale, dialect, whatsappNumber } =
-      request.body as any;
+      request.body as Partial<Parameters<typeof clientService.create>[1]>;
     if (!name) return reply.status(400).send({ error: 'Client name is required' });
     try {
       const client = await clientService.create(request.orgId!, { name, industry, website, instagramHandle, primaryColor, logoUrl, locale, dialect, whatsappNumber });
@@ -52,8 +52,8 @@ export async function clientRoutes(app: FastifyInstance) {
   app.patch('/:clientId', async (request, reply) => {
     const { clientId } = request.params as { clientId: string };
     try {
-      const updated = await clientService.update(request.orgId!, clientId, request.body as any);
-      const updatedKeys = Object.keys((request.body as any) || {});
+      const updated = await clientService.update(request.orgId!, clientId, request.body as Parameters<typeof clientService.update>[2]);
+      const updatedKeys = Object.keys((request.body as Record<string, unknown> | null | undefined) || {});
       auditService.log({
         orgId: request.orgId,
         userId: request.user?.userId,

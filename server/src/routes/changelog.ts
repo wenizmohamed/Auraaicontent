@@ -190,7 +190,7 @@ export async function changelogRoutes(app: FastifyInstance) {
 
   // GET /api/changelog?limit=5 — newest first.
   app.get('/changelog', async (request) => {
-    const limit = Math.min(20, Math.max(1, parseInt((request.query as any)?.limit ?? '5', 10) || 5));
+    const limit = Math.min(20, Math.max(1, parseInt((request.query as { limit?: string } | undefined)?.limit ?? '5', 10) || 5));
     return { entries: CHANGELOG.slice(0, limit) };
   });
 }

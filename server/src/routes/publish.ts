@@ -22,7 +22,7 @@ export async function publishRoutes(app: FastifyInstance) {
     const { platform } = (request.body as { platform?: string }) || {};
     const orgId = request.orgId!;
 
-    if (!platform || !listPlatformIds().includes(platform as any)) {
+    if (!platform || !(listPlatformIds() as readonly string[]).includes(platform)) {
       return reply.status(400).send({ error: `platform must be one of: ${listPlatformIds().join(', ')}` });
     }
 

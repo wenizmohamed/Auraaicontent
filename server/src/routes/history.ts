@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify';
+import type { Prisma } from '@prisma/client';
 import { authGuard } from '../middleware/auth.js';
 import { db } from '../db/prisma.js';
 
@@ -26,7 +27,7 @@ export async function historyRoutes(app: FastifyInstance) {
 
     const limit = Math.min(Math.max(parseInt(q.limit || String(DEFAULT_LIMIT), 10) || DEFAULT_LIMIT, 1), MAX_LIMIT);
 
-    const where: any = { orgId };
+    const where: Prisma.GenerationWhereInput = { orgId };
     if (q.type && ALLOWED_TYPES.has(q.type)) where.type = q.type;
     if (q.clientId) where.clientId = q.clientId;
     if (q.surface) where.surface = q.surface;
@@ -52,7 +53,7 @@ export async function historyRoutes(app: FastifyInstance) {
     const nextCursor = hasMore ? items[items.length - 1]?.createdAt.toISOString() : null;
 
     return {
-      items: items.map((r: any) => ({
+      items: items.map((r) => ({
         id: r.id,
         type: r.type,
         surface: r.surface,
@@ -107,10 +108,10 @@ export async function historyRoutes(app: FastifyInstance) {
       where: { orgId },
       _count: { _all: true },
     });
-    const total = grouped.reduce((acc: number, g: any) => acc + (g._count?._all || 0), 0);
+    const total = grouped.reduce((acc: number, g) => acc + (g._count?._all || 0), 0);
     return {
       total,
-      byType: grouped.reduce((acc: Record<string, number>, g: any) => {
+      byType: grouped.reduce((acc: Record<string, number>, g) => {
         acc[g.type] = g._count?._all || 0;
         return acc;
       }, {}),

@@ -1,4 +1,5 @@
-import { FastifyInstance } from 'fastify';
+import { FastifyInstance, type FastifyRequest } from 'fastify';
+import type { OrgRole } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { db } from '../db/prisma.js';
@@ -15,7 +16,7 @@ const MIN_PASSWORD = 6;
 // Reset links are short-lived and single-use.
 const RESET_TTL_MS = 60 * 60 * 1000; // 1 hour
 
-function reqMeta(request: any): { userAgent: string | null; ip: string | null } {
+function reqMeta(request: FastifyRequest): { userAgent: string | null; ip: string | null } {
   const ua = (request.headers['user-agent'] as string | undefined)?.slice(0, 300) ?? null;
   const ip = (request.ip as string | undefined) ?? null;
   return { userAgent: ua, ip };
@@ -114,7 +115,7 @@ export async function authRoutes(app: FastifyInstance) {
       rememberMe: Boolean(rememberMe),
       user: { id: user.id, email: user.email, name: user.name, role: user.role },
       activeOrgId: active.orgId,
-      memberships: memberships.map((m: any) => ({ orgId: m.orgId, role: m.role, org: m.org })),
+      memberships: memberships.map((m) => ({ orgId: m.orgId, role: m.role, org: m.org })),
     };
   });
 
@@ -190,7 +191,7 @@ export async function authRoutes(app: FastifyInstance) {
 
   // GET /api/auth/me — requires valid token
   app.get('/me', { preHandler: [authGuard] }, async (request) => {
-    const { userId } = (request as any).user as JwtPayload;
+    const { userId } = request.user as JwtPayload;
     const user = await db.user.findUnique({
       where: { id: userId },
       select: { id: true, email: true, name: true, role: true, currentOrgId: true, createdAt: true },
@@ -202,13 +203,13 @@ export async function authRoutes(app: FastifyInstance) {
       where: { userId },
       include: { org: { select: { id: true, name: true, slug: true, plan: true } } },
     });
-    const activeMembership = memberships.find((m: any) => m.orgId === request.orgId);
+    const activeMembership = memberships.find((m) => m.orgId === request.orgId);
     return {
       ...user,
       activeOrgId: request.orgId,
-      memberships: memberships.map((m: any) => ({ orgId: m.orgId, role: m.role, org: m.org })),
+      memberships: memberships.map((m) => ({ orgId: m.orgId, role: m.role, org: m.org })),
       // Costs/prices are owner, admin and accounting only (ACCOUNTING_EMAILS).
-      canSeePricing: canSeePricing(user.email, (activeMembership as any)?.role ?? request.user?.orgRole),
+      canSeePricing: canSeePricing(user.email, activeMembership?.role ?? request.user?.orgRole),
     };
   });
 
@@ -219,7 +220,7 @@ export async function authRoutes(app: FastifyInstance) {
       where: { userId },
       include: { org: true },
     });
-    return memberships.map((m: any) => ({ orgId: m.orgId, role: m.role, org: m.org }));
+    return memberships.map((m) => ({ orgId: m.orgId, role: m.role, org: m.org }));
   });
 
   // POST /api/auth/switch-org — set currentOrgId and re-issue access token
@@ -332,7 +333,7 @@ export async function authRoutes(app: FastifyInstance) {
     //         + OrgMembership + currentOrgId.
     // 14-day trial only applies to personal-org path. Auto-join uses existing org's plan.
     const slug = (email.split('@')[0] + '-' + Math.random().toString(36).slice(2, 6)).toLowerCase();
-    const result = await db.$transaction(async (tx: any) => {
+    const result = await db.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: { email, passwordHash, name, role: 'member' },
       });
@@ -346,7 +347,7 @@ export async function authRoutes(app: FastifyInstance) {
           orgId = existing.id;
           orgRole = autoOrg.role;
           await tx.orgMembership.create({
-            data: { userId: user.id, orgId, role: orgRole },
+            data: { userId: user.id, orgId, role: orgRole as OrgRole },
           });
         } else {
           const org = await tx.organization.create({
@@ -408,7 +409,7 @@ export async function authRoutes(app: FastifyInstance) {
 
   // PATCH /api/auth/me — update the current user's profile (name only for now).
   app.patch('/me', { preHandler: [authGuard] }, async (request, reply) => {
-    const { userId } = (request as any).user as JwtPayload;
+    const { userId } = request.user as JwtPayload;
     const { name } = (request.body ?? {}) as { name?: string };
     const trimmed = (name ?? '').trim();
     if (!trimmed) return reply.status(400).send({ error: 'Name is required' });
@@ -426,7 +427,7 @@ export async function authRoutes(app: FastifyInstance) {
   // current password, sets the new one, and revokes all OTHER refresh tokens so
   // stale sessions can't keep going after a credential change.
   app.post('/password', { preHandler: [authGuard] }, async (request, reply) => {
-    const { userId } = (request as any).user as JwtPayload;
+    const { userId } = request.user as JwtPayload;
     const { currentPassword, newPassword } = (request.body ?? {}) as {
       currentPassword?: string;
       newPassword?: string;

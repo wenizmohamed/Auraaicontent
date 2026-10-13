@@ -14,7 +14,7 @@ export async function exportRoutes(app: FastifyInstance) {
   // must own the client AND the calendar month, else 404.
   app.post('/clients/:clientId/calendar/:month/export', { preHandler: [authGuard] }, async (request, reply) => {
     const { clientId, month } = request.params as { clientId: string; month: string };
-    const { type = 'pptx' } = (request.body as any) || {};
+    const { type = 'pptx' } = (request.body as { type?: string }) || {};
     const decodedMonth = decodeURIComponent(month);
 
     if (!['pptx'].includes(type)) {

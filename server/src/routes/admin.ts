@@ -6,6 +6,7 @@
 
 import { errStatus, errMessage } from '../services/providers/errors.js';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import type { Prisma } from '@prisma/client';
 import { db } from '../db/prisma.js';
 import { authGuard } from '../middleware/auth.js';
 
@@ -53,7 +54,7 @@ export async function adminRoutes(app: FastifyInstance) {
         _count: { select: { memberships: true, clients: true, calendarMonths: true } },
       },
     });
-    return orgs.map((o: any) => ({
+    return orgs.map((o) => ({
       id: o.id,
       name: o.name,
       slug: o.slug,
@@ -139,7 +140,7 @@ export async function adminRoutes(app: FastifyInstance) {
       _sum: { costUsd: true, units: true },
       _count: { _all: true },
     });
-    return groups.map((g: any) => ({
+    return groups.map((g) => ({
       kind: g.kind,
       calls: g._count._all,
       units: Number(g._sum.units ?? 0),
@@ -259,7 +260,7 @@ export async function adminRoutes(app: FastifyInstance) {
   // Shared date-range parser. `from` defaults to first-of-current-month UTC,
   // `to` defaults to now. Returns 400 via a thrown sentinel if either is
   // present-but-invalid; callers translate the sentinel to a reply.
-  function parseRange(q: any, defaultDays?: number): { from: Date; to: Date } {
+  function parseRange(q: { from?: string; to?: string } | undefined, defaultDays?: number): { from: Date; to: Date } {
     const now = new Date();
     let from: Date;
     let to: Date;
@@ -313,7 +314,7 @@ export async function adminRoutes(app: FastifyInstance) {
       // is awkward; raw SQL is cleaner and lets us LEFT JOIN User in one shot).
       const totals = await db.$queryRaw<Array<{
         userId: string | null; userEmail: string | null; userName: string | null;
-        calls: bigint; units: bigint; costUsd: any;
+        calls: bigint; units: bigint; costUsd: Prisma.Decimal | null;
       }>>`
         SELECT u."userId"                        AS "userId",
                usr.email                          AS "userEmail",
@@ -333,7 +334,7 @@ export async function adminRoutes(app: FastifyInstance) {
       // Per-(user,kind) breakdown.
       const breakdown = await db.$queryRaw<Array<{
         userId: string | null; kind: string;
-        calls: bigint; units: bigint; costUsd: any;
+        calls: bigint; units: bigint; costUsd: Prisma.Decimal | null;
       }>>`
         SELECT u."userId" AS "userId",
                u.kind     AS kind,
@@ -352,7 +353,7 @@ export async function adminRoutes(app: FastifyInstance) {
       // (userId, metadata->>'model'); attached per user as `byModel`.
       const modelBreakdown = await db.$queryRaw<Array<{
         userId: string | null; model: string | null;
-        calls: bigint; units: bigint; costUsd: any;
+        calls: bigint; units: bigint; costUsd: Prisma.Decimal | null;
       }>>`
         SELECT u."userId"             AS "userId",
                (u.metadata->>'model') AS model,
@@ -417,7 +418,7 @@ export async function adminRoutes(app: FastifyInstance) {
 
       const rows = await db.$queryRaw<Array<{
         day: Date; kind: string;
-        calls: bigint; units: bigint; costUsd: any;
+        calls: bigint; units: bigint; costUsd: Prisma.Decimal | null;
       }>>`
         SELECT DATE_TRUNC('day', u."createdAt") AS day,
                u.kind                            AS kind,
@@ -460,7 +461,7 @@ export async function adminRoutes(app: FastifyInstance) {
       const CAP = 10000;
       const rows = await db.$queryRaw<Array<{
         createdAt: Date; userId: string | null; userEmail: string | null;
-        kind: string; metadata: any; units: number; costUsd: any; ref: string | null;
+        kind: string; metadata: Prisma.JsonValue; units: number; costUsd: Prisma.Decimal | null; ref: string | null;
       }>>`
         SELECT u."createdAt"  AS "createdAt",
                u."userId"      AS "userId",
@@ -485,7 +486,7 @@ export async function adminRoutes(app: FastifyInstance) {
       const header = 'timestamp,userId,userEmail,kind,model,units,costUsd,ref';
       const lines: string[] = [header];
       for (const r of data) {
-        const model = (r.metadata && typeof r.metadata === 'object' && (r.metadata as any).model) || '';
+        const model = (r.metadata && typeof r.metadata === 'object' && (r.metadata as Prisma.JsonObject).model) || '';
         lines.push(
           [
             csvEscape(new Date(r.createdAt).toISOString()),
@@ -533,7 +534,7 @@ export async function adminRoutes(app: FastifyInstance) {
     const rows = await db.$queryRaw<Array<{
       id: string; orgId: string; userId: string | null; userEmail: string | null;
       clientId: string | null; action: string; entityType: string;
-      entityId: string | null; payload: any; createdAt: Date; source: string;
+      entityId: string | null; payload: Prisma.JsonValue; createdAt: Date; source: string;
     }>>`
       SELECT * FROM (
         SELECT a.id              AS id,
@@ -598,7 +599,7 @@ export async function adminRoutes(app: FastifyInstance) {
 
       // Top-line totals + per-kind breakdown.
       const kindRows = await db.$queryRaw<Array<{
-        kind: string; calls: bigint; units: bigint; costUsd: any;
+        kind: string; calls: bigint; units: bigint; costUsd: Prisma.Decimal | null;
       }>>`
         SELECT u.kind                            AS kind,
                COUNT(*)::bigint                  AS calls,
@@ -622,7 +623,7 @@ export async function adminRoutes(app: FastifyInstance) {
       // Per-model + per-provider via metadata->>'model'. We pull raw model strings
       // and bucket provider in JS so we don't lock ourselves to a hardcoded list.
       const modelRows = await db.$queryRaw<Array<{
-        model: string | null; calls: bigint; costUsd: any;
+        model: string | null; calls: bigint; costUsd: Prisma.Decimal | null;
       }>>`
         SELECT (u.metadata->>'model') AS model,
                COUNT(*)::bigint        AS calls,

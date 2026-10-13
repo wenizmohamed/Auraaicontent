@@ -39,7 +39,7 @@ export async function designRoutes(app: FastifyInstance) {
         const client = await db.client.findUnique({ where: { id: clientId, orgId: request.orgId }, include: { briefs: { orderBy: { month: 'asc' }, take: 1 } } });
         if (client) {
           scopedClientId = client.id;
-          const brief = (client as any).briefs?.[0];
+          const brief = client.briefs?.[0];
           clientContext += `\nClient: ${client.name}`;
           if (client.industry) clientContext += ` (${client.industry})`;
           if (client.primaryColor) clientContext += `\nBrand color: ${client.primaryColor}`;
@@ -83,7 +83,17 @@ export async function designRoutes(app: FastifyInstance) {
 
     try {
       const result = await aiRouter.text({ prompt, json: true }, { orgId: request.orgId, userId: request.user?.userId, clientId: scopedClientId });
-      const out = result.output as any;
+      const out = result.output as {
+        conceptIdea?: unknown;
+        visualDirection?: unknown;
+        colorPalette?: unknown;
+        typography?: { heading?: unknown; body?: unknown; accent?: unknown } | null;
+        layoutDescription?: unknown;
+        copy?: { headline?: unknown; subheadline?: unknown; body?: unknown; cta?: unknown } | null;
+        imagePrompts?: unknown;
+        videoPrompts?: unknown;
+        dimensions?: unknown;
+      } | null | undefined;
 
       // Best-effort normalization
       const safe = {
@@ -91,8 +101,8 @@ export async function designRoutes(app: FastifyInstance) {
         visualDirection: typeof out?.visualDirection === 'string' ? out.visualDirection : '',
         colorPalette: Array.isArray(out?.colorPalette)
           ? out.colorPalette
-              .filter((c: any) => c && typeof c === 'object' && typeof c.hex === 'string')
-              .map((c: any) => ({ name: typeof c.name === 'string' ? c.name : 'Color', hex: c.hex }))
+              .filter((c: { name?: unknown; hex?: unknown } | null | undefined) => c && typeof c === 'object' && typeof c.hex === 'string')
+              .map((c: { name?: unknown; hex: string }) => ({ name: typeof c.name === 'string' ? c.name : 'Color', hex: c.hex }))
           : [],
         typography: {
           heading: typeof out?.typography?.heading === 'string' ? out.typography.heading : 'Inter',
@@ -107,15 +117,15 @@ export async function designRoutes(app: FastifyInstance) {
           cta: typeof out?.copy?.cta === 'string' ? out.copy.cta : '',
         },
         imagePrompts: Array.isArray(out?.imagePrompts)
-          ? out.imagePrompts.filter((p: any) => typeof p === 'string')
+          ? out.imagePrompts.filter((p: unknown): p is string => typeof p === 'string')
           : [],
         videoPrompts: Array.isArray(out?.videoPrompts)
-          ? out.videoPrompts.filter((p: any) => typeof p === 'string')
+          ? out.videoPrompts.filter((p: unknown): p is string => typeof p === 'string')
           : [],
         dimensions: Array.isArray(out?.dimensions)
           ? out.dimensions
-              .filter((d: any) => d && typeof d === 'object')
-              .map((d: any) => ({
+              .filter((d: unknown) => d && typeof d === 'object')
+              .map((d: { platform?: unknown; size?: unknown }) => ({
                 platform: typeof d.platform === 'string' ? d.platform : 'Unknown',
                 size: typeof d.size === 'string' ? d.size : '',
               }))

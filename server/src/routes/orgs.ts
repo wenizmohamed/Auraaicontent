@@ -13,7 +13,8 @@
 // the link unauthenticated, the frontend stores the token in localStorage
 // and replays after login.
 
-import { FastifyInstance } from 'fastify';
+import { FastifyInstance, type FastifyRequest, type FastifyReply } from 'fastify';
+import type { OrgRole } from '@prisma/client';
 import crypto from 'crypto';
 import { db } from '../db/prisma.js';
 import { authGuard, type JwtPayload } from '../middleware/auth.js';
@@ -58,7 +59,7 @@ function isPrivileged(orgRole: string | undefined): boolean {
 // authGuard on every request, which is NOT in scope here. Revoking refresh
 // tokens caps the exposure at one access-token TTL instead of the 30-day
 // refresh-token lifetime.
-async function revokeUserRefreshTokens(client: any, userId: string): Promise<void> {
+async function revokeUserRefreshTokens(client: Pick<typeof db, 'refreshToken'>, userId: string): Promise<void> {
   await client.refreshToken.updateMany({
     where: { userId, revokedAt: null },
     data: { revokedAt: new Date() },
@@ -66,8 +67,8 @@ async function revokeUserRefreshTokens(client: any, userId: string): Promise<voi
 }
 
 async function assertOrgPrivilege(
-  request: any,
-  reply: any,
+  request: FastifyRequest,
+  reply: FastifyReply,
   orgId: string,
 ): Promise<JwtPayload | null> {
   const user = request.user as JwtPayload | undefined;
@@ -113,7 +114,7 @@ export async function orgsRoutes(app: FastifyInstance) {
       include: { user: { select: { id: true, email: true, name: true } } },
       orderBy: { createdAt: 'asc' },
     });
-    return memberships.map((m: any) => ({
+    return memberships.map((m) => ({
       id: m.id,
       role: m.role,
       createdAt: m.createdAt.toISOString(),
@@ -131,7 +132,7 @@ export async function orgsRoutes(app: FastifyInstance) {
       where: { orgId, acceptedAt: null, expiresAt: { gt: new Date() } },
       orderBy: { createdAt: 'desc' },
     });
-    return invites.map((i: any) => ({
+    return invites.map((i) => ({
       id: i.id,
       email: i.email,
       role: i.role,
@@ -174,7 +175,7 @@ export async function orgsRoutes(app: FastifyInstance) {
       data: {
         orgId,
         email: email.toLowerCase(),
-        role: r as any,
+        role: r as OrgRole,
         token,
         invitedById: caller.userId,
         expiresAt,
@@ -292,10 +293,10 @@ export async function orgsRoutes(app: FastifyInstance) {
       }
     }
 
-    await db.$transaction(async (tx: any) => {
+    await db.$transaction(async (tx) => {
       await tx.orgMembership.update({
         where: { userId_orgId: { userId, orgId } },
-        data: { role: next as any },
+        data: { role: next as OrgRole },
       });
       // The old orgRole is baked into their issued JWT. Revoking refresh tokens
       // forces a re-login, and the next token they get carries the new role.
@@ -348,7 +349,7 @@ export async function orgsRoutes(app: FastifyInstance) {
       }
     }
 
-    await db.$transaction(async (tx: any) => {
+    await db.$transaction(async (tx) => {
       await tx.orgMembership.delete({
         where: { userId_orgId: { userId, orgId } },
       });
@@ -410,7 +411,7 @@ export async function invitationsRoutes(app: FastifyInstance) {
 
     // Create or update the membership idempotently.  If the user was somehow
     // already a member, just upgrade their role (no harm).
-    await db.$transaction(async (tx: any) => {
+    await db.$transaction(async (tx) => {
       await tx.orgMembership.upsert({
         where: { userId_orgId: { userId: caller.userId, orgId: invite.orgId } },
         update: { role: invite.role },

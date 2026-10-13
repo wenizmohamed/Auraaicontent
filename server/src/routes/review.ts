@@ -19,7 +19,7 @@ export async function reviewRoutes(app: FastifyInstance) {
     } catch (err) {
       return reply.status(errStatus(err)).send({ error: errMessage(err) });
     }
-    const { expiresInDays } = (request.body as any) || {};
+    const { expiresInDays } = (request.body as { expiresInDays?: number }) || {};
     const decodedMonth = decodeURIComponent(month);
 
     const calendarMonth = await db.calendarMonth.findFirst({ where: { orgId, clientId, month: decodedMonth } });
