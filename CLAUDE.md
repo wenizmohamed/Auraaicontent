@@ -15,8 +15,11 @@ local tree is current.
 
 ## Branch
 
-- The only working branch is **`v2-migration`**. Never commit to `main`, never
-  create stray branches without being told to.
+- The only working branch is **`main`**. Never create stray branches without
+  being told to.
+- `v2-migration` was fast-forwarded into `main` on 2026-10-13 and retired. If
+  your checkout is still on it, switch once:
+  `git fetch origin && git checkout main && git branch -u origin/main && git pull --ff-only`.
 
 ## Git discipline — the orphan-prevention rules
 
@@ -26,7 +29,7 @@ commits landed, but `brand-kit.ts` and `BrandKit.tsx` were never `git add`ed.
 Origin's build was broken for ~a week; the VPS only kept running because pm2
 served a stale `dist/`. Do not repeat this.
 
-1. **Pull first.** Before any work: `git pull --ff-only origin v2-migration`.
+1. **Pull first.** Before any work: `git pull --ff-only origin main`.
    If it will not fast-forward, STOP and reconcile — never force, never
    `reset --hard` without explicit human OK.
 2. **Stage every file your code references.** Before committing, run
@@ -37,7 +40,7 @@ served a stale `dist/`. Do not repeat this.
    - Server change → `cd server && npm run build` must pass.
    - Frontend change → `cd apps/desktop && npm run build` must pass.
    - A commit that does not build must not be pushed.
-4. **Push immediately after committing.** `git push origin v2-migration`.
+4. **Push immediately after committing.** `git push origin main`.
    Never leave local commits unpushed — the other hand will diverge.
 5. **No rotting WIP.** Don't leave modified files sitting uncommitted for days.
    Commit it, stash it, or discard it.

@@ -2,7 +2,7 @@
 name: vps-deploy-smoke-first
 enabled: true
 event: bash
-pattern: scp\s+.*hstgr|ssh\s+.*hstgr|git\s+push\s+.*v2-migration
+pattern: scp\s+.*hstgr|ssh\s+.*hstgr|git\s+push\s+.*main
 action: warn
 ---
 

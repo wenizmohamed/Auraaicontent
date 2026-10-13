@@ -43,8 +43,8 @@ echo "=== Radix backend deploy — $(date) ==="
 if [ "$DO_PULL" = "1" ]; then
   echo "--- git pull ---"
   cd "$SOURCE"
-  git fetch origin v2-migration
-  git pull --ff-only origin v2-migration
+  git fetch origin main
+  git pull --ff-only origin main
   git log --oneline -1
 fi
 
