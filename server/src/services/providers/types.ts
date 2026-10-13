@@ -1,4 +1,4 @@
-export type AiProviderName = 'xai' | 'gemini' | 'dashscope' | 'github';
+export type AiProviderName = 'xai' | 'gemini' | 'dashscope'; // github removed 2026-10-13: GitHub Models shut down 2026-07-30
 export type AiTask = 'text' | 'image' | 'image_edit' | 'video' | 'analysis' | 'embedding';
 
 export interface TextRequest {

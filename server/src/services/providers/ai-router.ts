@@ -1,7 +1,6 @@
 import { xaiProvider } from './xai.provider.js';
 import { geminiProvider } from './gemini.provider.js';
 import { dashscopeProvider } from './dashscope.provider.js';
-import { githubModelsProvider } from './github-models.provider.js';
 import { isRetryableAiError, isSafetyBlock, AllProvidersFailedError, AiCancelledError, abortReasonText, throwIfCancelled, type ProviderFailure } from './errors.js';
 import { filterAvailable, recordSuccess, recordFailure, getCircuitSnapshot } from './circuit-breaker.js';
 import type { AiProvider, AiProviderName, AiTask, AiTelemetryEntry, AnalysisRequest, ImageRequest, ProviderResult, TextRequest, VideoRequest } from './types.js';
@@ -110,7 +109,6 @@ const PROVIDERS: Record<AiProviderName, AiProvider> = {
   xai: xaiProvider,
   gemini: geminiProvider,
   dashscope: dashscopeProvider,
-  github: githubModelsProvider,
 };
 
 // Per-task fallback chain (order = preference). DashScope joins text/image/
@@ -122,14 +120,14 @@ const CHAIN: Record<string, AiProviderName[]> = {
   // and is cheaper than DashScope AND doesn't run Qwen's strict content filter
   // that false-blocks benign marketing prompts. So xai is the 2nd hop; DashScope
   // (strict filter, pricier) is the last resort. gemini stays primary.
-  text: ['gemini', 'github', 'dashscope', 'xai'],
+  text: ['gemini', 'dashscope', 'xai'],  // github-models lane removed 2026-10-13: service shut down 2026-07-30
   image: ['gemini', 'xai', 'dashscope'],
   // image_edit SKIPS xai: xAI's /images/edits returns 403 permission-denied for
   // this team, and 403 is non-retryable → it used to HALT the ladder before
   // DashScope (Qwen edit), so edits failed whenever Gemini was capped/down.
   // gemini → dashscope only; both can actually edit. (2026-07-06 T0#3 fix.)
   image_edit: ['gemini', 'dashscope'],
-  analysis: ['gemini', 'github', 'dashscope', 'xai'],
+  analysis: ['gemini', 'dashscope', 'xai'],  // github removed: service dead
   video: ['gemini', 'xai', 'dashscope'],  // dashscope = Wan t2v (text-only; 503s image-conditioned)
 };
 
@@ -141,7 +139,6 @@ function providerAvailable(name: AiProviderName): boolean {
     case 'dashscope': return !!process.env.DASHSCOPE_API_KEY;
     case 'xai': return !!process.env.XAI_API_KEY;
     case 'gemini': return !!process.env.GEMINI_API_KEY;
-    case 'github': return !!(process.env.GITHUB_MODELS_TOKEN || process.env.GITHUB_TOKEN);
     default: return false;
   }
 }
