@@ -78,6 +78,9 @@ function extractDay(dateStr: string): number | null {
   return null;
 }
 
+// Monthly Report stays hidden until POST /reports/monthly exists server-side.
+const MONTHLY_REPORT_ENABLED = false;
+
 // Editable field definitions
 const EDITABLE_FIELDS = [
   { key: 'title', label: 'Title', type: 'text' },
@@ -615,7 +618,7 @@ export default function ContentCalendar() {
             {/* Monthly Report hidden until its backend exists — POST /reports/monthly
                 is not implemented server-side, so the button 404'd ("Report failed").
                 Re-enable once reportsRoutes ships. Component + reportsApi kept intact. */}
-            {false && urlClient && backendMonth?.month && (
+            {MONTHLY_REPORT_ENABLED && urlClient && backendMonth?.month && (
               <MonthlyReportButton
                 clientId={urlClient}
                 month={backendMonth.month}
