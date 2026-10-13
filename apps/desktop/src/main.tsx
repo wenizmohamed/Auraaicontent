@@ -31,6 +31,23 @@ window.onunhandledrejection = (e) => {
   try { localStorage.setItem('radix_last_crash', JSON.stringify(crash)); } catch {}
 };
 
+// Every page is a lazy chunk and deploys replace dist/ with `rsync --delete`,
+// so a tab opened before a deploy can't load the next page it navigates to
+// ("Failed to fetch dynamically imported module" / Safari "Importing a module
+// script failed") and lands on the crash screen. Reload once onto the new
+// build instead. The session flag stops a reload loop if an asset is really
+// missing; it clears after a healthy boot so a later deploy is covered too.
+const CHUNK_RELOAD_FLAG = 'radix_chunk_reload';
+window.addEventListener('vite:preloadError', (event) => {
+  try {
+    if (sessionStorage.getItem(CHUNK_RELOAD_FLAG)) return;
+    sessionStorage.setItem(CHUNK_RELOAD_FLAG, '1');
+  } catch { return; }
+  event.preventDefault();
+  window.location.reload();
+});
+setTimeout(() => { try { sessionStorage.removeItem(CHUNK_RELOAD_FLAG); } catch { /* noop */ } }, 10_000);
+
 // React Error Boundary
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null as Error | null };

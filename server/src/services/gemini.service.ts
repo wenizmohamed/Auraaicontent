@@ -104,6 +104,11 @@ export async function generateJson<T>(
 const EMBED_CACHE = new Map<string, { vec: number[]; at: number }>();
 const EMBED_CACHE_TTL = 15 * 60 * 1000;
 const EMBED_CACHE_MAX = 500;
+// Embeddings feed best-effort knowledge/memory retrieval that runs BEFORE every
+// text call (month plan included). Without a ceiling a hung embed request
+// blocked generation indefinitely; callers already treat a failure as "no
+// knowledge context" and carry on.
+const EMBED_TIMEOUT_MS = parseInt(process.env.GEMINI_EMBED_TIMEOUT_MS || '15000', 10);
 
 export async function embedText(text: string, ctx?: EmbedContext): Promise<number[]> {
   const key = text.length <= 512 ? text : text.slice(0, 256) + '\u0000' + text.length + '\u0000' + text.slice(-256);
@@ -122,6 +127,7 @@ export async function embedText(text: string, ctx?: EmbedContext): Promise<numbe
         response = await client.models.embedContent({
           model: MODELS.embedding,
           contents: text,
+          config: { abortSignal: AbortSignal.timeout(EMBED_TIMEOUT_MS) },
         });
         break;
       } catch (err: any) {

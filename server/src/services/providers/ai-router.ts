@@ -1,7 +1,7 @@
 import { xaiProvider } from './xai.provider.js';
 import { geminiProvider } from './gemini.provider.js';
 import { dashscopeProvider } from './dashscope.provider.js';
-import { isRetryableAiError, isSafetyBlock, AllProvidersFailedError, type ProviderFailure } from './errors.js';
+import { isRetryableAiError, isSafetyBlock, AllProvidersFailedError, AiCancelledError, abortReasonText, throwIfCancelled, type ProviderFailure } from './errors.js';
 import { filterAvailable, recordSuccess, recordFailure, getCircuitSnapshot } from './circuit-breaker.js';
 import type { AiProvider, AiProviderName, AiTask, AiTelemetryEntry, AnalysisRequest, ImageRequest, ProviderResult, TextRequest, VideoRequest } from './types.js';
 import { db } from '../../db/prisma.js';
@@ -207,6 +207,8 @@ async function routeCall<T>(
   // No-op when meta.orgId is missing (legacy callers) or the org's budget
   // is 0 (the default — means "no enforcement"). Throws OrgBudgetExceededError
   // (statusCode 402) which the route handlers serialize as JSON.
+  const signal: AbortSignal | undefined = req?.signal;
+  throwIfCancelled(signal, task);
   await assertOrgBudget(meta?.orgId);
 
   // BrandKit enrichment (F3) — single point of injection BEFORE provider
@@ -276,6 +278,8 @@ async function routeCall<T>(
   for (let i = 0; i < providers.length; i++) {
     const provider = providers[i];
     if (i > 0) fallbackUsed = true;
+    // Deadline reached / user pressed Stop: don't start another provider.
+    throwIfCancelled(signal, task);
     try {
       const result = await fn(provider);
       result.fallbackUsed = fallbackUsed;
@@ -301,6 +305,10 @@ async function routeCall<T>(
       );
       return result;
     } catch (err) {
+      // A cancelled call is the caller's decision, not a provider failure:
+      // no breaker hit, no fallback, no "all providers failed" wrapping.
+      if (err instanceof AiCancelledError) throw err;
+      if (signal?.aborted) throw new AiCancelledError(task, abortReasonText(signal));
       const errMsg = err instanceof Error ? err.message : String(err);
       const retryable = isRetryableAiError(err);
       // Only retryable failures (outage/timeout/5xx) count toward tripping the

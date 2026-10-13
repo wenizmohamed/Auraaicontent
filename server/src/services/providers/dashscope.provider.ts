@@ -20,7 +20,7 @@ import OpenAI from 'openai';
 import type {
   AiProvider, AnalysisRequest, ImageRequest, ProviderResult, TextRequest, VideoRequest,
 } from './types.js';
-import { AiProviderError } from './errors.js';
+import { AiProviderError, AiCancelledError, abortReasonText, throwIfCancelled } from './errors.js';
 import { storageService } from '../storage.service.js';
 
 const BASE_URL = process.env.DASHSCOPE_BASE_URL
@@ -51,18 +51,29 @@ async function chat(req: TextRequest | AnalysisRequest, json: boolean): Promise<
   if ((req as TextRequest).system) messages.push({ role: 'system', content: (req as TextRequest).system! });
   messages.push({ role: 'user', content: req.prompt });
 
-  const r = await client.chat.completions.create({
-    model,
-    messages,
-    // 16384 (was 4096): qwen3.7-max is a reasoning model, so thinking + answer
-    // share this budget. A month plan (18-30 posts) needs ~7-11K output tokens;
-    // at 4096 EVERY calendar that fell through to DashScope truncated → invalid
-    // posts array → whole generation failed. This is the second half of the
-    // "gemini fails → Qwen → job dies" chain.
-    max_tokens: (req as TextRequest).maxTokens ?? 16384,
-    ...((req as TextRequest).temperature != null ? { temperature: (req as TextRequest).temperature } : {}),
-    ...(json ? { response_format: { type: 'json_object' as const } } : {}),
-  });
+  const { signal, timeoutMs } = req as TextRequest;
+  throwIfCancelled(signal, 'text');
+  let r: OpenAI.Chat.ChatCompletion;
+  try {
+    r = await client.chat.completions.create({
+      model,
+      messages,
+      // 16384 (was 4096): qwen3.7-max is a reasoning model, so thinking + answer
+      // share this budget. A month plan (18-30 posts) needs ~7-11K output tokens;
+      // at 4096 EVERY calendar that fell through to DashScope truncated → invalid
+      // posts array → whole generation failed. This is the second half of the
+      // "gemini fails → Qwen → job dies" chain.
+      max_tokens: (req as TextRequest).maxTokens ?? 16384,
+      ...((req as TextRequest).temperature != null ? { temperature: (req as TextRequest).temperature } : {}),
+      ...(json ? { response_format: { type: 'json_object' as const } } : {}),
+    }, {
+      ...(signal ? { signal } : {}),
+      ...(timeoutMs ? { timeout: timeoutMs } : {}),
+    });
+  } catch (err) {
+    if (signal?.aborted) throw new AiCancelledError('text', abortReasonText(signal));
+    throw err;
+  }
 
   // Some Qwen/DeepSeek "reasoning" models stream the answer into reasoning_content
   // and leave content empty — fall back so we never return ''.
