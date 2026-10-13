@@ -1,5 +1,5 @@
 import type { AiProvider, AnalysisRequest, ImageRequest, ProviderResult, TextRequest, VideoRequest } from './types.js';
-import { AiProviderError } from './errors.js';
+import { AiProviderError, AiCancelledError, abortReasonText, throwIfCancelled } from './errors.js';
 import { storageService } from '../storage.service.js';
 import { runModelLadder, readLadder } from './model-chain.js';
 
@@ -52,9 +52,16 @@ function getKey(): string {
   return key;
 }
 
-async function xaiFetch(path: string, body: object): Promise<any> {
+// opts.timeoutMs overrides the global TIMEOUT for this call; opts.signal is the
+// caller's deadline / Stop switch (surfaces as AiCancelledError, never retried).
+async function xaiFetch(path: string, body: object, opts: { timeoutMs?: number; signal?: AbortSignal } = {}): Promise<any> {
+  throwIfCancelled(opts.signal, 'text');
+  const timeoutMs = opts.timeoutMs ?? TIMEOUT;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT);
+  let timedOut = false;
+  const timer = setTimeout(() => { timedOut = true; controller.abort(); }, timeoutMs);
+  const onCallerAbort = () => controller.abort();
+  opts.signal?.addEventListener('abort', onCallerAbort, { once: true });
   try {
     const res = await fetch(`${BASE_URL}${path}`, {
       method: 'POST',
@@ -66,9 +73,15 @@ async function xaiFetch(path: string, body: object): Promise<any> {
       const text = await res.text().catch(() => '');
       throw new AiProviderError('xai', path, `${res.status}: ${text}`, res.status);
     }
-    return res.json();
+    return await res.json();
+  } catch (err) {
+    if (opts.signal?.aborted) throw new AiCancelledError('text', abortReasonText(opts.signal));
+    // "This operation was aborted" told nobody it was our own timer.
+    if (timedOut) throw new AiProviderError('xai', path, `timeout after ${timeoutMs}ms`);
+    throw err;
   } finally {
     clearTimeout(timer);
+    opts.signal?.removeEventListener('abort', onCallerAbort);
   }
 }
 
@@ -133,7 +146,7 @@ export const xaiProvider: AiProvider = {
         { role: 'user', content: req.prompt },
       ],
       ...(req.json ? { response_format: { type: 'json_object' } } : {}),
-    });
+    }, { timeoutMs: req.timeoutMs, signal: req.signal });
     const text = data.choices?.[0]?.message?.content ?? '';
     return {
       provider: 'xai', model, latencyMs: Date.now() - start, fallbackUsed: false,

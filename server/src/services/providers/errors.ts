@@ -111,6 +111,9 @@ export function isSafetyBlock(msg: string): boolean {
 const BILLING_EXHAUSTION = /used all (available )?credits|spending (limit|cap)|out of credits|insufficient.?(credit|balance|funds)|exhausted balance|user is locked|top ?up your balance|quota exceeded|payment.?required/i;
 
 export function isRetryableAiError(err: unknown): boolean {
+  // The caller pulled the plug (deadline or user stop) — never fall through to
+  // another rung/provider. Checked first: the wording must not matter.
+  if (err instanceof AiCancelledError) return false;
   const msg = err instanceof Error ? err.message : String(err);
   const status = (err as any)?.status || (err as any)?.statusCode;
 
@@ -152,6 +155,31 @@ export class AiProviderError extends Error {
     super(`[${provider}/${task}] ${message}`);
     this.name = 'AiProviderError';
   }
+}
+
+/**
+ * Thrown when the caller's AbortSignal fires (job deadline reached or the user
+ * pressed Stop). Non-retryable by construction: the router and the model
+ * ladder stop immediately instead of trying the next rung/provider.
+ */
+export class AiCancelledError extends Error {
+  public statusCode = 499;
+  constructor(public task: string, public reason: string) {
+    super(`${task} generation stopped: ${reason}`);
+    this.name = 'AiCancelledError';
+  }
+}
+
+/** Throw AiCancelledError if `signal` has already fired. */
+export function throwIfCancelled(signal: AbortSignal | undefined, task: string): void {
+  if (signal?.aborted) throw new AiCancelledError(task, abortReasonText(signal));
+}
+
+export function abortReasonText(signal: AbortSignal): string {
+  const r = signal.reason;
+  if (typeof r === 'string' && r) return r;
+  if (r instanceof Error && r.message) return r.message;
+  return 'cancelled';
 }
 
 export interface ProviderFailure {

@@ -204,30 +204,55 @@ export default function ContentReview() {
   // header: the page used to open the newest month with no way to reach any
   // other one, and it kept showing the old client's month after a client switch.
   const [monthOptions, setMonthOptions] = useState<{ month: string; postCount: number }[]>([]);
+  // A failed load used to fall through to "No generated content found", which
+  // read as "generation produced nothing" right after a successful run. Now a
+  // network/server failure is retried, then shown as an error with Retry.
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  // Without this the page said "No generated content found" while the month
+  // was still loading (and through any retry), right after a successful run.
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const cId = urlClient || selectedClientId;
-    if (!cId) { setBackendMonth(null); setMonthOptions([]); return; }
+    if (!cId) { setBackendMonth(null); setMonthOptions([]); setLoading(false); return; }
     let cancelled = false;
+    setLoadError(null);
+    setLoading(true);
+    // 404 = this month genuinely has no content; anything else (no statusCode =
+    // network, 5xx = server restarting) is worth another try.
+    const withRetry = async <T,>(fn: () => Promise<T>): Promise<T> => {
+      for (let attempt = 0; ; attempt++) {
+        try { return await fn(); } catch (err: any) {
+          const code = err?.statusCode;
+          const transient = typeof code !== 'number' || code === 408 || code === 429 || code >= 500;
+          if (!transient || attempt >= 2 || cancelled) throw err;
+          await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
+        }
+      }
+    };
     (async () => {
       let months: { month: string; postCount: number }[] = [];
       try {
-        months = (await calendarApi.listMonths(cId)).map(m => ({ month: m.month, postCount: m.postCount }));
+        months = (await withRetry(() => calendarApi.listMonths(cId))).map(m => ({ month: m.month, postCount: m.postCount }));
       } catch { /* the month list is a convenience; the load below still runs */ }
       if (cancelled) return;
       setMonthOptions(months);
       // Explicit ?month= wins; otherwise open the most recent month.
       const target = urlMonth ? decodeURIComponent(urlMonth) : months[0]?.month;
-      if (!target) { setBackendMonth(null); return; }
+      if (!target) { setBackendMonth(null); setLoading(false); return; }
       try {
-        const data = await calendarApi.getMonth(cId, target);
+        const data = await withRetry(() => calendarApi.getMonth(cId, target));
         if (!cancelled) setBackendMonth(data);
-      } catch {
-        if (!cancelled) setBackendMonth(null);
+      } catch (err: any) {
+        if (cancelled) return;
+        setBackendMonth(null);
+        if (err?.statusCode !== 404) setLoadError(err?.message || 'Network error');
       }
+      if (!cancelled) setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [urlClient, urlMonth, selectedClientId]);
+  }, [urlClient, urlMonth, selectedClientId, reloadKey]);
 
   const selectMonth = (month: string) => {
     const next = new URLSearchParams(searchParams);
@@ -585,6 +610,35 @@ export default function ContentReview() {
   };
 
   // ─── No brief found ────────────────────────────────────────
+
+  if (!brief && loading && !briefId) {
+    return (
+      <div className="max-w-2xl mx-auto mt-20 flex items-center justify-center gap-3 text-sm" style={{ color: 'var(--color-fg-muted)' }} role="status">
+        <Loader2 className="h-5 w-5 animate-spin" /> Loading your content…
+      </div>
+    );
+  }
+
+  if (!brief && loadError) {
+    return (
+      <div className="max-w-2xl mx-auto mt-20">
+        <EmptyState
+          icon={Sparkles}
+          title="Couldn't load your content"
+          description={`This page couldn't reach the server (${loadError}). Check your connection and try again.`}
+          primary={
+            <button
+              onClick={() => setReloadKey(k => k + 1)}
+              className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors cursor-pointer"
+              style={{ background: 'var(--color-accent)', color: 'var(--color-fg-on-accent)' }}
+            >
+              Retry
+            </button>
+          }
+        />
+      </div>
+    );
+  }
 
   if (!brief) {
     return (

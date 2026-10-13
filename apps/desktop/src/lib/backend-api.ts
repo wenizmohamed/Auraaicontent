@@ -446,6 +446,9 @@ export interface JobRecord {
 }
 export const jobsApi = {
   get: (jobId: string) => request<JobRecord>(`/api/jobs/${jobId}`),
+  // "Stop Generation": the server aborts the run and saves nothing.
+  cancel: (jobId: string) =>
+    request<{ id: string; outcome: 'removed' | 'flagged' | 'finished' | 'missing' }>(`/api/jobs/${jobId}/cancel`, { method: 'POST' }),
 };
 
 // ─── Review Links ────────────────────────────────────────────────

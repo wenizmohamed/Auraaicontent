@@ -8,6 +8,13 @@ export interface TextRequest {
   json?: boolean;
   maxTokens?: number;
   model?: string;  // optional per-call model override (powers the model picker)
+  // Per-attempt timeout override. Background jobs (the month plan) need far
+  // longer than the global GEMINI_TIMEOUT_MS that protects synchronous HTTP
+  // routes behind nginx's 120s proxy timeout.
+  timeoutMs?: number;
+  // Caller-owned deadline / cancel switch. When it aborts, the in-flight
+  // request is cancelled and NO further rung or provider is tried.
+  signal?: AbortSignal;
 }
 
 export interface ImageRequest {

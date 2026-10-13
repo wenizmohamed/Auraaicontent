@@ -96,11 +96,46 @@ interface OccasionEntry {
 // mid-run we'd lose the jobId and the "generating" UI even though the job is
 // still going. Stashing it lets the page reconnect on reload.
 const ACTIVE_JOB_KEY = 'radix.activeJob.calendar';
-interface ActiveJob { jobId: string; clientId: string; month: string }
+interface ActiveJob { jobId: string; clientId: string; month: string; count?: number; startedAt?: number }
 function saveActiveJob(j: ActiveJob) { try { localStorage.setItem(ACTIVE_JOB_KEY, JSON.stringify(j)); } catch { /* noop */ } }
 function clearActiveJob() { try { localStorage.removeItem(ACTIVE_JOB_KEY); } catch { /* noop */ } }
 function readActiveJob(): ActiveJob | null {
   try { const r = localStorage.getItem(ACTIVE_JOB_KEY); return r ? (JSON.parse(r) as ActiveJob) : null; } catch { return null; }
+}
+
+// ─── Job polling ───────────────────────────────────────────────────
+// The server ends every run within ~8 min (AI budget + saving), so 15 min of
+// wall clock is a generous ceiling. Wall clock, not poll count: iOS freezes
+// timers while the screen is locked.
+const POLL_MS = 5000;
+const MAX_WAIT_MS = 15 * 60 * 1000;
+// Consecutive failed status checks tolerated (~2 min) before giving up.
+const MAX_POLL_FAILURES = 24;
+const CANCELLED = 'Cancelled';
+const LOST_CONNECTION = 'Lost connection while checking on your content. It is still being made on the server: refresh this page to reconnect, or open Review in a few minutes.';
+
+// One dropped status check used to end the whole run with "Failed to fetch"
+// (Safari: "Load failed") while the job finished fine on the server: the posts
+// were saved but the page never took you to them. A network-level failure has
+// no statusCode; a server restart shows up as 502/503/504. Neither says
+// anything about the job, so keep checking.
+function isTransientPollError(err: any): boolean {
+  const code = err?.statusCode;
+  if (typeof code !== 'number') return true;
+  return code === 408 || code === 429 || code >= 500;
+}
+
+function stageLabel(progress: number): string {
+  if (progress < 20) return 'Reading your brief';
+  if (progress < 70) return 'Writing your posts';
+  if (progress < 88) return 'Saving your posts';
+  if (progress < 100) return 'Finding visual references';
+  return 'Done';
+}
+
+function fmtElapsed(ms: number): string {
+  const s = Math.max(0, Math.round(ms / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -155,6 +190,12 @@ export default function BriefInput() {
   const [isGenerating, setIsGenerating] = useState(false);
   const cancelledRef = useRef(false);
   const [generationProgress, setGenerationProgress] = useState('');
+  const [jobProgress, setJobProgress] = useState(0);
+  // Piece count of the run in flight (after a refresh the slider resets to 18).
+  const [activeCount, setActiveCount] = useState<number | null>(null);
+  const activeJobIdRef = useRef<string | null>(null);
+  // Resolves the current between-polls wait early (tab back in view / Stop).
+  const wakeRef = useRef<(() => void) | null>(null);
   const [customOccasionName, setCustomOccasionName] = useState('');
   const [customOccasionDate, setCustomOccasionDate] = useState('');
   const [conflict, setConflict] = useState<{ month: string; clientId: string } | null>(null);
@@ -316,11 +357,32 @@ export default function BriefInput() {
 
   // ─── Cancel Generation ───────────────────────────────────────────
 
+  // Stop = stop the SERVER run too. It used to only stop this page polling: the
+  // job kept going, and the next Generate click was deduped straight back onto
+  // it (same stuck progress, timer restarting: "it keeps looping").
   const handleCancel = useCallback(() => {
     cancelledRef.current = true;
+    const jobId = activeJobIdRef.current;
+    if (jobId) jobsApi.cancel(jobId).catch(() => { /* best-effort: the server's time budget still ends it */ });
+    activeJobIdRef.current = null;
     clearActiveJob();
+    wakeRef.current?.();
     setIsGenerating(false);
-    setGenerationProgress('Cancelled.');
+    setGenerationProgress('');
+    setJobProgress(0);
+  }, []);
+
+  // Wake the between-polls wait when the tab comes back into view, so a phone
+  // unlocked mid-run shows fresh status at once instead of after a stale timer.
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === 'visible') wakeRef.current?.(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, []);
+
+  const report = useCallback((progress: number, msg: string) => {
+    setJobProgress(progress);
+    setGenerationProgress(msg);
   }, []);
 
   // ─── Shared generate + poll helper ──────────────────────────────
@@ -333,44 +395,65 @@ export default function BriefInput() {
     jobId: string,
     clientId: string,
     month: string,
-    onProgress?: (msg: string) => void,
+    startedAt: number,
+    onProgress?: (progress: number, msg: string) => void,
   ): Promise<void> => {
-    let attempts = 0;
-    while (attempts < 120) {
-      if (cancelledRef.current) { clearActiveJob(); throw new Error('Cancelled'); }
-      await new Promise(r => setTimeout(r, 5000));
-      const job = await jobsApi.get(jobId);
-      const elapsed = Math.round((attempts + 1) * 5);
-      onProgress?.(`Generating... ${job.progress}% (${elapsed}s)`);
+    let failures = 0;
+    let progress = 0;
+    while (Date.now() - startedAt < MAX_WAIT_MS) {
+      if (cancelledRef.current) throw new Error(CANCELLED);
+      await new Promise<void>(resolve => {
+        const done = () => { clearTimeout(t); wakeRef.current = null; resolve(); };
+        const t = setTimeout(done, POLL_MS);
+        wakeRef.current = done;
+      });
+      if (cancelledRef.current) throw new Error(CANCELLED);
+
+      let job;
+      try {
+        job = await jobsApi.get(jobId);
+        failures = 0;
+      } catch (err) {
+        if (!isTransientPollError(err)) throw err;
+        if (++failures >= MAX_POLL_FAILURES) throw new Error(LOST_CONNECTION);
+        onProgress?.(progress, `Reconnecting… ${fmtElapsed(Date.now() - startedAt)}`);
+        continue;
+      }
+      progress = job.progress;
+      onProgress?.(progress, `${stageLabel(progress)}… ${progress}% · ${fmtElapsed(Date.now() - startedAt)}`);
 
       if (job.status === 'completed') {
-        onProgress?.('Done!');
+        onProgress?.(100, 'Done!');
         clearActiveJob();
+        activeJobIdRef.current = null;
         // Route to Review (not Calendar) so user sees generated content + visual references first
         navigate(`/content-review?client=${clientId}&month=${encodeURIComponent(month)}`);
         return;
       }
       if (job.status === 'failed') {
         clearActiveJob();
+        activeJobIdRef.current = null;
         throw new Error(job.error || 'Generation failed on server');
       }
-      attempts++;
     }
     clearActiveJob();
-    throw new Error('Generation timed out after 10 minutes');
+    activeJobIdRef.current = null;
+    throw new Error('Generation timed out after 15 minutes');
   }, [navigate]);
 
   const generateAndPoll = useCallback(async (
     clientId: string,
     month: string,
     count: number,
-    onProgress?: (msg: string) => void,
+    onProgress?: (progress: number, msg: string) => void,
   ): Promise<void> => {
-    onProgress?.(`Generating ${count} content pieces...`);
+    onProgress?.(0, 'Starting…');
+    const startedAt = Date.now();
     const { jobId } = await calendarApi.generate(clientId, month, count);
+    activeJobIdRef.current = jobId;
     // Persist the in-flight job so a refresh can reconnect to it.
-    saveActiveJob({ jobId, clientId, month });
-    await pollJob(jobId, clientId, month, onProgress);
+    saveActiveJob({ jobId, clientId, month, count, startedAt });
+    await pollJob(jobId, clientId, month, startedAt, onProgress);
   }, [pollJob]);
 
   // Resume an in-flight generation after a page refresh: the server job is
@@ -379,14 +462,23 @@ export default function BriefInput() {
     const active = readActiveJob();
     if (!active?.jobId) return;
     cancelledRef.current = false;
+    activeJobIdRef.current = active.jobId;
+    setActiveCount(active.count ?? null);
     setIsGenerating(true);
-    setGenerationProgress('Reconnecting to your generation…');
-    pollJob(active.jobId, active.clientId, active.month, setGenerationProgress)
-      .catch(() => {
-        // Job already finished / expired / gone — clear and reset quietly.
-        clearActiveJob();
+    report(0, 'Reconnecting to your generation…');
+    pollJob(active.jobId, active.clientId, active.month, active.startedAt ?? Date.now(), report)
+      .catch((err: any) => {
         setIsGenerating(false);
-        setGenerationProgress('');
+        report(0, '');
+        const msg = err?.message || '';
+        if (msg === CANCELLED) return;
+        // Keep the record on a lost connection so the next refresh reconnects.
+        if (msg !== LOST_CONNECTION) clearActiveJob();
+        // 404: the job finished long ago and expired from the queue. Nothing to say.
+        if (err?.statusCode === 404) return;
+        // Used to be swallowed: the overlay just vanished and the run looked
+        // like it never happened, so people clicked Generate again.
+        alert(`Generate content failed: ${msg}`);
       });
     // Run once on mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -401,12 +493,13 @@ export default function BriefInput() {
     if (campaigns.filter(c => c.name.trim()).length === 0) return;
 
     setIsGenerating(true);
+    setActiveCount(pieceCount);
     const monthLabel = monthOptions.find(m => m.value === selectedMonth)?.label || selectedMonth;
     let step: 'save_brief' | 'generate' = 'save_brief';
 
     try {
       // 1. Save brief to backend
-      setGenerationProgress('Saving brief...');
+      report(0, 'Saving brief…');
       const enabledOccasions = occasions.filter(o => o.enabled).map(({ name, date }) => ({ name, date }));
       const validCampaigns = campaigns.filter(c => c.name.trim()).map(c => ({ ...c, duration: 'Monthly' }));
 
@@ -440,16 +533,20 @@ export default function BriefInput() {
 
       // 2. Generate + poll (shared helper)
       step = 'generate';
-      await generateAndPoll(selectedClientId, monthLabel, pieceCount, setGenerationProgress);
+      await generateAndPoll(selectedClientId, monthLabel, pieceCount, report);
       setIsGenerating(false);
     } catch (err: any) {
-      console.error(`Generation failed at step="${step}":`, err);
-      setGenerationProgress('');
+      report(0, '');
       setIsGenerating(false);
       const msg = err.message || '';
+      // The user pressed Stop: not an error, don't alert.
+      if (msg === CANCELLED) return;
+      console.error(`Generation failed at step="${step}":`, err);
       const stepLabel = step === 'save_brief' ? 'Save brief' : 'Generate content';
 
-      if (msg.includes('timed out') || msg.includes('timeout')) {
+      if (msg === LOST_CONNECTION) {
+        alert(msg);
+      } else if (msg.includes('timed out') || msg.includes('timeout')) {
         alert(`${stepLabel} is taking longer than expected. Check the calendar in a few minutes. The server may still be processing.`);
       } else if (msg.includes('401') || msg.includes('Unauthorized')) {
         alert(`${stepLabel} failed: session expired. Please refresh the page and try again.`);
@@ -462,7 +559,7 @@ export default function BriefInput() {
         alert(`${stepLabel} failed: ${msg}`);
       }
     }
-  }, [selectedClientId, selectedMonth, campaigns, occasions, selectedPlatforms, pieceCount, toneNotes, monthOptions, generateAndPoll]);
+  }, [selectedClientId, selectedMonth, campaigns, occasions, selectedPlatforms, pieceCount, toneNotes, lookFeel, monthOptions, generateAndPoll, report]);
 
   // ─── Conflict handlers ──────────────────────────────────────────
 
@@ -486,16 +583,16 @@ export default function BriefInput() {
         throw new Error(`Delete failed: ${delErr.message}`);
       }
       setConflictAction('regenerating');
-      await generateAndPoll(clientId, month, pieceCount, (msg) => {
-        // Progress shown in conflict modal
-        setGenerationProgress(msg);
-      });
+      cancelledRef.current = false;
+      // Progress shown in conflict modal
+      await generateAndPoll(clientId, month, pieceCount, report);
       setConflict(null);
       setConflictAction('idle');
     } catch (err: any) {
-      console.error('Delete and regenerate failed:', err);
       setConflictAction('idle');
       setConflict(null);
+      if (err?.message === CANCELLED) return;
+      console.error('Delete and regenerate failed:', err);
       alert(err.message);
     }
   };
@@ -536,16 +633,19 @@ export default function BriefInput() {
               </div>
               <div className="text-center">
                 <p className="text-lg font-semibold text-white">
-                  Generating {pieceCount} content pieces...
+                  Generating {activeCount ?? pieceCount} content pieces...
                 </p>
-                <p className="mt-2 text-sm text-zinc-400">{generationProgress}</p>
+                <p className="mt-2 text-sm text-zinc-400" aria-live="polite">{generationProgress}</p>
+                <p className="mt-1 text-xs text-zinc-500">Usually 1 to 4 minutes. You can lock your phone; we'll pick up where we left off.</p>
               </div>
+              {/* Real job progress. It used to animate to 85% in 30s no matter
+                  what, then sit there while the text said 40%. */}
               <div className="h-1.5 w-64 overflow-hidden rounded-full bg-zinc-800">
                 <motion.div
                   className="h-full rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500"
                   initial={{ width: '5%' }}
-                  animate={{ width: '85%' }}
-                  transition={{ duration: 30, ease: 'linear' }}
+                  animate={{ width: `${Math.max(5, Math.min(100, jobProgress))}%` }}
+                  transition={{ duration: 0.6, ease: 'easeOut' }}
                 />
               </div>
               <button

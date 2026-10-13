@@ -162,13 +162,40 @@ export function updateJob(id: string, updates: Partial<Job>): void {
   }
 }
 
+// ─── Cancellation ────────────────────────────────────────────────
+// BullMQ can't interrupt a running processor, so Stop is cooperative: the
+// route sets a short-lived Redis flag, the worker polls it, aborts its AI call
+// and skips its DB writes. A job still WAITING is simply removed. Before this,
+// "Stop Generation" only stopped the page polling — the job kept running and
+// the next Generate click was deduped straight back onto it (looked like a
+// loop: same stuck 40%, timer restarting).
+const cancelKey = (id: string) => `radix:job-cancel:${id}`;
+
+export async function requestJobCancel(id: string): Promise<'removed' | 'flagged' | 'finished' | 'missing'> {
+  const bmqJob = await queue.getJob(id);
+  if (!bmqJob) return 'missing';
+  const state = await bmqJob.getState();
+  if (state === 'completed' || state === 'failed') return 'finished';
+  await queueConn.set(cancelKey(id), '1', 'EX', KEEP_TERMINAL_S);
+  if (state !== 'active') {
+    try { await bmqJob.remove(); return 'removed'; } catch { /* raced into active — the flag covers it */ }
+  }
+  return 'flagged';
+}
+
+export async function isJobCancelRequested(id: string): Promise<boolean> {
+  try { return (await queueConn.exists(cancelKey(id))) === 1; } catch { return false; }
+}
+
 // Find an in-flight generate-month job for the same clientId+month so a
-// double-click doesn't start two parallel workers.
+// double-click doesn't start two parallel workers. A job the user already
+// stopped doesn't count — a fresh click must start a fresh run.
 export async function findInflightGenerateJob(clientId: string, month: string): Promise<Job | undefined> {
   const inflight = await queue.getJobs(['waiting', 'active', 'delayed', 'prioritized', 'paused']);
   for (const j of inflight) {
     if (j.name !== 'generate-month') continue;
     if (j.data?.clientId === clientId && j.data?.month === month) {
+      if (await isJobCancelRequested(j.id!)) continue;
       const state = await j.getState();
       return toJob(j, state);
     }

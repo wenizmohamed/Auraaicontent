@@ -2,7 +2,7 @@ import { GoogleGenAI, VideoGenerationReferenceType } from '@google/genai';
 import path from 'path';
 import { promises as fsp } from 'fs';
 import type { AiProvider, AnalysisRequest, ImageRequest, ProviderResult, TextRequest, VideoRequest } from './types.js';
-import { AiProviderError } from './errors.js';
+import { AiProviderError, AiCancelledError, abortReasonText, throwIfCancelled } from './errors.js';
 import { storageService } from '../storage.service.js';
 import { runModelLadder, readLadder } from './model-chain.js';
 
@@ -196,6 +196,41 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   });
 }
 
+// Abortable attempt. withTimeout above only stops WAITING: the request kept
+// running, the model finished in the background and its answer was discarded
+// (reproduced 2026-10-13 — every rung of a month plan completed after its
+// timeout had already moved the ladder on). This cancels the request itself,
+// on our per-attempt timer OR when the caller's signal fires (job deadline /
+// user Stop). Caller aborts surface as AiCancelledError so nothing retries.
+async function abortableAttempt<T>(
+  label: string,
+  timeoutMs: number,
+  callerSignal: AbortSignal | undefined,
+  run: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
+  throwIfCancelled(callerSignal, label);
+  const ctl = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => { timedOut = true; ctl.abort(); }, timeoutMs);
+  const onCallerAbort = () => ctl.abort();
+  callerSignal?.addEventListener('abort', onCallerAbort, { once: true });
+  // Race against the abort too, so an SDK that ignores the signal still can't
+  // hold the ladder hostage.
+  const abortedP = new Promise<never>((_, reject) => {
+    ctl.signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+  });
+  try {
+    return await Promise.race([run(ctl.signal), abortedP]);
+  } catch (err) {
+    if (callerSignal?.aborted) throw new AiCancelledError(label, abortReasonText(callerSignal));
+    if (timedOut) throw new AiProviderError('gemini', label, `timeout after ${timeoutMs}ms`);
+    throw err;
+  } finally {
+    clearTimeout(timer);
+    callerSignal?.removeEventListener('abort', onCallerAbort);
+  }
+}
+
 // Transient = 503 (Google throttle) + 429 (rate limit) ONLY. Timeout and
 // network errors are NOT retryable here — the upper-level ai-router falls to
 // Grok immediately on any non-transient failure, which is faster than burning
@@ -216,7 +251,7 @@ async function withRetry<T>(label: string, fn: () => Promise<T>): Promise<T> {
       return await fn();
     } catch (err) {
       lastErr = err;
-      if (!isGeminiTransient(err) || attempt === RETRY_BACKOFFS_MS.length) throw err;
+      if (err instanceof AiCancelledError || !isGeminiTransient(err) || attempt === RETRY_BACKOFFS_MS.length) throw err;
       const wait = RETRY_BACKOFFS_MS[attempt];
       const reason = err instanceof Error ? err.message.slice(0, 80) : String(err).slice(0, 80);
       console.warn(`[gemini/${label}] transient (attempt ${attempt + 1}/${RETRY_BACKOFFS_MS.length + 1}); backoff ${wait}ms — ${reason}`);
@@ -355,7 +390,7 @@ export const geminiProvider: AiProvider = {
       // generation fell through to dead xAI + strict Qwen and failed. Use the
       // model's REAL output ceiling (pro/flash = 65536; older 2.0-flash = 8192).
       const jsonMax = /2\.0-flash|1\.5|flash-8b/i.test(entry.model) ? 8192 : 65536;
-      const resp = await withRetry('text', () => withTimeout(
+      const resp = await withRetry('text', () => abortableAttempt('text', req.timeoutMs ?? TIMEOUT, req.signal, (abortSignal) =>
         ai.models.generateContent({
           model: entry.model,
           contents: req.system ? `${req.system}\n\n${req.prompt}` : req.prompt,
@@ -364,9 +399,9 @@ export const geminiProvider: AiProvider = {
               ? { responseMimeType: 'application/json', maxOutputTokens: jsonMax }
               : { maxOutputTokens: 8192 }),
             ...(temperature !== undefined ? { temperature } : {}),
+            abortSignal,
           },
         }),
-        TIMEOUT, 'text',
       ));
       // Truncation guard: a JSON response cut off at the token cap parses as
       // malformed downstream. Surface it as a clear, RETRYABLE error so the

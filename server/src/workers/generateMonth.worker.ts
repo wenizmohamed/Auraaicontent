@@ -4,8 +4,16 @@ import { briefService } from '../services/brief.service.js';
 import { buildPlanningPrompt, parseBriefChannels } from '../services/prompt.service.js';
 import { visualSearchService } from '../services/visual-search.service.js';
 import { retrieveContext } from '../services/retrieval.service.js';
-import { type Job, updateJob } from './queue.js';
+import { type Job, updateJob, isJobCancelRequested } from './queue.js';
 import { deAiText } from '../lib/human-voice.js';
+import { AiCancelledError } from '../services/providers/errors.js';
+
+// Per model attempt, and for the whole AI step. Defaults keep the job well
+// inside the page's 15-minute wait (BriefInput.tsx) with room for saving +
+// visual references afterwards.
+const AI_ATTEMPT_TIMEOUT_MS = parseInt(process.env.GENERATE_MONTH_ATTEMPT_TIMEOUT_MS || '180000', 10);
+const AI_BUDGET_MS = parseInt(process.env.GENERATE_MONTH_AI_BUDGET_MS || '420000', 10);
+const STOPPED_BY_USER = 'Generation stopped by user. Nothing was saved.';
 
 export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: string; provider: string; model: string; latencyMs: number; fallbackUsed: boolean }> {
   const { orgId, clientId, month, pieceCount } = job.data;
@@ -90,13 +98,47 @@ export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: 
   //   AI_TEXT_PRIMARY (default 'gemini') picks the first model; falls back
   //   to xAI (Grok) when AI_ENABLE_FALLBACK=true.  Today's live config:
   //   text=gemini, image=gemini, video=xai, analysis=gemini.
+  //
+  // Time limits (2026-10-13 "it keeps looping" fix): the plan is one long JSON
+  // answer. The global GEMINI_TIMEOUT_MS is sized for quick HTTP-route calls,
+  // so every model rung timed out mid-plan, the ladder restarted from zero on
+  // the next model, and the job sat at 40% for 9-15 min until the page gave
+  // up. Now each attempt gets room to finish (AI_ATTEMPT_TIMEOUT_MS) and the
+  // whole AI step has ONE hard budget (AI_BUDGET_MS) that also cancels the
+  // in-flight request, so the job always ends well inside the page's wait.
   updateJob(job.id, { progress: 40 });
   console.log(`[generateMonth] Prompt: ${prompt.length} chars`);
   const userId = job.data.userId as string | undefined;
-  const result = await aiRouter.text(
-    { prompt, json: true, temperature: 0.7 },
-    { orgId, userId, jobId: job.id, clientId },
-  );
+  if (await isJobCancelRequested(job.id)) throw new Error(STOPPED_BY_USER);
+
+  const stop = new AbortController();
+  const budgetTimer = setTimeout(() => stop.abort('time budget used up'), AI_BUDGET_MS);
+  const aiStart = Date.now();
+  // Heartbeat: creep 40 → 69 while the model writes so the page can show the
+  // run is alive (it read a frozen 40% as "stuck in a loop"). Asymptotic, so it
+  // never claims the next real milestone (70 = saving). Also picks up Stop.
+  const heartbeat = setInterval(async () => {
+    const t = (Date.now() - aiStart) / 1000;
+    updateJob(job.id, { progress: 40 + Math.floor(29 * (1 - Math.exp(-t / 90))) });
+    if (!stop.signal.aborted && await isJobCancelRequested(job.id)) stop.abort('stopped by user');
+  }, 5000);
+  let result: Awaited<ReturnType<typeof aiRouter.text>>;
+  try {
+    result = await aiRouter.text(
+      { prompt, json: true, temperature: 0.7, timeoutMs: AI_ATTEMPT_TIMEOUT_MS, signal: stop.signal },
+      { orgId, userId, jobId: job.id, clientId },
+    );
+  } catch (err) {
+    if (err instanceof AiCancelledError) {
+      if (err.reason === 'stopped by user') throw new Error(STOPPED_BY_USER);
+      const mins = Math.max(1, Math.round(AI_BUDGET_MS / 60000));
+      throw new Error(`The AI didn't finish writing the plan within ${mins} minute${mins === 1 ? '' : 's'}, so the run was stopped and nothing was saved. Please try again; fewer pieces finish faster.`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(budgetTimer);
+    clearInterval(heartbeat);
+  }
 
   const parsed = result.output as { strategySummary?: any; posts?: any[] };
   if (!parsed.posts || !Array.isArray(parsed.posts)) {
@@ -132,7 +174,9 @@ export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: 
     console.warn(`[generateMonth] Coerced ${coerced}/${parsed.posts.length} posts to allowed platforms [${allowedChannels.join(', ')}] — AI ignored prompt restriction`);
   }
 
-  // 5. Save CalendarMonth
+  // 5. Save CalendarMonth — last chance to honour Stop before anything is
+  // written (a stopped run must never leave a half-made calendar behind).
+  if (await isJobCancelRequested(job.id)) throw new Error(STOPPED_BY_USER);
   updateJob(job.id, { progress: 70 });
   const calendarMonth = await db.calendarMonth.create({
     data: {
