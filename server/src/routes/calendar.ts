@@ -10,6 +10,7 @@ import { visualRefsBackfillWorker } from '../workers/visualRefsBackfill.worker.j
 import { assertClientInOrg, assertCalendarPostInOrg } from '../lib/tenant.js';
 import { runComplianceCheck, scorePost } from '../services/content-quality.service.js';
 import { reviewService } from '../services/review.service.js';
+import { capturePostLearning } from '../lib/learning-signals.js';
 import { capGuard } from '../lib/plan-caps.js';
 
 export async function calendarRoutes(app: FastifyInstance) {
@@ -276,7 +277,17 @@ export async function calendarRoutes(app: FastifyInstance) {
       // Clear any stale schedule error from a previous failed attempt.
       data.scheduleError = null;
     }
+    // Self-evolution loop: read the pre-edit state so human edits/verdicts on
+    // this post become learnings that steer the next generation (lib/learning-signals.ts).
+    const beforePost = await db.calendarPost.findUnique({ where: { id: postId, orgId: request.orgId } });
     const updated = await db.calendarPost.update({ where: { id: postId, orgId: request.orgId }, data });
+    if (beforePost) {
+      void capturePostLearning(beforePost as unknown as Record<string, unknown>, data, {
+        orgId: request.orgId!,
+        userId: request.user?.userId,
+        clientId: (updated as typeof updated & { clientId?: string | null })?.clientId ?? null,
+      }).catch(() => {});
+    }
     auditService.log({
       orgId: request.orgId,
       userId: request.user?.userId,
