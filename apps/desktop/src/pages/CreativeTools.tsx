@@ -176,6 +176,7 @@ function aspectRatiosFor(mode: Mode) {
 const IMAGE_MODELS: { value: string; label: string; provider?: 'gemini' | 'xai' | 'dashscope'; model?: string }[] = [
   { value: 'auto', label: 'Auto (Gemini)' },
   { value: 'grok', label: 'Grok Imagine', provider: 'xai' },
+  { value: 'qwen-image-3.0-pro', label: 'Qwen Image 3.0 Pro · Newest', provider: 'dashscope', model: 'qwen-image-3.0-pro' },
   { value: 'qwen-image-2.0-pro', label: 'Qwen Image 2.0 Pro', provider: 'dashscope', model: 'qwen-image-2.0-pro' },
   { value: 'wan2.7-image-pro', label: 'Wan 2.7 Image Pro', provider: 'dashscope', model: 'wan2.7-image-pro' },
   // Cheap draft rung (half the Pro price) — verified live 2026-07-14.
