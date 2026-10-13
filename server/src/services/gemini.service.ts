@@ -110,6 +110,27 @@ const EMBED_CACHE_MAX = 500;
 // knowledge context" and carry on.
 const EMBED_TIMEOUT_MS = parseInt(process.env.GEMINI_EMBED_TIMEOUT_MS || '15000', 10);
 
+// DashScope embedding fallback (2026-10-13): embedText is Gemini-only, so every
+// 403/quota blip silently disabled knowledge+memory injection for all
+// generations ("Knowledge retrieval failed, continuing without it" in every
+// pm2 log). text-embedding-v4 on the Alibaba Token Plan key carries the lane.
+async function dashscopeEmbed(text: string): Promise<number[]> {
+  const key = process.env.DASHSCOPE_API_KEY;
+  if (!key) throw new Error('DASHSCOPE_API_KEY not set');
+  const base = process.env.DASHSCOPE_BASE_URL || 'https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1';
+  const res = await fetch(`${base}/embeddings`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+    body: JSON.stringify({ model: process.env.DASHSCOPE_EMBED_MODEL || 'text-embedding-v4', input: text.slice(0, 8000) }),
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!res.ok) throw new Error(`dashscope embed ${res.status}`);
+  const data = await res.json() as any;
+  const vec = data?.data?.[0]?.embedding;
+  if (!Array.isArray(vec) || !vec.length) throw new Error('dashscope embed: empty vector');
+  return vec;
+}
+
 export async function embedText(text: string, ctx?: EmbedContext): Promise<number[]> {
   const key = text.length <= 512 ? text : text.slice(0, 256) + '\u0000' + text.length + '\u0000' + text.slice(-256);
   const hit = EMBED_CACHE.get(key);
@@ -146,6 +167,15 @@ export async function embedText(text: string, ctx?: EmbedContext): Promise<numbe
     recordEmbedUsage(text, ctx); // meter the (real, non-cached) embedding call
     return embedding;
   } catch (err: any) {
+    // Fallback lane: Gemini down → DashScope embedding before giving up.
+    try {
+      const vec = await dashscopeEmbed(text);
+      console.warn('[gemini/embedding] primary failed — served by dashscope fallback');
+      EMBED_CACHE.set(key, { vec, at: Date.now() });
+      return vec;
+    } catch (fbErr: any) {
+      console.warn('[gemini/embedding] dashscope fallback also failed:', fbErr?.message || fbErr);
+    }
     if (err instanceof GeminiUnavailableError) throw err;
     // Wrap raw Google SDK errors with a clean message
     const msg = err?.message || String(err);

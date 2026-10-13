@@ -19,9 +19,16 @@ vi.hoisted(() => {
   process.env.GEMINI_TIMEOUT_MS = '80';
   process.env.GEMINI_TEXT_MODEL = 'gemini-pro-test';
   process.env.GEMINI_FLASH_TEXT_MODEL = 'gemini-flash-test';
+  // Pin, don't delete: dotenv (loaded via the import chain) re-adds anything
+  // absent from process.env, so a populated server .env would leak live
+  // providers into this test. Empty strings survive dotenv AND read as
+  // "not configured" to providerAvailable.
+  process.env.AI_TEXT_PRIMARY = "gemini";
+  process.env.XAI_API_KEY = "";
+  process.env.DASHSCOPE_API_KEY = "";
+  process.env.GITHUB_MODELS_TOKEN = "";
+  process.env.GITHUB_TOKEN = "";
   delete process.env.GEMINI_TEXT_LADDER;
-  delete process.env.XAI_API_KEY;
-  delete process.env.DASHSCOPE_API_KEY;
 });
 
 // ─── Fake Gemini SDK ─────────────────────────────────────────────
@@ -89,7 +96,7 @@ describe('caller AbortSignal', () => {
   it('stops the whole chain at once instead of walking the remaining rungs', async () => {
     latency = { default: 1_000 };
     const ctl = new AbortController();
-    setTimeout(() => ctl.abort('budget used up'), 40);
+    setTimeout(() => ctl.abort("budget used up"), 150);
     const started = Date.now();
 
     const err = await aiRouter.text({ prompt: 'plan', json: true, timeoutMs: 5_000, signal: ctl.signal }).catch(e => e);

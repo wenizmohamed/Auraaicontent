@@ -174,6 +174,42 @@ export async function generateMonthWorker(job: Job): Promise<{ calendarMonthId: 
     console.warn(`[generateMonth] Coerced ${coerced}/${parsed.posts.length} posts to allowed platforms [${allowedChannels.join(', ')}] — AI ignored prompt restriction`);
   }
 
+  // 4c. CRITIC PASS (agentic pipeline): a second AI call grades every post
+  // 1-10 on hook strength, brand fit, and platform fit; posts under 7 get ONE
+  // rewrite with the critique attached. The writer no longer ships its first
+  // draft — the generation pipeline is generate -> critique -> revise.
+  try {
+    const CRITIC_MIN = parseInt(process.env.GENERATE_MONTH_CRITIC_MIN || '7', 10);
+    const scoreRes = await aiRouter.text({
+      prompt: `Grade these ${parsed.posts.length} social posts for ${client.name}. Reply ONLY JSON {"scores":[{"i":0,"score":8,"why":"..."}]}. Criteria: hook strength, brand fit, platform fit.
+
+` + JSON.stringify(parsed.posts.map((p: any, i: number) => ({ i, title: p.title, hook: p.hook, caption: (p.caption || '').slice(0, 300) }))),
+      json: true, temperature: 0.2, maxTokens: 2048,
+    }, { orgId, userId, jobId: job.id, clientId, skipBrandKit: true, skipKnowledge: true, skipMemory: true });
+    const scores = ((scoreRes.output as any)?.scores || []) as { i: number; score: number; why?: string }[];
+    let rewrites = 0;
+    for (const sc of scores) {
+      if (typeof sc.i !== 'number' || typeof sc.score !== 'number') continue;
+      if (sc.score >= CRITIC_MIN || !parsed.posts[sc.i]) continue;
+      if (rewrites >= 3) break; // cap rewrites — bounded cost per month
+      const weak = parsed.posts[sc.i];
+      try {
+        const fix = await aiRouter.text({
+          prompt: `Rewrite this weak social post (scored ${sc.score}/10: ${sc.why || 'weak hook'}). Return ONLY JSON {"title":"...","hook":"...","caption":"...","cta":"..."}. Keep platform=${weak.platform} and the brand voice.\n\n` + JSON.stringify({ title: weak.title, hook: weak.hook, caption: weak.caption, cta: weak.cta }),
+          json: true, temperature: 0.8, maxTokens: 2048,
+        }, { orgId, userId, jobId: job.id, clientId, skipBrandKit: true, skipKnowledge: true, skipMemory: true });
+        const f = fix.output as any;
+        if (f && (f.caption || f.hook)) {
+          Object.assign(weak, { title: f.title || weak.title, hook: f.hook || weak.hook, caption: f.caption || weak.caption, cta: f.cta || weak.cta });
+          rewrites++;
+        }
+      } catch { /* single rewrite failing never fails the month */ }
+    }
+    console.log(`[generateMonth] critic: ${scores.length} scored, ${rewrites} rewritten (min ${CRITIC_MIN})`);
+  } catch (err: any) {
+    console.warn('[generateMonth] critic pass skipped:', err?.message || err);
+  }
+
   // 5. Save CalendarMonth — last chance to honour Stop before anything is
   // written (a stopped run must never leave a half-made calendar behind).
   if (await isJobCancelRequested(job.id)) throw new Error(STOPPED_BY_USER);

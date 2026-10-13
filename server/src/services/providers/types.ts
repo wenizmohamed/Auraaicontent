@@ -1,4 +1,4 @@
-export type AiProviderName = 'xai' | 'gemini' | 'dashscope';
+export type AiProviderName = 'xai' | 'gemini' | 'dashscope' | 'github';
 export type AiTask = 'text' | 'image' | 'image_edit' | 'video' | 'analysis' | 'embedding';
 
 export interface TextRequest {
