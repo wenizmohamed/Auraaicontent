@@ -492,7 +492,7 @@ export async function authRoutes(app: FastifyInstance) {
       data: { userId: user.id, tokenHash, expiresAt, userAgent: meta.userAgent, ip: meta.ip },
     });
 
-    const baseUrl = process.env.RADIX_APP_BASE_URL || process.env.PUBLIC_APP_URL || 'https://radixcontent.com';
+    const baseUrl = process.env.RADIX_APP_BASE_URL || process.env.PUBLIC_APP_URL || 'https://srv1494206.hstgr.cloud';
     const resetUrl = `${baseUrl}/reset-password/${raw}`;
 
     // Fire-and-forget. If RESEND_API_KEY is unset this logs the URL to pm2 so

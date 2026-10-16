@@ -27,7 +27,7 @@ export async function galleryShareRoutes(app: FastifyInstance) {
       await db.galleryShareLink.create({
         data: { orgId, clientId, token, title: title || `${client.name} — gallery`, expiresAt, isActive: true },
       });
-      const base = process.env.RADIX_APP_BASE_URL || 'https://radixcontent.com';
+      const base = process.env.RADIX_APP_BASE_URL || 'https://srv1494206.hstgr.cloud';
       return { token, url: `${base}/g/${token}`, expiresAt };
     } catch (err) {
       return reply.status(errStatus(err)).send({ error: errMessage(err, 'Could not create share link') });

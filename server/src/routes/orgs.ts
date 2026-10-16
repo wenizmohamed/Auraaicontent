@@ -185,7 +185,7 @@ export async function orgsRoutes(app: FastifyInstance) {
     // Fire-and-forget email send.  If RESEND_API_KEY is unset this no-ops
     // (logs the URL); the inviter still gets the URL back in the response
     // so they can copy/paste manually.
-    const baseUrl = process.env.PUBLIC_APP_URL || process.env.RADIX_APP_BASE_URL || 'https://radixcontent.com';
+    const baseUrl = process.env.PUBLIC_APP_URL || process.env.RADIX_APP_BASE_URL || 'https://srv1494206.hstgr.cloud';
     const inviteUrl = `${baseUrl}/invite/${token}`;
     const org = await db.organization.findUnique({ where: { id: orgId }, select: { name: true } });
     const inviter = await db.user.findUnique({ where: { id: caller.userId }, select: { name: true } });
