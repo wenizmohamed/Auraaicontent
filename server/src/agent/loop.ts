@@ -24,6 +24,11 @@ import { SYSTEM } from './system-prompt.js';
 // routinely hit 14-16 iters).  20 keeps the safety cap but stops truncating
 // valid multi-client plans.
 const MAX_ITERATIONS = parseInt(process.env.AGENT_MAX_ITERATIONS ?? '20', 10);
+// Wall-clock budget. A thorough run (brief, 3 posts, 3 captions, hashtags,
+// 4 compliance passes) took 14 minutes on 2026-10-17 with no failures: the
+// loop had no clock, only an iteration cap. Past the budget the model gets one
+// last turn WITHOUT tools and is told to wrap up with what is already saved.
+const RUN_BUDGET_MS = parseInt(process.env.AGENT_RUN_BUDGET_MS ?? String(8 * 60 * 1000), 10);
 const AGENT_CHAIN_ENV = process.env.AGENT_PROVIDER_CHAIN; // e.g. "gemini,xai,dashscope"
 // The agent does the hardest reasoning in the app: choosing among 16 tools, in
 // order, across up to 20 iterations. It used to inherit GEMINI_CHAT_MODEL (a
@@ -234,10 +239,21 @@ async function runAgentLoopInner(
     at: new Date().toISOString(),
   });
 
+  const runStartedAt = Date.now();
+  let wrapUpRequested = false;
   for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
     if (ctx.signal.aborted) {
-      await ctx.emit('agent:error', { message: 'Aborted by user', at: new Date().toISOString() });
+      await ctx.emit('agent:error', { message: 'Stopped by you', at: new Date().toISOString() });
       return { iterations: iter, stopReason: 'aborted', messages };
+    }
+    const overBudget = Date.now() - runStartedAt > RUN_BUDGET_MS;
+    if (overBudget && !wrapUpRequested) {
+      wrapUpRequested = true;
+      await ctx.emit('agent:thought', { text: 'Time budget reached. Wrapping up with what is already saved.', at: new Date().toISOString() });
+      messages.push({
+        role: 'system',
+        content: 'Time budget reached. Do not call any more tools. In plain words, tell the user what is done and saved (with where to find it), and what is left undone. Keep it short.',
+      });
     }
 
     let stream: AsyncIterable<import('openai/resources/chat/completions').ChatCompletionChunk>;
@@ -250,7 +266,7 @@ async function runAgentLoopInner(
           // iterations. 6144 covers typical reasoning + tool JSON + narrative.
           max_tokens: 6144,
           messages,
-          tools,
+          ...(wrapUpRequested ? {} : { tools }),
         },
         {
           chainEnv: AGENT_CHAIN_ENV,
