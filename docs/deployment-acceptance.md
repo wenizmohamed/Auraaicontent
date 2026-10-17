@@ -1,4 +1,4 @@
-# Radix V2 — Fully Deployable Acceptance Criteria
+# AuraAI V2 — Fully Deployable Acceptance Criteria
 
 **Status as of HEAD `4d5c95d`:** deployed at `https://srv1494206.hstgr.cloud`, 18/18 smoke green, working but with measurable gaps. This doc defines what "fully deployable" means as a checklist of testable predicates — pass all = deployable, any RED = not deployable.
 

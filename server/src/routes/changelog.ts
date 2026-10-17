@@ -18,7 +18,7 @@ const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-08-14',
     tag: 'new',
-    title: 'Radix is now AURAAI',
+    title: 'Introducing AURAAI Content Planner V2',
     body: 'The product has a new name and logo: AURAAI. Nothing else changes. Same workspace, same login, same team. Everything you have built stays exactly where it was, your clients, calendars, briefs, galleries and history are all untouched. You may need to refresh once for the new name to show.',
   },
   {

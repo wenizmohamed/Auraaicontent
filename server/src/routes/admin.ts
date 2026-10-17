@@ -1,5 +1,5 @@
 // Cross-org admin dashboard. Gated on STAFF_EMAILS (comma-separated env list)
-// — only Radix internal staff can see other orgs' data. Used to monitor MRR,
+// — only AuraAI internal staff can see other orgs' data. Used to monitor MRR,
 // active orgs, AI cost per org, and gross margin per org.
 //
 // Returns aggregate-only data (no per-row PII like calendar contents).

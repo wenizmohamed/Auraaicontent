@@ -11,7 +11,7 @@ function App() {
   if (!token) {
     return (
       <div style={{ fontFamily: 'Inter, sans-serif', textAlign: 'center', padding: '60px 20px' }}>
-        <h1 style={{ fontSize: 28, fontWeight: 900, letterSpacing: '0.2em' }}>RADIX</h1>
+        <h1 style={{ fontSize: 28, fontWeight: 900, letterSpacing: '0.2em' }}>AURAAI</h1>
         <p style={{ color: '#64748b', marginTop: 8 }}>Client Preview Portal</p>
         <p style={{ color: '#ef4444', marginTop: 20 }}>No review token provided. Use the link shared by your agency.</p>
       </div>

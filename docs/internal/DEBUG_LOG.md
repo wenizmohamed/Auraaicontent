@@ -1,4 +1,4 @@
-# RADIX AI Content Planner — Debug Log
+# AuraAI Content Planner — Debug Log
 **Date:** April 6, 2026
 **Version:** v2 (commit e483a39)
 

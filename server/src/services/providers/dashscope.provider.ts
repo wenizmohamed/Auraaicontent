@@ -12,7 +12,7 @@
 //             Wan 2.7 t2v via native video-synthesis (async task + poll). Text→
 //             video only; image-conditioned throws 503 so Veo keeps those.
 //
-// Adds many models to Radix's multi-LLM orchestration. Text/analysis run through
+// Adds many models to AuraAI's multi-LLM orchestration. Text/analysis run through
 // the SAME routeCall path as every other provider, so the knowledge + memory
 // (RAG) enrichers apply automatically — no special wiring needed here.
 

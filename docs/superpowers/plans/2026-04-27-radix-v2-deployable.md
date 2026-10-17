@@ -1,8 +1,8 @@
-# Radix V2 — Fully Deployable Implementation Plan
+# AuraAI V2 — Fully Deployable Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Take Radix V2 from "deployed-with-gaps" (HEAD `afd6c7f`, 18/18 smoke green) to all P0 acceptance criteria GREEN per `docs/deployment-acceptance.md`.
+**Goal:** Take AuraAI V2 from "deployed-with-gaps" (HEAD `afd6c7f`, 18/18 smoke green) to all P0 acceptance criteria GREEN per `docs/deployment-acceptance.md`.
 
 **Architecture:** Three parallel work-streams (zod sweep + JWT rotation + CI/devops) executed in one arc, then sequential verify → security pentest → deploy with runbook. Multi-tenancy migration is explicitly OUT OF SCOPE here (deferred per the design doc — `docs/multi-tenancy/proposed-migration.sql` will land as a separate plan when 2nd agency on horizon).
 
@@ -985,7 +985,7 @@ Capture: any tooling output (nuclei, nikto-equivalent).
 - [ ] **Step 6: Write the report**
 
 ```markdown
-# Pentest Report — Radix V2 — 2026-04-27
+# Pentest Report — AuraAI V2 — 2026-04-27
 
 **Target:** https://srv1494206.hstgr.cloud (production single-tenant deployment)
 **HEAD at test:** afd6c7f (+ Phase 1-5 commits from this plan)

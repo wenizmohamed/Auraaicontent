@@ -10,7 +10,7 @@ EMAIL="mohamed@radixmedia.ae"
 PASS="Radix2026"
 MONTH="Smoke Test $(date +%s)"
 
-echo "=== RADIX GENERATION SMOKE TEST ==="
+echo "=== AURAAI GENERATION SMOKE TEST ==="
 echo "Target: $BASE"
 echo ""
 
