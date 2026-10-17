@@ -162,6 +162,9 @@ export const AI_PRICING: Record<string, PricePoint> = {
   'qwen3.7-plus':                      { promptPerM: 0.40, completionPerM: 1.60 },  // vision-capable plus tier (intl card 2026-08-14)
   'qwen3.6-plus':                      { promptPerM: 0.40, completionPerM: 1.20 },
   'qwen3.6-flash':                     { promptPerM: 0.05, completionPerM: 0.40 },
+  // qwen3.8-flash (DASHSCOPE_TEXT_MODEL since 2026-10-10): $0.15 / $0.47 intl
+  // (Model Studio pricing page, verified 2026-10-17). Was unpriced: 9 rows at $0.
+  'qwen3.8-flash':                     { promptPerM: 0.15, completionPerM: 0.47 },
   'deepseek-v4-pro':                   { promptPerM: 0.55, completionPerM: 2.20 },
   'deepseek-v4-flash':                 { promptPerM: 0.14, completionPerM: 0.28 },
   'deepseek-v3.2':                     { promptPerM: 0.28, completionPerM: 0.42 },

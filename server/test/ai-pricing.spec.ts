@@ -50,6 +50,7 @@ const REQUIRED_MODELS = [
   'qwen3.7-max',
   'qwen3.8-max',
   'qwen3.7-plus',
+  'qwen3.8-flash',
   'qwen3.6-plus',
   'qwen-image-2.0-pro',
   'qwen-image-3.0-pro',
