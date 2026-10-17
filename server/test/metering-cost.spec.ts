@@ -149,6 +149,11 @@ describe('metering: video per-second pricing', () => {
     expect(computeCostUsd('wan3.0-video', 0, 0, 1, 8)).toBeCloseTo(0.80, 6);
   });
 
+  it('wan3.0-video-prime (720P, Auto default) 4s = $0.56', () => {
+    // 0.14/s * 4s = 0.56
+    expect(computeCostUsd('wan3.0-video-prime', 0, 0, 1, 4)).toBeCloseTo(0.56, 6);
+  });
+
   it('wan3.0-video:1080p 8s = $1.60 (double the 720P rate)', () => {
     // 0.20/s * 8s = 1.60
     expect(computeCostUsd('wan3.0-video:1080p', 0, 0, 1, 8)).toBeCloseTo(1.60, 6);

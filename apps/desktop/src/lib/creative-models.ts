@@ -99,9 +99,14 @@ export const UPSCALE_MODELS: ModelOption[] = [
 
 // ─── Video ──────────────────────────────────────────────────────
 
+const WAN3_PRIME: ModelOption = {
+  value: 'wan3.0-video-prime', label: 'Wan 3.0 Prime', vendor: 'Alibaba',
+  hint: 'Fastest: a 4s clip in about 30s. Up to 30s with sound. Text, first frame, first and last frame, or product references.',
+  model: 'wan3.0-video-prime', perSec: 0.14, perSec1080: 0.28, minSeconds: 2, maxSeconds: 30, supports1080: true, tier: 'hd',
+};
 const WAN3: ModelOption = {
   value: 'wan3.0-video', label: 'Wan 3.0', vendor: 'Alibaba',
-  hint: 'Up to 30s with sound. Text, first frame, first and last frame, or product references.',
+  hint: 'Same engine at the lower rate, about twice the wait. Up to 30s with sound.',
   model: 'wan3.0-video', perSec: 0.10, perSec1080: 0.20, minSeconds: 2, maxSeconds: 30, supports1080: true, tier: 'hd',
 };
 const HH_T2V: ModelOption = {
@@ -136,20 +141,20 @@ const GROK_VIDEO: ModelOption = {
 };
 
 export const TEXT_TO_VIDEO_MODELS: ModelOption[] = [
-  { value: 'auto', label: 'Auto', hint: 'AURA picks per prompt: Wan 3.0 first, Veo and Grok on standby.', perSec: 0.10, perSec1080: 0.20, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
-  WAN3, HH_T2V, WAN27_T2V, VEO, OMNI, GROK_VIDEO,
+  { value: 'auto', label: 'Auto', hint: 'AURA picks per prompt: Wan 3.0 Prime first, Veo and Grok on standby.', perSec: 0.14, perSec1080: 0.28, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
+  WAN3_PRIME, WAN3, HH_T2V, WAN27_T2V, VEO, OMNI, GROK_VIDEO,
 ];
 
 export const IMAGE_TO_VIDEO_MODELS: ModelOption[] = [
-  { value: 'auto', label: 'Auto', hint: 'AURA picks: Wan 3.0 animates your frame first, Veo on standby.', perSec: 0.10, perSec1080: 0.20, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
-  WAN3, HH_I2V, WAN27_I2V, VEO, OMNI, GROK_VIDEO,
+  { value: 'auto', label: 'Auto', hint: 'AURA picks: Wan 3.0 Prime animates your frame first, Veo on standby.', perSec: 0.14, perSec1080: 0.28, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
+  WAN3_PRIME, WAN3, HH_I2V, WAN27_I2V, VEO, OMNI, GROK_VIDEO,
 ];
 
 // Offered when product reference images are attached: every engine here keeps
 // the exact subject consistent.
 export const REFERENCE_VIDEO_MODELS: ModelOption[] = [
-  { value: 'auto', label: 'Auto', hint: 'AURA picks: Wan 3.0 reference mode first, Veo on standby.', perSec: 0.10, perSec1080: 0.20, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
-  WAN3, HH_R2V, WAN27_R2V, VEO_REF,
+  { value: 'auto', label: 'Auto', hint: 'AURA picks: Wan 3.0 Prime reference mode first, Veo on standby.', perSec: 0.14, perSec1080: 0.28, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
+  WAN3_PRIME, WAN3, HH_R2V, WAN27_R2V, VEO_REF,
 ];
 
 export const MODELS_BY_SECTION: Record<CreativeSection, ModelOption[]> = {

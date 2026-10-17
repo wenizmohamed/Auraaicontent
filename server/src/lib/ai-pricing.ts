@@ -78,6 +78,12 @@ export const AI_PRICING: Record<string, PricePoint> = {
   'wan3.0-video':                      { promptPerM: 0,    completionPerM: 0,    perSecond: 0.10 },
   'wan3.0-video:480p':                 { promptPerM: 0,    completionPerM: 0,    perSecond: 0.05 },
   'wan3.0-video:1080p':                { promptPerM: 0,    completionPerM: 0,    perSecond: 0.20 },
+  // wan3.0-video-prime (speed tier, default since 2026-10-17): $0.068 / $0.14 /
+  // $0.28 per second at 480P / 720P / 1080P (Alibaba intl card, the-decoder
+  // table 2026-08). Measured 2x faster than standard for the same clip.
+  'wan3.0-video-prime':                { promptPerM: 0,    completionPerM: 0,    perSecond: 0.14 },
+  'wan3.0-video-prime:480p':           { promptPerM: 0,    completionPerM: 0,    perSecond: 0.068 },
+  'wan3.0-video-prime:1080p':          { promptPerM: 0,    completionPerM: 0,    perSecond: 0.28 },
   // happyhorse-1.1 t2v / i2v / r2v (Token Plan): intl card $0.07 / $0.14 /
   // $0.18 per second at 480P / 720P / 1080P (Model Studio pricing page,
   // verified 2026-10-17). Same ":<res>" suffix convention as wan3.0.

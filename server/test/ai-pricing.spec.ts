@@ -60,6 +60,7 @@ const REQUIRED_MODELS = [
   // video provider can emit (incl. the ":<res>" billing suffixes) must be priced.
   'wan2.7-t2v', 'wan2.7-i2v', 'wan2.7-r2v',
   'wan3.0-video', 'wan3.0-video:480p', 'wan3.0-video:1080p',
+  'wan3.0-video-prime', 'wan3.0-video-prime:480p', 'wan3.0-video-prime:1080p',
   'happyhorse-1.1-t2v', 'happyhorse-1.1-t2v:480p', 'happyhorse-1.1-t2v:1080p',
   'happyhorse-1.1-i2v', 'happyhorse-1.1-i2v:480p', 'happyhorse-1.1-i2v:1080p',
   'happyhorse-1.1-r2v', 'happyhorse-1.1-r2v:480p', 'happyhorse-1.1-r2v:1080p',

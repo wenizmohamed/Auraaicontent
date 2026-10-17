@@ -26,6 +26,27 @@ import type {
 } from './types.js';
 import { AiProviderError, AiCancelledError, abortReasonText, throwIfCancelled } from './errors.js';
 import { storageService } from '../storage.service.js';
+import sharp from 'sharp';
+
+// Output size for the Alibaba image models. Measured 2026-10-17 on
+// qwen-image-3.0-pro: the API default (2K + Alibaba's own prompt rewrite) took
+// 58.5s; an explicit size with prompt_extend off took 9.8s at 1K and 18.6s at
+// 2K, edits 40s → 10s. Long edge 1024 for 1K, 2048 for 2K and 4K (the model
+// tops out at 2K); the short edge follows the aspect, rounded to 16px.
+function qwenImageSize(aspectRatio: string | undefined, imageSize: string | undefined): string {
+  const long = imageSize === '2K' || imageSize === '4K' ? 2048 : 1024;
+  const m = /^(\d+(?:\.\d+)?)\s*[:x]\s*(\d+(?:\.\d+)?)$/.exec((aspectRatio || '1:1').trim());
+  const w = m ? parseFloat(m[1]) : 1, h = m ? parseFloat(m[2]) : 1;
+  const r16 = (v: number) => Math.max(512, Math.round(v / 16) * 16);
+  return w >= h ? `${long}*${r16(long * h / w)}` : `${r16(long * w / h)}*${long}`;
+}
+// Edits keep the source frame's aspect: read its dimensions (cheap header parse).
+async function sourceAspect(b64: string): Promise<string | undefined> {
+  try {
+    const meta = await sharp(Buffer.from(b64, 'base64')).metadata();
+    return meta.width && meta.height ? `${meta.width}:${meta.height}` : undefined;
+  } catch { return undefined; }
+}
 
 const BASE_URL = process.env.DASHSCOPE_BASE_URL
   || 'https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1';
@@ -165,10 +186,16 @@ async function generateImage(req: ImageRequest, model: string): Promise<Provider
   }
   content.push({ text: labels.length ? `${labels.join(' ')}\n\n${req.prompt}` : req.prompt });
 
+  const aspect = req.imageBase64 ? (await sourceAspect(req.imageBase64)) || req.aspectRatio : req.aspectRatio;
+  const parameters = {
+    size: qwenImageSize(aspect, req.imageSize),
+    prompt_extend: false,   // our enhancer already wrote the prompt; Alibaba's rewrite only adds latency
+    watermark: false,
+  };
   const res = await fetch(NATIVE_URL, {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model, input: { messages: [{ role: 'user', content }] } }),
+    body: JSON.stringify({ model, input: { messages: [{ role: 'user', content }] }, parameters }),
     signal: AbortSignal.timeout(IMAGE_TIMEOUT_MS),
   });
   if (!res.ok) {
@@ -228,7 +255,8 @@ async function analyze(req: AnalysisRequest): Promise<ProviderResult<object>> {
 //    Falls back to the main key when unset (those ids then 404 → next provider).
 const TOKEN_PLAN_VIDEO = /^(wan3\.\d+-video|happyhorse-1\.1-)/i;
 const VIDEO_MODEL_RE = /^(wan[\d.]+-(video|t2v|i2v|r2v)|happyhorse-[\d.]+-(t2v|i2v|r2v))/i;
-const DEFAULT_VIDEO_MODEL = process.env.DASHSCOPE_VIDEO_MODEL || 'wan3.0-video';
+// wan3.0-video-prime: same capabilities, measured 31s vs 66s for a 4s 720P clip (2026-10-17).
+const DEFAULT_VIDEO_MODEL = process.env.DASHSCOPE_VIDEO_MODEL || 'wan3.0-video-prime';
 
 type VideoMode = 't2v' | 'i2v' | 'r2v';
 
@@ -237,7 +265,7 @@ type VideoMode = 't2v' | 'i2v' | 'r2v';
 // with product references its -r2v sibling. wan3.0-video is all-in-one.
 function resolveVideoModel(requested: string | undefined, mode: VideoMode): string {
   const base = requested && VIDEO_MODEL_RE.test(requested) ? requested : DEFAULT_VIDEO_MODEL;
-  if (/-video$/i.test(base)) return base;                 // wan3.0-video handles every mode
+  if (/-video(-prime)?$/i.test(base)) return base;        // wan3.0-video(-prime) handles every mode
   const family = base.replace(/-(t2v|i2v|r2v)$/i, '');
   return `${family}-${mode}`;
 }
@@ -334,7 +362,7 @@ async function generateVideo(req: VideoRequest): Promise<ProviderResult<{ url: s
   let videoUrl: string | undefined;
   while (Date.now() - start < budget) {
     throwIfCancelled(req.signal, 'video');
-    await new Promise(r => setTimeout(r, 10000));
+    await new Promise(r => setTimeout(r, 5000));   // 5s: prime finishes a 4s clip in ~30s, a 10s tick wasted up to a third of that
     const poll = await fetch(`${host}/api/v1/tasks/${taskId}`, {
       headers: { Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(30000),
     });
