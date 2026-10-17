@@ -1,5 +1,7 @@
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import path from 'node:path';
+import { runInNewContext } from 'node:vm';
+import { describe, expect, it, vi } from 'vitest';
 
 const readRepoFile = (path: string) => readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8');
 const readPackage = (path: string) => JSON.parse(readRepoFile(path));
@@ -42,6 +44,26 @@ describe('AuraAI branding', () => {
       expect(source).toContain('>AURAAI</h1>');
       expect(source).not.toContain('>RADIX</h1>');
     }
+  });
+
+  it('retains the legacy Electron profile before the app becomes ready', () => {
+    const app = {
+      isPackaged: true,
+      getPath: vi.fn(() => '/app-data'),
+      setPath: vi.fn(),
+      whenReady: vi.fn(() => ({ then: vi.fn() })),
+      on: vi.fn(),
+    };
+    runInNewContext(readRepoFile('apps/desktop/electron/main.cjs'), {
+      require: (name: string) => {
+        if (name === 'path') return path;
+        if (name === 'electron') return { app, ipcMain: { on: vi.fn() } };
+        throw new Error(`Unexpected module: ${name}`);
+      },
+    });
+    expect(app.getPath).toHaveBeenCalledWith('appData');
+    expect(app.setPath).toHaveBeenCalledWith('userData', path.join('/app-data', '@radix/desktop'));
+    expect(app.setPath.mock.invocationCallOrder[0]).toBeLessThan(app.whenReady.mock.invocationCallOrder[0]);
   });
 
   it('uses Aura in user-facing asset-source labels and sender defaults', () => {

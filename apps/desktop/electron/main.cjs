@@ -1,6 +1,9 @@
 const { app, BrowserWindow, shell, Menu, Tray, nativeImage, ipcMain } = require('electron');
 const path = require('path');
 
+// Keep the original package-name profile so sessions and local drafts survive rebranding.
+app.setPath('userData', path.join(app.getPath('appData'), '@radix/desktop'));
+
 let mainWindow = null;
 let tray = null;
 const isDev = !app.isPackaged;

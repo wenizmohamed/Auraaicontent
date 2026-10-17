@@ -2,7 +2,7 @@
 
 Production-grade AI content-planning workspace for AuraAI. A single-tenant SaaS dashboard the agency uses to brief, generate, review, schedule, and export 18 platform-optimized content pieces per client per month.
 
-Branding uses AuraAI. Legacy `radix` deployment paths, domains, environment variables, database and queue names, browser storage keys, Electron app ID, and asset filenames remain unchanged for compatibility with existing installations. `@radix-ui/*` refers to the third-party Radix UI library, not product branding. Historical reports and document IDs are retained as recorded.
+Branding uses AuraAI. Legacy `radix` deployment paths, domains, environment variables, database and queue names, browser storage keys, Electron app ID and profile directory, and asset filenames remain unchanged for compatibility with existing installations. `@radix-ui/*` refers to the third-party Radix UI library, not product branding. Historical reports and document IDs are retained as recorded.
 
 **Live**: `https://srv1494206.hstgr.cloud` · **Branch**: `main` · **Hardening branch**: `million-dollar-hardening`
 
