@@ -201,6 +201,9 @@ async function describeReference(input: EnhanceInput): Promise<string> {
   }
 }
 
+// Shared with routes/creative.ts and the video worker.
+export const SAFE_ZONE_HINT = 'IMPORTANT COMPOSITION CONSTRAINT: keep the top ~15% and bottom ~15% of the frame clear of text, logos, faces, and key subjects — reserve those bands for social platform UI (Reels/Stories controls, captions). Center all important elements in the middle safe area.';
+
 export async function enhanceCreativePrompt(input: EnhanceInput): Promise<EnhanceResult> {
   const isVideo = input.mode === 'text-to-video' || input.mode === 'image-to-video';
   const depth: EnhanceDepth = input.depth || 'medium';

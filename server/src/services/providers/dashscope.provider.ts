@@ -42,6 +42,7 @@ function dashscopeImageModel(requested?: string): string {
   return requested && /^(qwen-image|wan[\d.]+-image|z-image)/i.test(requested) ? requested : IMAGE_MODEL;
 }
 const TIMEOUT_MS = parseInt(process.env.DASHSCOPE_TIMEOUT_MS || '120000', 10);
+const THINKING = process.env.DASHSCOPE_THINKING === 'true';
 // Image calls get their own budget (mirrors GEMINI_IMAGE_EDIT_TIMEOUT_MS): a
 // 2K single-image edit on qwen-image-3.0-pro ran 71s live, a three-image
 // role-labelled edit passed 120s and aborted (2026-10-17). nginx allows 300s
@@ -86,7 +87,11 @@ async function chat(req: TextRequest | AnalysisRequest, json: boolean): Promise<
       max_tokens: (req as TextRequest).maxTokens ?? 16384,
       ...((req as TextRequest).temperature != null ? { temperature: (req as TextRequest).temperature } : {}),
       ...(json ? { response_format: { type: 'json_object' as const } } : {}),
-    }, {
+      // Thinking OFF by default (2026-10-17): qwen3.8 spends 300-1300 reasoning
+      // tokens and 2-3x the latency per call (flash 13.2s → 6.7s, max 4.9s →
+      // 2.1s measured) for no visible gain on marketing copy. DASHSCOPE_THINKING=true re-enables.
+      ...(THINKING ? {} : { enable_thinking: false }),
+    } as any, {
       ...(signal ? { signal } : {}),
       ...(timeoutMs ? { timeout: timeoutMs } : {}),
     });

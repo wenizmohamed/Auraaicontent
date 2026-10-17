@@ -554,7 +554,7 @@ export const creativeApi = {
     // Curated Style Pack id (server-side design contracts).
     stylePackId?: string;
   }) =>
-    request<{ jobId: string }>('/api/creative/videos/generate', { method: 'POST', body: JSON.stringify(data) }),
+    request<{ jobId: string }>('/api/creative/videos/generate', { method: 'POST', body: JSON.stringify(data) }, { timeoutMs: 120000 }),  // route answers in ~1s now; headroom for a slow DB
   stylePacks: () =>
     request<{ packs: { id: string; name: string; tagline: string; category: string; palette: string[] }[] }>('/api/creative/style-packs'),
   getJob: (jobId: string) =>

@@ -11,7 +11,7 @@ import { db } from '../db/prisma.js';
 import { searchPinterest, searchPinterestMulti, fetchPinterestImageBase64 } from '../services/pinterest.service.js';
 import { historyService } from '../services/history.service.js';
 import { sanitizePrompt, validatePrompt } from '../middleware/sanitize.js';
-import { enhanceCreativePrompt, enhanceCreativeVariants, type EnhanceMode, type EnhanceVariant } from '../services/prompt-enhancer.service.js';
+import { enhanceCreativePrompt, enhanceCreativeVariants, SAFE_ZONE_HINT, type EnhanceMode, type EnhanceVariant } from '../services/prompt-enhancer.service.js';
 import { getStylePack, listStylePacks } from '../services/style-packs.js';
 import { recordMemory } from '../services/memory.service.js';
 import { upscaleImage } from '../services/upscale.service.js';
@@ -22,7 +22,6 @@ import { capGuard } from '../lib/plan-caps.js';
 // generated creative keeps the top/bottom platform-UI bands clear (Reels/Stories
 // controls, caption overlays). Prompt-level guidance (v1); pixel-accurate
 // compositing would be a later enhancement.
-const SAFE_ZONE_HINT = 'IMPORTANT COMPOSITION CONSTRAINT: keep the top ~15% and bottom ~15% of the frame clear of text, logos, faces, and key subjects — reserve those bands for social platform UI (Reels/Stories controls, captions). Center all important elements in the middle safe area.';
 
 export async function creativeRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authGuard);
@@ -311,43 +310,11 @@ export async function creativeRoutes(app: FastifyInstance) {
       return reply.status(errStatus(e, 402)).send({ error: errMessage(e) });
     }
     const stylePack = getStylePack(stylePackId);
-    // Auto pro-prompt (default ON): rewrite into Veo's cinematography-first
-    // formula w/ audio directives + auto negatives; Arabic briefs translated.
-    // Best-effort — failure falls back to the raw prompt.
-    const videoMode = imageBase64 || startImageBase64 ? 'image-to-video' : 'text-to-video';
-    // Engine hint for the enhancer dialect — mirrors the router's actual
-    // dispatch: wan/happyhorse → dashscope, grok → xai, veo/omni → gemini, and
-    // Auto (no model) → dashscope, the video primary since 2026-10-17.
-    const hasVideoRefs = Array.isArray(referenceImages) && referenceImages.length > 0;
-    const enhEngine = model && /grok/i.test(model) ? ('xai' as const)
-      : model && /veo|omni|gemini/i.test(model) ? ('gemini' as const)
-      : ('dashscope' as const);
-    let enhancedPrompt: string | null = null;
-    let autoNegative: string | undefined;
-    if (enhance !== false) {
-      try {
-        const e = await enhanceCreativePrompt({
-          prompt, mode: videoMode, engine: enhEngine, model, depth,
-          clientId: clientId || undefined,
-          orgId: request.orgId, userId: request.user?.userId,
-          safeZone: Boolean(safeZone), hasRefs: hasVideoRefs,
-          // Vision→prompt: describe the start frame so motion directions
-          // reference the real subject, not the user's thin description.
-          refImageBase64: imageBase64 || startImageBase64 || undefined,
-          refImageMime: (imageBase64 ? mimeType : startMimeType) || 'image/png',
-          stylePack,
-        });
-        if (e.prompt && e.prompt.trim() && e.prompt.trim() !== prompt) enhancedPrompt = e.prompt.trim();
-        autoNegative = e.negativePrompt;
-      } catch (e) { request.log.warn(`prompt-enhancer failed (video): ${errMessage(e)}`); }
-    }
-    // Pack survives enhance:false / enhancer failure (raw design contract);
-    // pack negatives ride autoNegative when the enhancer didn't run.
-    const packTail = stylePack && !enhancedPrompt ? ` Style & ambiance: ${stylePack.video}` : '';
-    if (stylePack && !enhancedPrompt && !autoNegative) autoNegative = stylePack.negative;
-    const genPrompt = (enhancedPrompt ?? (safeZone ? `${prompt}\n\n${SAFE_ZONE_HINT}` : prompt)) + packTail;
-    const mergedNegative = [autoNegative, typeof negativePrompt === 'string' ? negativePrompt : '']
-      .filter(sv => sv && sv.trim()).join(', ').slice(0, 500) || undefined;
+    // Prompt enhancement (vision pass + rewrite) runs INSIDE the job since
+    // 2026-10-17: on qwen it took 20-40s here, the browser's 30s request
+    // timeout fired first (nginx 499) and the user saw a failure while the
+    // clip rendered unseen. The POST now returns the jobId immediately; the
+    // worker enhances, then generates. See creativeVideo.worker.ts.
     // Veo "ingredients to video" asset refs — the subject/product stays
     // consistent in the output. Max 3; forces an 8s clip (Google constraint,
     // enforced in the provider). Routed Veo-primary via imageConditioned.
@@ -375,14 +342,17 @@ export async function creativeRoutes(app: FastifyInstance) {
       // queue dispatches with the correct owner even under concurrent requests
       // and after restarts — and so /creative/jobs scoping can authorize.
       orgId, userId,
-      prompt: genPrompt, aspectRatio, durationSeconds, resolution, clientId,
+      prompt, aspectRatio, durationSeconds, resolution, clientId,
       imageBase64, mimeType,
       startImageBase64, startMimeType, endImageBase64, endMimeType,
       tier: tier === 'hd' ? 'hd' : 'draft',
-      negativePrompt: mergedNegative,
+      userNegative: typeof negativePrompt === 'string' ? negativePrompt.slice(0, 300) : undefined,
+      enhance: enhance !== false,
+      depth,
+      safeZone: Boolean(safeZone),
+      stylePackId: stylePack?.id,
       referenceImages: videoRefs,
       model: typeof model === 'string' && model.trim() ? model.trim() : undefined,
-      enhancedPrompt,
       originalPrompt: prompt,
     });
     processJob(job.id, creativeVideoWorker);

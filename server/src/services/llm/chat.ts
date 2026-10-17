@@ -121,6 +121,9 @@ export interface ProviderClient {
 // internal retries, stacked under tryWithBackoff's 4 attempts: a hung provider
 // could pin an agent iteration for most of an hour (audit 2026-10-17).
 const LLM_TIMEOUT_MS = parseInt(process.env.LLM_TIMEOUT_MS || '120000', 10);
+// qwen3.8 thinking off unless DASHSCOPE_THINKING=true (halves latency; see dashscope.provider).
+const DS_THINKING = process.env.DASHSCOPE_THINKING === 'true';
+const dsExtras = (provider: string) => (provider === 'dashscope' && !DS_THINKING ? { enable_thinking: false } : {});
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/openai/';
 const XAI_BASE = process.env.XAI_BASE_URL || 'https://api.x.ai/v1';
 const MOONSHOT_BASE = process.env.MOONSHOT_BASE_URL || 'https://api.moonshot.ai/v1';
@@ -328,7 +331,7 @@ export async function chatText(
     ? await enrichLastUserTurn(params.messages, options.meta)
     : params.messages;
   const out = await withFallback(async ({ client, model, provider }) => {
-    const r: ChatCompletion = await client.chat.completions.create({ ...params, messages: shapeToolHistoryFor(provider, messages), model, stream: false });
+    const r: ChatCompletion = await client.chat.completions.create({ ...params, ...dsExtras(provider), messages: shapeToolHistoryFor(provider, messages), model, stream: false } as any);
     const choice = r.choices?.[0]?.message as
       | { content?: string | null; reasoning_content?: string | null }
       | undefined;
@@ -392,7 +395,7 @@ export async function chatStream(
   } as ChatCompletionCreateParamsStreaming;
   const out = await withFallback(async ({ client, model, provider }) => {
     const stream = await client.chat.completions.create(
-      { ...paramsWithUsage, messages: shapeToolHistoryFor(provider, paramsWithUsage.messages), model },
+      { ...paramsWithUsage, ...dsExtras(provider), messages: shapeToolHistoryFor(provider, paramsWithUsage.messages), model } as typeof paramsWithUsage,
       { signal: options?.signal },
     );
     return stream;
