@@ -42,7 +42,7 @@ const REQUIRED_MODELS = [
   'grok-imagine-image',
   'grok-imagine-image-2.0',
   'grok-imagine-video',
-  'grok-imagine-video-1.5',
+  'grok-imagine-video-1.5', 'grok-imagine-video-1.5:480p', 'grok-imagine-video-1.5:1080p', 'grok-imagine-video:480p',
   // Moonshot Kimi
   'kimi-k2.6',
   'k3',

@@ -276,7 +276,11 @@ export const xaiProvider: AiProvider = {
     } catch (e: any) {
       console.warn(`[xai/video] persist failed (${e?.message}); returning remote url`);
     }
-    return { provider: 'xai', model: ladderResult.modelUsed, latencyMs: Date.now() - start, fallbackUsed: false, output: { url } };
+    // Billing id carries the resolution tier (720p = bare id) so the meter
+    // prices the clip at the rate xAI actually charges (see ai-pricing.ts).
+    const res = req.resolution ?? '720p';
+    const billedModel = res === '720p' ? ladderResult.modelUsed : `${ladderResult.modelUsed}:${res}`;
+    return { provider: 'xai', model: billedModel, latencyMs: Date.now() - start, fallbackUsed: false, output: { url } };
   },
 
   async analysis(_req: AnalysisRequest): Promise<never> {

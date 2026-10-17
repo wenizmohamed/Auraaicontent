@@ -127,9 +127,19 @@ describe('metering: video per-second pricing', () => {
     expect(noDuration).toBeCloseTo(1.60, 6);
   });
 
-  it('grok-imagine-video-1.5 with 8s duration = $0.64', () => {
-    // Repriced 2026-08-14 to the xAI card: 0.08/s * 8s = 0.64 (was 0.05/s).
-    expect(computeCostUsd('grok-imagine-video-1.5', 0, 0, 1, 8)).toBeCloseTo(0.64, 6);
+  it('grok-imagine-video-1.5 (720p default) with 8s duration = $1.12', () => {
+    // xAI card 2026-10-17: 0.14/s at 720p * 8s = 1.12 (was billed at the 480p 0.08 rate).
+    expect(computeCostUsd('grok-imagine-video-1.5', 0, 0, 1, 8)).toBeCloseTo(1.12, 6);
+  });
+
+  it('grok-imagine-video-1.5:1080p with 8s duration = $2.00', () => {
+    // 0.25/s * 8s = 2.00
+    expect(computeCostUsd('grok-imagine-video-1.5:1080p', 0, 0, 1, 8)).toBeCloseTo(2.00, 6);
+  });
+
+  it('grok-imagine-video-1.5:480p with 8s duration = $0.64', () => {
+    // 0.08/s * 8s = 0.64
+    expect(computeCostUsd('grok-imagine-video-1.5:480p', 0, 0, 1, 8)).toBeCloseTo(0.64, 6);
   });
 
   // Alibaba Token Plan engines (primary since 2026-10-17). Per-second BY

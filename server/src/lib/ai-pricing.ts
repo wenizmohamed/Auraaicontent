@@ -136,9 +136,17 @@ export const AI_PRICING: Record<string, PricePoint> = {
   'grok-imagine-image':                { promptPerM: 0,    completionPerM: 0,    perCall: 0.02 },
   'grok-imagine-image-quality':        { promptPerM: 0,    completionPerM: 0,    perCall: 0.05 },  // $0.05 per live xAI API 2026-08-14 (was mis-recorded 0.03)
   'grok-imagine-image-2.0':            { promptPerM: 0,    completionPerM: 0,    perCall: 0.04 },  // newest image gen, $0.04/img (docs + API standard tier)
-  // grok-imagine video: $0.05 per SECOND of clip (was modeled as flat per-call).
-  'grok-imagine-video':                { promptPerM: 0,    completionPerM: 0,    perSecond: 0.05 },
-  'grok-imagine-video-1.5':            { promptPerM: 0,    completionPerM: 0,    perSecond: 0.08 },  // $0.08/s per xAI docs 2026-08-14 (was mis-recorded 0.05)
+  // grok-imagine video is priced per second BY RESOLUTION (docs.x.ai/developers/
+  // pricing, verified 2026-10-17): video-1.5 $0.08 / $0.14 / $0.25 at 480p /
+  // 720p / 1080p; legacy video $0.05 / $0.07. The provider requests 720p by
+  // default, so the bare id is the 720p rate and other tiers carry a ":<res>"
+  // suffix (same convention as wan3.0). Until today 1.5 was billed at the 480p
+  // rate ($0.08) while rendering 720p, under-recording every clip by 43%.
+  'grok-imagine-video':                { promptPerM: 0,    completionPerM: 0,    perSecond: 0.07 },
+  'grok-imagine-video:480p':           { promptPerM: 0,    completionPerM: 0,    perSecond: 0.05 },
+  'grok-imagine-video-1.5':            { promptPerM: 0,    completionPerM: 0,    perSecond: 0.14 },
+  'grok-imagine-video-1.5:480p':       { promptPerM: 0,    completionPerM: 0,    perSecond: 0.08 },
+  'grok-imagine-video-1.5:1080p':      { promptPerM: 0,    completionPerM: 0,    perSecond: 0.25 },
   'grok-imagine-video-fast':           { promptPerM: 0,    completionPerM: 0,    perSecond: 0.03 },
 
   // ─── Moonshot Kimi ──────────────────────────────────────────────

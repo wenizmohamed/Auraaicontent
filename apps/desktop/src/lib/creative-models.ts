@@ -131,8 +131,8 @@ const OMNI: ModelOption = {
 };
 const GROK_VIDEO: ModelOption = {
   value: 'grok-imagine-video-1.5', label: 'Grok Imagine 1.5', vendor: 'xAI',
-  hint: 'Quickest turnaround. Up to 8s.',
-  model: 'grok-imagine-video-1.5', perSec: 0.08, minSeconds: 4, maxSeconds: 8, tier: 'draft',
+  hint: 'Quickest turnaround. Up to 8s, 720p or 1080p.',
+  model: 'grok-imagine-video-1.5', perSec: 0.14, perSec1080: 0.25, minSeconds: 4, maxSeconds: 8, supports1080: true, tier: 'draft',
 };
 
 export const TEXT_TO_VIDEO_MODELS: ModelOption[] = [
