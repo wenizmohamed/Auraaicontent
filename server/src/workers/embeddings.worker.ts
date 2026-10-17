@@ -248,8 +248,19 @@ function chunkText(text: string, maxTokens: number = 800, overlap: number = 100)
   const overlapChars = overlap * 4;
   const chunks: string[] = [];
 
-  // Split by paragraphs first for cleaner boundaries
-  const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim().length > 0);
+  // Split by paragraphs first for cleaner boundaries. A "paragraph" longer
+  // than a chunk (minified HTML, CSV rows, one-line exports) is hard-sliced:
+  // without this, Maxwax's HTML uploads became 18-20 chunks of 4.38 MB EACH
+  // and brief_analyze crashed Prisma loading them (2026-10-17).
+  const paragraphs = text
+    .split(/\n\s*\n/)
+    .filter(p => p.trim().length > 0)
+    .flatMap(p => {
+      if (p.length <= maxChars) return [p];
+      const parts: string[] = [];
+      for (let i = 0; i < p.length; i += maxChars - overlapChars) parts.push(p.slice(i, i + maxChars));
+      return parts;
+    });
 
   let buffer = '';
   for (const para of paragraphs) {

@@ -67,6 +67,9 @@ interface AgentToolStep {
 interface AgentRunView {
   sessionUid: string;
   phase: 'connecting' | 'running';
+  /** Latest agent:thought line ("Reading brief for Maxwax…"), shown while the
+   * run has no narrative text yet so a 40s tool pass is not a bare spinner. */
+  status?: string;
   /** Streamed narrative text accumulated from agent:message deltas. */
   text: string;
   steps: AgentToolStep[];
@@ -372,6 +375,7 @@ export default function RadixAssistant() {
   const agentRunRef = useRef<AgentRunView | null>(null); // socket handlers read the live value
   const agentSocketRef = useRef<Socket | null>(null);
   const agentSessionRef = useRef<string | null>(null);
+  const agentSessionClientRef = useRef<string | null>(null);
   const breakAfterToolRef = useRef(false); // paragraph break between iterations
   const promptRef = useRef<HTMLTextAreaElement>(null);
 
@@ -680,6 +684,9 @@ export default function RadixAssistant() {
       const uid = agentSessionRef.current;
       if (uid && agentRunRef.current) s.emit('session:join', { sessionUid: uid });
     });
+    s.on('agent:thought', (p: { text: string }) => {
+      patchRun(prev => ({ ...prev, phase: 'running', status: p.text }));
+    });
     s.on('agent:message', (p: { text: string; streaming?: boolean }) => {
       patchRun(prev => {
         const sep = breakAfterToolRef.current && prev.text ? '\n\n' : '';
@@ -755,9 +762,14 @@ export default function RadixAssistant() {
       await runChat(chatFallback, []);
       return;
     }
-    const sessionUid = newSessionUid();
-    if (agentSessionRef.current) socket.emit('session:leave', { sessionUid: agentSessionRef.current });
+    // One session per conversation + client (not per message): the server keeps
+    // the earlier turns on the session, so follow-ups ("do it", "u finished?")
+    // have real context and Session history shows one thread, not fragments.
+    const reuse = agentSessionRef.current && agentSessionClientRef.current === (selectedClientId || null);
+    const sessionUid = reuse && agentSessionRef.current ? agentSessionRef.current : newSessionUid();
+    if (!reuse && agentSessionRef.current) socket.emit('session:leave', { sessionUid: agentSessionRef.current });
     agentSessionRef.current = sessionUid;
+    agentSessionClientRef.current = selectedClientId || null;
     breakAfterToolRef.current = false;
     const run: AgentRunView = { sessionUid, phase: 'connecting', text: '', steps: [], clientId: selectedClientId };
     agentRunRef.current = run;
@@ -800,6 +812,8 @@ export default function RadixAssistant() {
   const handleClear = () => {
     chatResumeStopRef.current = true;
     setMessages([]);
+    agentSessionRef.current = null;
+    agentSessionClientRef.current = null;
     setPendingRun(null);
     setPendingChat(null);
     setError('');
@@ -1189,6 +1203,9 @@ export default function RadixAssistant() {
                       live
                       onOpenLink={(to) => { navigate(to); setOpen(false); }}
                     />
+                    {!agentRun.text && agentRun.status ? (
+                      <p className="text-[11px] px-1" style={{ color: 'var(--color-fg-muted)' }}>{agentRun.status}</p>
+                    ) : null}
                     {agentRun.text ? (
                       <div
                         className="rounded-2xl rounded-bl-sm border px-3.5 py-2 text-sm leading-relaxed"

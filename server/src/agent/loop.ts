@@ -30,6 +30,46 @@ const AGENT_CHAIN_ENV = process.env.AGENT_PROVIDER_CHAIN; // e.g. "gemini,xai,da
 // flash tier shared with the assistant), so a wrong tool pick wasted a whole
 // iteration. Give it a dedicated reasoning-tier model on the gemini hop.
 // Probed live 2026-08-02: gemini-pro-latest tool-calls cleanly and is priced.
+// Streamed tool-call arguments arrive as deltas. OpenAI/xAI/DashScope send
+// fragments that concatenate into one JSON object; Gemini's OpenAI layer
+// re-sends the FULL arguments on each delta, so naive concatenation yields
+// "{...}{...}" and the call burned an iteration on "arguments were not valid
+// JSON" (both Gemini sessions, 2026-10-17). Accept the buffer when it parses;
+// otherwise take the last complete top-level object that parses.
+// What marketing users see when a tool or provider fails. The raw text goes to
+// the log; the UI used to show "Failed: Invalid prisma.client.findUnique()..."
+// and "All LLM providers failed: gemini:402..." verbatim (audit 2026-10-17).
+export function humanizeAgentError(raw: string): string {
+  const m = raw || '';
+  if (/credits are depleted|prepay|out of credits|insufficient.?(credit|balance)|usage limit for this billing cycle|402/i.test(m)) return 'An AI engine is out of credits. I switched to the next engine; if this keeps happening, top up the provider.';
+  if (/All (LLM )?providers failed/i.test(m)) return 'Every AI engine failed to answer just now. Try again in a moment.';
+  if (/prisma|napi string|ECONNREFUSED|database/i.test(m)) return 'Could not read the saved data for this step. Try again; if it repeats, the knowledge files for this client may need re-uploading.';
+  if (/timeout|timed out|aborted due to timeout/i.test(m)) return 'That step took too long and was stopped. Try again with a smaller request.';
+  if (/not found/i.test(m)) return m.length < 160 ? m : 'Something this step needed was not found.';
+  if (/no saved brief|has no saved brief/i.test(m)) return m;
+  if (/safety|blocked|content.?filter/i.test(m)) return 'The AI engine declined this content. Rephrase and try again.';
+  return m.length <= 200 ? m : m.slice(0, 200) + '…';
+}
+
+export function salvageJsonArgs(buf: string): string {
+  const s = (buf || '').trim();
+  if (!s) return '{}';
+  try { JSON.parse(s); return s; } catch { /* fall through */ }
+  const objects: string[] = [];
+  let depth = 0, start = -1, inStr = false, esc = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (inStr) { if (esc) esc = false; else if (ch === '\\') esc = true; else if (ch === '"') inStr = false; continue; }
+    if (ch === '"') { inStr = true; continue; }
+    if (ch === '{') { if (depth === 0) start = i; depth++; }
+    else if (ch === '}') { depth--; if (depth === 0 && start >= 0) { objects.push(s.slice(start, i + 1)); start = -1; } }
+  }
+  for (let i = objects.length - 1; i >= 0; i--) {
+    try { JSON.parse(objects[i]); return objects[i]; } catch { /* try earlier */ }
+  }
+  return s; // let the validator report it
+}
+
 const AGENT_MODEL = process.env.AGENT_MODEL || 'qwen3.8-max';  // 2026-10-17: Alibaba flagship; applies on the dashscope hop (gemini ids only on gemini)
 
 function isAbortError(err: unknown): boolean {
@@ -236,7 +276,7 @@ async function runAgentLoopInner(
       }
     } catch (err) {
       if (isAbortError(err)) {
-        await ctx.emit('agent:error', { message: 'Aborted by user', at: new Date().toISOString() });
+        await ctx.emit('agent:error', { message: 'Stopped by you', at: new Date().toISOString() });
         return { iterations: iter, stopReason: 'aborted', messages };
       }
       const msg = err instanceof Error ? err.message : String(err);
@@ -290,11 +330,18 @@ async function runAgentLoopInner(
       }
     } catch (err) {
       if (isAbortError(err)) {
-        await ctx.emit('agent:error', { message: 'Aborted by user', at: new Date().toISOString() });
+        // Flush whatever was streamed but not yet shown, so the next turn does
+        // not open with the tail of this sentence (", not a guess." 2026-10-17).
+        if (streamingBuffer.length > 0) {
+          await ctx.emit('agent:message', { text: streamingBuffer, streaming: false, at: new Date().toISOString() });
+          streamingBuffer = '';
+        }
+        await ctx.emit('agent:error', { message: 'Stopped by you', at: new Date().toISOString() });
         return { iterations: iter, stopReason: 'aborted', messages };
       }
       const msg = err instanceof Error ? err.message : String(err);
-      await ctx.emit('agent:error', { message: `Stream failed: ${msg}`, at: new Date().toISOString() });
+      console.warn(`[agent] stream failed: ${msg.slice(0, 400)}`);
+      await ctx.emit('agent:error', { message: humanizeAgentError(msg), at: new Date().toISOString() });
       return { iterations: iter, stopReason: 'error', messages, error: msg };
     }
 
@@ -312,7 +359,7 @@ async function runAgentLoopInner(
       .map(([idx, e]) => ({
         id: e.id ?? `call_${Date.now()}_${idx}`,
         type: 'function' as const,
-        function: { name: e.name ?? '', arguments: e.argsBuf || '{}' },
+        function: { name: e.name ?? '', arguments: salvageJsonArgs(e.argsBuf) },
         ...(e.extra ? { extra_content: e.extra } : {}),
       }));
 
@@ -432,11 +479,12 @@ async function runAgentLoopInner(
         });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
+        console.warn(`[agent] tool ${tc.function.name} failed: ${msg.slice(0, 400)}`);
         await ctx.emit('agent:tool_result', {
           toolCallId: tc.id,
           tool: tc.function.name,
           ok: false,
-          error: msg,
+          error: humanizeAgentError(msg),
           at: new Date().toISOString(),
         });
         messages.push({

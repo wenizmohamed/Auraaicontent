@@ -117,6 +117,10 @@ export interface ProviderClient {
   provider: ProviderName;
 }
 
+// Per-request ceiling for the chat lanes. The SDK default is 600s with 2
+// internal retries, stacked under tryWithBackoff's 4 attempts: a hung provider
+// could pin an agent iteration for most of an hour (audit 2026-10-17).
+const LLM_TIMEOUT_MS = parseInt(process.env.LLM_TIMEOUT_MS || '120000', 10);
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/openai/';
 const XAI_BASE = process.env.XAI_BASE_URL || 'https://api.x.ai/v1';
 const MOONSHOT_BASE = process.env.MOONSHOT_BASE_URL || 'https://api.moonshot.ai/v1';
@@ -130,7 +134,7 @@ function clientFor(p: ProviderName, geminiModelOverride?: string): ProviderClien
     const key = process.env.GEMINI_API_KEY;
     if (!key) throw new Error('GEMINI_API_KEY missing');
     if (!cached) {
-      cached = new OpenAI({ apiKey: key, baseURL: GEMINI_BASE });
+      cached = new OpenAI({ apiKey: key, baseURL: GEMINI_BASE, timeout: LLM_TIMEOUT_MS, maxRetries: 1 });
       cache.set(p, cached);
     }
     // A caller (the agent) can force a reasoning-tier model on the gemini hop
@@ -144,7 +148,7 @@ function clientFor(p: ProviderName, geminiModelOverride?: string): ProviderClien
     const key = process.env.XAI_API_KEY;
     if (!key) throw new Error('XAI_API_KEY missing');
     if (!cached) {
-      cached = new OpenAI({ apiKey: key, baseURL: XAI_BASE });
+      cached = new OpenAI({ apiKey: key, baseURL: XAI_BASE, timeout: LLM_TIMEOUT_MS, maxRetries: 1 });
       cache.set(p, cached);
     }
     return { client: cached, model: process.env.XAI_TEXT_MODEL || 'grok-4.20', provider: p };
@@ -158,7 +162,7 @@ function clientFor(p: ProviderName, geminiModelOverride?: string): ProviderClien
     const key = process.env.DASHSCOPE_API_KEY;
     if (!key) throw new Error('DASHSCOPE_API_KEY missing');
     if (!cached) {
-      cached = new OpenAI({ apiKey: key, baseURL: DASHSCOPE_BASE });
+      cached = new OpenAI({ apiKey: key, baseURL: DASHSCOPE_BASE, timeout: LLM_TIMEOUT_MS, maxRetries: 1 });
       cache.set(p, cached);
     }
     // Honour a per-call override when it is a DashScope-shaped id (the agent's
@@ -171,7 +175,7 @@ function clientFor(p: ProviderName, geminiModelOverride?: string): ProviderClien
   const key = process.env.MOONSHOT_API_KEY;
   if (!key) throw new Error('MOONSHOT_API_KEY missing');
   if (!cached) {
-    cached = new OpenAI({ apiKey: key, baseURL: MOONSHOT_BASE });
+    cached = new OpenAI({ apiKey: key, baseURL: MOONSHOT_BASE, timeout: LLM_TIMEOUT_MS, maxRetries: 1 });
     cache.set(p, cached);
   }
   return { client: cached, model: process.env.MOONSHOT_MODEL || 'kimi-k2.6', provider: p };
