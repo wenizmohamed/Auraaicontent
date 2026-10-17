@@ -1,4 +1,4 @@
-# Radix AI Content Planner — Repo Operating Protocol
+# AuraAI Content Planner V2 — Repo Operating Protocol
 
 Read this before touching anything. This repo is worked by **two Claude Code
 instances** and they collide if they ignore the rules below.

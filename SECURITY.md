@@ -1,6 +1,6 @@
 # Security policy
 
-We take security seriously. RadixContent handles agency client data — campaign briefs, brand guidelines, generated content, and (post-Phase-2) Stripe billing.
+We take security seriously. AuraAI Content Planner handles agency client data — campaign briefs, brand guidelines, generated content, and (post-Phase-2) Stripe billing.
 
 ## Reporting a vulnerability
 

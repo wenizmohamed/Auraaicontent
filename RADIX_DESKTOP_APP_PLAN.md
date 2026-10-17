@@ -1,4 +1,4 @@
-# RADIX AI CONTENT OS — Native Desktop App Plan
+# AuraAI Content OS — Native Desktop App Plan
 
 **Version:** 2.0 (Tauri Migration)
 **Prepared by:** Mohamed — Head of AI & Digital Transformation
@@ -9,7 +9,7 @@
 
 ## 1. EXECUTIVE SUMMARY
 
-Migrate the Radix AI Content Planner from Electron (213MB, Chrome wrapper) to Tauri 2.0 (native, ~15MB). Add SQLite persistence, offline-first architecture, native file system access, and multi-workspace support. Goal: production-grade desktop app for the 7-person content team serving 13 clients.
+Migrate the AuraAI Content Planner from Electron (213MB, Chrome wrapper) to Tauri 2.0 (native, ~15MB). Add SQLite persistence, offline-first architecture, native file system access, and multi-workspace support. Goal: production-grade desktop app for the 7-person content team serving 13 clients.
 
 **Current state:** Working Electron app with localStorage, 17 React pages, dual AI (Claude + Gemini), ComfyUI integration.
 
@@ -391,7 +391,7 @@ Tauri 2.0 has a built-in updater. Configuration:
 
 ### 10.1 System Tray
 
-- Radix logo in system tray
+- AuraAI logo in system tray
 - Right-click menu: Open, New Brief, Recent Briefs, Quit
 - Badge shows queued/pending items count
 - Minimize to tray on close
@@ -679,5 +679,5 @@ GitHub Push → GitHub Actions → Build (Win + Mac) → Sign → Upload to rele
 
 ---
 
-*End of Plan — Radix AI Content OS v2.0*
+*End of Plan — AuraAI Content OS v2.0*
 *Prepared April 2026 by Mohamed & CLAUDI*

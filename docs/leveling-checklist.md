@@ -18,7 +18,7 @@ Work the queue top-down; each item = build + audit(raw-color PASS) + auth-screen
 - [ ] ContentPieces / ContentReview / Knowledge → status counts as eyebrow→hero metric cards
 - [ ] Raw-color tokenization (reduces the 2506 ratchet): ContentReview (~21), CreativeTools (~15),
       Research (~10), Studio, BrandKit → map text-red-*→var(--color-danger), text-amber-*→var(--color-accent/warning),
-      text-emerald-*→var(--color-success), bg-*-500/10→var(--color-*-subtle). NOTE Radix token is
+      text-emerald-*→var(--color-success), bg-*-500/10→var(--color-*-subtle). NOTE AuraAI token is
       `--color-danger` (not --color-error) and `--color-accent` (amber).
 - [ ] Empty/loading states: ContentCalendar (empty), Gallery (skeleton), Research (skeleton),
       BriefInput (form skeleton), VisualReferences (no-results state)

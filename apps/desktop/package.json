@@ -1,8 +1,8 @@
 {
-  "name": "@radix/desktop",
+  "name": "@aura/desktop",
   "version": "1.0.0",
   "private": true,
-  "author": "Radix Media <digital@radixmedia.ae>",
+  "author": "AuraAI",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
@@ -24,7 +24,7 @@
   },
   "build": {
     "appId": "ae.radixmedia.contentplanner",
-    "productName": "RADIX AI Content Planner",
+    "productName": "AuraAI Content Planner V2",
     "directories": {
       "output": "release"
     },
@@ -45,7 +45,7 @@
       "icon": "public/radix-icon.png"
     },
     "portable": {
-      "artifactName": "RADIX-Content-Planner-Portable-v2.exe"
+      "artifactName": "AuraAI-Content-Planner-Portable-v2.exe"
     }
   },
   "dependencies": {

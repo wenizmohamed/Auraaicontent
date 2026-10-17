@@ -1,6 +1,8 @@
-# RADIX AI Content Planner v2
+# AuraAI Content Planner V2
 
-Production-grade AI content-planning workspace for Radix Media. A single-tenant SaaS dashboard the agency uses to brief, generate, review, schedule, and export 18 platform-optimized content pieces per client per month.
+Production-grade AI content-planning workspace for AuraAI. A single-tenant SaaS dashboard the agency uses to brief, generate, review, schedule, and export 18 platform-optimized content pieces per client per month.
+
+Branding uses AuraAI. Legacy `radix` deployment paths, domains, environment variables, database and queue names, browser storage keys, Electron app ID and profile directory, and asset filenames remain unchanged for compatibility with existing installations. `@radix-ui/*` refers to the third-party Radix UI library, not product branding. Historical reports and document IDs are retained as recorded.
 
 **Live**: `https://srv1494206.hstgr.cloud` · **Branch**: `main` · **Hardening branch**: `million-dollar-hardening`
 
@@ -109,7 +111,7 @@ server/              Fastify 5 backend
 | Password storage | bcrypt cost 12. |
 | CORS | Env-allowlisted (`HTTP_CORS_ORIGINS`), fails closed in prod. |
 | CSP | Strict via `@fastify/helmet` (no `'unsafe-inline'` script), HSTS in prod. |
-| Multi-tenancy | **Single-tenant by design.** Every authed user sees every Client. Auth gates entry; inside the wall the workspace is shared (matches Radix Media's one-agency model). Adding a second agency requires an `Organization` model + `orgId` on Client + scoping every query handler — not done. |
+| Multi-tenancy | **Single-tenant by design.** Every authed user sees every Client. Auth gates entry; inside the wall the workspace is shared (matches AuraAI's one-agency model). Adding a second agency requires an `Organization` model + `orgId` on Client + scoping every query handler — not done. |
 | File uploads | 25MB limit via `@fastify/multipart`. |
 | Audit log | Append-only `AuditLog` table with `userId` + `clientId` + `action` + `entityType`. |
 
@@ -123,7 +125,7 @@ BullMQ queue `radix-jobs` backed by Redis. One Worker, concurrency 4. On boot, `
 
 ## License
 
-Private — Radix Media internal tool.
+Private — AuraAI internal tool.
 
 ---
 

@@ -1,4 +1,4 @@
-# Radix V2 — Ultimate AI Content Planner Spec (v2-ultimate-w1)
+# AuraAI V2 — Ultimate AI Content Planner Spec (v2-ultimate-w1)
 
 > **Status:** Approved · 2026-05-12 · branch `v2-migration` HEAD `cffca40`
 > **Authored by:** AURA via `/ui-ux-pro-max` v2.5.0 (Phase A) + `/skillx:skillx` marketplace (Phase B) + `/aura-superagent` 6-agent pipeline (Phase C, learning_id `superagent-8b11e50052e8`)
@@ -9,7 +9,7 @@
 
 ## §0 Context & gap rationale
 
-Radix V2 is past the hardening phase. Last 15 commits are auth / billing / audit / finance infra. Workshop 2026-05-06 surfaced 6 actionable UX items (5 shipped today in commit `cffca40`, 1 deferred). Beyond the workshop, an audit of the live surface vs best-in-class AI content planners (`manus.ai`, `climaty.ai`, Buffer, Later, Sprout Social) reveals 3 highest-leverage gaps:
+AuraAI V2 is past the hardening phase. Last 15 commits are auth / billing / audit / finance infra. Workshop 2026-05-06 surfaced 6 actionable UX items (5 shipped today in commit `cffca40`, 1 deferred). Beyond the workshop, an audit of the live surface vs best-in-class AI content planners (`manus.ai`, `climaty.ai`, Buffer, Later, Sprout Social) reveals 3 highest-leverage gaps:
 
 1. **Manus-grade real-time Agent UI** — current `apps/desktop/src/pages/Agent.tsx` = 193 LOC / 7.6KB with 1 socket reference. Route exists but feels stub.
 2. **Post scheduler + auto-publish loop** — `scheduledAt` column referenced in `server/src/routes/calendar.ts:237`, OAuth wired for TikTok + LinkedIn at `integrations.ts:109-110`, `publish.ts` route registered — but NO cron/queue worker actually fires the deadline. Generation→manual-copy-paste, not generation→schedule→auto-publish.
@@ -22,7 +22,7 @@ Pipeline used to produce this spec: `/ui-ux-pro-max --persist` → `/skillx sear
 ## §1 Manus-grade Agent UI (F1)
 
 ### Design tokens (override Master where needed)
-Override the generator's red+Playfair MASTER tokens — Radix keeps its existing amber `#F59E0B` accent + Inter-only typography. Apply MASTER spacing / shadow / motion tokens unchanged. Page-specific overrides from `design-system/radix-ai-content-planner/pages/agent.md`:
+Override the generator's red+Playfair MASTER tokens — AuraAI keeps its existing amber `#F59E0B` accent + Inter-only typography. Apply MASTER spacing / shadow / motion tokens unchanged. Page-specific overrides from `design-system/radix-ai-content-planner/pages/agent.md`:
 - **Layout:** max-width 1400px, 12-column grid, high content density
 - **Effects:** stream text token-by-token, real-time chart animations, status-indicator blink, smooth data stream updates
 - **AI interaction:** stream tool-call cards as they arrive (no batch-render)

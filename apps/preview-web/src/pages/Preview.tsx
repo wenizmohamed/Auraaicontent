@@ -39,7 +39,7 @@ export default function Preview({ token }: { token: string }) {
   return (
     <div style={styles.page}>
       <header style={styles.header}>
-        <h1 style={styles.title}>RADIX</h1>
+        <h1 style={styles.title}>AURAAI</h1>
         <p style={styles.subtitle}>Content Review — {client?.name}</p>
       </header>
 

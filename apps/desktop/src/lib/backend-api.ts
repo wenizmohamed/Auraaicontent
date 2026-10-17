@@ -567,7 +567,7 @@ export const creativeApi = {
     ),
 };
 
-// ─── Changelog (What's new on Radix AI) ─────────────────────────
+// ─── Changelog (What's new on AuraAI) ─────────────────────────
 
 export interface ChangelogEntry { date: string; tag: 'new' | 'improved' | 'fixed'; title: string; body: string }
 export const changelogApi = {

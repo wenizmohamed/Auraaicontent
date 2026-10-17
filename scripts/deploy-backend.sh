@@ -38,7 +38,7 @@ for arg in "$@"; do
   esac
 done
 
-echo "=== Radix backend deploy — $(date) ==="
+echo "=== AuraAI backend deploy — $(date) ==="
 
 if [ "$DO_PULL" = "1" ]; then
   echo "--- git pull ---"

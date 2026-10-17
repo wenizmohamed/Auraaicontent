@@ -1,9 +1,9 @@
 // BrandKit page — Wave 2.A, 2026-05-12.
 // Per-client brand identity (visual, voice, anchors) with on-save version
-// snapshots. Reuses Radix amber + glass-card vocabulary from Profile.tsx.
+// snapshots. Reuses AuraAI amber + glass-card vocabulary from Profile.tsx.
 //
 // Note: design-system spec called for the generator's red+Playfair palette but
-// the parent spec locks Radix amber+Inter — that vocabulary wins. (Spec #4.)
+// the parent spec locks AuraAI amber+Inter — that vocabulary wins. (Spec #4.)
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';

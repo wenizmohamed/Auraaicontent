@@ -6,7 +6,7 @@
 
 ---
 
-**Project:** Radix AI Content Planner
+**Project:** AuraAI Content Planner V2
 **Generated:** 2026-05-12 00:01:49
 **Category:** Notes & Writing App
 

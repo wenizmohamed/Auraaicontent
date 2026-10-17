@@ -182,11 +182,11 @@ async function searchInternalAssets(orgId: string, clientId: string, query: stri
     const out: VisualSearchResult[] = [];
     for (const a of assets) {
       const url = a.thumbUrl || a.fileUrl;
-      if (url) out.push({ thumbnailUrl: url, sourceUrl: a.fileUrl, sourceDomain: 'radix (approved asset)', sourceType: 'internal', title: a.name || undefined, description: 'Your approved brand asset' });
+      if (url) out.push({ thumbnailUrl: url, sourceUrl: a.fileUrl, sourceDomain: 'aura (approved asset)', sourceType: 'internal', title: a.name || undefined, description: 'Your approved brand asset' });
     }
     for (const g of gens) {
       const url = g.thumbnailUrl || g.outputUrl;
-      if (url) out.push({ thumbnailUrl: url, sourceUrl: g.outputUrl!, sourceDomain: 'radix (past generation)', sourceType: 'internal', title: (g.prompt || '').slice(0, 60) || undefined, description: 'Previously generated for this client' });
+      if (url) out.push({ thumbnailUrl: url, sourceUrl: g.outputUrl!, sourceDomain: 'aura (past generation)', sourceType: 'internal', title: (g.prompt || '').slice(0, 60) || undefined, description: 'Previously generated for this client' });
     }
     return out.slice(0, limit);
   } catch { return []; }

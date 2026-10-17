@@ -1,4 +1,4 @@
-# Radix Creative Tools — SOTA Gap-Closure Roadmap
+# AuraAI Creative Tools — SOTA Gap-Closure Roadmap
 
 > Source: 10-agent competitor + model benchmark (workflow wf_3db3a899, 2026-07-09).
 > Benchmarked Midjourney v7, Runway Gen-4.5, Krea, Freepik, Ideogram/Higgsfield +
@@ -17,7 +17,7 @@
 
 ---
 
-# RADIX SOTA GAP-CLOSURE PLAN — 2026-07-09
+# AURAAI SOTA GAP-CLOSURE PLAN — 2026-07-09
 
 ---
 
@@ -26,9 +26,9 @@
 | # | Sev | Capability gap | Who beats us | Why it matters |
 |---|-----|----------------|--------------|----------------|
 | G1 | **P0-OPS** | **xAI fallback leg is silently dead** — team b4bc845e returns permission-denied on all endpoints (credits/spend limit) | n/a (self-inflicted) | The gemini→xai→dashscope chain is a 2-leg chain right now, and DashScope's key historically dies at every monthly rollover. One Gemini incident = total outage. Fix before ANY integration work. |
-| G2 | **P0** | **Image-conditioned video loses the product** (the open HIGH bug; heaviest daily user) — no reference-to-video (subject-consistency) route at all; everything image-conditioned goes to Veo i2v | Higgsfield Soul ID, Runway @references, Wan2.7-r2v, HappyHorse-1.1-r2v, Seedance 2.0 (9 image refs), Grok video-1.5 | This is the #1 recorded team complaint and the core agency job: the client's actual product in the video. Every serious competitor now has a subject-lock mode; Radix has none. |
+| G2 | **P0** | **Image-conditioned video loses the product** (the open HIGH bug; heaviest daily user) — no reference-to-video (subject-consistency) route at all; everything image-conditioned goes to Veo i2v | Higgsfield Soul ID, Runway @references, Wan2.7-r2v, HappyHorse-1.1-r2v, Seedance 2.0 (9 image refs), Grok video-1.5 | This is the #1 recorded team complaint and the core agency job: the client's actual product in the video. Every serious competitor now has a subject-lock mode; AuraAI has none. |
 | G3 | **P0** | **Arabic in-image typography** — nothing in gemini/grok/qwen renders reliable RTL Arabic ad copy | Seedream 5.0 Pro (native RTL Arabic, 15 languages) — uniquely; Ideogram claims it and fails | Home-market statics. Currently producers composite Arabic text manually. The one competitor model that does it is a $0.0675 fal call away. |
-| G4 | **P1** | **No image draft→finalize ladder and no enhance/upscale stage at all** | Midjourney Draft mode (24 imgs for half of ONE final) + Rerun-as-HD; Krea Turbo→Enhance (Topaz, 22K); Ideogram Turbo/Default/Quality; Freepik Magnific 2x-16x | Radix tiers video cost but images are flat-priced single-shot. MJ's cheapest-ideation-funnel economics is its stickiest feature and our multi-provider stack can beat the ratio ($0.0336 Lite draft ×4 → $0.134 Pro hero). Biggest output-quality + cost gap on the image side. |
+| G4 | **P1** | **No image draft→finalize ladder and no enhance/upscale stage at all** | Midjourney Draft mode (24 imgs for half of ONE final) + Rerun-as-HD; Krea Turbo→Enhance (Topaz, 22K); Ideogram Turbo/Default/Quality; Freepik Magnific 2x-16x | AuraAI tiers video cost but images are flat-priced single-shot. MJ's cheapest-ideation-funnel economics is its stickiest feature and our multi-provider stack can beat the ratio ($0.0336 Lite draft ×4 → $0.134 Pro hero). Biggest output-quality + cost gap on the image side. |
 | G5 | **P1** | **No persistent named reference entities** — refs are per-call, re-uploaded every session | Runway @-mentions, Freepik @characters (LoRA), Higgsfield Soul ID, Ideogram character reference | Consistency across a campaign is THE agency need. Also the structural fix for G2: sticky per-client identities auto-attached as Veo ingredients / edit refs. We can do it without LoRA cost (reference conditioning ≈90% of it, free, instant). |
 | G6 | **P1** | **Zero video editing of existing footage** | Runway Aleph 2.0 (edit propagation), gemini-omni-flash-preview (conversational edits, ~$0.10/s), Kling MC, Wan videoedit | "Change the background / swap the product on this approved ad" is a daily client-revision request. We regenerate from scratch; Runway edits. Omni Flash puts this one provider-path away on our existing Gemini key. |
 | G7 | **P1** | **Enhancer is a blind binary toggle** — no prompt reveal, no depth dial, no verbatim escape | Freepik post-gen prompt reveal + edit-rerun; Krea Raw/Low/Med/High; MJ --raw + shortener; Ideogram's Magic Prompt backlash proves the failure mode | Freepik users burn ~50% of credits on blind retries; MJ learned power users churn without --raw. Our enhancer is better than theirs and invisible — worst of both. |
@@ -105,7 +105,7 @@
 5. **Arabic/MENA prompt layer**: auto-English translation, Arabic prompt packs, RTL awareness, Hijri context. Every competitor is English-centric; Higgsfield's UGC avatars are generic Western faces. The ONLY Arabic gap is in-image glyph rendering — a model gap closed by Seedream 5.0 Pro (Rank 3), not a rebuild.
 6. **Automatic reliability routing**: the fallback chain with telemetry is unique — Krea users manually switch models on outage, Higgsfield users eat the credit cost of failures. Caveat: it is only a non-gap once G1 (dead xAI leg) is fixed.
 7. **Video model quality**: Veo 3.1 with native audio at 1080p beats MJ video outright (i2v-only, 720p max, NO audio, ~21s cap) and matches or beats the Freepik/Krea resold catalog. Runway Gen-4.5 leads some benchmarks at 2.5–5x our price per second — compete on cost-per-approved-deliverable, not Elo.
-8. **API-native end-to-end + publishing**: MJ has no API at all; Runway ends at the MP4; Krea/Freepik have no scheduling/publishing. Radix owns brief→creative→publish to IG/TikTok/LinkedIn.
+8. **API-native end-to-end + publishing**: MJ has no API at all; Runway ends at the MP4; Krea/Freepik have no scheduling/publishing. AuraAI owns brief→creative→publish to IG/TikTok/LinkedIn.
 9. **Ad-format primitives**: negative-space-for-copy, platform safe-zones, per-platform aspect presets — ahead of every competitor (MJ is explicitly ad-format blind; Krea/Freepik generate pictures, not ad creatives). Section 3's bbox IR upgrades this lead; nothing to rebuild.
 10. **Multi-reference editing on current-gen models**: our roles work on today's best models while MJ's omni-reference is stranded on V7 mid-transition. Add weights (G10); don't touch the architecture.
 11. **Skip entirely**: in-app LoRA training (reference conditioning gets ~90% at zero cost/latency — Freepik charges 5,500 credits and degrades image quality doing it); realtime canvas (Krea's signature, not an ad-agency job); node-graph workflow builders (revisit only as saved "client Apps" presets later); public community feed (build the org-private gallery already on the roadmap instead).

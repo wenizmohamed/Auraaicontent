@@ -35,7 +35,7 @@
 
   "sqltools.connections": [
     {
-      "name": "Radix V2 VPS",
+      "name": "AuraAI V2 VPS",
       "driver": "PostgreSQL",
       "previewLimit": 50,
       "server": "srv1494206.hstgr.cloud",
