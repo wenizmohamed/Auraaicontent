@@ -511,10 +511,10 @@ export const apiKeysApi = {
 // ─── Creative ────────────────────────────────────────────────────
 
 export const creativeApi = {
-  generateImage: (data: { prompt: string; aspectRatio?: string; clientId?: string; model?: string; provider?: 'gemini' | 'xai' | 'dashscope'; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K'; enhance?: boolean; depth?: 'raw' | 'low' | 'medium' | 'high'; stylePackId?: string }) =>
-    request<any>('/api/creative/images/generate', { method: 'POST', body: JSON.stringify(data) }, { timeoutMs: 180000 }),
+  generateImage: (data: { prompt: string; aspectRatio?: string; clientId?: string; model?: string; provider?: 'gemini' | 'xai' | 'dashscope'; quality?: 'standard' | 'ultra'; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K'; enhance?: boolean; depth?: 'raw' | 'low' | 'medium' | 'high'; stylePackId?: string }) =>
+    request<any>('/api/creative/images/generate', { method: 'POST', body: JSON.stringify(data) }, { timeoutMs: 290000 }),  // under nginx's 300s /api/ budget; Qwen multi-reference 2K edits can pass 120s
   editImage: (data: { prompt: string; imageBase64: string; mimeType?: string; aspectRatio?: string; clientId?: string; model?: string; provider?: 'gemini' | 'xai' | 'dashscope'; referenceImages?: { base64: string; mimeType: string; role?: 'content' | 'style' | 'character' }[]; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K'; enhance?: boolean; depth?: 'raw' | 'low' | 'medium' | 'high' }) =>
-    request<any>('/api/creative/images/edit', { method: 'POST', body: JSON.stringify(data) }, { timeoutMs: 180000 }),
+    request<any>('/api/creative/images/edit', { method: 'POST', body: JSON.stringify(data) }, { timeoutMs: 290000 }),  // under nginx's 300s /api/ budget; Qwen multi-reference 2K edits can pass 120s
   // Teach-the-AI thumbs (2026-07-14): records a win/miss memory for the client
   // so future enhancements/generations lean toward or away from this style.
   feedback: (generationId: string, liked: boolean) =>

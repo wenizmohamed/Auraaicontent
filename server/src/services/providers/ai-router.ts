@@ -92,14 +92,16 @@ function persistUsage(meta: { orgId?: string; userId?: string; clientId?: string
 }
 
 // ─── Routing config from env ─────────────────────────────────────
-// Weni 2026-04-23: Gemini 3.1 Pro is PRIMARY across the board because the
-// API key bills to the Radix company card.  Grok is the fallback.  (Kimi
-// isn't in the AiProvider abstraction yet — text fallback to Kimi happens
-// at the higher-level chatText/chatStream helper in services/llm/chat.ts.)
+// Text/analysis: Gemini 3.1 Pro primary (Weni's own key since 2026-10-10).
+// Image + video: Alibaba (DashScope Token Plan) primary since 2026-10-17 —
+// Weni: "put this as the main for image gen and video gen". Qwen Image 3.0 Pro
+// for stills, wan3.0-video for clips; Gemini and Grok stay on standby in the
+// chain. (Kimi isn't in the AiProvider abstraction — text fallback to Kimi
+// happens in services/llm/chat.ts.)
 const PRIMARY: Record<string, AiProviderName> = {
   text: (process.env.AI_TEXT_PRIMARY as AiProviderName) || 'gemini',
-  image: (process.env.AI_IMAGE_PRIMARY as AiProviderName) || 'gemini',
-  video: (process.env.AI_VIDEO_PRIMARY as AiProviderName) || 'gemini',
+  image: (process.env.AI_IMAGE_PRIMARY as AiProviderName) || 'dashscope',
+  video: (process.env.AI_VIDEO_PRIMARY as AiProviderName) || 'dashscope',
   analysis: (process.env.AI_ANALYSIS_PRIMARY as AiProviderName) || 'gemini',
 };
 
@@ -111,24 +113,26 @@ const PROVIDERS: Record<AiProviderName, AiProvider> = {
   dashscope: dashscopeProvider,
 };
 
-// Per-task fallback chain (order = preference). DashScope joins text/image/
-// analysis as an extra fallback (it has no video on the current plan). Gemini
-// stays primary by default via the PRIMARY env map; this only adds resilience —
-// a request only reaches DashScope if the providers before it fail.
+// Per-task fallback chain (order = preference). The PRIMARY map above picks
+// the first hop; the rest of the list is the standby order ("rotation"): a
+// request only reaches hop 2 if hop 1 fails, and so on.
 const CHAIN: Record<string, AiProviderName[]> = {
   // xai grok-4.20 is ALIVE again (billing restored — re-verified live 2026-07-21)
   // and is cheaper than DashScope AND doesn't run Qwen's strict content filter
   // that false-blocks benign marketing prompts. So xai is the 2nd hop; DashScope
   // (strict filter, pricier) is the last resort. gemini stays primary.
   text: ['gemini', 'dashscope', 'xai'],  // github-models lane removed 2026-10-13: service shut down 2026-07-30
-  image: ['gemini', 'xai', 'dashscope'],
+  // Stills: Qwen Image 3.0 Pro first (2026-10-17), nano-banana second, Grok last.
+  image: ['dashscope', 'gemini', 'xai'],
   // image_edit SKIPS xai: xAI's /images/edits returns 403 permission-denied for
   // this team, and 403 is non-retryable → it used to HALT the ladder before
-  // DashScope (Qwen edit), so edits failed whenever Gemini was capped/down.
-  // gemini → dashscope only; both can actually edit. (2026-07-06 T0#3 fix.)
-  image_edit: ['gemini', 'dashscope'],
+  // the next hop, so edits failed whenever the first engine was capped/down.
+  // Qwen Image (unified gen+edit) → nano-banana; both can actually edit.
+  image_edit: ['dashscope', 'gemini'],
   analysis: ['gemini', 'dashscope', 'xai'],  // github removed: service dead
-  video: ['gemini', 'xai', 'dashscope'],  // dashscope = Wan t2v (text-only; 503s image-conditioned)
+  // Clips: wan3.0-video first (all-in-one: text, first/last frame, references,
+  // up to 30s with audio), Veo second, Grok last. (2026-10-17)
+  video: ['dashscope', 'gemini', 'xai'],
 };
 
 // A provider is usable only when its credential is configured — keeps a
@@ -239,25 +243,13 @@ async function routeCall<T>(
     });
   }
 
-  // Per-call provider-order override: a draft TEXT→video forces Grok (xai)
-  // first since it's ~10× cheaper than Veo. HD / undefined tier keeps the env
-  // default order. Only applies to video — text/image/analysis pass undefined.
-  //
-  // IMPORTANT (2026-06-04 fix): image-conditioned video (a source/start/end
-  // frame attached) must NOT be forced to Grok. Grok's /videos/generations
-  // takes the frame as a `reference_images` *style hint* (prompt-dominated), so
-  // it invents a DIFFERENT subject than the uploaded product. Veo attaches the
-  // frame as the actual first/last frame. So any image→video request keeps the
-  // env default order (Veo-primary) regardless of tier — correctness over the
-  // draft cost saving. Pure text→video drafts still go to cheap Grok.
-  // Asset reference images (Veo 'ingredients to video') count as image-
-  // conditioned too — Grok has no equivalent, so refs must land on Veo.
-  const imageConditioned = !!(req?.imageBase64 || req?.startImageBase64 || req?.endImageBase64 || (req?.referenceImages && req.referenceImages.length));
-  // Model-picker override wins: a user-chosen provider runs first for this call.
-  // Otherwise the draft text→video rule applies; else the env default order.
-  const preferredPrimary: AiProviderName | undefined =
-    meta?.preferredProvider
-    || (task === 'video' && req?.tier === 'draft' && !imageConditioned ? 'xai' : undefined);
+  // Model-picker override wins: a user-chosen provider runs first for this call;
+  // otherwise "Auto" = the env/default primary (Alibaba for image + video since
+  // 2026-10-17) followed by the task chain. The old draft-tier rule that forced
+  // text→video onto Grok is gone: wan3.0-video is both the quality pick and
+  // the cheaper one ($0.10/s at 720P vs Veo $0.20/s). `tier` is still carried
+  // for accounting.
+  const preferredPrimary: AiProviderName | undefined = meta?.preferredProvider;
 
   // Circuit breaker: drop providers whose breaker is open so an ongoing outage
   // doesn't tax every request with a full timeout before falling through.

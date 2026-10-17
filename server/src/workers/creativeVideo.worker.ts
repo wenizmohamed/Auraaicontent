@@ -13,10 +13,11 @@ export async function creativeVideoWorker(j: Job): Promise<any> {
   // 2026-07-03): omni ~55s, veo ~80s, grok draft ~110s, wan ~170s. Creeps to
   // 95% so there's always visible motion until real completion.
   const m: string = j.data.model || '';
-  const expectedSec = /wan/i.test(m) ? 170
+  // Auto (no model) now lands on wan3.0-video first, so it paces like Wan.
+  const expectedSec = (!m || /wan|happyhorse/i.test(m)) ? 170
     : /omni/i.test(m) ? 55
-    : (j.data.imageBase64 || j.data.tier === 'hd') ? 80
-    : 110;
+    : /grok/i.test(m) ? 110
+    : 80;
   const stepPct = 85 / (expectedSec / 3); // 10% → 95% across expectedSec
   let p = 10;
   const ticker = setInterval(() => {
@@ -50,7 +51,7 @@ export async function creativeVideoWorker(j: Job): Promise<any> {
         // user's choice is honoured regardless of tier.
         ...(j.data.model && /veo|omni|imagen|gemini/i.test(j.data.model) ? { preferredProvider: 'gemini' as const }
           : j.data.model && /grok/i.test(j.data.model) ? { preferredProvider: 'xai' as const }
-          : j.data.model && /wan|qwen/i.test(j.data.model) ? { preferredProvider: 'dashscope' as const } : {}),
+          : j.data.model && /wan|qwen|happyhorse/i.test(j.data.model) ? { preferredProvider: 'dashscope' as const } : {}),
       },
     );
     const generationId = await historyService.record({

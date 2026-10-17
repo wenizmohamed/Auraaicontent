@@ -316,13 +316,12 @@ export async function creativeRoutes(app: FastifyInstance) {
     // Best-effort — failure falls back to the raw prompt.
     const videoMode = imageBase64 || startImageBase64 ? 'image-to-video' : 'text-to-video';
     // Engine hint for the enhancer dialect — mirrors the router's actual
-    // dispatch: wan→dashscope, grok→xai, draft text-only→Grok-primary,
-    // everything image-conditioned / hd / omni → Veo (gemini).
+    // dispatch: wan/happyhorse → dashscope, grok → xai, veo/omni → gemini, and
+    // Auto (no model) → dashscope, the video primary since 2026-10-17.
     const hasVideoRefs = Array.isArray(referenceImages) && referenceImages.length > 0;
-    const enhEngine = model && /wan/i.test(model) ? ('dashscope' as const)
-      : model && /grok/i.test(model) ? ('xai' as const)
-      : (videoMode === 'text-to-video' && tier !== 'hd' && !model && !hasVideoRefs) ? ('xai' as const)
-      : ('gemini' as const);
+    const enhEngine = model && /grok/i.test(model) ? ('xai' as const)
+      : model && /veo|omni|gemini/i.test(model) ? ('gemini' as const)
+      : ('dashscope' as const);
     let enhancedPrompt: string | null = null;
     let autoNegative: string | undefined;
     if (enhance !== false) {

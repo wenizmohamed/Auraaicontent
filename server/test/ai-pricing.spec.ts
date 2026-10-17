@@ -54,6 +54,14 @@ const REQUIRED_MODELS = [
   'qwen-image-2.0-pro',
   'qwen-image-3.0-pro',
   'wan2.7-image-pro',
+  'wan2.7-image',
+  // 2026-10-17: Alibaba is the image + video primary. Every rung the DashScope
+  // video provider can emit (incl. the ":<res>" billing suffixes) must be priced.
+  'wan2.7-t2v', 'wan2.7-i2v', 'wan2.7-r2v',
+  'wan3.0-video', 'wan3.0-video:480p', 'wan3.0-video:1080p',
+  'happyhorse-1.1-t2v', 'happyhorse-1.1-t2v:480p', 'happyhorse-1.1-t2v:1080p',
+  'happyhorse-1.1-i2v', 'happyhorse-1.1-i2v:480p', 'happyhorse-1.1-i2v:1080p',
+  'happyhorse-1.1-r2v', 'happyhorse-1.1-r2v:480p', 'happyhorse-1.1-r2v:1080p',
   // Anthropic assistant (chat.ts CLAUDE_ASSISTANT_MODEL)
   'claude-sonnet-4-20250514',
 ];

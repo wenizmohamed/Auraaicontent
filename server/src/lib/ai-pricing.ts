@@ -70,6 +70,26 @@ export const AI_PRICING: Record<string, PricePoint> = {
   'wan2.7-i2v-2026-04-25':             { promptPerM: 0,    completionPerM: 0,    perSecond: 0.10 },
   'wan2.7-r2v':                        { promptPerM: 0,    completionPerM: 0,    perSecond: 0.10 },
   'wan2.7-r2v-2026-06-12':             { promptPerM: 0,    completionPerM: 0,    perSecond: 0.10 },
+  // wan3.0-video (Token Plan, PRIMARY video engine since 2026-10-17): Alibaba's
+  // intl card is $0.05 / $0.10 / $0.20 per second at 480P / 720P / 1080P
+  // (Model Studio pricing page, verified 2026-10-17; the launch promo ended
+  // 2026-09-24). The provider reports the billed tier as a ":<res>" suffix,
+  // 720P being the bare id, so each row carries its real rate.
+  'wan3.0-video':                      { promptPerM: 0,    completionPerM: 0,    perSecond: 0.10 },
+  'wan3.0-video:480p':                 { promptPerM: 0,    completionPerM: 0,    perSecond: 0.05 },
+  'wan3.0-video:1080p':                { promptPerM: 0,    completionPerM: 0,    perSecond: 0.20 },
+  // happyhorse-1.1 t2v / i2v / r2v (Token Plan): intl card $0.07 / $0.14 /
+  // $0.18 per second at 480P / 720P / 1080P (Model Studio pricing page,
+  // verified 2026-10-17). Same ":<res>" suffix convention as wan3.0.
+  'happyhorse-1.1-t2v':                { promptPerM: 0,    completionPerM: 0,    perSecond: 0.14 },
+  'happyhorse-1.1-t2v:480p':           { promptPerM: 0,    completionPerM: 0,    perSecond: 0.07 },
+  'happyhorse-1.1-t2v:1080p':          { promptPerM: 0,    completionPerM: 0,    perSecond: 0.18 },
+  'happyhorse-1.1-i2v':                { promptPerM: 0,    completionPerM: 0,    perSecond: 0.14 },
+  'happyhorse-1.1-i2v:480p':           { promptPerM: 0,    completionPerM: 0,    perSecond: 0.07 },
+  'happyhorse-1.1-i2v:1080p':          { promptPerM: 0,    completionPerM: 0,    perSecond: 0.18 },
+  'happyhorse-1.1-r2v':                { promptPerM: 0,    completionPerM: 0,    perSecond: 0.14 },
+  'happyhorse-1.1-r2v:480p':           { promptPerM: 0,    completionPerM: 0,    perSecond: 0.07 },
+  'happyhorse-1.1-r2v:1080p':          { promptPerM: 0,    completionPerM: 0,    perSecond: 0.18 },
   // veo-2.0-generate-001: legacy fallback, $0.05/sec (Google deprecated tier).
   'veo-2.0-generate-001':              { promptPerM: 0,    completionPerM: 0,    perSecond: 0.05 },
   // gemini-embedding-2-preview: $0.20/M for text; multimodal climbs higher.

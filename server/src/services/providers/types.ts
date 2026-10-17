@@ -71,6 +71,8 @@ export interface VideoRequest {
   // reference-conditioned generation requires an 8s clip — the provider
   // enforces both. Max 3 refs.
   referenceImages?: { base64: string; mimeType: string }[];
+  // Caller-owned cancel switch, honoured between poll ticks by async engines.
+  signal?: AbortSignal;
 }
 
 export interface AnalysisRequest {

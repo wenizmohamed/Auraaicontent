@@ -43,13 +43,14 @@ export const env = {
   DASHSCOPE_API_KEY: optional('DASHSCOPE_API_KEY', ''),
   DASHSCOPE_BASE_URL: optional('DASHSCOPE_BASE_URL', 'https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1'),
   DASHSCOPE_TEXT_MODEL: optional('DASHSCOPE_TEXT_MODEL', 'qwen3.7-max'),
-  DASHSCOPE_IMAGE_MODEL: optional('DASHSCOPE_IMAGE_MODEL', 'qwen-image-2.0-pro'),
+  DASHSCOPE_IMAGE_MODEL: optional('DASHSCOPE_IMAGE_MODEL', 'qwen-image-3.0-pro'),
+  DASHSCOPE_VIDEO_MODEL: optional('DASHSCOPE_VIDEO_MODEL', 'wan3.0-video'),
   DASHSCOPE_TIMEOUT_MS: parseInt(optional('DASHSCOPE_TIMEOUT_MS', '120000'), 10),
 
   // Routing
   AI_TEXT_PRIMARY: optional('AI_TEXT_PRIMARY', 'gemini'),
-  AI_IMAGE_PRIMARY: optional('AI_IMAGE_PRIMARY', 'gemini'),
-  AI_VIDEO_PRIMARY: optional('AI_VIDEO_PRIMARY', 'gemini'),
+  AI_IMAGE_PRIMARY: optional('AI_IMAGE_PRIMARY', 'dashscope'),
+  AI_VIDEO_PRIMARY: optional('AI_VIDEO_PRIMARY', 'dashscope'),
   // Video is ~97% of AI spend and volume 5x'd in a month — daily guardrail.
   // SOFT logs a WARN (watchdog sentinel alerts on it); HARD (0 = off) blocks
   // further video gen for that org for the rest of the UTC day.

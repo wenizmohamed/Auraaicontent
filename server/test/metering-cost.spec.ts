@@ -131,6 +131,38 @@ describe('metering: video per-second pricing', () => {
     // Repriced 2026-08-14 to the xAI card: 0.08/s * 8s = 0.64 (was 0.05/s).
     expect(computeCostUsd('grok-imagine-video-1.5', 0, 0, 1, 8)).toBeCloseTo(0.64, 6);
   });
+
+  // Alibaba Token Plan engines (primary since 2026-10-17). Per-second BY
+  // RESOLUTION; the provider reports the tier as a ":<res>" suffix.
+  it('wan3.0-video (720P baseline) 8s = $0.80', () => {
+    // 0.10/s * 8s = 0.80
+    expect(computeCostUsd('wan3.0-video', 0, 0, 1, 8)).toBeCloseTo(0.80, 6);
+  });
+
+  it('wan3.0-video:1080p 8s = $1.60 (double the 720P rate)', () => {
+    // 0.20/s * 8s = 1.60
+    expect(computeCostUsd('wan3.0-video:1080p', 0, 0, 1, 8)).toBeCloseTo(1.60, 6);
+  });
+
+  it('wan3.0-video:480p 30s = $1.50 (longest clip, cheapest tier)', () => {
+    // 0.05/s * 30s = 1.50
+    expect(computeCostUsd('wan3.0-video:480p', 0, 0, 1, 30)).toBeCloseTo(1.50, 6);
+  });
+
+  it('happyhorse-1.1-t2v 5s = $0.70', () => {
+    // 0.14/s * 5s = 0.70
+    expect(computeCostUsd('happyhorse-1.1-t2v', 0, 0, 1, 5)).toBeCloseTo(0.70, 6);
+  });
+
+  it('happyhorse-1.1-i2v:1080p 10s = $1.80', () => {
+    // 0.18/s * 10s = 1.80
+    expect(computeCostUsd('happyhorse-1.1-i2v:1080p', 0, 0, 1, 10)).toBeCloseTo(1.80, 6);
+  });
+
+  it('happyhorse-1.1-r2v:480p 15s = $1.05', () => {
+    // 0.07/s * 15s = 1.05
+    expect(computeCostUsd('happyhorse-1.1-r2v:480p', 0, 0, 1, 15)).toBeCloseTo(1.05, 6);
+  });
 });
 
 describe('metering: unpriced models', () => {
