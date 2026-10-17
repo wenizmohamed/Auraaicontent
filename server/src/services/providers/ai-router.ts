@@ -92,17 +92,17 @@ function persistUsage(meta: { orgId?: string; userId?: string; clientId?: string
 }
 
 // ─── Routing config from env ─────────────────────────────────────
-// Text/analysis: Gemini 3.1 Pro primary (Weni's own key since 2026-10-10).
-// Image + video: Alibaba (DashScope Token Plan) primary since 2026-10-17 —
-// Weni: "put this as the main for image gen and video gen". Qwen Image 3.0 Pro
-// for stills, wan3.0-video for clips; Gemini and Grok stay on standby in the
-// chain. (Kimi isn't in the AiProvider abstraction — text fallback to Kimi
-// happens in services/llm/chat.ts.)
+// Alibaba (DashScope Token Plan) is PRIMARY for every task since 2026-10-17 —
+// Weni: "configure all the models to use the best of Alibaba". qwen3.8-max
+// (multimodal, verified live with image input) for text + analysis, Qwen Image
+// 3.0 Pro for stills, wan3.0-video for clips; Gemini then Grok stay on standby.
+// Embeddings are the one exception: the plan has no embedding model, so they
+// remain on Gemini (gemini.service). Kimi text fallback lives in llm/chat.ts.
 const PRIMARY: Record<string, AiProviderName> = {
-  text: (process.env.AI_TEXT_PRIMARY as AiProviderName) || 'gemini',
+  text: (process.env.AI_TEXT_PRIMARY as AiProviderName) || 'dashscope',
   image: (process.env.AI_IMAGE_PRIMARY as AiProviderName) || 'dashscope',
   video: (process.env.AI_VIDEO_PRIMARY as AiProviderName) || 'dashscope',
-  analysis: (process.env.AI_ANALYSIS_PRIMARY as AiProviderName) || 'gemini',
+  analysis: (process.env.AI_ANALYSIS_PRIMARY as AiProviderName) || 'dashscope',
 };
 
 const FALLBACK_ENABLED = process.env.AI_ENABLE_FALLBACK !== 'false';
@@ -121,7 +121,7 @@ const CHAIN: Record<string, AiProviderName[]> = {
   // and is cheaper than DashScope AND doesn't run Qwen's strict content filter
   // that false-blocks benign marketing prompts. So xai is the 2nd hop; DashScope
   // (strict filter, pricier) is the last resort. gemini stays primary.
-  text: ['gemini', 'dashscope', 'xai'],  // github-models lane removed 2026-10-13: service shut down 2026-07-30
+  text: ['dashscope', 'gemini', 'xai'],  // qwen3.8-max first (2026-10-17); github-models lane removed 2026-10-13
   // Stills: Qwen Image 3.0 Pro first (2026-10-17), nano-banana second, Grok last.
   image: ['dashscope', 'gemini', 'xai'],
   // image_edit SKIPS xai: xAI's /images/edits returns 403 permission-denied for
@@ -129,7 +129,7 @@ const CHAIN: Record<string, AiProviderName[]> = {
   // the next hop, so edits failed whenever the first engine was capped/down.
   // Qwen Image (unified gen+edit) → nano-banana; both can actually edit.
   image_edit: ['dashscope', 'gemini'],
-  analysis: ['gemini', 'dashscope', 'xai'],  // github removed: service dead
+  analysis: ['dashscope', 'gemini', 'xai'],  // qwen3.8-max reads images natively (verified 2026-10-17)
   // Clips: wan3.0-video first (all-in-one: text, first/last frame, references,
   // up to 30s with audio), Veo second, Grok last. (2026-10-17)
   video: ['dashscope', 'gemini', 'xai'],

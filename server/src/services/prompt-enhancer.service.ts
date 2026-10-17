@@ -230,7 +230,7 @@ export async function enhanceCreativePrompt(input: EnhanceInput): Promise<Enhanc
 
   const result = await aiRouter.text(
     // Flash tier: enhancement must feel instant next to a 30-180s generation.
-    { prompt: userMsg, system, json: true, temperature: 0.7, maxTokens: 800, model: process.env.PROMPT_ENHANCER_MODEL || 'gemini-flash-latest' },
+    { prompt: userMsg, system, json: true, temperature: 0.7, maxTokens: 800, model: process.env.PROMPT_ENHANCER_MODEL || 'qwen3.8-flash' },
     { orgId: input.orgId, userId: input.userId, clientId: input.clientId },
   );
 
@@ -312,7 +312,7 @@ export async function enhanceCreativeVariants(input: EnhanceInput, count = 3): P
     // and passing 2200 to the xai fallback truncated 3 full directions + its
     // thinking tokens into unparseable JSON. temperature still reaches the
     // providers that honor it (xai/dashscope) for direction spread.
-    { prompt: userMsg, system, json: true, temperature: 0.9, model: process.env.PROMPT_ENHANCER_MODEL || 'gemini-flash-latest' },
+    { prompt: userMsg, system, json: true, temperature: 0.9, model: process.env.PROMPT_ENHANCER_MODEL || 'qwen3.8-flash' },
     { orgId: input.orgId, userId: input.userId, clientId: input.clientId },
   );
   const out = result.output as any;

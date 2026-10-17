@@ -42,13 +42,14 @@ export const env = {
   // DashScope (Alibaba Model Studio "Token Plan") — multi-model text + image.
   DASHSCOPE_API_KEY: optional('DASHSCOPE_API_KEY', ''),
   DASHSCOPE_BASE_URL: optional('DASHSCOPE_BASE_URL', 'https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1'),
-  DASHSCOPE_TEXT_MODEL: optional('DASHSCOPE_TEXT_MODEL', 'qwen3.7-max'),
+  DASHSCOPE_TEXT_MODEL: optional('DASHSCOPE_TEXT_MODEL', 'qwen3.8-max'),
+  DASHSCOPE_VISION_MODEL: optional('DASHSCOPE_VISION_MODEL', 'qwen3.8-max'),
   DASHSCOPE_IMAGE_MODEL: optional('DASHSCOPE_IMAGE_MODEL', 'qwen-image-3.0-pro'),
   DASHSCOPE_VIDEO_MODEL: optional('DASHSCOPE_VIDEO_MODEL', 'wan3.0-video'),
   DASHSCOPE_TIMEOUT_MS: parseInt(optional('DASHSCOPE_TIMEOUT_MS', '120000'), 10),
 
   // Routing
-  AI_TEXT_PRIMARY: optional('AI_TEXT_PRIMARY', 'gemini'),
+  AI_TEXT_PRIMARY: optional('AI_TEXT_PRIMARY', 'dashscope'),
   AI_IMAGE_PRIMARY: optional('AI_IMAGE_PRIMARY', 'dashscope'),
   AI_VIDEO_PRIMARY: optional('AI_VIDEO_PRIMARY', 'dashscope'),
   // Video is ~97% of AI spend and volume 5x'd in a month — daily guardrail.
@@ -56,7 +57,7 @@ export const env = {
   // further video gen for that org for the rest of the UTC day.
   VIDEO_DAILY_SOFT_USD: optional('VIDEO_DAILY_SOFT_USD', '40'),
   VIDEO_DAILY_HARD_USD: optional('VIDEO_DAILY_HARD_USD', '0'),
-  AI_ANALYSIS_PRIMARY: optional('AI_ANALYSIS_PRIMARY', 'gemini'),
+  AI_ANALYSIS_PRIMARY: optional('AI_ANALYSIS_PRIMARY', 'dashscope'),
   AI_ENABLE_FALLBACK: optional('AI_ENABLE_FALLBACK', 'true'),
 
   PREVIEW_URL: optional('PREVIEW_URL', 'http://localhost:5174'),

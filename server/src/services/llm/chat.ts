@@ -3,9 +3,9 @@
 // first one that succeeds.  Logs each failure but only throws if the entire
 // chain is exhausted.
 //
-// 2026-04-23: Weni's directive — Gemini is the PRIMARY provider because the
-// API key is billed to the Radix company card.  Grok secondary, Kimi K2
-// tertiary.  Override per-call by passing a custom chain.
+// 2026-10-17: Weni's directive — Alibaba DashScope (qwen3.8-max) is PRIMARY,
+// Grok secondary, Gemini third, Kimi last. Override per-call by passing a
+// custom chain (ASSISTANT_PROVIDER_CHAIN / AGENT_PROVIDER_CHAIN env).
 //
 // 2026-04-28: Models updated to current generation. GEMINI_CHAT_MODEL defaults
 // to gemini-3.1-pro-preview. xAI defaults to grok-4.20. Kimi defaults to kimi-k2.6.
@@ -161,7 +161,11 @@ function clientFor(p: ProviderName, geminiModelOverride?: string): ProviderClien
       cached = new OpenAI({ apiKey: key, baseURL: DASHSCOPE_BASE });
       cache.set(p, cached);
     }
-    return { client: cached, model: process.env.DASHSCOPE_TEXT_MODEL || 'qwen3.8-max', provider: p };
+    // Honour a per-call override when it is a DashScope-shaped id (the agent's
+    // AGENT_MODEL); a Gemini id falling through the chain must not be forwarded.
+    const dsModel = geminiModelOverride && /^(qwen|deepseek|glm|MiniMax|kimi)/i.test(geminiModelOverride)
+      ? geminiModelOverride : (process.env.DASHSCOPE_TEXT_MODEL || 'qwen3.8-max');
+    return { client: cached, model: dsModel, provider: p };
   }
   // moonshot
   const key = process.env.MOONSHOT_API_KEY;
@@ -180,7 +184,8 @@ function clientFor(p: ProviderName, geminiModelOverride?: string): ProviderClien
 // api.kimi.com/coding/v1 base (MOONSHOT_BASE_URL), model k3 (1M context).
 // It had been dropped 2026-07-21 when the old key 401'd access_terminated.
 // Final rung: only reached when gemini + xai + dashscope all fail.
-export const DEFAULT_CHAIN: ProviderName[] = ['gemini', 'xai', 'dashscope', 'moonshot'];
+// 2026-10-17: Alibaba first everywhere (qwen3.8-max), Grok, then Gemini, then Kimi.
+export const DEFAULT_CHAIN: ProviderName[] = ['dashscope', 'xai', 'gemini', 'moonshot'];
 
 function resolveChain(env: string | undefined, fallbackChain: ProviderName[] = DEFAULT_CHAIN): ProviderName[] {
   if (!env) return fallbackChain;

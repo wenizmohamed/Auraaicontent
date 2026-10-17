@@ -30,7 +30,7 @@ const AGENT_CHAIN_ENV = process.env.AGENT_PROVIDER_CHAIN; // e.g. "gemini,xai,da
 // flash tier shared with the assistant), so a wrong tool pick wasted a whole
 // iteration. Give it a dedicated reasoning-tier model on the gemini hop.
 // Probed live 2026-08-02: gemini-pro-latest tool-calls cleanly and is priced.
-const AGENT_MODEL = process.env.AGENT_MODEL || 'gemini-pro-latest';
+const AGENT_MODEL = process.env.AGENT_MODEL || 'qwen3.8-max';  // 2026-10-17: Alibaba flagship; applies on the dashscope hop (gemini ids only on gemini)
 
 function isAbortError(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false;

@@ -191,7 +191,7 @@ async function generateImage(req: ImageRequest, model: string): Promise<Provider
 // path routed to text-only chat() and dropped the image → hallucinations.
 async function analyze(req: AnalysisRequest): Promise<ProviderResult<object>> {
   const client = getClient();
-  const model = process.env.DASHSCOPE_VISION_MODEL || 'qwen3.7-plus';
+  const model = process.env.DASHSCOPE_VISION_MODEL || 'qwen3.8-max';  // multimodal flagship (image input verified live 2026-10-17)
   const start = Date.now();
   const r = await client.chat.completions.create({
     model,
