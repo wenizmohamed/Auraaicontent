@@ -47,7 +47,9 @@ export const AI_PRICING: Record<string, PricePoint> = {
   'gemini-3-pro-image':                { promptPerM: 2.00, completionPerM: 120.00, perCall: 0.14 },  // GA premium image (ultra tier)
   // imagen-4.0-ultra: $0.06/image (unchanged).
   'imagen-4.0-ultra-generate-001':     { promptPerM: 0,    completionPerM: 0,    perCall: 0.06 },
-  // veo-3.1-generate-preview: $0.40 (720p) – $0.60 (4k) per SECOND of video.
+  // veo-3.1-* ids were RETIRED by Google (404 on every call, 2026-10-30). Rows
+  // kept so a stale id is still priced rather than logged $0.
+  // veo-3.1-generate-preview: $0.40 (720p) - $0.60 (4k) per SECOND of video.
   // Default to mid ($0.50/s); admin view should multiply by clip duration.
   'veo-3.1-generate-preview':          { promptPerM: 0,    completionPerM: 0,    perSecond: 0.50 },
   // veo-3.1-fast-generate-preview: $0.10 – $0.30 per second. Mid: $0.20/s.

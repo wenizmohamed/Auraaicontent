@@ -186,7 +186,7 @@ export async function buildApp() {
           chatModel: process.env.GEMINI_CHAT_MODEL || 'gemini-3.1-pro-preview',
           analysisModel: process.env.GEMINI_TEXT_MODEL || 'gemini-3.1-pro-preview',
           imageModel: process.env.GEMINI_IMAGE_MODEL || 'gemini-3.1-flash-image-preview',
-          videoModel: process.env.GEMINI_VIDEO_MODEL || 'veo-3.1-generate-preview',
+          videoModel: process.env.GEMINI_VIDEO_MODEL || 'gemini-omni-flash-preview',
           baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
           role: 'PRIMARY. Orchestrator, assistant, analysis, image, video',
           rank: 1,

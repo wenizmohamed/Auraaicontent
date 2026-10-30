@@ -123,12 +123,9 @@ const WAN27_T2V: ModelOption = {
 };
 const WAN27_I2V: ModelOption = { ...WAN27_T2V, value: 'wan2.7-i2v', model: 'wan2.7-i2v', hint: 'Previous Wan generation, first-frame animation. 3 to 10s.' };
 const WAN27_R2V: ModelOption = { ...WAN27_T2V, value: 'wan2.7-r2v', model: 'wan2.7-r2v', hint: 'Previous Wan generation, multi-reference. 3 to 10s.' };
-const VEO: ModelOption = {
-  value: 'veo-3.1-generate-preview', label: 'Veo 3.1', vendor: 'Google',
-  hint: 'Google flagship. 4, 6 or 8s; 1080p needs an 8s clip; start and end frames.',
-  model: 'veo-3.1-generate-preview', perSec: 0.20, perSec1080: 0.20, minSeconds: 4, maxSeconds: 8, supports1080: true, tier: 'hd',
-};
-const VEO_REF: ModelOption = { ...VEO, hint: 'Google flagship with product references. Always an 8s clip.', minSeconds: 8, maxSeconds: 8 };
+// Google retired every Veo 3.1 id (404 "no longer available", verified
+// 2026-10-30), so Omni Flash is the only live Google video engine. It covers
+// text to video and image to video; product-reference clips stay on Alibaba.
 const OMNI: ModelOption = {
   value: 'gemini-omni-flash-preview', label: 'Omni Flash', vendor: 'Google',
   hint: 'Fast, strong character consistency. 2 to 12s.',
@@ -141,20 +138,20 @@ const GROK_VIDEO: ModelOption = {
 };
 
 export const TEXT_TO_VIDEO_MODELS: ModelOption[] = [
-  { value: 'auto', label: 'Auto', hint: 'AURA picks per prompt: Wan 3.0 Prime first, Veo and Grok on standby.', perSec: 0.14, perSec1080: 0.28, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
-  WAN3_PRIME, WAN3, HH_T2V, WAN27_T2V, VEO, OMNI, GROK_VIDEO,
+  { value: 'auto', label: 'Auto', hint: 'AURA picks per prompt: Wan 3.0 Prime first, Omni Flash and Grok on standby.', perSec: 0.14, perSec1080: 0.28, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
+  WAN3_PRIME, WAN3, HH_T2V, WAN27_T2V, OMNI, GROK_VIDEO,
 ];
 
 export const IMAGE_TO_VIDEO_MODELS: ModelOption[] = [
-  { value: 'auto', label: 'Auto', hint: 'AURA picks: Wan 3.0 Prime animates your frame first, Veo on standby.', perSec: 0.14, perSec1080: 0.28, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
-  WAN3_PRIME, WAN3, HH_I2V, WAN27_I2V, VEO, OMNI, GROK_VIDEO,
+  { value: 'auto', label: 'Auto', hint: 'AURA picks: Wan 3.0 Prime animates your frame first, Omni Flash on standby.', perSec: 0.14, perSec1080: 0.28, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
+  WAN3_PRIME, WAN3, HH_I2V, WAN27_I2V, OMNI, GROK_VIDEO,
 ];
 
 // Offered when product reference images are attached: every engine here keeps
 // the exact subject consistent.
 export const REFERENCE_VIDEO_MODELS: ModelOption[] = [
-  { value: 'auto', label: 'Auto', hint: 'AURA picks: Wan 3.0 Prime reference mode first, Veo on standby.', perSec: 0.14, perSec1080: 0.28, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
-  WAN3_PRIME, WAN3, HH_R2V, WAN27_R2V, VEO_REF,
+  { value: 'auto', label: 'Auto', hint: 'AURA picks: Wan 3.0 Prime reference mode first.', perSec: 0.14, perSec1080: 0.28, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
+  WAN3_PRIME, WAN3, HH_R2V, WAN27_R2V,
 ];
 
 export const MODELS_BY_SECTION: Record<CreativeSection, ModelOption[]> = {

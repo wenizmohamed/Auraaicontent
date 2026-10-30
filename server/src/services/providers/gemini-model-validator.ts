@@ -38,9 +38,16 @@ const TRACKED_LISTED_VARS = [
   'GEMINI_IMAGE_FAST_MODEL',
   'GEMINI_IMAGE_ULTRA_MODEL',
   'GEMINI_IMAGE_EDIT_MODEL',
+  'GEMINI_EMBEDDING_MODEL',
+];
+
+// Video ids are NOT listed by ListModels (Google hides Veo from the catalog
+// even when it works), so a listing check flags every video model as dead.
+// Probe them the same way as the text models: a 404 on the real endpoint is
+// the only reliable death signal.
+const TRACKED_VIDEO_VARS = [
   'GEMINI_VIDEO_MODEL',
   'GEMINI_VIDEO_FAST_MODEL',
-  'GEMINI_EMBEDDING_MODEL',
 ];
 
 interface LiveModel {
@@ -64,7 +71,7 @@ export async function runValidation(): Promise<{ ok: string[]; dead: string[]; s
   const apiKey = env.GEMINI_API_KEY;
   if (!apiKey) {
     console.warn('[model-validator] GEMINI_API_KEY missing — skipping');
-    return { ok: [], dead: [], skipped: [...TRACKED_TEXT_VARS, ...TRACKED_LISTED_VARS] };
+    return { ok: [], dead: [], skipped: [...TRACKED_TEXT_VARS, ...TRACKED_LISTED_VARS, ...TRACKED_VIDEO_VARS] };
   }
 
   let liveSet: Set<string>;
@@ -72,13 +79,13 @@ export async function runValidation(): Promise<{ ok: string[]; dead: string[]; s
     const res = await fetch(`${LIST_MODELS_URL}?key=${apiKey}&pageSize=200`);
     if (!res.ok) {
       console.warn(`[model-validator] ListModels HTTP ${res.status} — skipping (will retry next interval)`);
-      return { ok: [], dead: [], skipped: [...TRACKED_TEXT_VARS, ...TRACKED_LISTED_VARS] };
+      return { ok: [], dead: [], skipped: [...TRACKED_TEXT_VARS, ...TRACKED_LISTED_VARS, ...TRACKED_VIDEO_VARS] };
     }
     const body = await res.json() as { models?: LiveModel[] };
     liveSet = new Set((body.models || []).map(m => m.name.replace(/^models\//, '')));
   } catch (err: any) {
     console.warn('[model-validator] ListModels failed:', err?.message?.slice(0, 120));
-    return { ok: [], dead: [], skipped: [...TRACKED_TEXT_VARS, ...TRACKED_LISTED_VARS] };
+    return { ok: [], dead: [], skipped: [...TRACKED_TEXT_VARS, ...TRACKED_LISTED_VARS, ...TRACKED_VIDEO_VARS] };
   }
 
   const ok: string[] = [];
@@ -104,7 +111,23 @@ export async function runValidation(): Promise<{ ok: string[]; dead: string[]; s
     }
   }
 
-  // 2) Image/video/embedding: listing-only check (test-calls cost real money).
+  // 2) Video: probe the real endpoint (see TRACKED_VIDEO_VARS).
+  for (const varName of TRACKED_VIDEO_VARS) {
+    const value = process.env[varName];
+    if (!value) { skipped.push(varName); continue; }
+    if (!seen.has(value)) {
+      const alive = await pingVideoModel(apiKey, value);
+      seen.set(value, alive ? 'ok' : 'dead');
+    }
+    if (seen.get(value) === 'ok') {
+      ok.push(`${varName}=${value}`);
+    } else {
+      dead.push(`${varName}=${value}`);
+      console.warn(`[model-validator] DEAD MODEL  ${varName}=${value} - video endpoint returned 404. Update .env.`);
+    }
+  }
+
+  // 3) Image/embedding: listing-only check (test-calls cost real money).
   for (const varName of TRACKED_LISTED_VARS) {
     const value = process.env[varName];
     if (!value) { skipped.push(varName); continue; }
@@ -123,6 +146,28 @@ export async function runValidation(): Promise<{ ok: string[]; dead: string[]; s
   }
 
   return { ok, dead, skipped };
+}
+
+/** Probe a video model on its real endpoint. A job submission costs a real
+ *  render, so we only look at the HTTP status: 404/410 = dead, anything else
+ *  (200 accepted, 429, 5xx) = alive. */
+async function pingVideoModel(apiKey: string, model: string): Promise<boolean> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:predictLongRunning?key=${apiKey}`;
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 8000);
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ instances: [{ prompt: 'health check' }], parameters: { sampleCount: 1 } }),
+      signal: ctrl.signal,
+    });
+    clearTimeout(t);
+    if (res.status === 404 || res.status === 410) return false;
+    return true;
+  } catch {
+    return true; // network blip; retried on the next 24h cycle
+  }
 }
 
 /** Cheapest possible generateContent ping — 1-token reply, 5s timeout.

@@ -587,9 +587,12 @@ export const geminiProvider: AiProvider = {
     // veo-2.0-generate-001 removed — it 404s (dead/retired), so it only ever
     // cost a guaranteed round-trip failure as the last rung. veo-3.1-lite is the
     // live floor.
-    const defaultLadder = req.fast
-      ? ['veo-3.1-fast-generate-preview', 'veo-3.1-generate-preview', 'veo-3.1-lite-generate-preview']
-      : ['veo-3.1-generate-preview', 'veo-3.1-fast-generate-preview', 'veo-3.1-lite-generate-preview'];
+    // Veo 3.1 (all variants) was retired by Google: every id answers 404
+    // "no longer available" as of 2026-10-30 and none is in the live catalog.
+    // Omni Flash is the only working Google video engine, so the ladder holds
+    // it alone; keep the env override so a new Google id can be dropped in
+    // without a deploy.
+    const defaultLadder = ['gemini-omni-flash-preview'];
     const ladder = readLadder('GEMINI_VIDEO_LADDER', defaultLadder);
     const start = Date.now();
     // Shared poll budget across the entire ladder. Per-rung 10min meant

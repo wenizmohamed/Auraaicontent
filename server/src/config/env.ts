@@ -35,7 +35,9 @@ export const env = {
   // image model which is currently active. Override in .env to switch back if
   // imagen returns.
   GEMINI_IMAGE_FAST_MODEL: optional('GEMINI_IMAGE_FAST_MODEL', 'gemini-3.1-flash-image-preview'),
-  GEMINI_VIDEO_MODEL: optional('GEMINI_VIDEO_MODEL', 'veo-3.1-generate-preview'),
+  // Veo 3.1 was retired by Google (404 "no longer available", verified 2026-10-30).
+  // Omni Flash is the live Google video engine.
+  GEMINI_VIDEO_MODEL: optional('GEMINI_VIDEO_MODEL', 'gemini-omni-flash-preview'),
   GEMINI_EMBEDDING_MODEL: optional('GEMINI_EMBEDDING_MODEL', 'gemini-embedding-2-preview'),
   GEMINI_TIMEOUT_MS: parseInt(optional('GEMINI_TIMEOUT_MS', '90000'), 10),
 
