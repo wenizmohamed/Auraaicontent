@@ -572,12 +572,19 @@ export const geminiProvider: AiProvider = {
   },
 
   async video(req: VideoRequest): Promise<ProviderResult<{ url: string }>> {
-    // Omni Flash (Interactions API) — Google's recommended default video
-    // model as of mid-2026. Verified live: single synchronous request, video
-    // via files URI. Handles text→video AND image→video (start frame in the
-    // input array). Asset-REF-conditioned requests stay on Veo (omni's
-    // reference_to_video task is not wired yet).
+    // Omni Flash (Interactions API) — Google's only live video engine after
+    // Veo 3.1 was retired (2026-10-30). It handles text→video AND
+    // image→video (start frame in the input array). Reference-conditioned
+    // clips (product references) are not wired for omni yet, so those keep
+    // the ladder path.
     if (/omni/i.test(req.model || '') && !req.referenceImages?.length) {
+      return omniVideo(req);
+    }
+    // No model named and no Veo-style id in the ladder (Gemini is now the
+    // fallback rung for video while Alibaba's quota is exhausted): Omni is
+    // the only engine left, so serve it rather than failing the chain.
+    const ladderEnv = readLadder('GEMINI_VIDEO_LADDER', []);
+    if (!/omni/i.test(req.model || '') && ladderEnv.length === 0 && !req.referenceImages?.length) {
       return omniVideo(req);
     }
     const ai = getAI();
@@ -592,8 +599,16 @@ export const geminiProvider: AiProvider = {
     // Omni Flash is the only working Google video engine, so the ladder holds
     // it alone; keep the env override so a new Google id can be dropped in
     // without a deploy.
-    const defaultLadder = ['gemini-omni-flash-preview'];
-    const ladder = readLadder('GEMINI_VIDEO_LADDER', defaultLadder);
+    // The ladder runs the VEO-style endpoint (predictLongRunning), which does
+    // NOT serve Omni: the id only exists on the Interactions API, and asking
+    // the models endpoint for it 404s ("not found for API version v1beta").
+    // Omni has its own path (omniVideo, /v1beta/interactions, verified live
+    // 2026-10-30), so the Veo ladder is empty on purpose and only env
+    // overrides can add a Veo-style id back.
+    const defaultLadder: string[] = [];
+    // An explicit Omni pick must reach omniVideo, not the empty Veo ladder.
+    if (/omni/i.test(req.model || '')) return omniVideo(req);
+    const ladder = ladderEnv;
     const start = Date.now();
     // Shared poll budget across the entire ladder. Per-rung 10min meant
     // 3 models × 10min = 30min worst case while one job pinned a worker

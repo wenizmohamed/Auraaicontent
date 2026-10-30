@@ -111,12 +111,15 @@ export async function runValidation(): Promise<{ ok: string[]; dead: string[]; s
     }
   }
 
-  // 2) Video: probe the real endpoint (see TRACKED_VIDEO_VARS).
+  // 2) Video: Omni lives on the Interactions API, the Veo-style endpoint does
+  //    not serve it. Probe Omni on its own path, any other id on the Veo path.
   for (const varName of TRACKED_VIDEO_VARS) {
     const value = process.env[varName];
     if (!value) { skipped.push(varName); continue; }
     if (!seen.has(value)) {
-      const alive = await pingVideoModel(apiKey, value);
+      const alive = /omni/i.test(value)
+        ? await pingOmniModel(apiKey, value)
+        : await pingVideoModel(apiKey, value);
       seen.set(value, alive ? 'ok' : 'dead');
     }
     if (seen.get(value) === 'ok') {
@@ -146,6 +149,32 @@ export async function runValidation(): Promise<{ ok: string[]; dead: string[]; s
   }
 
   return { ok, dead, skipped };
+}
+
+/** Probe Omni on the Interactions API. A request there starts a real render,
+ *  so we only judge the HTTP status: 200 = alive, 404/410 = dead. */
+async function pingOmniModel(apiKey: string, model: string): Promise<boolean> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/interactions?key=${apiKey}`;
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 8000);
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        input: 'health check',
+        response_format: { type: 'video', aspect_ratio: '16:9', delivery: 'uri' },
+        generation_config: { video_config: { task: 'text_to_video' } },
+      }),
+      signal: ctrl.signal,
+    });
+    clearTimeout(t);
+    if (res.status === 404 || res.status === 410) return false;
+    return true;
+  } catch {
+    return true; // network blip; retried on the next 24h cycle
+  }
 }
 
 /** Probe a video model on its real endpoint. A job submission costs a real

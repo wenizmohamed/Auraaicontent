@@ -115,7 +115,7 @@ export async function runModelLadder<T>(
  * default. Format: "model-a:model-b:model-c". Whitespace tolerated.
  *
  * Used in providers like:
- *   readLadder('GEMINI_VIDEO_LADDER', ['veo-3.1-generate-preview', 'veo-3.1-fast-generate-preview', 'veo-2.0-generate-001'])
+ *   readLadder('GEMINI_VIDEO_LADDER', [])   // Veo is retired; Omni runs on the Interactions API, not this ladder
  */
 export function readLadder(envVar: string, defaults: string[]): ModelLadderEntry[] {
   const raw = process.env[envVar];

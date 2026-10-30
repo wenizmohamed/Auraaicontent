@@ -111,7 +111,12 @@ export function isSafetyBlock(msg: string): boolean {
 // 2026-10-17: Gemini's prepay wording ("Your prepayment credits are depleted",
 // HTTP 402) and Kimi's "monthly usage limit" were missing, so the breaker never
 // opened and every agent iteration paid a dead Gemini round-trip first.
-const BILLING_EXHAUSTION = /used all (available )?credits|spending (limit|cap)|out of credits|credits are depleted|prepay(ment|id)|insufficient.?(credit|balance|funds)|exhausted balance|user is locked|top ?up your balance|quota exceeded|usage limit for this billing cycle|payment.?required/i;
+// 2026-10-30: Alibaba token plan "Throttling.AllocationQuota - Your token-plan
+// 1-month quota has been exhausted" arrives as HTTP 429, which the generic
+// 429 rule already retries, but the breaker needed to OPEN on it: the quota
+// stays dead until the monthly reset, so every later call was paying a doomed
+// round trip. Wording added so the breaker trips on the quota message.
+const BILLING_EXHAUSTION = /used all (available )?credits|spending (limit|cap)|out of credits|credits are depleted|prepay(ment|id)|insufficient.?(credit|balance|funds)|exhausted balance|user is locked|top ?up your balance|quota exceeded|usage limit for this billing cycle|payment.?required|allocation.?quota|token-plan .{0,20}quota has been exhausted|quota will reset/i;
 
 export function isRetryableAiError(err: unknown): boolean {
   // The caller pulled the plug (deadline or user stop) — never fall through to
