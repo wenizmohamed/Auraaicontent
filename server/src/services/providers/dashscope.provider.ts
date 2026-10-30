@@ -93,6 +93,21 @@ async function chat(req: TextRequest | AnalysisRequest, json: boolean): Promise<
   if ((req as TextRequest).system) messages.push({ role: 'system', content: (req as TextRequest).system! });
   messages.push({ role: 'user', content: req.prompt });
 
+  // Alibaba (OpenAI-compatible) 400s when response_format is json_object and
+  // the word "json" is missing from the messages — the check covers system +
+  // user, so both are inspected here. Root-caused live 2026-10-30 on the
+  // analysis path; this is the same guard for the text path.
+  if (json) {
+    const saysJson = /\bjson\b/i.test(req.prompt) ||
+      (typeof (req as TextRequest).system === 'string' && /\bjson\b/i.test((req as TextRequest).system!));
+    if (!saysJson) {
+      const last = messages[messages.length - 1];
+      if (last && last.role === 'user' && typeof last.content === 'string') {
+        last.content = `${last.content}\n\nRespond with valid JSON only.`;
+      }
+    }
+  }
+
   const { signal, timeoutMs } = req as TextRequest;
   throwIfCancelled(signal, 'text');
   let r: OpenAI.Chat.ChatCompletion;
@@ -225,6 +240,14 @@ async function analyze(req: AnalysisRequest): Promise<ProviderResult<object>> {
   const client = getClient();
   const model = process.env.DASHSCOPE_VISION_MODEL || 'qwen3.8-max';  // multimodal flagship (image input verified live 2026-10-17)
   const start = Date.now();
+  // Alibaba (OpenAI-compatible) REQUIRES the literal word "json" somewhere in
+  // the messages when response_format is json_object, and answers 400
+  // otherwise ("'messages' must contain the word 'json' in some form"). That
+  // made every analysis prompt without the word fail at the provider, not the
+  // caller. Inject the word rather than making each caller remember it.
+  const prompt = /\bjson\b/i.test(req.prompt)
+    ? req.prompt
+    : `${req.prompt}\n\nRespond with valid JSON only.`;
   const r = await client.chat.completions.create({
     model,
     max_tokens: 2048,
@@ -232,7 +255,7 @@ async function analyze(req: AnalysisRequest): Promise<ProviderResult<object>> {
     messages: [{
       role: 'user',
       content: [
-        { type: 'text', text: req.prompt },
+        { type: 'text', text: prompt },
         ...(req.imageBase64 && req.mimeType
           ? [{ type: 'image_url' as const, image_url: { url: `data:${req.mimeType};base64,${req.imageBase64}` } }]
           : []),
