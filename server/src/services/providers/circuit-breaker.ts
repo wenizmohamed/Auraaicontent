@@ -44,6 +44,8 @@
  * than eating one timeout. Worst case we degrade to today's behaviour.
  */
 
+import { BILLING_EXHAUSTION } from './errors.js';
+
 type BreakerState = 'closed' | 'open' | 'half-open';
 
 interface ProviderBreaker {
@@ -52,6 +54,7 @@ interface ProviderBreaker {
   state: BreakerState;
   consecutiveFailures: number;
   openedAt: number;          // unix ms the breaker last tripped
+  cooldownMs: number;        // how long THIS trip stays open (quota trips are long)
   lastFailureReason: string;
   tripCount: number;         // lifetime trips — surfaced in telemetry
 }
@@ -61,6 +64,14 @@ const ENABLED = process.env.AI_CIRCUIT_BREAKER_ENABLED !== 'false';
 const THRESHOLD = Number(process.env.AI_CB_THRESHOLD) || 4;
 // How long to stay open before allowing a half-open probe.
 const COOLDOWN_MS = Number(process.env.AI_CB_COOLDOWN_MS) || 30_000;
+// How long to stay open when the failure is a QUOTA/credits exhaustion rather
+// than a transient outage. A monthly plan that runs out stays out until the
+// reset date, so a 30s cooldown means every single request pays a doomed
+// round trip first — that is exactly what the breaker exists to prevent.
+// Live case 2026-10-30: Alibaba's token plan was exhausted until 11-04,
+// and each of the 105 quota errors in the log was a wasted call on a key
+// that could not answer.
+const QUOTA_COOLDOWN_MS = Number(process.env.AI_CB_QUOTA_COOLDOWN_MS) || 30 * 60_000;
 
 const breakers = new Map<string, ProviderBreaker>();
 
@@ -80,13 +91,14 @@ function get(provider: string, task: string): ProviderBreaker {
   if (!b) {
     b = {
       provider, task: normTask(task), state: 'closed',
-      consecutiveFailures: 0, openedAt: 0, lastFailureReason: '', tripCount: 0,
+      consecutiveFailures: 0, openedAt: 0, cooldownMs: COOLDOWN_MS,
+      lastFailureReason: '', tripCount: 0,
     };
     breakers.set(key, b);
   }
   // Lazy transition open → half-open once the cooldown has elapsed, so callers
   // don't need a background timer. Read-time evaluation keeps it dependency-free.
-  if (b.state === 'open' && Date.now() - b.openedAt >= COOLDOWN_MS) {
+  if (b.state === 'open' && Date.now() - b.openedAt >= b.cooldownMs) {
     b.state = 'half-open';
   }
   return b;
@@ -135,15 +147,22 @@ export function recordSuccess(provider: string, task: string): void {
 export function recordFailure(provider: string, task: string, reason: string): void {
   if (!ENABLED) return;
   const b = get(provider, task);
+  // A quota/credits exhaustion is not a blip — the key stays dead until its
+  // reset date. Open the breaker for the long cooldown so the rest of the
+  // chain answers immediately instead of every request paying a doomed
+  // round trip. (Live case 2026-10-30: Alibaba token plan, 105 wasted calls.)
+  const isQuota = BILLING_EXHAUSTION.test(reason);
+  const cooldown = isQuota ? QUOTA_COOLDOWN_MS : COOLDOWN_MS;
 
   // A failed half-open probe means the provider is still down — re-open
   // immediately without waiting for THRESHOLD again.
   if (b.state === 'half-open') {
     b.state = 'open';
     b.openedAt = Date.now();
+    b.cooldownMs = cooldown;
     b.lastFailureReason = reason.slice(0, 120);
     b.tripCount++;
-    console.warn(`[circuit] ${b.provider}:${b.task} half-open probe failed → open ${COOLDOWN_MS}ms (${reason.slice(0, 80)})`);
+    console.warn(`[circuit] ${b.provider}:${b.task} half-open probe failed → open ${cooldown}ms (${reason.slice(0, 80)})`);
     return;
   }
 
@@ -152,8 +171,9 @@ export function recordFailure(provider: string, task: string, reason: string): v
   if (b.consecutiveFailures >= THRESHOLD && b.state === 'closed') {
     b.state = 'open';
     b.openedAt = Date.now();
+    b.cooldownMs = cooldown;
     b.tripCount++;
-    console.warn(`[circuit] ${b.provider}:${b.task} tripped → open ${COOLDOWN_MS}ms after ${b.consecutiveFailures} consecutive failures (${reason.slice(0, 80)})`);
+    console.warn(`[circuit] ${b.provider}:${b.task} tripped → open ${cooldown}ms after ${b.consecutiveFailures} consecutive failures (${reason.slice(0, 80)})`);
   }
 }
 
@@ -179,7 +199,7 @@ export function getCircuitSnapshot(): CircuitSnapshot[] {
       state: b.state,
       consecutiveFailures: b.consecutiveFailures,
       tripCount: b.tripCount,
-      cooldownRemainingMs: b.state === 'open' ? Math.max(0, COOLDOWN_MS - (Date.now() - b.openedAt)) : 0,
+      cooldownRemainingMs: b.state === 'open' ? Math.max(0, b.cooldownMs - (Date.now() - b.openedAt)) : 0,
       lastFailureReason: b.lastFailureReason,
     });
   }
