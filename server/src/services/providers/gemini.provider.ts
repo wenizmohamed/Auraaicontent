@@ -510,7 +510,23 @@ export const geminiProvider: AiProvider = {
     }
     const part = (ladderResult.result.response as any).candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData);
     const b64 = part?.inlineData?.data;
-    if (!b64) throw new AiProviderError('gemini', 'image', 'empty image response', 503);
+    if (!b64) {
+      // Same distinction as the edit path: Google can answer a GENERATE with
+      // no parts and a refusal finishReason.  That is the content policy
+      // refusing this prompt, not the provider being down — naming it keeps
+      // the breaker closed so the router can try the next rung instead of
+      // opening the circuit for the whole image task.
+      const finish = (ladderResult.result.response as any).candidates?.[0]?.finishReason || 'unknown';
+      const safety = /RECITATION|SAFETY|PROHIBITED|IMAGE_RECITATION|SPII|BLOCK/i.test(String(finish))
+        || (ladderResult.result.response as any).promptFeedback?.blockReason;
+      throw new AiProviderError(
+        'gemini', 'image',
+        safety
+          ? `generation declined by Gemini (${finish}) — content policy refused this prompt`
+          : `empty image response (finishReason=${finish})`,
+        safety ? 400 : 503,
+      );
+    }
     return {
       provider: 'gemini', model, latencyMs: Date.now() - start, fallbackUsed: false,
       output: { base64: b64 },
@@ -524,8 +540,21 @@ export const geminiProvider: AiProvider = {
     // is text-to-image only and returns 404 on :generateContent.  Separate
     // env so flipping GEMINI_IMAGE_MODEL=imagen-* (for generate) does not
     // break the edit path. (2026-04-23 root-caused via systematic-debugging.)
-    const model = process.env.GEMINI_IMAGE_EDIT_MODEL
-      || 'gemini-3.1-flash-image-preview';
+    //
+    // The EDIT path gets its own model ladder (the generate path has one,
+    // this did not).  Reason, root-caused live 2026-10-30: Google answers an
+    // edit with finishReason=IMAGE_RECITATION and NO parts when it declines
+    // the edit itself (a content/reference-policy refusal, not an outage).
+    // The old code turned that into "empty image-edit response" 503 — a
+    // transient-looking error, so the router blamed the provider, the
+    // breaker opened, and the user's edit died.  With a ladder the same
+    // refusal simply falls to the next image model and the edit succeeds.
+    const editLadder = readLadder('GEMINI_IMAGE_EDIT_LADDER', [
+      process.env.GEMINI_IMAGE_EDIT_MODEL || 'gemini-3.1-flash-image',
+      'gemini-3.1-flash-image-preview',
+      'gemini-3-pro-image',
+      'gemini-2.5-flash-image',
+    ]);
     const start = Date.now();
     // Anatomy-stability enrichment (workshop 2026-05-06 #2 — Haneen)
     const enrichedPrompt = enrichBodyPrompt(req.prompt);
@@ -545,29 +574,48 @@ export const geminiProvider: AiProvider = {
     // API.  When that model is throttled/dead at Google's end, the shorter
     // IMAGE_EDIT_TIMEOUT lets ai-router fall to xai/grok-imagine-image fast
     // instead of making the user wait the full TEXT-grade timeout per click.
-    const response = await withRetry('imageEdit', () => withTimeout(
-      ai.models.generateContent({
-        model,
-        contents: [{ role: 'user', parts }],
-        config: {
-          responseModalities: ['TEXT', 'IMAGE'],
-          ...((req.aspectRatio || req.imageSize)
-            ? { imageConfig: {
-                ...(req.aspectRatio ? { aspectRatio: req.aspectRatio } : {}),
-                ...(req.imageSize ? { imageSize: req.imageSize } : {}),
-              } }
-            : {}),
-        },
-      }),
-      IMAGE_EDIT_TIMEOUT, 'imageEdit',
-    ));
-    const part = (response as any).candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData);
-    const b64 = part?.inlineData?.data;
-    if (!b64) throw new AiProviderError('gemini', 'imageEdit', 'empty image-edit response', 503);
+    const ladderResult = await runModelLadder('gemini', 'image_edit', editLadder, async (entry) => {
+      const response = await withRetry('imageEdit', () => withTimeout(
+        ai.models.generateContent({
+          model: entry.model,
+          contents: [{ role: 'user', parts }],
+          config: {
+            responseModalities: ['TEXT', 'IMAGE'],
+            ...((req.aspectRatio || req.imageSize)
+              ? { imageConfig: {
+                  ...(req.aspectRatio ? { aspectRatio: req.aspectRatio } : {}),
+                  ...(req.imageSize ? { imageSize: req.imageSize } : {}),
+                } }
+              : {}),
+          },
+        }),
+        IMAGE_EDIT_TIMEOUT, 'imageEdit',
+      ));
+      const part = (response as any).candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData);
+      const b64 = part?.inlineData?.data;
+      if (!b64) {
+        // An empty body is NOT necessarily an outage.  Google declines an edit
+        // it will not perform by replying with no parts and a finishReason.
+        // Name the real reason so the router can tell "this model refused"
+        // (try the next rung) from "the provider is down" (trip the breaker).
+        const finish = (response as any).candidates?.[0]?.finishReason || 'unknown';
+        const safety = /RECITATION|SAFETY|PROHIBITED|IMAGE_RECITATION|SPII|BLOCK/i.test(String(finish))
+          || (response as any).promptFeedback?.blockReason;
+        throw new AiProviderError(
+          'gemini', 'imageEdit',
+          safety
+            ? `edit declined by Gemini (${finish}) — content/reference policy refused this edit`
+            : `empty image-edit response (finishReason=${finish})`,
+          safety ? 400 : 503,
+        );
+      }
+      return { response, b64 };
+    });
+    const model = ladderResult.modelUsed;
     return {
       provider: 'gemini', model, latencyMs: Date.now() - start, fallbackUsed: false,
-      output: { base64: b64 },
-      ...usageOf(response),
+      output: { base64: ladderResult.result.b64 },
+      ...usageOf(ladderResult.result.response),
     };
   },
 
