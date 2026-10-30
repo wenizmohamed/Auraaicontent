@@ -144,7 +144,16 @@ function clientFor(p: ProviderName, geminiModelOverride?: string): ProviderClien
     // without changing GEMINI_CHAT_MODEL, which the assistant shares. The
     // override applies ONLY to gemini: the xai/dashscope fallbacks keep their
     // own ids, since a gemini model string would 400 on those endpoints.
-    const model = geminiModelOverride || process.env.GEMINI_CHAT_MODEL || 'gemini-3.1-pro-preview';
+    //
+    // The override must be GEMINI-SHAPED. The agent sets AGENT_MODEL=qwen3.8-max
+    // (an Alibaba id) and passes it as modelOverride; that id is meant for the
+    // dashscope hop only. Forwarding it to Google made the gemini rung 404
+    // ("models/qwen3.8-max is not found") and killed the agent whenever
+    // dashscope was unavailable — root-caused live 2026-10-30. The dashscope
+    // branch below already guards by shape; this is the same guard mirrored.
+    const model = (geminiModelOverride && /^(gemini|nano|veo|imagen|learnlm)/i.test(geminiModelOverride))
+      ? geminiModelOverride
+      : (process.env.GEMINI_CHAT_MODEL || 'gemini-3.1-pro-preview');
     return { client: cached, model, provider: p };
   }
   if (p === 'xai') {
