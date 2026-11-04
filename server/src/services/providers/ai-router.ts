@@ -92,7 +92,7 @@ function persistUsage(meta: { orgId?: string; userId?: string; clientId?: string
 }
 
 // ─── Routing config from env ─────────────────────────────────────
-// Alibaba (DashScope Token Plan) is PRIMARY for every task since 2026-10-17 —
+// Alibaba (DashScope workspace) is PRIMARY for every task since 2026-10-17 —
 // Weni: "configure all the models to use the best of Alibaba". qwen3.8-max
 // (multimodal, verified live with image input) for text + analysis, Qwen Image
 // 3.0 Pro for stills, wan3.0-video for clips; Gemini then Grok stay on standby.

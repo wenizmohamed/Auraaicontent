@@ -46,22 +46,44 @@ export interface ModelOption {
   tier?: 'draft' | 'hd';
 }
 
+/**
+ * Image engines whose price changes with the output tier. Alibaba bills
+ * qwen-image-3.0-pro per image and the 2K tier costs more than 1K, so the
+ * label has to follow the resolution the user picked. The server prices the
+ * same tiers (see server/src/lib/ai-pricing.ts).
+ */
+const TIERED_IMAGE_RATES: Record<string, { '1K': number; '2K': number }> = {
+  'qwen-image-3.0-pro': { '1K': 0.033, '2K': 0.078 },
+};
+
+/** True when this engine's rate depends on the output resolution. */
+export function isTieredImage(o: ModelOption): boolean {
+  return !!o.model && !!TIERED_IMAGE_RATES[o.model];
+}
+
+/** The rate for one engine at the picked resolution. */
+export function effectivePerImage(o: ModelOption, imageSize?: '1K' | '2K' | '4K'): number | undefined {
+  const tiered = o.model ? TIERED_IMAGE_RATES[o.model] : undefined;
+  if (tiered) return imageSize === '1K' ? tiered['1K'] : tiered['2K'];
+  return o.perImage;
+}
+
 // ─── Images ─────────────────────────────────────────────────────
 
 const QWEN_IMAGE: ModelOption = {
   value: 'qwen-image-3.0-pro', label: 'Qwen Image 3.0 Pro', vendor: 'Alibaba',
   hint: 'Sharp product and lifestyle stills, strong text rendering. Edits too.',
-  provider: 'dashscope', model: 'qwen-image-3.0-pro', perImage: 0.05,
+  provider: 'dashscope', model: 'qwen-image-3.0-pro', perImage: 0.033,
 };
 const WAN_IMAGE_PRO: ModelOption = {
   value: 'wan2.7-image-pro', label: 'Wan 2.7 Image Pro', vendor: 'Alibaba',
   hint: 'Cinematic lighting and texture. Good for hero shots.',
-  provider: 'dashscope', model: 'wan2.7-image-pro', perImage: 0.05,
+  provider: 'dashscope', model: 'wan2.7-image-pro', perImage: 0.075,
 };
 const WAN_IMAGE_FAST: ModelOption = {
   value: 'wan2.7-image', label: 'Wan 2.7 Image', vendor: 'Alibaba',
-  hint: 'Fast drafts at half the Pro price.',
-  provider: 'dashscope', model: 'wan2.7-image', perImage: 0.025,
+  hint: 'Fast drafts for less than the Pro price.',
+  provider: 'dashscope', model: 'wan2.7-image', perImage: 0.03,
 };
 const GEMINI_IMAGE: ModelOption = {
   value: 'gemini-flash-image', label: 'Gemini 3.1 Flash Image', vendor: 'Google',
@@ -80,20 +102,20 @@ const GROK_IMAGE: ModelOption = {
 };
 
 export const TEXT_TO_IMAGE_MODELS: ModelOption[] = [
-  { value: 'auto', label: 'Auto', hint: 'AURA picks per prompt: Qwen Image 3.0 Pro first, Gemini and Grok on standby.', perImage: 0.05 },
+  { value: 'auto', label: 'Auto', hint: 'AURA picks per prompt: Qwen Image 3.0 Pro first, Gemini and Grok on standby.', perImage: 0.033 },
   QWEN_IMAGE, WAN_IMAGE_PRO, WAN_IMAGE_FAST, GEMINI_IMAGE, GEMINI_IMAGE_ULTRA, GROK_IMAGE,
 ];
 
 // Edits need an engine that takes the source frame: Qwen Image (unified
 // generate + edit) and Nano Banana. Grok's edit endpoint is not enabled.
 export const IMAGE_EDIT_MODELS: ModelOption[] = [
-  { value: 'auto', label: 'Auto', hint: 'AURA picks: Qwen Image 3.0 Pro first, Gemini Nano Banana on standby.', perImage: 0.05 },
+  { value: 'auto', label: 'Auto', hint: 'AURA picks: Qwen Image 3.0 Pro first, Gemini Nano Banana on standby.', perImage: 0.033 },
   QWEN_IMAGE, GEMINI_IMAGE,
 ];
 
 // AI-detail pass in Upscale mode regenerates through one of these before scaling.
 export const UPSCALE_MODELS: ModelOption[] = [
-  { value: 'auto', label: 'Auto', hint: 'AURA picks the detail engine: Qwen Image 3.0 Pro first.', perImage: 0.05 },
+  { value: 'auto', label: 'Auto', hint: 'AURA picks the detail engine: Qwen Image 3.0 Pro first.', perImage: 0.033 },
   QWEN_IMAGE, WAN_IMAGE_PRO, GEMINI_IMAGE, GROK_IMAGE,
 ];
 

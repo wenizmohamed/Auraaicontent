@@ -113,11 +113,11 @@ const EMBED_TIMEOUT_MS = parseInt(process.env.GEMINI_EMBED_TIMEOUT_MS || '15000'
 // DashScope embedding fallback (2026-10-13): embedText is Gemini-only, so every
 // 403/quota blip silently disabled knowledge+memory injection for all
 // generations ("Knowledge retrieval failed, continuing without it" in every
-// pm2 log). text-embedding-v4 on the Alibaba Token Plan key carries the lane.
+// pm2 log). text-embedding-v4 on the Alibaba workspace key carries the lane.
 async function dashscopeEmbed(text: string): Promise<number[]> {
   const key = process.env.DASHSCOPE_API_KEY;
   if (!key) throw new Error('DASHSCOPE_API_KEY not set');
-  const base = process.env.DASHSCOPE_BASE_URL || 'https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1';
+  const base = process.env.DASHSCOPE_BASE_URL || 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1';
   const res = await fetch(`${base}/embeddings`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },

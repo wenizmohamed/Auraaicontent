@@ -203,7 +203,7 @@ export async function buildApp() {
           configured: !!process.env.DASHSCOPE_API_KEY,
           textModel: process.env.DASHSCOPE_TEXT_MODEL || 'qwen3.8-max',
           imageModel: process.env.DASHSCOPE_IMAGE_MODEL || 'qwen-image-3.0-pro',
-          baseURL: process.env.DASHSCOPE_BASE_URL || 'https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1',
+          baseURL: process.env.DASHSCOPE_BASE_URL || 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
           role: 'fallback (text + image). Qwen/DeepSeek/GLM/MiniMax/Kimi + Qwen/Wan image; no video',
           rank: 4,
         },

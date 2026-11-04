@@ -1,6 +1,6 @@
-// DashScope (Alibaba Model Studio "Token Plan", org "aura") provider.
+// DashScope (Alibaba Model Studio workspace) provider.
 //
-// Verified live 2026-06-04 against the plan's exclusive base URLs:
+// Verified live 2026-11-04 against the workspace base URLs:
 //   - TEXT  : OpenAI-compatible  {BASE}/chat/completions   (BASE includes /compatible-mode/v1)
 //             models: qwen3.8-max, qwen3.7-max/plus, qwen3.6-plus/flash,
 //                     deepseek-v4-pro/flash/v3.2, glm-5.1/glm-5, MiniMax-M2.5,
@@ -9,12 +9,11 @@
 //             {HOST}/api/v1/services/aigc/multimodal-generation/generation
 //             models: qwen-image-3.0(-pro), qwen-image-2.0(-pro), wan2.7-image(-pro)
 //   - VIDEO : PRIMARY engine since 2026-10-17 (Weni: Alibaba is the main for
-//             image + video). Token Plan key serves wan3.0-video (all-in-one:
+//             image + video). The workspace key serves wan3.0-video (all-in-one:
 //             text, first frame, first+last frame, reference images; 2-30s,
-//             480P/720P/1080P, native audio) and happyhorse-1.1 t2v/i2v/r2v
-//             (verified live 2026-10-17 via /models + validation probes).
-//             wan2.7 t2v/i2v/r2v + happyhorse-1.0 only exist on the older ws
-//             workspace key (DASHSCOPE_VIDEO_API_KEY) and route there.
+//             480P/720P/1080P, native audio), wan3.0-video-prime, happyhorse-1.1
+//             t2v/i2v/r2v, wan2.7 t2v/i2v/r2v and happyhorse-1.0 (all verified
+//             live 2026-11-04 via the workspace /models + validation probes).
 //
 // Adds many models to Radix's multi-LLM orchestration. Text/analysis run through
 // the SAME routeCall path as every other provider, so the knowledge + memory
@@ -49,7 +48,7 @@ async function sourceAspect(b64: string): Promise<string | undefined> {
 }
 
 const BASE_URL = process.env.DASHSCOPE_BASE_URL
-  || 'https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1';
+  || 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1';
 // Native (DashScope) host for image synthesis — derive from the compatible base.
 const NATIVE_URL = process.env.DASHSCOPE_NATIVE_URL
   || `${BASE_URL.replace(/\/compatible-mode\/v1\/?$/, '')}/api/v1/services/aigc/multimodal-generation/generation`;
@@ -227,8 +226,15 @@ async function generateImage(req: ImageRequest, model: string): Promise<Provider
   const url = parts.find((p) => p?.image)?.image;
   if (!url) throw new Error(`DashScope image: no image in response (${JSON.stringify(data).slice(0, 200)})`);
 
+  // Billing tier: Alibaba prices qwen-image-3.0-pro per image and the tier
+  // changes the price ($0.033 at 1K, $0.078 at 2K). The response reports the
+  // tier it billed ("qima_output_1k" / "qima_output_2k"), so carry it in the
+  // model id with the same ":<tier>" suffix convention the video lane uses —
+  // otherwise every 2K image bills at the 1K rate.
+  const tier = /2k/i.test(String(data?.usage?.output_image_type || '')) ? '2k' : '1k';
+
   return {
-    provider: 'dashscope', model, output: { url },
+    provider: 'dashscope', model: `${model}:${tier}`, output: { url },
     latencyMs: Date.now() - start, fallbackUsed: false,
   };
 }
@@ -272,11 +278,17 @@ async function analyze(req: AnalysisRequest): Promise<ProviderResult<object>> {
 
 
 // ─── Video ────────────────────────────────────────────────────────
-// Two credential lanes:
-//  - Token Plan (main key): wan3.0-video + happyhorse-1.1-* (verified 2026-10-17).
-//  - Legacy ws workspace (DASHSCOPE_VIDEO_API_KEY): wan2.7-* + happyhorse-1.0-*.
-//    Falls back to the main key when unset (those ids then 404 → next provider).
-const TOKEN_PLAN_VIDEO = /^(wan3\.\d+-video|happyhorse-1\.1-)/i;
+// ONE credential lane. The old Token-Plan lane (wan3.0-video + happyhorse-1.1)
+// and the legacy-workspace lane (wan2.7-* + happyhorse-1.0-*) both used to need
+// separate keys, but the Token Plan key lost access to EVERY model on
+// 2026-11-04 ("AccessDenied.Unpurchased" — even qwen3.8-max), which took the
+// whole app's text lane down. Both lanes now point at the same workspace, and
+// every video family (wan3.0, wan2.7, wan2.6, happyhorse-1.0/1.1) is served
+// by that one key (verified live on the workspace 2026-11-04).
+//
+// DASHSCOPE_VIDEO_API_KEY / DASHSCOPE_VIDEO_BASE_URL remain as OPTIONAL
+// overrides for the rare case where video lives on a different workspace than
+// text. Unset → the main DASHSCOPE_API_KEY + DASHSCOPE_BASE_URL are used.
 const VIDEO_MODEL_RE = /^(wan[\d.]+-(video|t2v|i2v|r2v)|happyhorse-[\d.]+-(t2v|i2v|r2v))/i;
 // wan3.0-video-prime: same capabilities, measured 31s vs 66s for a 4s 720P clip (2026-10-17).
 const DEFAULT_VIDEO_MODEL = process.env.DASHSCOPE_VIDEO_MODEL || 'wan3.0-video-prime';
@@ -309,12 +321,9 @@ async function generateVideo(req: VideoRequest): Promise<ProviderResult<{ url: s
   const isWan3 = /^wan3\.\d+-video/i.test(model);
   const isHappyHorse = /^happyhorse/i.test(model);
 
-  const onTokenPlan = TOKEN_PLAN_VIDEO.test(model);
-  const key = onTokenPlan
-    ? process.env.DASHSCOPE_API_KEY
-    : (process.env.DASHSCOPE_VIDEO_API_KEY || process.env.DASHSCOPE_API_KEY);
+  const key = process.env.DASHSCOPE_VIDEO_API_KEY || process.env.DASHSCOPE_API_KEY;
   if (!key) throw new AiProviderError('dashscope', 'video', 'DASHSCOPE_API_KEY not set', 401);
-  const host = (onTokenPlan ? BASE_URL : (process.env.DASHSCOPE_VIDEO_BASE_URL || BASE_URL))
+  const host = (process.env.DASHSCOPE_VIDEO_BASE_URL || BASE_URL)
     .replace(/\/compatible-mode\/v1\/?$/, '');
 
   // End frame: only wan3.0 does first+last on this plan — the rest 503 so the

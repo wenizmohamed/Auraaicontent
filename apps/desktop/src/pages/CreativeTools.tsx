@@ -25,7 +25,7 @@ import { readJson } from '../lib/safe-storage';
 import { motionUI, motionBase } from '../lib/motion';
 import { FeatureCard } from '../components/ui';
 import { ModelPicker } from '../components/creative/ModelPicker';
-import { MODELS_BY_SECTION, modelOption, validModelValue, imageRequestFor, durationsFor, perSecondRate, type CreativeSection } from '../lib/creative-models';
+import { MODELS_BY_SECTION, modelOption, validModelValue, imageRequestFor, durationsFor, perSecondRate, effectivePerImage, isTieredImage, type CreativeSection } from '../lib/creative-models';
 import { usePricingVisibility } from '../lib/use-pricing-visibility';
 
 // ─── Prompt History ─────────────────────────────────────────────
@@ -1458,7 +1458,11 @@ export default function CreativeTools() {
               value={validModelValue(imageSection, imageModel)}
               onChange={setImageModel}
               showPrice={canSeePricing}
-              priceFor={(o) => (o.perImage ? `$${o.perImage.toFixed(3).replace(/0$/, '')}/img` : '')}
+              priceFor={(o) => {
+                const per = effectivePerImage(o, imageSize);
+                return per ? `$${per.toFixed(3).replace(/0$/, '')}/img` : '';
+              }}
+              priceNote={o => (isTieredImage(o) && imageSize !== '1K' ? 'at 2K' : '')}
             />
           )}
 

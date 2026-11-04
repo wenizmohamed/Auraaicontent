@@ -237,3 +237,69 @@ describe('metering: no double billing anywhere in the pricing table', () => {
     },
   );
 });
+
+describe('metering: Alibaba workspace tiers (2026-11-04 price catalog)', () => {
+  // The Alibaba workspace price API publishes per-image and per-second tiers.
+  // The provider reports the tier it billed and the model id carries it as a
+  // ":<tier>" suffix, so the meter must resolve the tier, not the bare id.
+  // Rates below come from the workspace catalog, verified live 2026-11-04.
+
+  it('qwen-image-3.0-pro at 1K bills $0.033 per image', () => {
+    expect(computeCostUsd('qwen-image-3.0-pro:1k')).toBeCloseTo(0.033, 6);
+  });
+
+  it('qwen-image-3.0-pro at 2K bills $0.078 per image', () => {
+    expect(computeCostUsd('qwen-image-3.0-pro:2k')).toBeCloseTo(0.078, 6);
+  });
+
+  it('the bare qwen-image-3.0-pro id bills the 1K rate', () => {
+    expect(computeCostUsd('qwen-image-3.0-pro')).toBeCloseTo(0.033, 6);
+  });
+
+  it('a 2K image costs more than a 1K image', () => {
+    expect(computeCostUsd('qwen-image-3.0-pro:2k')).toBeGreaterThan(
+      computeCostUsd('qwen-image-3.0-pro:1k'),
+    );
+  });
+
+  it('wan2.7-t2v at 1080P bills $0.15 per second (720P is $0.10)', () => {
+    expect(computeCostUsd('wan2.7-t2v', 0, 0, 1, 4)).toBeCloseTo(0.4, 6);
+    expect(computeCostUsd('wan2.7-t2v:1080p', 0, 0, 1, 4)).toBeCloseTo(0.6, 6);
+  });
+
+  it('wan3.0-video-prime honours the resolution tier it was billed at', () => {
+    // 4s at 480P ($0.068/s) = $0.272 ; at 720P ($0.14/s) = $0.56 ;
+    // at 1080P ($0.28/s) = $1.12
+    expect(computeCostUsd('wan3.0-video-prime:480p', 0, 0, 1, 4)).toBeCloseTo(0.272, 6);
+    expect(computeCostUsd('wan3.0-video-prime', 0, 0, 1, 4)).toBeCloseTo(0.56, 6);
+    expect(computeCostUsd('wan3.0-video-prime:1080p', 0, 0, 1, 4)).toBeCloseTo(1.12, 6);
+  });
+
+  it('every Alibaba video family the picker offers is priced', () => {
+    // The Creative Studio engine picker offers these ids. An unpriced one
+    // logs a $0 UsageEvent, and the boot guard only audits *_MODEL env vars,
+    // so hardcoded picker rungs must be priced by hand.
+    for (const m of [
+      'wan3.0-video', 'wan3.0-video-prime',
+      'wan2.7-t2v', 'wan2.7-i2v', 'wan2.7-r2v',
+      'happyhorse-1.1-t2v', 'happyhorse-1.1-i2v', 'happyhorse-1.1-r2v',
+      'qwen-image-3.0-pro', 'wan2.7-image', 'wan2.7-image-pro',
+    ]) {
+      expect(isPriced(m)).toBe(true);
+    }
+  });
+
+  it('every resolution tier of the picker video models is priced', () => {
+    for (const m of [
+      'wan3.0-video:480p', 'wan3.0-video:1080p',
+      'wan3.0-video-prime:480p', 'wan3.0-video-prime:1080p',
+      'wan2.7-t2v:1080p', 'wan2.7-i2v:1080p', 'wan2.7-r2v:1080p',
+      'happyhorse-1.1-t2v:480p', 'happyhorse-1.1-t2v:1080p',
+      'happyhorse-1.1-i2v:480p', 'happyhorse-1.1-i2v:1080p',
+      'happyhorse-1.1-r2v:480p', 'happyhorse-1.1-r2v:1080p',
+      'qwen-image-3.0-pro:1k', 'qwen-image-3.0-pro:2k',
+    ]) {
+      expect(isPriced(m)).toBe(true);
+    }
+  });
+});

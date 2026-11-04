@@ -59,20 +59,28 @@ export const AI_PRICING: Record<string, PricePoint> = {
   // gemini-omni-flash-preview (video via Interactions API): $17.50/1M video
   // tokens ≈ $0.10/s of 720p (Google pricing page, verified 2026-07-02).
   'gemini-omni-flash-preview':         { promptPerM: 0,    completionPerM: 0,    perSecond: 0.10 },
-  // wan2.7 t2v (DashScope ws workspace): list price not published on the
-  // catalog page — ESTIMATE $0.10/s pending console verification.
+  // wan2.7 t2v: the Alibaba workspace catalog publishes $0.10/s at 720P and
+  // $0.15/s at 1080P (price API, verified 2026-11-04).
   'wan2.7-t2v':                        { promptPerM: 0,    completionPerM: 0,    perSecond: 0.10 },
   'wan2.7-t2v-2026-06-12':             { promptPerM: 0,    completionPerM: 0,    perSecond: 0.10 },
-  // wan2.7 i2v + r2v: same DashScope video tier as t2v, and the Creative Studio
-  // engine picker quotes users $0.10/s for both. Unpriced until 2026-08-02 —
-  // every image→video and Reference→Video clip logged a $0 UsageEvent while
-  // video is ~97% of AI spend. The boot guard only audits *_MODEL env vars, so
-  // hardcoded provider rungs like these must be priced by hand.
+  // wan2.7 1080P tier: the workspace catalog publishes $0.15/s at 1080P
+  // (720P is $0.10/s, verified on the Alibaba workspace price API 2026-11-04).
+  // Without this row a 1080P wan2.7 clip bills at the 720P rate.
+  'wan2.7-t2v:1080p':                  { promptPerM: 0,    completionPerM: 0,    perSecond: 0.15 },
+  'wan2.7-t2v-2026-06-12:1080p':       { promptPerM: 0,    completionPerM: 0,    perSecond: 0.15 },
+  // wan2.7 i2v + r2v: same DashScope video tier as t2v. The Creative Studio
+  // engine picker quotes users $0.10/s for both. Priced by hand because the
+  // boot guard only audits *_MODEL env vars, so hardcoded provider rungs
+  // (like these) escape it and silently log $0 — and video is ~97% of spend.
   'wan2.7-i2v':                        { promptPerM: 0,    completionPerM: 0,    perSecond: 0.10 },
   'wan2.7-i2v-2026-04-25':             { promptPerM: 0,    completionPerM: 0,    perSecond: 0.10 },
+  'wan2.7-i2v:1080p':                  { promptPerM: 0,    completionPerM: 0,    perSecond: 0.15 },
+  'wan2.7-i2v-2026-04-25:1080p':       { promptPerM: 0,    completionPerM: 0,    perSecond: 0.15 },
   'wan2.7-r2v':                        { promptPerM: 0,    completionPerM: 0,    perSecond: 0.10 },
   'wan2.7-r2v-2026-06-12':             { promptPerM: 0,    completionPerM: 0,    perSecond: 0.10 },
-  // wan3.0-video (Token Plan, PRIMARY video engine since 2026-10-17): Alibaba's
+  'wan2.7-r2v:1080p':                  { promptPerM: 0,    completionPerM: 0,    perSecond: 0.15 },
+  'wan2.7-r2v-2026-06-12:1080p':       { promptPerM: 0,    completionPerM: 0,    perSecond: 0.15 },
+  // wan3.0-video (PRIMARY video engine since 2026-10-17): Alibaba's
   // intl card is $0.05 / $0.10 / $0.20 per second at 480P / 720P / 1080P
   // (Model Studio pricing page, verified 2026-10-17; the launch promo ended
   // 2026-09-24). The provider reports the billed tier as a ":<res>" suffix,
@@ -86,7 +94,7 @@ export const AI_PRICING: Record<string, PricePoint> = {
   'wan3.0-video-prime':                { promptPerM: 0,    completionPerM: 0,    perSecond: 0.14 },
   'wan3.0-video-prime:480p':           { promptPerM: 0,    completionPerM: 0,    perSecond: 0.068 },
   'wan3.0-video-prime:1080p':          { promptPerM: 0,    completionPerM: 0,    perSecond: 0.28 },
-  // happyhorse-1.1 t2v / i2v / r2v (Token Plan): intl card $0.07 / $0.14 /
+  // happyhorse-1.1 t2v / i2v / r2v: intl card $0.07 / $0.14 /
   // $0.18 per second at 480P / 720P / 1080P (Model Studio pricing page,
   // verified 2026-10-17). Same ":<res>" suffix convention as wan3.0.
   'happyhorse-1.1-t2v':                { promptPerM: 0,    completionPerM: 0,    perSecond: 0.14 },
@@ -168,7 +176,7 @@ export const AI_PRICING: Record<string, PricePoint> = {
   // keeps k3 usage visible in cost reports instead of logging $0.
   'k3':                                { promptPerM: 3.00, completionPerM: 15.00 },
 
-  // ─── DashScope (Alibaba Model Studio "Token Plan") ──────────────
+  // ─── DashScope (Alibaba Model Studio workspace) ─────────────────
   // APPROXIMATE intl per-M rates (verify vs the plan's unit billing — the
   // plan bills a fixed quota of "units", so these are for the cost meter
   // only). Text via OpenAI-compatible; image is per generated image.
@@ -189,13 +197,19 @@ export const AI_PRICING: Record<string, PricePoint> = {
   'MiniMax-M2.5':                      { promptPerM: 0.30, completionPerM: 1.20 },
   'kimi-k2.5':                         { promptPerM: 0.60, completionPerM: 2.50 },
   // Image models (per generated image).
-  'qwen-image-2.0':                    { promptPerM: 0, completionPerM: 0, perCall: 0.025 },
-  'qwen-image-2.0-pro':                { promptPerM: 0, completionPerM: 0, perCall: 0.05 },
-  // qwen-image-3.0-pro: $0.036 per 1K image / $0.071 at 2K (Alibaba card
-  // 2026-08-14); flat midpoint since DashScope usage doesn't report the tier.
-  'qwen-image-3.0-pro':                { promptPerM: 0, completionPerM: 0, perCall: 0.05 },
-  'wan2.7-image':                      { promptPerM: 0, completionPerM: 0, perCall: 0.025 },
-  'wan2.7-image-pro':                  { promptPerM: 0, completionPerM: 0, perCall: 0.05 },
+  'qwen-image-2.0':                    { promptPerM: 0, completionPerM: 0, perCall: 0.035 },
+  'qwen-image-2.0-pro':                { promptPerM: 0, completionPerM: 0, perCall: 0.075 },
+  // qwen-image-3.0-pro: the workspace price API publishes the 1K tier at
+  // $0.033/image and the 2K tier at $0.078/image (Alibaba catalog, verified
+  // 2026-11-04). The provider reports the tier it billed as
+  // "qima_output_1k" / "qima_output_2k", so the provider appends the same
+  // ":<tier>" suffix convention the video lane uses and each tier carries its
+  // real rate. The bare id stays the 1K rate (the default size).
+  'qwen-image-3.0-pro':                { promptPerM: 0, completionPerM: 0, perCall: 0.033 },
+  'qwen-image-3.0-pro:1k':             { promptPerM: 0, completionPerM: 0, perCall: 0.033 },
+  'qwen-image-3.0-pro:2k':             { promptPerM: 0, completionPerM: 0, perCall: 0.078 },
+  'wan2.7-image':                      { promptPerM: 0, completionPerM: 0, perCall: 0.03 },
+  'wan2.7-image-pro':                  { promptPerM: 0, completionPerM: 0, perCall: 0.075 },
 };
 
 // Every model name that has an explicit price. Used by the coverage guard

@@ -16,6 +16,8 @@ interface Props {
   /** Formats the rate for one option (per image, or per second at the active
    *  resolution). Return '' to hide. */
   priceFor?: (o: ModelOption) => string;
+  /** Extra qualifier shown after the rate, e.g. "at 2K". Return '' to hide. */
+  priceNote?: (o: ModelOption) => string;
   /** Extra note under the list, e.g. a resolution rule. */
   footnote?: string;
 }
@@ -26,7 +28,7 @@ const VENDOR_TONE: Record<string, string> = {
   xAI: 'var(--color-fg-muted)',
 };
 
-export function ModelPicker({ label = 'Model', options, value, onChange, showPrice, priceFor, footnote }: Props) {
+export function ModelPicker({ label = 'Model', options, value, onChange, showPrice, priceFor, priceNote, footnote }: Props) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const listId = useId();
@@ -44,6 +46,7 @@ export function ModelPicker({ label = 'Model', options, value, onChange, showPri
   }, [open]);
 
   const price = (o: ModelOption) => (showPrice && priceFor ? priceFor(o) : '');
+  const note = (o: ModelOption) => (showPrice && priceNote ? priceNote(o) : '');
 
   return (
     <div ref={rootRef} className="min-w-[340px] flex-1 max-w-[560px]">
@@ -70,7 +73,7 @@ export function ModelPicker({ label = 'Model', options, value, onChange, showPri
           </span>
           <span className="block text-[10px] truncate" style={{ color: 'var(--color-fg-muted)' }}>{selected.hint}</span>
         </span>
-        {price(selected) ? <span className="shrink-0 text-[10px] tabular-nums" style={{ color: 'var(--color-fg-muted)' }}>{price(selected)}</span> : null}
+        {price(selected) ? <span className="shrink-0 text-[10px] tabular-nums" style={{ color: 'var(--color-fg-muted)' }}>{price(selected)}{note(selected) ? ` ${note(selected)}` : ''}</span> : null}
         <ChevronDown className={`shrink-0 w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`} style={{ color: 'var(--color-fg-muted)' }} aria-hidden="true" />
       </button>
 
@@ -111,7 +114,7 @@ export function ModelPicker({ label = 'Model', options, value, onChange, showPri
                   </span>
                   <span className="block text-[10px] leading-snug" style={{ color: 'var(--color-fg-muted)' }}>{o.hint}</span>
                 </span>
-                {price(o) ? <span className="shrink-0 text-[10px] tabular-nums mt-0.5" style={{ color: 'var(--color-fg-muted)' }}>{price(o)}</span> : null}
+                {price(o) ? <span className="shrink-0 text-[10px] tabular-nums mt-0.5" style={{ color: 'var(--color-fg-muted)' }}>{price(o)}{note(o) ? ` ${note(o)}` : ''}</span> : null}
               </button>
             );
           })}
