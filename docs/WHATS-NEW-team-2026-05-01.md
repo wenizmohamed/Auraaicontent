@@ -1,4 +1,4 @@
-# What's new in Radix this week
+# What's new in AuraAI this week
 
 A complete tour of the upgrades. **Hard-refresh** the page once
 (Cmd+Shift+R on Mac, Ctrl+Shift+R on Windows) and you'll see them.
@@ -224,7 +224,7 @@ animation collapses to a clean fade. No spinning, no shimmering.
 
 | Want to see… | Go to… |
 |---|---|
-| Smarter chat dock + templates | Click the floating Radix bot, bottom-right |
+| Smarter chat dock + templates | Click the floating AuraAI bot, bottom-right |
 | Drag-drop calendar + density toggle + Hijri | `/calendar` |
 | Agent Plan + History | `/agent` |
 | Walkthrough + Token Efficiency + orbital router | `/dashboard` |

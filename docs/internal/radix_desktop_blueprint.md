@@ -1,4 +1,4 @@
-# RADIX AI Content Planner — Technical Blueprint
+# AuraAI Content Planner — Technical Blueprint
 
 ## Goal
 Build a **desktop-first internal content operations app** with a **secure web preview portal** for clients.
@@ -1109,4 +1109,3 @@ Do not build yet:
 
 This version is:
 **internal desktop OS + secure review portal**
-

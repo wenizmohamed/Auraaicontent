@@ -6,7 +6,7 @@
 
 ---
 
-**Project:** Radix Content OS
+**Project:** AuraAI Content OS
 **Generated:** 2026-06-04 21:11:46
 **Category:** Marketing Agency
 

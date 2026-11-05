@@ -1,6 +1,6 @@
 # Scheduler Page Overrides
 
-> **PROJECT:** Radix AI Content Planner
+> **PROJECT:** AuraAI Content Planner V2
 > **Generated:** 2026-05-12 00:01:49
 > **Page Type:** Blog / Article
 

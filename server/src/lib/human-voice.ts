@@ -1,4 +1,4 @@
-// Human-voice rules for everything Radix writes.
+// Human-voice rules for everything AuraAI writes.
 //
 // Weni, 2026-08-02: nothing the tool produces should read as "obviously AI".
 // The single loudest tell is the em dash (—), which models reach for constantly

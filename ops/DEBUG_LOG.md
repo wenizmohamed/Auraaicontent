@@ -1,4 +1,4 @@
-# Radix AI Content Planner — Debug Log
+# AuraAI Content Planner — Debug Log
 
 Auto-maintained by `scripts/smoke-meeting.sh` and `scripts/debug-lanes.sh`.
 Each entry below is a machine-written smoke/debug run.
@@ -173,4 +173,3 @@ Each entry below is a machine-written smoke/debug run.
 | local_generate | xai/grok-4-fast-reasoning 10067ms | PASS |
 | delete_month | 404 after delete | PASS |
 | vps_generate | completed | PASS |
-

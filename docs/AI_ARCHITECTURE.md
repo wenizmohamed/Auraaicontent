@@ -1,6 +1,6 @@
-# Radix AI Architecture — Agent, Fallback, RAG/Memory, and Creative Tools
+# AuraAI Architecture — Agent, Fallback, RAG/Memory, and Creative Tools
 
-> Living reference for how Radix routes every AI call: the two stacks, the
+> Living reference for how AuraAI routes every AI call: the two stacks, the
 > provider fallback chain, the RAG + learned-memory + brand grounding layer,
 > the agent tools, and the Creative Tools image/video pipeline.
 >
@@ -14,7 +14,7 @@
 
 ## 1. Two AI stacks (know which one you're in)
 
-Radix runs **two parallel AI stacks**. They do NOT share code — a fix in one
+AuraAI runs **two parallel AI stacks**. They do NOT share code — a fix in one
 does not apply to the other.
 
 | Stack | File | Used by | Fallback chain | Enrichment |

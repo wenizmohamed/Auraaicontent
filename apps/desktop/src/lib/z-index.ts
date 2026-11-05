@@ -1,7 +1,7 @@
 // Z-index scale for the app.  Use these constants instead of inline z-N
 // classes so layering is centrally documented and predictable.
 //
-// Why this exists: 2026-04-25 audit caught the floating Radix Assistant
+// Why this exists: 2026-04-25 audit caught the floating AuraAI Assistant
 // widget at z-50 colliding with same-z modals — modals on other pages
 // were rendering BEHIND the widget, trapping users.  The fix is a clear
 // scale where each layer has a distinct rank and a documented purpose.
@@ -13,7 +13,7 @@
 export const Z = {
   /** Sidebar nav, always visible behind everything else. */
   sidebar: 20,
-  /** Floating widgets (Radix Assistant button, pinned bottom-bars).
+  /** Floating widgets (AuraAI Assistant button, pinned bottom-bars).
    *  Sits ABOVE sidebar but BELOW modals so any modal/dialog renders
    *  on top and the user can't be trapped by the widget. */
   widget: 30,

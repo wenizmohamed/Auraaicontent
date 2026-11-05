@@ -92,7 +92,7 @@ print(f'{r.get(\"provider\",\"?\")}/{r.get(\"model\",\"?\")} {r.get(\"latencyMs\
 }
 
 echo "======================================="
-echo "RADIX SMOKE TEST — $(date)"
+echo "AURAAI SMOKE TEST — $(date)"
 echo "======================================="
 
 if [ "$MODE" = "local" ] || [ "$MODE" = "both" ]; then

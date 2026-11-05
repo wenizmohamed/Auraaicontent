@@ -1,6 +1,6 @@
 // ReviewLink is the client-facing monthly content review. The agency mints
 // ${APP_BASE_URL}/review/<token> from ContentCalendar and sends it on. The
-// recipient is a client, not a Radix user: no login, no account, no app chrome.
+// recipient is a client, not an AuraAI user: no login, no account, no app chrome.
 //
 // The token IS the auth. Everything here talks to the public, unauthenticated
 // endpoints in server/src/routes/review.ts:

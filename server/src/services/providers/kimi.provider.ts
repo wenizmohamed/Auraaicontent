@@ -12,7 +12,7 @@
 //   - moonshot-v1-128k       ← v1 series, 128K context, plain chat
 //   - moonshot-v1-128k-vision-preview ← multimodal long-context
 //
-// Use case in Radix: long-context analysis (128K-256K) — feed an entire
+// Use case in AuraAI: long-context analysis (128K-256K) — feed an entire
 // client's content history + brief + competitor scrape into a single call
 // without the multi-round chunking Grok would need.
 

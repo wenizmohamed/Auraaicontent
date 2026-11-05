@@ -12,4 +12,4 @@ const app = await buildApp();
 
 await app.listen({ port: env.PORT, host: '0.0.0.0' });
 await attachRealtime(app);
-console.log(`Radix server running on http://localhost:${env.PORT} (socket.io: /socket.io)`);
+console.log(`AuraAI server running on http://localhost:${env.PORT} (socket.io: /socket.io)`);

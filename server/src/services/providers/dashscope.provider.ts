@@ -15,7 +15,7 @@
 //             t2v/i2v/r2v, wan2.7 t2v/i2v/r2v and happyhorse-1.0 (all verified
 //             live 2026-11-04 via the workspace /models + validation probes).
 //
-// Adds many models to Radix's multi-LLM orchestration. Text/analysis run through
+// Adds many models to AuraAI's multi-LLM orchestration. Text/analysis run through
 // the SAME routeCall path as every other provider, so the knowledge + memory
 // (RAG) enrichers apply automatically — no special wiring needed here.
 

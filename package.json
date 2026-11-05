@@ -1,5 +1,5 @@
 {
-  "name": "radix-ai-content-planner",
+  "name": "aura-ai-content-planner",
   "private": true,
   "version": "1.0.0",
   "workspaces": [
@@ -8,16 +8,16 @@
     "server"
   ],
   "scripts": {
-    "dev:desktop": "npm --workspace @radix/desktop run dev",
-    "dev:server": "npm --workspace @radix/server run dev",
-    "dev:preview": "npm --workspace @radix/preview-web run dev",
+    "dev:desktop": "npm --workspace @aura/desktop run dev",
+    "dev:server": "npm --workspace @aura/server run dev",
+    "dev:preview": "npm --workspace @aura/preview-web run dev",
     "dev": "npm run dev:desktop",
-    "build:desktop": "npm --workspace @radix/desktop run build",
-    "build:server": "npm --workspace @radix/server run build",
+    "build:desktop": "npm --workspace @aura/desktop run build",
+    "build:server": "npm --workspace @aura/server run build",
     "build": "npm run build:desktop",
-    "electron:dev": "npm --workspace @radix/desktop run electron:dev",
-    "electron:build": "npm --workspace @radix/desktop run electron:build",
-    "prisma:migrate": "npm --workspace @radix/server run prisma:migrate",
-    "prisma:generate": "npm --workspace @radix/server run prisma:generate"
+    "electron:dev": "npm --workspace @aura/desktop run electron:dev",
+    "electron:build": "npm --workspace @aura/desktop run electron:build",
+    "prisma:migrate": "npm --workspace @aura/server run prisma:migrate",
+    "prisma:generate": "npm --workspace @aura/server run prisma:generate"
   }
 }

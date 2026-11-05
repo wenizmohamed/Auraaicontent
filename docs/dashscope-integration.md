@@ -1,6 +1,6 @@
 # DashScope (Alibaba Model Studio) integration
 
-Adds Alibaba's **Model Studio "Token Plan"** (org `aura`) to Radix's multi-LLM
+Adds Alibaba's **Model Studio "Token Plan"** (org `aura`) to AuraAI's multi-LLM
 router as an additional **text** and **image** provider. Live-verified 2026-06-04.
 
 ## What it adds
@@ -74,7 +74,7 @@ all returned; the chain falls through to DashScope when Gemini+xAI are unavailab
 
 ## Notes / follow-ups
 
-- Image returns an **OSS URL** (expiring signed link) — persist to Radix storage if
+- Image returns an **OSS URL** (expiring signed link) — persist to AuraAI storage if
   long-term retention is needed (Gemini image path already does this; mirror it for
   DashScope if image-gen is promoted from fallback to a user-selectable primary).
 - Cost figures are approximate — reconcile against the plan's unit consumption.
