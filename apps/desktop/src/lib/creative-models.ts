@@ -48,23 +48,35 @@ export interface ModelOption {
 
 /**
  * Image engines whose price changes with the output tier. Alibaba bills
- * qwen-image-3.0-pro per image and the 2K tier costs more than 1K, so the
- * label has to follow the resolution the user picked. The server prices the
- * same tiers (see server/src/lib/ai-pricing.ts).
+ * qwen-image-3.0-pro per image and the 2K tier costs more than 1K. Google
+ * prices every nano-banana model per image too, and the rate climbs with
+ * resolution. So the label has to follow the resolution the user picked.
+ * The server prices the same tiers (see server/src/lib/ai-pricing.ts).
+ *
+ * Keyed by model id OR by picker value, because the Gemini entries do not
+ * pin a model id: the server ladder picks the newest nano-banana, and the
+ * price shown must be the one that engine actually bills.
  */
-const TIERED_IMAGE_RATES: Record<string, { '1K': number; '2K': number }> = {
-  'qwen-image-3.0-pro': { '1K': 0.033, '2K': 0.078 },
+const TIERED_IMAGE_RATES: Record<string, { '1K': number; '2K': number; '4K': number }> = {
+  'qwen-image-3.0-pro': { '1K': 0.033, '2K': 0.078, '4K': 0.078 },
+  'gemini-nano-banana-2.1': { '1K': 0.034, '2K': 0.050, '4K': 0.113 },
+  'gemini-3-pro-image': { '1K': 0.134, '2K': 0.134, '4K': 0.24 },
 };
+
+/** The tier table for an engine, if its rate depends on the resolution. */
+function tierFor(o: ModelOption): { '1K': number; '2K': number; '4K': number } | undefined {
+  return (o.model && TIERED_IMAGE_RATES[o.model]) || TIERED_IMAGE_RATES[o.value];
+}
 
 /** True when this engine's rate depends on the output resolution. */
 export function isTieredImage(o: ModelOption): boolean {
-  return !!o.model && !!TIERED_IMAGE_RATES[o.model];
+  return !!tierFor(o);
 }
 
 /** The rate for one engine at the picked resolution. */
 export function effectivePerImage(o: ModelOption, imageSize?: '1K' | '2K' | '4K'): number | undefined {
-  const tiered = o.model ? TIERED_IMAGE_RATES[o.model] : undefined;
-  if (tiered) return imageSize === '1K' ? tiered['1K'] : tiered['2K'];
+  const tiered = tierFor(o);
+  if (tiered) return tiered[imageSize ?? '2K'];
   return o.perImage;
 }
 
@@ -86,14 +98,14 @@ const WAN_IMAGE_FAST: ModelOption = {
   provider: 'dashscope', model: 'wan2.7-image', perImage: 0.03,
 };
 const GEMINI_IMAGE: ModelOption = {
-  value: 'gemini-flash-image', label: 'Gemini 3.1 Flash Image', vendor: 'Google',
-  hint: 'Nano Banana. Native 1K to 4K output, every aspect ratio, precise edits.',
-  provider: 'gemini', perImage: 0.10,
+  value: 'gemini-flash-image', label: 'Gemini Nano Banana 2.1', vendor: 'Google',
+  hint: 'Newest Google image model. Native 1K to 4K output, every aspect ratio, precise edits.',
+  provider: 'gemini', model: 'gemini-nano-banana-2.1',
 };
 const GEMINI_IMAGE_ULTRA: ModelOption = {
   value: 'gemini-pro-image', label: 'Gemini 3 Pro Image', vendor: 'Google',
   hint: 'Top Google tier for print and 4K campaign art.',
-  provider: 'gemini', quality: 'ultra', perImage: 0.14,
+  provider: 'gemini', model: 'gemini-3-pro-image', quality: 'ultra',
 };
 const GROK_IMAGE: ModelOption = {
   value: 'grok-imagine-image-2.0', label: 'Grok Imagine 2.0', vendor: 'xAI',

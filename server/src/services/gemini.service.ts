@@ -114,6 +114,16 @@ const EMBED_TIMEOUT_MS = parseInt(process.env.GEMINI_EMBED_TIMEOUT_MS || '15000'
 // 403/quota blip silently disabled knowledge+memory injection for all
 // generations ("Knowledge retrieval failed, continuing without it" in every
 // pm2 log). text-embedding-v4 on the Alibaba workspace key carries the lane.
+//
+// DIMENSION LOCK (2026-11-05): the stored chunk vectors are 3072-dim Gemini
+// embeddings. text-embedding-v4 returns 1024 by default and caps at 2048 —
+// it can NEVER produce 3072. So when Gemini is down, this fallback returned a
+// shorter vector, cosineSimilarity's length guard returned 0 for EVERY chunk,
+// and retrieveContext happily returned the first N chunks in arbitrary order
+// (a query for "ceramic coating" served CSS junk and the lead-gen pack).
+// Silent garbage is worse than no context, so the fallback must refuse to
+// serve a vector it cannot compare against the store.
+const STORED_EMBED_DIMS = 3072;
 async function dashscopeEmbed(text: string): Promise<number[]> {
   const key = process.env.DASHSCOPE_API_KEY;
   if (!key) throw new Error('DASHSCOPE_API_KEY not set');
@@ -128,6 +138,14 @@ async function dashscopeEmbed(text: string): Promise<number[]> {
   const data = await res.json() as any;
   const vec = data?.data?.[0]?.embedding;
   if (!Array.isArray(vec) || !vec.length) throw new Error('dashscope embed: empty vector');
+  if (vec.length !== STORED_EMBED_DIMS) {
+    // A different embedding space. Comparing it to 3072-dim Gemini vectors
+    // is meaningless, so fail loudly instead of serving arbitrary chunks.
+    throw new Error(
+      `dashscope embed: ${vec.length}-dim vector cannot be compared against the ${STORED_EMBED_DIMS}-dim store ` +
+      `(different embedding space — refusing to serve unranked results)`,
+    );
+  }
   return vec;
 }
 

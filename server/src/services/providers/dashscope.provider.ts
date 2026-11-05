@@ -305,6 +305,37 @@ function resolveVideoModel(requested: string | undefined, mode: VideoMode): stri
   return `${family}-${mode}`;
 }
 
+// Intra-provider video ladder (2026-11-05): Alibaba enforces per-model
+// allocation quotas, and when one model's free tier runs out it answers 403
+// AllocationQuota.FreeTierOnly — the whole task then died even though the
+// other models on the SAME key still had quota (verified live: wan3.0-video-
+// prime was blocked while wan3.0-video, wan2.7-*, wan2.6-* and happyhorse-*
+// all accepted). So on a quota error, try the next model on the same key.
+//
+// Order matters: the requested engine goes first, then its siblings, then the
+// other families. Each entry must serve the same INPUT shape, so a t2v pick
+// falls back through the t2v family and the all-in-one wan3.0 models.
+const VIDEO_FALLBACKS: Record<VideoMode, string[]> = {
+  t2v: ['wan3.0-video', 'wan2.7-t2v', 'wan2.6-t2v', 'happyhorse-1.1-t2v', 'happyhorse-1.0-t2v'],
+  i2v: ['wan3.0-video', 'wan2.7-i2v', 'happyhorse-1.1-i2v', 'happyhorse-1.0-i2v'],
+  r2v: ['wan3.0-video', 'wan2.7-r2v', 'happyhorse-1.1-r2v', 'happyhorse-1.0-r2v'],
+};
+
+/** The models to try, in order, for this call. */
+function videoLadder(requested: string | undefined, mode: VideoMode): string[] {
+  const first = resolveVideoModel(requested, mode);
+  const list = [first];
+  for (const m of VIDEO_FALLBACKS[mode]) if (!list.includes(m)) list.push(m);
+  return list;
+}
+
+/** True when the error is Alibaba's per-model allocation quota (not a content
+ *  filter, not a bad request) — those are worth retrying on another model. */
+function isQuotaError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /AllocationQuota\.FreeTierOnly|free quota has been exhausted|AllocationQuota\./i.test(msg);
+}
+
 // Billing tier suffix: Alibaba prices video per second BY RESOLUTION, and the
 // cost meter keys off the model string, so the row carries the tier it was
 // billed at (wan3.0-video = 720P baseline, wan3.0-video:1080p, :480p).
@@ -317,14 +348,44 @@ async function generateVideo(req: VideoRequest): Promise<ProviderResult<{ url: s
   const srcB64 = req.startImageBase64 || req.imageBase64;
   const srcMime = req.startMimeType || req.mimeType || 'image/jpeg';
   const mode: VideoMode = refs.length ? 'r2v' : srcB64 ? 'i2v' : 't2v';
-  const model = resolveVideoModel(req.model, mode);
-  const isWan3 = /^wan3\.\d+-video/i.test(model);
-  const isHappyHorse = /^happyhorse/i.test(model);
 
   const key = process.env.DASHSCOPE_VIDEO_API_KEY || process.env.DASHSCOPE_API_KEY;
   if (!key) throw new AiProviderError('dashscope', 'video', 'DASHSCOPE_API_KEY not set', 401);
   const host = (process.env.DASHSCOPE_VIDEO_BASE_URL || BASE_URL)
     .replace(/\/compatible-mode\/v1\/?$/, '');
+
+  // Try the requested engine first, then the rest of the ladder. Only an
+  // Alibaba allocation-quota error advances the ladder — a content filter or
+  // a bad request means the NEXT model would fail the same way, so those
+  // propagate immediately.
+  const ladder = videoLadder(req.model, mode);
+  let lastErr: unknown;
+  for (let i = 0; i < ladder.length; i++) {
+    try {
+      return await generateVideoOnModel(req, ladder[i], mode, key, host, refs, srcB64, srcMime);
+    } catch (err) {
+      lastErr = err;
+      if (!isQuotaError(err) || i === ladder.length - 1) throw err;
+      console.warn(
+        `[dashscope/video] ${ladder[i]} is out of allocation quota — falling through to ${ladder[i + 1]}`,
+      );
+    }
+  }
+  throw lastErr;
+}
+
+async function generateVideoOnModel(
+  req: VideoRequest,
+  model: string,
+  mode: VideoMode,
+  key: string,
+  host: string,
+  refs: { base64: string; mimeType: string }[],
+  srcB64: string | undefined,
+  srcMime: string,
+): Promise<ProviderResult<{ url: string }>> {
+  const isWan3 = /^wan3\.\d+-video/i.test(model);
+  const isHappyHorse = /^happyhorse/i.test(model);
 
   // End frame: only wan3.0 does first+last on this plan — the rest 503 so the
   // router hands bookended clips to Veo.

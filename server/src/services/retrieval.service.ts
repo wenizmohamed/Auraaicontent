@@ -52,13 +52,31 @@ export async function retrieveContext(
 
   const scored: { text: string; score: number; knowledgeItemId: string }[] = [];
 
+  // Guard (2026-11-05): a query vector from a DIFFERENT embedding space than
+  // the stored chunk vectors makes every cosine score 0, so the "top-K" was
+  // just the first K chunks in arbitrary order — a query for "ceramic coating"
+  // served CSS junk. If the dimensions don't line up, return nothing rather
+  // than unranked noise dressed up as matches.
+  let mismatched = 0;
+  let comparable = 0;
+
   for (const item of items) {
     for (const chunk of item.chunks) {
       const meta = chunk.metadata as any;
       if (!meta?.embedding || !Array.isArray(meta.embedding)) continue;
+      if (meta.embedding.length !== queryVector.length) { mismatched++; continue; }
+      comparable++;
       const score = cosineSimilarity(queryVector, meta.embedding);
       scored.push({ text: chunk.chunkText, score, knowledgeItemId: item.id });
     }
+  }
+
+  if (comparable === 0 && mismatched > 0) {
+    console.warn(
+      `[retrieval] ${mismatched} chunks have a different embedding dimension than the query ` +
+      `(${queryVector.length}-dim query vs the stored vectors) — refusing to return unranked chunks`,
+    );
+    return [];
   }
 
   // 3. Sort by similarity, return top-K

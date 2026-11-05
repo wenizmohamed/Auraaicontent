@@ -373,10 +373,17 @@ export const geminiProvider: AiProvider = {
       // Per-call override first (e.g. the prompt enhancer requests flash for
       // snappy rewrites instead of the pro reasoning model).
       ...(req.model && /gemini/i.test(req.model) ? [req.model] : []),
-      process.env.GEMINI_TEXT_MODEL || 'gemini-3.1-pro-preview',
+      // Current flagship first (Gemini 4 generation, live 2026-11-05), then
+      // the 3.x flash family as the cheap standbys.
+      process.env.GEMINI_TEXT_MODEL || 'gemini-4-argon',
       process.env.GEMINI_FLASH_TEXT_MODEL || 'gemini-3.8-flash',
-      'gemini-3.5-flash',  // older flash kept as an explicit rung
-      'gemini-2.5-flash',
+      'gemini-3.7-flash',  // older flash kept as an explicit rung
+      'gemini-3.6-flash',
+      'gemini-3.5-flash',
+      'gemini-3.1-flash-lite',
+      // gemini-2.5-flash removed 2026-11-05: retired by Google (404 "no longer
+      // available" — verified against the live catalog), so as the last rung
+      // its 404 masked the real upstream error.
       // gemini-2.0-flash removed 2026-10-10: retired by Google (404 "no longer
       // available"), and as the last rung its 404 masked the real upstream error.
     ]);
@@ -428,25 +435,35 @@ export const geminiProvider: AiProvider = {
     const ai = getAI();
     // Anatomy-stability enrichment (workshop 2026-05-06 #2 — Haneen)
     const enrichedPrompt = enrichBodyPrompt(req.prompt);
-    // Model ladder: ultra requests get the heavy imagen first then drop to
-    // gemini-flash-image; standard requests start with flash-image and ladder
-    // through imagen-fast → imagen-3. Override via GEMINI_IMAGE_LADDER /
-    // GEMINI_IMAGE_ULTRA_LADDER (colon-sep).
+    // Model ladder: every rung is a nano-banana (gemini-*-image) model.
+    // The Imagen rungs were removed 2026-11-05: Google's Imagen 4 API hit its
+    // scheduled shutdown (2026-08-17) and every imagen-4.0-* id now 404s
+    // ("not found for API version v1beta") — verified live. They were dead
+    // weight that only cost a guaranteed round-trip failure per ladder run.
+    // Override via GEMINI_IMAGE_LADDER / GEMINI_IMAGE_ULTRA_LADDER (colon-sep).
     // Ultra ladder is nano-banana-FIRST since 2026-07-02: the Imagen Gemini
     // API is deprecated with a hard shutdown on 2026-08-17 (research-verified,
     // ai.google.dev/gemini-api/docs/imagen), and nano renders natively at
     // 2K/4K. Imagen rungs stay as fallback until the shutdown date.
     const defaultLadder = req.quality === 'ultra'
       ? readLadder('GEMINI_IMAGE_ULTRA_LADDER', [
-          process.env.GEMINI_IMAGE_ULTRA_MODEL || 'gemini-3.1-flash-image-preview',
-          'imagen-4.0-ultra-generate-001',
-          'imagen-4.0-generate-001',
+          process.env.GEMINI_IMAGE_ULTRA_MODEL || 'gemini-3-pro-image',
+          'gemini-3-pro-image-preview',
+          'gemini-3.1-flash-image-preview',
         ])
       : readLadder('GEMINI_IMAGE_LADDER', [
-          process.env.GEMINI_IMAGE_MODEL || 'gemini-3.1-flash-image-preview',
-          'imagen-4.0-generate-001',
-          'imagen-4.0-fast-generate-001', // was imagen-3.0-generate-002 (404 dead)
+          process.env.GEMINI_IMAGE_MODEL || 'gemini-nano-banana-2.1',
+          'gemini-3.1-flash-image',
+          'gemini-3.1-flash-image-preview',
+          'gemini-3.1-flash-lite-image',
         ]);
+    // A model the caller pinned wins over the ladder's first rung, the same
+    // way the text ladder honours req.model. Without this the Creative Studio
+    // picker sent a model id that the provider ignored, so the picker labelled
+    // one engine while a different one actually rendered (and billed).
+    if (req.model && /banana|image/i.test(req.model)) {
+      defaultLadder.unshift({ model: req.model });
+    }
     // Ultra on the nano path means high-res by default (2K unless the caller
     // asked for a specific size).
     const effectiveSize = req.imageSize || (req.quality === 'ultra' ? '2K' : undefined);
@@ -550,11 +567,16 @@ export const geminiProvider: AiProvider = {
     // breaker opened, and the user's edit died.  With a ladder the same
     // refusal simply falls to the next image model and the edit succeeds.
     const editLadder = readLadder('GEMINI_IMAGE_EDIT_LADDER', [
-      process.env.GEMINI_IMAGE_EDIT_MODEL || 'gemini-3.1-flash-image',
+      process.env.GEMINI_IMAGE_EDIT_MODEL || 'gemini-nano-banana-2.1',
+      'gemini-3.1-flash-image',
       'gemini-3.1-flash-image-preview',
       'gemini-3-pro-image',
       'gemini-2.5-flash-image',
     ]);
+    // Same rule as the generate path: a pinned model wins over the ladder head.
+    if (req.model && /banana|image/i.test(req.model)) {
+      editLadder.unshift({ model: req.model });
+    }
     const start = Date.now();
     // Anatomy-stability enrichment (workshop 2026-05-06 #2 — Haneen)
     const enrichedPrompt = enrichBodyPrompt(req.prompt);

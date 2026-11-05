@@ -30,22 +30,43 @@ export interface PricePoint {
 
 export const AI_PRICING: Record<string, PricePoint> = {
   // ─── Gemini ─────────────────────────────────────────────────────
+  // gemini-4-argon: the current flagship generation. $2.00 in / $10.00 out per
+  // 1M THROUGH 2026-11-30, then $4.00 / $20.00 from 2026-12-01. Verified live
+  // 2026-11-05 (it is in the live catalog and answers generateContent).
+  // Bump these two numbers on 2026-12-01.
+  'gemini-4-argon':                    { promptPerM: 2.00, completionPerM: 10.00 },
   // gemini-3.1-pro-preview: $2/$12 (≤200k) – $4/$18 (>200k). Baseline ≤200k.
   'gemini-3.1-pro-preview':            { promptPerM: 2.00, completionPerM: 12.00 },
   // gemini-3.1-flash-lite-preview: $0.25/$1.50 text. Audio prompt rate higher.
   'gemini-3.1-flash-lite-preview':     { promptPerM: 0.25, completionPerM: 1.50 },
   // gemini-3.1-flash-image-preview: $0.50 input / $60 output (output is
-  // priced per IMAGE not per-token in disguise). Effective ~$0.045/img
-  // at low-res, $0.151/img at high-res; perCall set to a 1024px midpoint.
-  'gemini-3.1-flash-image-preview':    { promptPerM: 0.50, completionPerM: 60.00, perCall: 0.10 },
-  // gemini-3.1-flash-image: GA of the preview above, same card ($0.50 in /
-  // $60 image-out per M ≈ $0.067 per 1K image). Verified live 2026-08-14.
-  'gemini-3.1-flash-image':            { promptPerM: 0.50, completionPerM: 60.00, perCall: 0.10 },
+  // priced per IMAGE not per-token in disguise). Per image: $0.045 at 0.5K,
+  // $0.067 at 1K, $0.101 at 2K, $0.151 at 4K (Google card 2026-11-05).
+  'gemini-3.1-flash-image-preview':    { promptPerM: 0.50, completionPerM: 60.00, perCall: 0.067 },
+  // gemini-3.1-flash-image: GA of the preview above, same card. Verified live
+  // 2026-08-14, repriced per-image 2026-11-05.
+  'gemini-3.1-flash-image':            { promptPerM: 0.50, completionPerM: 60.00, perCall: 0.067 },
+  // gemini-nano-banana-2.1: the CURRENT nano-banana (newer than 3.1-flash-
+  // image). $1.50 in / $30 per 1M image-out. Per image: $0.0336 at 1K,
+  // $0.0504 at 2K, $0.113 at 4K. Verified live 2026-11-05.
+  'gemini-nano-banana-2.1':            { promptPerM: 1.50, completionPerM: 30.00, perCall: 0.034 },
   // nano-banana-pro = gemini-3-pro-image family: $2.00 in / $120 image-out
   // per M ≈ $0.134 per 1K/2K image, $0.24 at 4K (Google card 2026-08-14).
   'nano-banana-pro-preview':           { promptPerM: 2.00, completionPerM: 120.00, perCall: 0.15 },
   'gemini-3-pro-image':                { promptPerM: 2.00, completionPerM: 120.00, perCall: 0.14 },  // GA premium image (ultra tier)
-  // imagen-4.0-ultra: $0.06/image (unchanged).
+  // gemini-3-pro-image-preview: same card as the GA id ($2 in / $120 image-out
+  // per M ≈ $0.134 per 1K/2K image). Live 2026-11-05.
+  'gemini-3-pro-image-preview':        { promptPerM: 2.00, completionPerM: 120.00, perCall: 0.14 },
+  // gemini-3.1-flash-lite-image (Nano Banana 2 Lite): $0.25 in / $30 image-out
+  // per M = $0.0336 per 1K image. Live 2026-11-05.
+  'gemini-3.1-flash-lite-image':       { promptPerM: 0.25, completionPerM: 30.00, perCall: 0.034 },
+  // gemini-2.5-flash-image (Nano Banana): $0.30 in, $0.039 per image output.
+  // Google marks it deprecated (shutdown 2027-03-15) but it still renders.
+  'gemini-2.5-flash-image':            { promptPerM: 0.30, completionPerM: 0.00, perCall: 0.039 },
+  // imagen-4.0-ultra: $0.06/image (unchanged). The whole imagen-4.0-* family
+  // hit Google's scheduled shutdown on 2026-08-17 — every id 404s now
+  // (verified live 2026-11-05). Rows kept so a stale id is still priced
+  // rather than logged $0.
   'imagen-4.0-ultra-generate-001':     { promptPerM: 0,    completionPerM: 0,    perCall: 0.06 },
   // veo-3.1-* ids were RETIRED by Google (404 on every call, 2026-10-30). Rows
   // kept so a stale id is still priced rather than logged $0.
@@ -124,8 +145,15 @@ export const AI_PRICING: Record<string, PricePoint> = {
   // gemini-3.5-flash: real card is $1.50/$9.00 — the $0.30/$2.50 recorded
   // here until 2026-08-14 was the OLD 2.5-flash tier (under-recorded ~5x).
   'gemini-3.5-flash':                  { promptPerM: 1.50, completionPerM: 9.00 },
+  // gemini-3.6-flash: $0.75/$3.75 promo through 2026-12-31, then $1.50/$7.50
+  // (Google pricing page, verified 2026-11-05). Same window as 3.7/3.8.
+  'gemini-3.6-flash':                  { promptPerM: 0.75, completionPerM: 3.75 },
+  // gemini-3.5-flash-lite: $0.30/$2.50 standard (Google card 2026-11-05).
+  'gemini-3.5-flash-lite':             { promptPerM: 0.30, completionPerM: 2.50 },
+  // gemini-3.1-flash-lite (GA): $0.25/$1.50 standard (Google card 2026-11-05).
+  'gemini-3.1-flash-lite':             { promptPerM: 0.25, completionPerM: 1.50 },
   'gemini-flash-lite-latest':          { promptPerM: 0.25, completionPerM: 1.50 },  // = flash-lite
-  'gemini-2.5-flash':                  { promptPerM: 0.15, completionPerM: 0.60 },  // legacy flash
+  'gemini-2.5-flash':                  { promptPerM: 0.15, completionPerM: 0.60 },  // legacy flash — retired 2026-11-05
   'gemini-2.0-flash':                  { promptPerM: 0.10, completionPerM: 0.40 },  // text ladder floor rung — was UNPRICED ($0 leak)
   // imagen standard (non-ultra). ~$0.04/image; ultra above is $0.06.
   'imagen-4.0-generate-001':           { promptPerM: 0,    completionPerM: 0,    perCall: 0.04 },
