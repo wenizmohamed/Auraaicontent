@@ -4,6 +4,9 @@ import { authGuard, denyViewer } from '../middleware/auth.js';
 import { knowledgeService } from '../services/knowledge.service.js';
 import { storageService } from '../services/storage.service.js';
 import { embedKnowledgeItem } from '../workers/embeddings.worker.js';
+import { knowledgeEmbedBackfillWorker } from '../workers/knowledgeEmbedBackfill.worker.js';
+import { knowledgeRechunkWorker } from '../workers/knowledgeRechunk.worker.js';
+import { createJob, processJob } from '../workers/queue.js';
 import { retrieveContext } from '../services/retrieval.service.js';
 import { auditService } from '../services/audit.service.js';
 import { assertClientInOrg } from '../lib/tenant.js';
@@ -112,5 +115,72 @@ export async function knowledgeRoutes(app: FastifyInstance) {
     if (!q) return { error: 'q query parameter required', chunks: [] };
     const chunks = await retrieveContext(orgId, clientId, q, parseInt(k || '5'));
     return { query: q, chunks };
+  });
+
+  // POST /api/knowledge/embed-backfill → { jobId }
+  // Re-embeds every knowledge chunk that is missing its vector. Needed after
+  // an embedding-provider outage (429/402) saved chunks without vectors and
+  // left them invisible to RAG. Owner/admin only — it is a bulk write over
+  // the org's whole knowledge base.
+  app.post('/knowledge/embed-backfill', { preHandler: denyViewer }, async (request, reply) => {
+    const orgId = request.orgId!;
+    const body = (request.body as { clientId?: string }) || {};
+    let clientId: string | undefined;
+    if (body.clientId) {
+      try {
+        await assertClientInOrg(body.clientId, orgId);
+        clientId = body.clientId;
+      } catch (err) {
+        return reply.status(errStatus(err)).send({ error: errMessage(err) });
+      }
+    }
+
+    const job = createJob('knowledge-embed-backfill', {
+      orgId, clientId, userId: request.user?.userId,
+    });
+    processJob(job.id, knowledgeEmbedBackfillWorker);
+
+    auditService.log({
+      orgId, userId: request.user?.userId, clientId,
+      action: 'knowledge.embedBackfill',
+      entityType: 'KnowledgeItem',
+      payload: { clientId: clientId ?? 'all', jobId: job.id },
+    }).catch(() => {});
+
+    return reply.status(202).send({ jobId: job.id });
+  });
+
+  // POST /api/knowledge/rechunk → { jobId }
+  // Re-chunks every knowledge item at the corrected granularity and re-embeds
+  // it, sanitising any HTML that was stored raw. This is the repair for the
+  // 2026-11-05 corpus state (800-token chunks + raw HTML/CSS + 86% of chunks
+  // never embedded). Owner/admin only.
+  app.post('/knowledge/rechunk', { preHandler: denyViewer }, async (request, reply) => {
+    const orgId = request.orgId!;
+    const body = (request.body as { clientId?: string; limit?: number }) || {};
+    let clientId: string | undefined;
+    if (body.clientId) {
+      try {
+        await assertClientInOrg(body.clientId, orgId);
+        clientId = body.clientId;
+      } catch (err) {
+        return reply.status(errStatus(err)).send({ error: errMessage(err) });
+      }
+    }
+    const limit = body.limit ? Math.max(1, Math.min(2000, body.limit)) : undefined;
+
+    const job = createJob('knowledge-rechunk', {
+      orgId, clientId, limit, userId: request.user?.userId,
+    });
+    processJob(job.id, knowledgeRechunkWorker);
+
+    auditService.log({
+      orgId, userId: request.user?.userId, clientId,
+      action: 'knowledge.rechunk',
+      entityType: 'KnowledgeItem',
+      payload: { clientId: clientId ?? 'all', limit: limit ?? 'all', jobId: job.id },
+    }).catch(() => {});
+
+    return reply.status(202).send({ jobId: job.id });
   });
 }

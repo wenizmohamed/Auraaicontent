@@ -26,8 +26,10 @@ import { recordGated, recordRan, recordFailed } from './enrichment-stats.js';
 
 const CHUNK_CAP = 4;          // max chunks injected (token-budget guard)
 const CHUNK_CHAR_CAP = 600;   // trim each chunk to bound context-window pressure
-const MIN_SCORE = 0.55;       // cosine floor; tuned conservatively. Set from real
-                              // scores once embeddings are confirmed populated.
+const MIN_SCORE = 0.55;       // cosine floor for the SEMANTIC lane
+const LEXICAL_MIN_SCORE = 0;  // the lexical lane (BM25) has its own scale; any
+                              // keyword match is a real match, and the lane
+                              // only runs when the semantic one is unavailable
 
 export interface KnowledgeEnrichOpts {
   skip?: boolean;
@@ -52,7 +54,7 @@ export async function enrichWithKnowledge(
     return prompt;
   }
 
-  let hits: { text: string; score: number; knowledgeItemId: string }[];
+  let hits: { text: string; score: number; knowledgeItemId: string; mode: 'semantic' | 'lexical' }[];
   try {
     hits = await retrieveContext(orgId, clientId, retrievalQuery, CHUNK_CAP * 2);
   } catch (err: any) {
@@ -61,8 +63,12 @@ export async function enrichWithKnowledge(
     return prompt;
   }
 
+  // The floor is per-lane: the semantic lane is scored by cosine, the lexical
+  // lane by BM25. Applying the cosine floor to BM25 scores would discard
+  // every lexical hit.
   const relevant = hits
-    .filter(h => h.score >= MIN_SCORE && h.text?.trim())
+    .filter(h => h.text?.trim())
+    .filter(h => (h.mode === 'lexical' ? h.score > LEXICAL_MIN_SCORE : h.score >= MIN_SCORE))
     .slice(0, CHUNK_CAP);
   recordRan('knowledge', relevant.length);
   if (!relevant.length) return prompt;

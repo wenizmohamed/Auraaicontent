@@ -95,19 +95,27 @@ export async function runValidation(): Promise<{ ok: string[]; dead: string[]; s
   // 1) Text models: live test-call (catches the "in catalog but 404 on
   //    generate" case that bit the Research page on 2026-05-27).
   // Tested models are deduplicated since several env vars often share an id.
-  const seen = new Map<string, 'ok' | 'dead'>();
+  const seen = new Map<string, { alive: boolean; status: number }>();
   for (const varName of TRACKED_TEXT_VARS) {
     const value = process.env[varName];
     if (!value) { skipped.push(varName); continue; }
     if (!seen.has(value)) {
-      const alive = await pingModel(apiKey, value);
-      seen.set(value, alive ? 'ok' : 'dead');
+      seen.set(value, await pingModel(apiKey, value));
     }
-    if (seen.get(value) === 'ok') {
+    const probe = seen.get(value)!;
+    if (probe.alive) {
       ok.push(`${varName}=${value}`);
+      // Transient billing/quota/rate-limit answer — say so plainly, but the
+      // model is NOT dead. This is the 2026-11-05 false-alarm case.
+      if (probe.status && probe.status !== 200) {
+        console.warn(
+          `[model-validator] ${varName}=${value} answered HTTP ${probe.status} (not a 404/410) — ` +
+          `the model id is fine; this is a transient billing/quota/rate-limit response, not a dead model.`,
+        );
+      }
     } else {
       dead.push(`${varName}=${value}`);
-      console.warn(`[model-validator] ⚠️  DEAD MODEL  ${varName}=${value} — generateContent returned 404. Update .env. Auto-rolling aliases: gemini-pro-latest / gemini-flash-latest / gemini-flash-lite-latest.`);
+      console.warn(`[model-validator] ⚠️  DEAD MODEL  ${varName}=${value} — generateContent returned ${probe.status}. Update .env. Auto-rolling aliases: gemini-pro-latest / gemini-flash-latest / gemini-flash-lite-latest.`);
     }
   }
 
@@ -120,9 +128,9 @@ export async function runValidation(): Promise<{ ok: string[]; dead: string[]; s
       const alive = /omni/i.test(value)
         ? await pingOmniModel(apiKey, value)
         : await pingVideoModel(apiKey, value);
-      seen.set(value, alive ? 'ok' : 'dead');
+      seen.set(value, { alive, status: alive ? 200 : 404 });
     }
-    if (seen.get(value) === 'ok') {
+    if (seen.get(value)!.alive) {
       ok.push(`${varName}=${value}`);
     } else {
       dead.push(`${varName}=${value}`);
@@ -200,9 +208,18 @@ async function pingVideoModel(apiKey: string, model: string): Promise<boolean> {
 }
 
 /** Cheapest possible generateContent ping — 1-token reply, 5s timeout.
- *  Returns true if HTTP 200, false on 404/400/410. Soft-true on network
- *  errors / 5xx so a transient outage doesn't falsely flag a healthy model. */
-async function pingModel(apiKey: string, model: string): Promise<boolean> {
+ *  Returns true if HTTP 200, false ONLY on 404/410 (the model id is gone).
+ *  Soft-true on everything else so a transient outage doesn't falsely flag a
+ *  healthy model.
+ *
+ *  Why only 404/410 (2026-11-05): the old code treated ANY 4xx except 429 as
+ *  death. Google answers 402 Payment Required when the prepaid balance is
+ *  drained, and 403 when a key hits a per-model quota — both are BILLING
+ *  states, not model rot. Those transient windows marked 5 of 12 configured
+ *  models "DEAD ... returned 404" (with a hardcoded 404 that was never the
+ *  status actually seen) while every one of them answered 200 live. The
+ *  validator is a deprecation detector; a deprecation is always 404/410. */
+async function pingModel(apiKey: string, model: string): Promise<{ alive: boolean; status: number }> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${apiKey}`;
   try {
     const ctrl = new AbortController();
@@ -217,12 +234,13 @@ async function pingModel(apiKey: string, model: string): Promise<boolean> {
       signal: ctrl.signal,
     });
     clearTimeout(t);
-    if (res.ok) return true;
-    // 4xx other than 429 = real client problem; flag as dead so it surfaces.
-    if (res.status >= 400 && res.status < 500 && res.status !== 429) return false;
-    // 5xx / 429 = transient — soft-true to avoid false alarms.
-    return true;
+    if (res.ok) return { alive: true, status: res.status };
+    // Only a missing/removed model id counts as dead.
+    if (res.status === 404 || res.status === 410) return { alive: false, status: res.status };
+    // Billing / quota / rate-limit / server errors = transient. Report the
+    // real status so the log is truthful, but do NOT flag the model dead.
+    return { alive: true, status: res.status };
   } catch {
-    return true; // network blip; the next 24h cycle will retry
+    return { alive: true, status: 0 }; // network blip; retried on the next 24h cycle
   }
 }

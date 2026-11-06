@@ -44,6 +44,11 @@ export async function enrichWithMemory(
 
   let hits: { content: string; kind: string; score: number }[];
   try {
+    // The floor applies to the SEMANTIC lane (cosine × weight). The lexical
+    // lane returns BM25 scores, which live on a different scale — filtering
+    // them by a cosine floor would throw away every lexical hit and put the
+    // store back to dark. So the floor is passed but the lexical lane is
+    // allowed through on a keyword match alone.
     hits = await retrieveMemories(orgId, clientId, retrievalQuery, MEM_CAP, MIN_SCORE);
   } catch (err: any) {
     console.warn('[memory-enricher] retrieval failed:', err?.message || err);

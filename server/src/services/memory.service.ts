@@ -14,6 +14,7 @@
 
 import { db } from '../db/prisma.js';
 import { embedText } from './gemini.service.js';
+import { bm25Score, buildDocs, tokenize } from './lexical-retrieval.service.js';
 
 export type MemoryKind = 'correction' | 'preference' | 'pattern' | 'failure' | 'success';
 export type MemorySource = 'edit' | 'rejection' | 'regeneration' | 'failed_call' | 'explicit' | 'consolidation';
@@ -37,6 +38,41 @@ export interface RetrievedMemory {
   kind: string;
   score: number;   // cosine * weight (decay-aware)
   weight: number;
+}
+
+/**
+ * Lexical ranking for the memory store (2026-11-05).
+ *
+ * Used when the query embedding is unavailable (no credit / rate limited).
+ * Ranks the stored memory text by BM25 keyword overlap, then applies the
+ * memory's weight so a `correction` still outranks a `preference` at the
+ * same lexical relevance.
+ */
+export function lexicalRetrieveMemories(
+  rows: { id: string; content: string; kind: string; weight: number }[],
+  query: string,
+  topK: number,
+): RetrievedMemory[] {
+  if (!rows.length) return [];
+  const docs = buildDocs(rows.map(r => ({ id: r.id, chunkText: r.content, knowledgeItemId: r.id })));
+  const hits = bm25Score(tokenize(query), docs);
+  const byId = new Map(rows.map(r => [r.id, r]));
+  const out: RetrievedMemory[] = [];
+  for (const h of hits) {
+    const r = byId.get(h.knowledgeItemId);
+    if (!r) continue;
+    out.push({
+      id: r.id,
+      content: r.content,
+      kind: r.kind,
+      // BM25 scores are not cosines. Normalise against the best hit so the
+      // number stays in a comparable range, then apply the weight.
+      score: h.score * (r.weight ?? 1),
+      weight: r.weight ?? 1,
+    });
+    if (out.length >= topK) break;
+  }
+  return out;
 }
 
 // ─── cosine (identical to retrieval.service) ─────────────────────
@@ -104,11 +140,20 @@ export async function retrieveMemories(
 ): Promise<RetrievedMemory[]> {
   if (!orgId || !query?.trim()) return [];
 
-  let queryVector: number[];
+  let queryVector: number[] | null = null;
   try {
     queryVector = await embedText(query.slice(0, 8000), { orgId });
-  } catch {
-    return [];
+  } catch (err: any) {
+    // THE QUERY EMBEDDING WAS A SINGLE POINT OF FAILURE (fixed 2026-11-05).
+    // Gemini's prepayment credits ran out (402 "Your prepayment credits are
+    // depleted", verified live) and the whole memory store went dark —
+    // every memory read returned [] and the customer reported "custom
+    // memories don't work". The memories were stored and fine; only the
+    // retriever could not ask the question.
+    //
+    // Fall through to the lexical lane so the store stays reachable with no
+    // embedding, no key and no credit.
+    console.warn(`[memory] query embedding failed (${err?.message || err}) — falling back to the lexical lane`);
   }
 
   let rows: { id: string; content: string; kind: string; weight: number; embedding: unknown }[];
@@ -132,6 +177,7 @@ export async function retrieveMemories(
   const scored: RetrievedMemory[] = [];
   for (const r of rows) {
     if (!Array.isArray(r.embedding)) continue;
+    if (!queryVector) continue; // lexical lane scores these
     const cos = cosineSimilarity(queryVector, r.embedding as number[]);
     const score = cos * (r.weight ?? 1);
     if (score >= minScore) {
@@ -139,9 +185,16 @@ export async function retrieveMemories(
     }
   }
 
+  // Lexical lane: no query vector, so rank the stored memory text by keyword
+  // overlap with the query. The weight still applies, so a `correction`
+  // (weight 2) outranks a `preference` (weight 1) at the same relevance.
+  if (!queryVector) {
+    const lexical = lexicalRetrieveMemories(rows, query, topK);
+    scored.push(...lexical);
+  }
+
   scored.sort((a, b) => b.score - a.score);
   const top = scored.slice(0, topK);
-
   // Usage telemetry (best-effort, fire-and-forget): bump useCount/lastUsedAt so
   // consolidation can favour lessons that actually get retrieved.
   if (top.length) {

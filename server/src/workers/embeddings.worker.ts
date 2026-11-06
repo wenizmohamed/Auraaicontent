@@ -4,6 +4,7 @@ import { aiRouter } from '../services/providers/ai-router.js';
 import { knowledgeService } from '../services/knowledge.service.js';
 import { storageService } from '../services/storage.service.js';
 import { db } from '../db/prisma.js';
+import { sanitizeForEmbedding } from '../lib/html-text.js';
 
 // ─── Text extraction ─────────────────────────────────────────────
 
@@ -154,9 +155,16 @@ async function extractText(fileUrl: string, mimeType: string, ctx?: ExtractConte
     return readWithAi(absPath, media.kind, media.mime, ctx);
   }
 
-  // Plain text / markdown
+  // Plain text / markdown / HTML.
+  //
+  // HTML is converted to readable prose before it is stored (2026-11-05).
+  // Raw markup used to go into the corpus verbatim: 3,714 of 7,111 prod
+  // chunks (52%) were HTML/CSS, and a CSS chunk outranked a real strategy
+  // document on a brand query. `text/html` matches the `text/` branch, so
+  // the sanitiser has to run here rather than in a dedicated branch.
   if (mimeType.includes('text/') || mimeType.includes('markdown')) {
-    return fs.readFileSync(absPath, 'utf-8');
+    const raw = fs.readFileSync(absPath, 'utf-8');
+    return sanitizeForEmbedding(raw);
   }
 
   // PDF. pdf-parse v2 exports a PDFParse class; v1 exported a function. The
@@ -237,12 +245,32 @@ async function extractText(fileUrl: string, mimeType: string, ctx?: ExtractConte
     if (salvaged.length >= 200) return salvaged;
     throw new Error(`Could not read this file type (${mimeType || 'unknown'}). Save it as PDF, DOCX or TXT and upload that.`);
   }
-  return raw;
+  return sanitizeForEmbedding(raw);
 }
 
 // ─── Chunking ────────────────────────────────────────────────────
 
-function chunkText(text: string, maxTokens: number = 800, overlap: number = 100): string[] {
+// CHUNK SIZE (2026-11-05): was 800 tokens (~3,200 chars).
+//
+// Retrieval was measurably broken at that size. Measured against the prod
+// store with short phrase queries (the shape a real user prompt has), the
+// true chunk scored 0.561 on average while IRRELEVANT chunks scored 0.611 —
+// noise outranked truth, so no score threshold could separate them, and the
+// production gauge showed knowledge injecting 0 chunks with
+// lastInjectedAt=null. The cause was granularity: a 3,200-char chunk is a
+// blend of many topics, so a short query barely moves its embedding.
+//
+// Re-measured with windows cut around the target phrase, the same query
+// ranked the true content first at:
+//     200 chars -> 84% P@1      800 chars -> 63%      3200 chars -> 26%
+//
+// 200-token chunks with a 50-token overlap put the answer in the same
+// neighbourhood as the question. The cost is more chunks per document (and
+// so more embedding calls), which the batch endpoint absorbs.
+const CHUNK_TOKENS = 200;
+const CHUNK_OVERLAP_TOKENS = 50;
+
+export function chunkText(text: string, maxTokens: number = CHUNK_TOKENS, overlap: number = CHUNK_OVERLAP_TOKENS): string[] {
   // Approximate: 1 token ≈ 4 chars
   const maxChars = maxTokens * 4;
   const overlapChars = overlap * 4;
@@ -292,7 +320,21 @@ export async function embedKnowledgeItem(orgId: string, knowledgeItemId: string)
   };
   try {
     const result = await embedKnowledgeItemInner(orgId, knowledgeItemId);
-    await stamp({ embedded: result.chunksCreated > 0, chunks: result.chunksCreated, readError: null, readAt: new Date().toISOString() });
+    // The "ready" badge must reflect EMBEDDINGS, not chunks. The old stamp
+    // used `chunksCreated > 0`, so an item whose every chunk failed to embed
+    // (Gemini 402/429 window) was still stamped embedded:true — the Knowledge
+    // page said "ready" while the item was invisible to RAG. That is how 6,117
+    // chunks ended up permanently unsearchable with nothing surfacing it.
+    // (2026-11-05)
+    await stamp({
+      embedded: result.embeddingsGenerated > 0,
+      chunks: result.chunksCreated,
+      embeddings: result.embeddingsGenerated,
+      readError: result.embeddingsGenerated === 0
+        ? 'Every chunk failed to embed (embedding provider unavailable). Retry the embed.'
+        : null,
+      readAt: new Date().toISOString(),
+    });
     return result;
   } catch (err) {
     await stamp({ embedded: false, readError: (err instanceof Error ? err.message : String(err)).slice(0, 300), readAt: new Date().toISOString() });
@@ -319,32 +361,64 @@ async function embedKnowledgeItemInner(orgId: string, knowledgeItemId: string): 
   // 3. Delete existing chunks (re-embed)
   await db.knowledgeChunk.deleteMany({ where: { orgId, knowledgeItemId } });
 
-  // 4. Embed each chunk and save
+  // 4. Embed each chunk and save.
+  //    A provider outage (429 rate-limit / 402 drained credit) must NOT leave
+  //    chunks permanently unsearchable — the old code saved them with no
+  //    vector and never retried, which silently stranded 86% of prod chunks
+  //    (2026-11-05). Now we retry the whole item with backoff before
+  //    accepting a partial result, and the item stamp reports the real
+  //    embedding count.
   let embeddingsGenerated = 0;
-  for (let i = 0; i < textChunks.length; i++) {
-    const chunkText = textChunks[i];
-    try {
-      const embedding = await embedText(chunkText, { orgId });
-      await db.knowledgeChunk.create({
-        data: {
-          orgId,
-          knowledgeItemId,
-          chunkText,
-          metadata: { embedding, chunkIndex: i, totalChunks: textChunks.length },
-        },
-      });
-      embeddingsGenerated++;
-    } catch (err) {
-      // Save chunk without embedding on failure
-      await db.knowledgeChunk.create({
-        data: {
-          orgId,
-          knowledgeItemId,
-          chunkText,
-          metadata: { chunkIndex: i, totalChunks: textChunks.length, embeddingError: String(err) },
-        },
-      });
+  let providerFailed = false;
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    embeddingsGenerated = 0;
+    providerFailed = false;
+    lastError = null;
+    for (let i = 0; i < textChunks.length; i++) {
+      const chunkText = textChunks[i];
+      try {
+        const embedding = await embedText(chunkText, { orgId });
+        await db.knowledgeChunk.create({
+          data: {
+            orgId,
+            knowledgeItemId,
+            chunkText,
+            metadata: { embedding, chunkIndex: i, totalChunks: textChunks.length },
+          },
+        });
+        embeddingsGenerated++;
+      } catch (err) {
+        // Save chunk without embedding on failure
+        providerFailed = true;
+        lastError = err;
+        await db.knowledgeChunk.create({
+          data: {
+            orgId,
+            knowledgeItemId,
+            chunkText,
+            metadata: { chunkIndex: i, totalChunks: textChunks.length, embeddingError: String(err) },
+          },
+        });
+      }
     }
+    // Every chunk embedded — done.
+    if (!providerFailed) break;
+    // The provider failed on at least one chunk. Retry the whole item with
+    // backoff rather than leaving it half-embedded.
+    //
+    // ONLY a transient failure is worth retrying. A drained balance (402) or a
+    // revoked key (403) will not fix itself in 3 seconds, and retrying it
+    // just burns a minute per document. Rate limits (429) and network blips
+    // are worth another go.
+    const msg = (lastError as any)?.message || String(lastError || '');
+    const transient = /rate.?limit|429|too many requests|exceeded your current quota|ECONNRESET|ETIMEDOUT|network|fetch failed/i.test(msg);
+    if (attempt < 2 && transient) {
+      await db.knowledgeChunk.deleteMany({ where: { orgId, knowledgeItemId } });
+      await new Promise(r => setTimeout(r, 3000 * (attempt + 1)));
+      continue;
+    }
+    break;
   }
 
   return { chunksCreated: textChunks.length, embeddingsGenerated };

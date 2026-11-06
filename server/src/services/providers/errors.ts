@@ -75,6 +75,24 @@ const RETRYABLE_PATTERNS = [
   /MAX_TOKENS/,
 ];
 
+/**
+ * Provider-credential problems that arrive WRAPPED in a 4xx and therefore
+ * look non-retryable, but are actually provider-scoped: the request itself
+ * is fine, THIS provider cannot serve it, and the next provider in the chain
+ * can.
+ *
+ * Without this, the whole fallback chain was dead on 2026-11-06: Alibaba
+ * answered 403 "Access to model denied" (the workspace key has no chat
+ * entitlement), which matched the generic /403/ rule, so the router broke
+ * out of its provider loop after the FIRST hop and never tried Gemini or xAI
+ * — even though a working provider was sitting right behind it.
+ *
+ * The rule of thumb: a 403/400 that describes the ACCOUNT or the CREDENTIAL
+ * falls through; a 403/400 that describes the REQUEST does not.
+ */
+export const PROVIDER_CREDENTIAL_PROBLEM =
+  /access to model denied|access denied, please make sure your account is in good standing|accessdenied\.unpurchased|arrearage|not eligible|eligibility|has either used all available credits|has reached its monthly spending limit|invalid authentication|invalid.?api.?key/i;
+
 const NON_RETRYABLE_PATTERNS = [
   /400/,
   /bad request/i,
@@ -127,6 +145,14 @@ export function isRetryableAiError(err: unknown): boolean {
 
   // Billing/credits exhaustion → always fall through to the next provider.
   if (status === 402 || BILLING_EXHAUSTION.test(msg)) return true;
+
+  // A CREDENTIAL/ENTITLEMENT problem on this provider → fall through too.
+  // This must be checked BEFORE the non-retryable list, because these arrive
+  // as 403/400 and the generic /403/ rule would otherwise kill the ladder.
+  // The request is fine; THIS provider cannot serve it. Real case
+  // 2026-11-06: Alibaba 403 "Access to model denied" halted the chain after
+  // the first hop, so Gemini and xAI were never tried.
+  if (PROVIDER_CREDENTIAL_PROBLEM.test(msg)) return true;
 
   // Safety/content blocks are retryable across providers — checked BEFORE the
   // non-retryable list because these arrive wrapped in a 400 ("400 Input text
@@ -216,7 +242,8 @@ export class AllProvidersFailedError extends Error {
     // burst rate-limiting ("too many requests in a window"). The first needs
     // a billing top-up; the second needs the user to wait.
     const allBillingExhausted = failures.length > 0 && failures.every(f =>
-      /exceeded your current quota|resource has been exhausted|RESOURCE_EXHAUSTED|insufficient.?credit|insufficient.?balance|payment.?required|billing|plan and billing|FAILED_PRECONDITION|free tier.*not available|enable billing/i.test(f.message),
+      BILLING_EXHAUSTION.test(f.message) || PROVIDER_CREDENTIAL_PROBLEM.test(f.message)
+        || /exceeded your current quota|resource has been exhausted|RESOURCE_EXHAUSTED|failed_precondition|free tier.*not available|enable billing/i.test(f.message),
     );
 
     // Per-provider top-up links so the error can guide the user to the right place.

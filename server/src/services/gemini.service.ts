@@ -197,14 +197,115 @@ export async function embedText(text: string, ctx?: EmbedContext): Promise<numbe
     if (err instanceof GeminiUnavailableError) throw err;
     // Wrap raw Google SDK errors with a clean message
     const msg = err?.message || String(err);
-    if (/rate.?limit|429|too many requests|quota/i.test(msg)) {
+    // ORDER MATTERS, twice over:
+    //  1. A drained prepaid balance answers 402, and letting the /billing/i
+    //     branch swallow it reported "permission denied" — sending the
+    //     operator hunting for a key/permission problem that does not exist.
+    //  2. The free tier's quota message ("You exceeded your current quota,
+    //     please check your plan and billing details") CONTAINS the word
+    //     "billing", so a /billing/i body regex misreads a rate limit as a
+    //     drained balance. Judge on the status and on the specific phrases.
+    const status = err?.status ?? err?.statusCode ?? err?.code;
+    if (status === 429 || /rate.?limit|too many requests|exceeded your current quota|\b429\b/i.test(msg)) {
       throw new GeminiUnavailableError('Gemini rate-limited. Knowledge embedding temporarily unavailable.');
     }
-    if (/403|permission|denied|billing/i.test(msg)) {
-      throw new GeminiUnavailableError('Gemini permission denied. Check API key and billing.');
+    if (status === 402 || /payment.?required|prepayment|insufficient.?(credit|balance|funds)|\b402\b/i.test(msg)) {
+      throw new GeminiUnavailableError('Gemini credits depleted. Top up the Google AI Studio balance to resume knowledge embedding.');
+    }
+    if (/403|permission|denied/i.test(msg)) {
+      throw new GeminiUnavailableError('Gemini permission denied. Check the API key.');
     }
     throw new GeminiUnavailableError(`Gemini embedding failed: ${msg.slice(0, 150)}`);
   }
+}
+
+/**
+ * Batch embedding via Gemini's `batchEmbedContents` endpoint (2026-11-05).
+ *
+ * WHY: re-embedding the 6,117 orphaned chunks one HTTP call at a time took
+ * days of wall clock at the 429 rate limit. `batchEmbedContents` embeds up
+ * to 100 texts in ONE call and returns the same 3072-dim vectors, so the
+ * backfill finishes in minutes.
+ *
+ * The batch endpoint has no DashScope fallback on purpose: the fallback lane
+ * produces a different-dimensional vector, which would poison the store. A
+ * batch either comes back at 3072 dims or it fails loudly.
+ */
+export async function embedBatch(texts: string[], ctx?: EmbedContext): Promise<number[][]> {
+  if (!texts.length) return [];
+  const key = env.GEMINI_API_KEY;
+  if (!key) throw new GeminiUnavailableError('Gemini API key not configured. Knowledge embedding requires Gemini.');
+
+  const model = MODELS.embedding;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:batchEmbedContents?key=${key}`;
+
+  // The free tier's requests-per-minute cap answers 429 on a burst. A batch
+  // of 100 is 100 embed operations against that cap, so it trips easily.
+  // Retry with exponential backoff before giving up — otherwise a bulk
+  // backfill stops dead on a transient burst limit.
+  const MAX_ATTEMPTS = 4;
+  let response: Response | null = null;
+  let lastBody = '';
+  let lastStatus = 0;
+
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requests: texts.map(t => ({
+            model: `models/${model}`,
+            content: { parts: [{ text: t }] },
+          })),
+        }),
+        signal: AbortSignal.timeout(EMBED_TIMEOUT_MS * 4),
+      });
+    } catch (err: any) {
+      if (attempt === MAX_ATTEMPTS - 1) {
+        throw new GeminiUnavailableError(`Gemini batch embedding failed: ${err?.message || String(err)}`);
+      }
+      await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
+      continue;
+    }
+
+    if (response.ok) break;
+    lastStatus = response.status;
+    lastBody = await response.text().catch(() => '');
+    // Only a rate limit is worth retrying. A 402 (drained balance) or a 400
+    // (bad request) will not fix itself.
+    if (response.status === 429 && attempt < MAX_ATTEMPTS - 1) {
+      const waitMs = 3000 * Math.pow(2, attempt);
+      console.warn(`[gemini/embedding] batch rate-limited (429), retrying in ${waitMs}ms (attempt ${attempt + 1}/${MAX_ATTEMPTS})`);
+      await new Promise(r => setTimeout(r, waitMs));
+      continue;
+    }
+    break;
+  }
+
+  if (!response || !response.ok) {
+    const body = lastBody;
+    const status = lastStatus || response?.status || 0;
+    // ORDER MATTERS. The free tier's quota message is
+    //   "You exceeded your current quota, please check your plan and billing details."
+    // which contains the word "billing" — so a body-text regex for /billing/i
+    // misreads a RATE LIMIT as a drained balance. Judge on the STATUS first.
+    if (status === 429 || /rate.?limit|too many requests/i.test(body)) {
+      throw new GeminiUnavailableError('Gemini rate-limited. Knowledge embedding temporarily unavailable.');
+    }
+    if (status === 402 || /payment.?required|prepayment|insufficient.?(credit|balance|funds)/i.test(body)) {
+      throw new GeminiUnavailableError('Gemini credits depleted. Top up the Google AI Studio balance to resume knowledge embedding.');
+    }
+    throw new GeminiUnavailableError(`Gemini batch embedding failed (HTTP ${status}): ${body.replace(/\s+/g, ' ').slice(0, 150)}`);
+  }
+
+  const body = await response.json() as { embeddings?: { values: number[] }[] };
+  const vectors = body.embeddings || [];
+  if (vectors.length !== texts.length) {
+    throw new GeminiUnavailableError(`Gemini batch embedding returned ${vectors.length} vectors for ${texts.length} inputs.`);
+  }
+  recordEmbedUsage(texts.join('\n').slice(0, 20000), ctx);
+  return vectors.map(v => v.values);
 }
 
 /**

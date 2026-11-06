@@ -10,6 +10,8 @@ import { exportWorker } from './export.worker.js';
 import { publishWorker } from './publish.worker.js';
 import { visualRefsBackfillWorker } from './visualRefsBackfill.worker.js';
 import { creativeVideoWorker } from './creativeVideo.worker.js';
+import { knowledgeEmbedBackfillWorker } from './knowledgeEmbedBackfill.worker.js';
+import { knowledgeRechunkWorker } from './knowledgeRechunk.worker.js';
 
 export function initJobWorkers(): void {
   registerWorkerType('generate-month', generateMonthWorker);
@@ -20,5 +22,7 @@ export function initJobWorkers(): void {
   registerWorkerType('publish', publishWorker);
   registerWorkerType('visual-refs-backfill', visualRefsBackfillWorker);
   registerWorkerType('creative-video', creativeVideoWorker);
-  console.log('[queue] job workers registered (generate-month, export, publish, visual-refs-backfill, creative-video)');
+  registerWorkerType('knowledge-embed-backfill', knowledgeEmbedBackfillWorker);
+  registerWorkerType('knowledge-rechunk', knowledgeRechunkWorker);
+  console.log('[queue] job workers registered (generate-month, export, publish, visual-refs-backfill, creative-video, knowledge-embed-backfill, knowledge-rechunk)');
 }
