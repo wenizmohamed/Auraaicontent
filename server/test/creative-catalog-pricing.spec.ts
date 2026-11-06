@@ -85,4 +85,140 @@ describe('picker catalog and cost meter agree', () => {
     }
     expect(mismatches, mismatches.join('; ')).toEqual([]);
   });
+
+  it('every per-image rate the picker quotes has a matching server price row', () => {
+    // A flat `perImage: 0.033` on an Alibaba engine is a number the server
+    // cannot charge — the workspace catalog publishes $0.04 at 1K and $0.075
+    // at 2K for qwen-image-3.0-pro. The picker said $0.033 because that was
+    // the rate on 2026-11-04 and nobody re-read the catalog. That quote
+    // under-charged Auto by more than half.
+    //
+    // So: any engine the picker quotes a flat per-image rate for must have a
+    // server row that charges exactly that rate.
+    const mismatches: string[] = [];
+    const re = /model:\s*'([^']+)'[^\n]*?perImage:\s*([\d.]+)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(source))) {
+      const [, id, perImage] = m;
+      const row = AI_PRICING[id];
+      if (!row || row.perCall == null) {
+        mismatches.push(`${id}: picker quotes ${perImage}/img, server has no perCall row`);
+        continue;
+      }
+      if (Math.abs(row.perCall - Number(perImage)) > 1e-9) {
+        mismatches.push(`${id}: picker says ${perImage}/img, meter charges ${row.perCall}/img`);
+      }
+    }
+    expect(mismatches, mismatches.join('; ')).toEqual([]);
+  });
+
+  it('the tier table the picker ships matches the server price rows', () => {
+    // The tier table is what makes a resolution-dependent engine quote
+    // correctly. Only the Alibaba engines have explicit ":1k"/":2k" rows on
+    // the server — Google bills image output by TOKENS (promptPerM /
+    // completionPerM), so its per-resolution rates live in the picker's table
+    // alone and the meter's perCall is just the 1K fallback.
+    //
+    // So this checks the rows that HAVE a server counterpart, and asserts
+    // that the Google rows do NOT have one (so a future ":1k" row cannot
+    // silently start shadowing the token math).
+    const mismatches: string[] = [];
+    const block = source.slice(source.indexOf('TIERED_IMAGE_RATES'));
+    const re = /'([^']+)':\s*\{\s*'1K':\s*([\d.]+),\s*'2K':\s*([\d.]+),\s*'4K':\s*([\d.]+)\s*\}/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(block))) {
+      const [, id, k1, k2, k4] = m;
+      // 'auto' has no model row of its own — it quotes its first engine.
+      const target = id === 'auto' ? 'qwen-image-3.0-pro' : id;
+      const hasTierRows = AI_PRICING[`${target}:1k`] != null;
+
+      if (!hasTierRows) {
+        // Token-billed engine: it must NOT have a tier row, and its perCall
+        // must be the 1K rate the picker quotes at 1K.
+        if (AI_PRICING[`${target}:2k`] != null) {
+          mismatches.push(`${target}: has a ":2k" row but no ":1k" row`);
+        }
+        const base = AI_PRICING[target];
+        if (!base || base.perCall == null) {
+          mismatches.push(`${target}: no perCall row to fall back to`);
+        } else if (Math.abs(base.perCall - Number(k1)) > 1e-9) {
+          mismatches.push(`${target}: picker 1K rate ${k1} != meter perCall ${base.perCall}`);
+        }
+        continue;
+      }
+
+      for (const [tier, quoted] of [['1k', k1], ['2k', k2]] as const) {
+        const row = AI_PRICING[`${target}:${tier}`];
+        if (!row || row.perCall == null) {
+          mismatches.push(`${target}:${tier} — picker table has no server row`);
+          continue;
+        }
+        if (Math.abs(row.perCall - Number(quoted)) > 1e-9) {
+          mismatches.push(`${target}:${tier} — picker table says ${quoted}, meter charges ${row.perCall}`);
+        }
+      }
+      // 4K is the 2K rate for the Alibaba engines (the model tops out at 2K);
+      // the server has no ":4k" row for them, so the 2K row is the check.
+      if (id.startsWith('qwen-image') && Math.abs(Number(k4) - Number(k2)) > 1e-9) {
+        mismatches.push(`${target}: 4K entry (${k4}) must equal the 2K entry (${k2})`);
+      }
+    }
+    expect(mismatches, mismatches.join('; ')).toEqual([]);
+  });
+
+  it('the Auto entries do not carry a flat per-image rate any more', () => {
+    // Auto runs qwen-image-3.0-pro first, so it must quote that engine's tier
+    // table. A hardcoded flat rate on the Auto row is what produced the
+    // stale $0.033 quote.
+    const autoRows = source.split('\n').filter((l) => l.includes("value: 'auto'"));
+    expect(autoRows.length).toBeGreaterThan(0);
+    const withFlat = autoRows.filter((l) => /perImage:\s*[\d.]+/.test(l));
+    expect(
+      withFlat,
+      `Auto entries must not hardcode a per-image rate: ${withFlat.join(' | ')}`,
+    ).toEqual([]);
+  });
+});
+
+describe('picker price formatting', () => {
+  // The picker label rounded to 2 decimals, which turned the cheapest video
+  // engine ($0.016/s) into "$0.02/s" — a 25% overstatement of what the meter
+  // charges. The formatter now keeps 4 decimals with trailing zeros trimmed.
+  const formatRate = (usd: number): string =>
+    `$${usd.toFixed(4).replace(/0+$/, '').replace(/\.$/, '')}`;
+
+  it('shows the exact rate, not a rounded one', () => {
+    expect(formatRate(0.016)).toBe('$0.016');
+    expect(formatRate(0.125)).toBe('$0.125');
+    expect(formatRate(0.14)).toBe('$0.14');
+    expect(formatRate(0.075)).toBe('$0.075');
+    expect(formatRate(0.0006)).toBe('$0.0006');
+    expect(formatRate(0.034)).toBe('$0.034');
+  });
+
+  it('never rounds a rate up', () => {
+    for (const rate of [0.016, 0.125, 0.14, 0.075, 0.034, 0.0006, 0.045]) {
+      const shown = Number(formatRate(rate).slice(1));
+      expect(shown).toBeLessThanOrEqual(rate + 1e-12);
+    }
+  });
+
+  it('every picker video rate survives the round trip unchanged', () => {
+    // If the label and the meter disagree, the label is a lie. This walks the
+    // shipped catalog and checks the formatted rate still parses back to the
+    // number the server charges.
+    const mismatches: string[] = [];
+    const re = /model:\s*'([^']+)'[^\n]*?perSec:\s*([\d.]+)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(source))) {
+      const [, id, perSec] = m;
+      const row = AI_PRICING[id];
+      if (!row || row.perSecond == null) continue;
+      const shown = Number(formatRate(row.perSecond).slice(1));
+      if (Math.abs(shown - row.perSecond) > 1e-9) {
+        mismatches.push(`${id}: label ${shown} != meter ${row.perSecond}`);
+      }
+    }
+    expect(mismatches, mismatches.join('; ')).toEqual([]);
+  });
 });

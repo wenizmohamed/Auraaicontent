@@ -25,7 +25,7 @@ import { readJson } from '../lib/safe-storage';
 import { motionUI, motionBase } from '../lib/motion';
 import { FeatureCard } from '../components/ui';
 import { ModelPicker } from '../components/creative/ModelPicker';
-import { MODELS_BY_SECTION, modelOption, validModelValue, imageRequestFor, durationsFor, perSecondRate, effectivePerImage, isTieredImage, sizesFor, type CreativeSection } from '../lib/creative-models';
+import { MODELS_BY_SECTION, modelOption, validModelValue, imageRequestFor, durationsFor, perSecondRate, effectivePerImage, isTieredImage, sizesFor, formatRate, type CreativeSection } from '../lib/creative-models';
 import { usePricingVisibility } from '../lib/use-pricing-visibility';
 
 // ─── Prompt History ─────────────────────────────────────────────
@@ -1468,7 +1468,7 @@ export default function CreativeTools() {
               showPrice={canSeePricing}
               priceFor={(o) => {
                 const per = effectivePerImage(o, effectiveImageSize);
-                return per ? `$${per.toFixed(3).replace(/0$/, '')}/img` : '';
+                return per ? `${formatRate(per)}/img` : '';
               }}
               priceNote={o => (isTieredImage(o) && effectiveImageSize !== '1K' ? `at ${effectiveImageSize}` : '')}
             />
@@ -1491,9 +1491,9 @@ export default function CreativeTools() {
                     onClick={() => setImageSize(s.value)}
                     title={s.hint}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-                      imageSize === s.value ? '' : 'bg-white/[0.03] text-zinc-500 border-white/[0.06] hover:border-white/[0.1]'
+                      effectiveImageSize === s.value ? '' : 'bg-white/[0.03] text-zinc-500 border-white/[0.06] hover:border-white/[0.1]'
                     }`}
-                    style={imageSize === s.value
+                    style={effectiveImageSize === s.value
                       ? { background: 'var(--color-accent-subtle)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' }
                       : undefined}
                   >
@@ -1511,7 +1511,13 @@ export default function CreativeTools() {
               value={videoPick.value}
               onChange={setVideoModel}
               showPrice={canSeePricing}
-              priceFor={(o) => (o.perSec ? `$${perSecondRate(o, videoRes).toFixed(2)}/s` : '')}
+              priceFor={(o) => {
+                if (!o.perSec) return '';
+                // Three decimals: the cheapest engine is $0.016/s, and
+                // toFixed(2) rounded that to $0.02 — a 25% overstatement
+                // of the rate the meter actually charges.
+                return `${formatRate(perSecondRate(o, videoRes))}/s`;
+              }}
               footnote={videoRes === '1080p' ? 'Rates shown at 1080p.' : undefined}
             />
           )}

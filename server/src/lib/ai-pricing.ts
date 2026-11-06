@@ -53,10 +53,10 @@ export const AI_PRICING: Record<string, PricePoint> = {
   // nano-banana-pro = gemini-3-pro-image family: $2.00 in / $120 image-out
   // per M ≈ $0.134 per 1K/2K image, $0.24 at 4K (Google card 2026-08-14).
   'nano-banana-pro-preview':           { promptPerM: 2.00, completionPerM: 120.00, perCall: 0.15 },
-  'gemini-3-pro-image':                { promptPerM: 2.00, completionPerM: 120.00, perCall: 0.14 },  // GA premium image (ultra tier)
+  'gemini-3-pro-image':                { promptPerM: 2.00, completionPerM: 120.00, perCall: 0.134 },  // GA premium image (ultra tier)
   // gemini-3-pro-image-preview: same card as the GA id ($2 in / $120 image-out
   // per M ≈ $0.134 per 1K/2K image). Live 2026-11-05.
-  'gemini-3-pro-image-preview':        { promptPerM: 2.00, completionPerM: 120.00, perCall: 0.14 },
+  'gemini-3-pro-image-preview':        { promptPerM: 2.00, completionPerM: 120.00, perCall: 0.134 },
   // gemini-3.1-flash-lite-image (Nano Banana 2 Lite): $0.25 in / $30 image-out
   // per M = $0.0336 per 1K image. Live 2026-11-05.
   'gemini-3.1-flash-lite-image':       { promptPerM: 0.25, completionPerM: 30.00, perCall: 0.034 },

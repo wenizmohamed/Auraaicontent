@@ -64,6 +64,11 @@ export interface ModelOption {
 const TIERED_IMAGE_RATES: Record<string, { '1K': number; '2K': number; '4K': number }> = {
   'qwen-image-3.0-pro': { '1K': 0.04, '2K': 0.075, '4K': 0.075 },
   'qwen-image-3.0': { '1K': 0.03, '2K': 0.03, '4K': 0.03 },
+  // Auto runs qwen-image-3.0-pro first in every image section, so it quotes
+  // that engine's table. It used to carry a flat $0.033 that no longer
+  // exists on the workspace catalog — the picker was under-quoting Auto by
+  // more than half at 2K.
+  'auto': { '1K': 0.04, '2K': 0.075, '4K': 0.075 },
   'gemini-nano-banana-2.1': { '1K': 0.034, '2K': 0.050, '4K': 0.113 },
   'gemini-3-pro-image': { '1K': 0.134, '2K': 0.134, '4K': 0.24 },
 };
@@ -140,7 +145,7 @@ const Z_IMAGE_TURBO: ModelOption = {
 };
 
 export const TEXT_TO_IMAGE_MODELS: ModelOption[] = [
-  { value: 'auto', label: 'Auto', hint: 'AURA picks per prompt: Qwen Image 3.0 Pro first, Gemini and Grok on standby.', perImage: 0.033 },
+  { value: 'auto', label: 'Auto', hint: 'AURA picks per prompt: Qwen Image 3.0 Pro first, Gemini and Grok on standby.' },
   QWEN_IMAGE, QWEN_IMAGE_30, QWEN_IMAGE_21_PRO, QWEN_IMAGE_21_TURBO, Z_IMAGE_TURBO,
   WAN_IMAGE_PRO, WAN_IMAGE_FAST, GEMINI_IMAGE, GEMINI_IMAGE_ULTRA, GROK_IMAGE,
 ];
@@ -149,13 +154,13 @@ export const TEXT_TO_IMAGE_MODELS: ModelOption[] = [
 // generate + edit) and Nano Banana. Grok's edit endpoint is not enabled, and
 // Z Image Turbo's edit path rejects the request, so neither is offered here.
 export const IMAGE_EDIT_MODELS: ModelOption[] = [
-  { value: 'auto', label: 'Auto', hint: 'AURA picks: Qwen Image 3.0 Pro first, Gemini Nano Banana on standby.', perImage: 0.033 },
+  { value: 'auto', label: 'Auto', hint: 'AURA picks: Qwen Image 3.0 Pro first, Gemini Nano Banana on standby.' },
   QWEN_IMAGE, QWEN_IMAGE_21_PRO, QWEN_IMAGE_21_TURBO, GEMINI_IMAGE,
 ];
 
 // AI-detail pass in Upscale mode regenerates through one of these before scaling.
 export const UPSCALE_MODELS: ModelOption[] = [
-  { value: 'auto', label: 'Auto', hint: 'AURA picks the detail engine: Qwen Image 3.0 Pro first.', perImage: 0.033 },
+  { value: 'auto', label: 'Auto', hint: 'AURA picks the detail engine: Qwen Image 3.0 Pro first.' },
   QWEN_IMAGE, QWEN_IMAGE_30, QWEN_IMAGE_21_PRO, WAN_IMAGE_PRO, GEMINI_IMAGE, GROK_IMAGE,
 ];
 
@@ -271,7 +276,10 @@ export function imageRequestFor(section: CreativeSection, value: string): { prov
   return { provider: o.provider, ...(o.model ? { model: o.model } : {}), ...(o.quality ? { quality: o.quality } : {}) };
 }
 
-const ALL_DURATIONS = [4, 6, 8, 10, 15, 20, 30];
+/** Clip lengths the UI offers. 16 is here because the Vidu Q3 ad engine is
+ * built for a 16-second ad cut — offering only 15 would make the engine's
+ * headline promise unreachable from the picker. */
+const ALL_DURATIONS = [4, 6, 8, 10, 12, 15, 16, 20, 30];
 /** Clip lengths the engine accepts (Auto follows its primary, capped at 15s so
  *  a standby engine can still serve the clip). */
 export function durationsFor(o: ModelOption): number[] {
@@ -282,6 +290,17 @@ export function durationsFor(o: ModelOption): number[] {
 
 export function perSecondRate(o: ModelOption, res: '720p' | '1080p'): number {
   return res === '1080p' && o.perSec1080 ? o.perSec1080 : (o.perSec ?? 0);
+}
+
+/** Format a rate for the picker label. Four decimals, trailing zeros
+ *  trimmed: the rates in the catalog span $0.125/s down to $0.0006/img,
+ *  and a two-decimal format rounded them to $0.13 and $0.00 — a 4%
+ *  overstatement on one and a 100% understatement on the other. The meter
+ *  charges the exact number, so the label has to show the exact number
+ *  too, with just the trailing zeros removed. */
+export function formatRate(usd: number): string {
+  const s = usd.toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
+  return `$${s}`;
 }
 
 const ALL_IMAGE_SIZES: { label: string; value: '1K' | '2K' | '4K'; hint: string }[] = [

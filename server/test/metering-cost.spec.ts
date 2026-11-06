@@ -367,3 +367,21 @@ describe('metering: Gemini ladder rungs (2026-11-05 live catalog)', () => {
     }
   });
 });
+
+describe('metering: the Auto image quote (picker showed a stale rate)', () => {
+  // The Creative Studio "Auto" row quoted a flat $0.033 per image. That was
+  // the 2026-11-04 rate for qwen-image-3.0-pro; the workspace catalog now
+  // publishes $0.04 at 1K and $0.075 at 2K. Auto runs qwen-image-3.0-pro
+  // first in every image section, so the picker under-quoted the default
+  // choice by 56% at 2K. The picker now quotes Auto from the same tier
+  // table the meter charges from.
+  it('gemini-3-pro-image bills the Google card rate of $0.134, not $0.14', () => {
+    // $2.00 in / $120 per 1M image-out = $0.134 at 1K/2K, $0.24 at 4K.
+    expect(computeCostUsd('gemini-3-pro-image', 0, 0)).toBeCloseTo(0.134, 6);
+    expect(computeCostUsd('gemini-3-pro-image-preview', 0, 0)).toBeCloseTo(0.134, 6);
+  });
+
+  it('nano-banana-2.1 bills $0.034 at 1K', () => {
+    expect(computeCostUsd('gemini-nano-banana-2.1', 0, 0)).toBeCloseTo(0.034, 6);
+  });
+});
