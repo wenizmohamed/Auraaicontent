@@ -228,16 +228,106 @@ export const AI_PRICING: Record<string, PricePoint> = {
   'qwen-image-2.0':                    { promptPerM: 0, completionPerM: 0, perCall: 0.035 },
   'qwen-image-2.0-pro':                { promptPerM: 0, completionPerM: 0, perCall: 0.075 },
   // qwen-image-3.0-pro: the workspace price API publishes the 1K tier at
-  // $0.033/image and the 2K tier at $0.078/image (Alibaba catalog, verified
-  // 2026-11-04). The provider reports the tier it billed as
+  // $0.04/image and the 2K tier at $0.075/image (Alibaba catalog, re-read
+  // live 2026-11-06 — an earlier 0.033/0.078 pair here was wrong).
+  // The provider reports the tier it billed as
   // "qima_output_1k" / "qima_output_2k", so the provider appends the same
   // ":<tier>" suffix convention the video lane uses and each tier carries its
   // real rate. The bare id stays the 1K rate (the default size).
-  'qwen-image-3.0-pro':                { promptPerM: 0, completionPerM: 0, perCall: 0.033 },
-  'qwen-image-3.0-pro:1k':             { promptPerM: 0, completionPerM: 0, perCall: 0.033 },
-  'qwen-image-3.0-pro:2k':             { promptPerM: 0, completionPerM: 0, perCall: 0.078 },
+  'qwen-image-3.0-pro':                { promptPerM: 0, completionPerM: 0, perCall: 0.04 },
+  'qwen-image-3.0-pro:1k':             { promptPerM: 0, completionPerM: 0, perCall: 0.04 },
+  'qwen-image-3.0-pro:2k':             { promptPerM: 0, completionPerM: 0, perCall: 0.075 },
   'wan2.7-image':                      { promptPerM: 0, completionPerM: 0, perCall: 0.03 },
   'wan2.7-image-pro':                  { promptPerM: 0, completionPerM: 0, perCall: 0.075 },
+
+  // ── Alibaba image engines added 2026-11-06 (live catalog, price API) ──
+  // qwen-image-2.1-pro: $0.04 per image, one rate for every size tier, and
+  // it does BOTH generate and edit. It also handles up to 10 reference
+  // images, native transparency, and local edits (catalog, verified live
+  // against the workspace catalog on 2026-11-06).
+  'qwen-image-2.1-pro':                { promptPerM: 0, completionPerM: 0, perCall: 0.04 },
+  // qwen-image-2.1-turbo: $0.016 per image and about 3.5s to render — the
+  // cheapest engine that still does generate AND edit, so it is the draft
+  // tier for both stills and edits.
+  'qwen-image-2.1-turbo':             { promptPerM: 0, completionPerM: 0, perCall: 0.016 },
+  // qwen-image-3.0 (non-pro): the catalog publishes $0.03 at BOTH the 1K and
+  // the 2K tier, which makes it cheaper than qwen-image-3.0-pro at 1K
+  // ($0.04) and far cheaper at 2K ($0.075).
+  'qwen-image-3.0':                   { promptPerM: 0, completionPerM: 0, perCall: 0.03 },
+  'qwen-image-3.0:1k':                { promptPerM: 0, completionPerM: 0, perCall: 0.03 },
+  'qwen-image-3.0:2k':                { promptPerM: 0, completionPerM: 0, perCall: 0.03 },
+  // z-image-turbo: $0.015 per image in STANDARD mode, $0.03 with its
+  // "thinking" mode on. It is NOT a resolution tier — the catalog prices it
+  // by MODE, so the ":<tier>" suffix here means mode, not size. GENERATE
+  // ONLY: its edit path fails with "Field 'text' is required in content
+  // item", so it must never be offered in the edit section.
+  'z-image-turbo':                     { promptPerM: 0, completionPerM: 0, perCall: 0.015 },
+  'z-image-turbo:1k':                  { promptPerM: 0, completionPerM: 0, perCall: 0.015 },
+  'z-image-turbo:2k':                  { promptPerM: 0, completionPerM: 0, perCall: 0.015 },
+  'z-image-turbo:thinking':            { promptPerM: 0, completionPerM: 0, perCall: 0.03 },
+  // wan2.6-image: $0.03/image, text AND image in (so it also edits).
+  'wan2.6-image':                      { promptPerM: 0, completionPerM: 0, perCall: 0.03 },
+  'wan2.6-t2i':                        { promptPerM: 0, completionPerM: 0, perCall: 0.03 },
+  'wan2.1-t2i-turbo':                  { promptPerM: 0, completionPerM: 0, perCall: 0.025 },
+  'wan2.2-t2i-flash':                  { promptPerM: 0, completionPerM: 0, perCall: 0.025 },
+  'wan2.2-t2i-plus':                   { promptPerM: 0, completionPerM: 0, perCall: 0.05 },
+  // qwen-mt-image-2.0: $0.0006/image — a 55-language TRANSLATION engine (it
+  // rewrites text inside an image, it does not generate artwork). Priced so a
+  // call to it is never logged as $0, but it is not offered in the picker.
+  'qwen-mt-image-2.0':                 { promptPerM: 0, completionPerM: 0, perCall: 0.0006 },
+
+  // ── Alibaba video engines added 2026-11-06 ──────────────────────
+  // The Vidu family is the strongest on-brand addition: the catalog
+  // describes viduq3-ad_reference2video as "a dedicated model for the
+  // advertising industry" that produces a 16-second ad video with
+  // marketing-grade cuts, intelligent camera movement and direct audio
+  // output. Rates are per second, 720p then 1080p.
+  'vidu/viduq3-ad_reference2video':            { promptPerM: 0, completionPerM: 0, perSecond: 0.125 },
+  'vidu/viduq3-ad_reference2video:1080p':      { promptPerM: 0, completionPerM: 0, perSecond: 0.150 },
+  'vidu/viduq3-mix_reference2video':           { promptPerM: 0, completionPerM: 0, perSecond: 0.120 },
+  'vidu/viduq3-mix_reference2video:1080p':     { promptPerM: 0, completionPerM: 0, perSecond: 0.145 },
+  'vidu/viduq3-drama_reference2video':         { promptPerM: 0, completionPerM: 0, perSecond: 0.140 },
+  'vidu/viduq3-drama_reference2video:1080p':   { promptPerM: 0, completionPerM: 0, perSecond: 0.140 },
+  // vidu q2 pro fast image-to-video: $0.016/s at 720p, $0.032/s at 1080p —
+  // the cheapest clip in the catalog by a wide margin.
+  'vidu/viduq2-pro-fast_img2video':            { promptPerM: 0, completionPerM: 0, perSecond: 0.016 },
+  'vidu/viduq2-pro-fast_img2video:1080p':      { promptPerM: 0, completionPerM: 0, perSecond: 0.032 },
+  // wan2.6-i2v-flash: $0.05/s at 720p, $0.075/s at 1080p, and a $0.025/s
+  // no-audio tier.
+  'wan2.6-i2v-flash':                         { promptPerM: 0, completionPerM: 0, perSecond: 0.05 },
+  'wan2.6-i2v-flash:1080p':                   { promptPerM: 0, completionPerM: 0, perSecond: 0.075 },
+  'wan2.6-i2v-flash-noaudio':                 { promptPerM: 0, completionPerM: 0, perSecond: 0.025 },
+  'wan2.6-i2v-flash-noaudio:1080p':           { promptPerM: 0, completionPerM: 0, perSecond: 0.0375 },
+  // wan2.6-r2v-flash: the same rates as the i2v flash tier.
+  'wan2.6-r2v-flash':                         { promptPerM: 0, completionPerM: 0, perSecond: 0.05 },
+  'wan2.6-r2v-flash:1080p':                   { promptPerM: 0, completionPerM: 0, perSecond: 0.075 },
+  // wan2.2-i2v-flash: $0.015/s at 480p, $0.036/s at 720p.
+  'wan2.2-i2v-flash':                         { promptPerM: 0, completionPerM: 0, perSecond: 0.036 },
+  'wan2.2-i2v-flash:480p':                    { promptPerM: 0, completionPerM: 0, perSecond: 0.015 },
+  // wan2.5 t2v/i2v preview: $0.05/s at 480p, $0.10/s at 720p, $0.15/s at 1080p.
+  'wan2.5-t2v-preview':                       { promptPerM: 0, completionPerM: 0, perSecond: 0.10 },
+  'wan2.5-t2v-preview:480p':                  { promptPerM: 0, completionPerM: 0, perSecond: 0.05 },
+  'wan2.5-t2v-preview:1080p':                 { promptPerM: 0, completionPerM: 0, perSecond: 0.15 },
+  'wan2.5-i2v-preview':                       { promptPerM: 0, completionPerM: 0, perSecond: 0.10 },
+  'wan2.5-i2v-preview:480p':                  { promptPerM: 0, completionPerM: 0, perSecond: 0.05 },
+  'wan2.5-i2v-preview:1080p':                 { promptPerM: 0, completionPerM: 0, perSecond: 0.15 },
+  // wan2.7-videoedit: $0.10/s at 720p, $0.15/s at 1080p. Takes a VIDEO plus
+  // text, so it is a video-to-video edit, not a still animation.
+  'wan2.7-videoedit':                         { promptPerM: 0, completionPerM: 0, perSecond: 0.10 },
+  'wan2.7-videoedit:1080p':                   { promptPerM: 0, completionPerM: 0, perSecond: 0.15 },
+  // happyhorse-1.0-video-edit: $0.14/s at 720p, $0.24/s at 1080p.
+  'happyhorse-1.0-video-edit':                { promptPerM: 0, completionPerM: 0, perSecond: 0.14 },
+  'happyhorse-1.0-video-edit:1080p':          { promptPerM: 0, completionPerM: 0, perSecond: 0.24 },
+  // happyhorse-1.0 t2v/i2v/r2v: the 1.0 generation is $0.14/s at 720p and
+  // $0.24/s at 1080p — dearer than the 1.1 at 1080p ($0.18/s). These are
+  // ladder rungs, and the boot guard only audits *_MODEL env vars, so an
+  // unpriced rung logs $0 silently.
+  'happyhorse-1.0-t2v':                       { promptPerM: 0, completionPerM: 0, perSecond: 0.14 },
+  'happyhorse-1.0-t2v:1080p':                 { promptPerM: 0, completionPerM: 0, perSecond: 0.24 },
+  'happyhorse-1.0-i2v':                       { promptPerM: 0, completionPerM: 0, perSecond: 0.14 },
+  'happyhorse-1.0-i2v:1080p':                 { promptPerM: 0, completionPerM: 0, perSecond: 0.24 },
+  'happyhorse-1.0-r2v':                       { promptPerM: 0, completionPerM: 0, perSecond: 0.14 },
+  'happyhorse-1.0-r2v:1080p':                 { promptPerM: 0, completionPerM: 0, perSecond: 0.24 },
 };
 
 // Every model name that has an explicit price. Used by the coverage guard

@@ -122,18 +122,44 @@ const QWEN_IMAGE_NOTES = `ENGINE NOTES (Qwen-Image): strongest at poster-style l
 
 const GROK_IMAGE_NOTES = `ENGINE NOTES (Grok Imagine): favors concise, punchy, subject-first prompts. Lead with the hero subject in the first clause and stay near the LOWER word bound. Bold stylization lands well; long meandering prose drifts.`;
 
-const WAN_VIDEO_NOTES = `ENGINE NOTES (Wan text-to-video): VISUAL-ONLY engine. Omit the SFX/Ambient/dialogue sentences entirely and spend those words on motion instead. One continuous scene: explicit motion verbs for the subject AND one clear camera move. 60–100 words.`;
+// Z-Image Turbo tops the open-source text-to-image benchmark and is listed as
+// the current No.1 open-source model on Artificial Analysis. It is strong at
+// bilingual Chinese-English text rendering, so it gets its own note.
+const Z_IMAGE_NOTES = `ENGINE NOTES (Z-Image Turbo): photo-real output and strong bilingual Chinese-English text rendering. Put any copy in double quotes exactly as written and say where it sits in the frame. Describe the scene plainly and concretely; this engine rewards specificity over poetry. 50–90 words.`;
 
+// Qwen-Image 2.1 takes up to TEN reference images and supports LOCAL edits
+// ("change only the shoe"). Its note has to say so, otherwise the enhancer
+// writes a full redraw instruction and the edit lands wrong.
+const QWEN_IMAGE_21_NOTES = `ENGINE NOTES (Qwen-Image 2.1): this engine takes up to ten reference images and understands LOCAL edits. When the user asks to change one thing, name exactly which element changes and then say explicitly that everything else must stay identical (product, logo, colours, framing, lighting). Refer to the source as "Image 1". 50–100 words.`;
+
+const WAN_VIDEO_NOTES = `ENGINE NOTES (Wan text-to-video): VISUAL-ONLY engine. Omit the SFX/Ambient/dialogue sentences entirely and spend those words on motion instead. One continuous scene: explicit motion verbs for the subject AND one clear camera move. 60–100 words.`;
 const GROK_VIDEO_NOTES = `ENGINE NOTES (Grok Imagine video): favors short, high-energy cinematic beats. 60–90 words, one bold camera move, strong stylization. Keep the SFX and Ambient clauses to a few words each.`;
+
+// Wan 3.0 renders sound in the SAME pass as the picture (the catalog lists
+// Audio as a response modality), and Wan 2.6 Flash supports stable
+// multi-speaker dialogue. The plain Wan note above tells the enhancer to
+// delete every audio line, so the sound capability was never used on the
+// engines that actually have it.
+const WAN3_VIDEO_NOTES = `ENGINE NOTES (Wan 3.0): renders sound in the same pass as the picture, so KEEP the audio lines but make them specific and short. Name one camera move, one subject action, and one setting. If the brief implies speech, give the line in the user's own language in double quotes and mark who says it. End with "SFX: <sound>." 60–110 words.`;
+
+// Vidu Q3 is an advertising engine: it wants shot-by-shot beats with the
+// subject locked, not one continuous take.
+const VIDU_VIDEO_NOTES = `ENGINE NOTES (Vidu Q3): an advertising engine. Write ONE 16-second cut as two or three numbered beats, each starting with a camera move ("[00:00] slow push-in on the product, ..."). The product stays identical in every beat, lit consistently. Name the marketing beat you are building toward (reveal, benefit, call to action). Sound lines are welcome and should name the mood. 70–120 words.`;
 
 function engineDialect(mode: EnhanceMode, engine?: string, model?: string): string {
   const m = (model || '').toLowerCase();
   const isVideo = mode === 'text-to-video' || mode === 'image-to-video';
   if (isVideo) {
+    // Order matters: the Vidu family is checked before the Wan rule, because
+    // a Vidu pick must never inherit Wan's visual-only instruction.
+    if (m.includes('vidu')) return VIDU_VIDEO_NOTES;
+    if (/wan3\./.test(m)) return WAN3_VIDEO_NOTES;
     if (m.includes('wan') || (!m && engine === 'dashscope')) return WAN_VIDEO_NOTES;
     if (m.includes('grok') || (!m && engine === 'xai')) return GROK_VIDEO_NOTES;
     return ''; // Veo / omni. VIDEO_SYSTEM is already Veo-native
   }
+  if (m.includes('z-image')) return Z_IMAGE_NOTES;
+  if (m.includes('qwen-image-2.1')) return QWEN_IMAGE_21_NOTES;
   if (m.includes('qwen') || m.includes('wan') || (!m && engine === 'dashscope')) return QWEN_IMAGE_NOTES;
   if (m.includes('grok') || (!m && engine === 'xai')) return GROK_IMAGE_NOTES;
   return NANO_IMAGE_NOTES; // gemini default (nano-banana)

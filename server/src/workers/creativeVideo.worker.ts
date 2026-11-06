@@ -61,7 +61,7 @@ export async function creativeVideoWorker(j: Job): Promise<any> {
   // 95% so there's always visible motion until real completion.
   const m: string = j.data.model || '';
   // Auto (no model) now lands on wan3.0-video first, so it paces like Wan.
-  const expectedSec = (!m || /wan|happyhorse/i.test(m)) ? 170
+  const expectedSec = (!m || /wan|happyhorse|vidu/i.test(m)) ? 170
     : /omni/i.test(m) ? 55
     : /grok/i.test(m) ? 110
     : 80;
@@ -95,11 +95,11 @@ export async function creativeVideoWorker(j: Job): Promise<any> {
       {
         orgId: j.data.orgId, userId: j.data.userId, jobId: j.id, clientId: j.data.clientId,
         // Explicit engine → provider. Each picked video engine deterministically
-        // pins its provider (Veo/Omni→gemini, Grok→xai, Wan→dashscope) so the
-        // user's choice is honoured regardless of tier.
+        // pins its provider (Veo/Omni→gemini, Grok→xai, Wan/HappyHorse/Vidu→
+        // dashscope) so the user's choice is honoured regardless of tier.
         ...(j.data.model && /veo|omni|imagen|gemini/i.test(j.data.model) ? { preferredProvider: 'gemini' as const }
           : j.data.model && /grok/i.test(j.data.model) ? { preferredProvider: 'xai' as const }
-          : j.data.model && /wan|qwen|happyhorse/i.test(j.data.model) ? { preferredProvider: 'dashscope' as const } : {}),
+          : j.data.model && /wan|qwen|happyhorse|vidu/i.test(j.data.model) ? { preferredProvider: 'dashscope' as const } : {}),
       },
     );
     const generationId = await historyService.record({

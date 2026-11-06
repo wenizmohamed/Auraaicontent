@@ -227,14 +227,22 @@ async function generateImage(req: ImageRequest, model: string): Promise<Provider
   if (!url) throw new Error(`DashScope image: no image in response (${JSON.stringify(data).slice(0, 200)})`);
 
   // Billing tier: Alibaba prices qwen-image-3.0-pro per image and the tier
-  // changes the price ($0.033 at 1K, $0.078 at 2K). The response reports the
+  // changes the price ($0.04 at 1K, $0.075 at 2K). The response reports the
   // tier it billed ("qima_output_1k" / "qima_output_2k"), so carry it in the
   // model id with the same ":<tier>" suffix convention the video lane uses —
   // otherwise every 2K image bills at the 1K rate.
-  const tier = /2k/i.test(String(data?.usage?.output_image_type || '')) ? '2k' : '1k';
+  //
+  // ONLY append the suffix when the response actually reports a tier. The
+  // engines with a flat per-image price (qwen-image-2.1-*, wan2.7-image,
+  // z-image-turbo) do not report one, and appending a blind ":1k" would
+  // produce a model id that has no price row — a silent $0 on every one of
+  // those renders.
+  const outputTier = String(data?.usage?.output_image_type || '');
+  const tier = /2k/i.test(outputTier) ? '2k' : /1k/i.test(outputTier) ? '1k' : '';
+  const billedModel = tier ? `${model}:${tier}` : model;
 
   return {
-    provider: 'dashscope', model: `${model}:${tier}`, output: { url },
+    provider: 'dashscope', model: billedModel, output: { url },
     latencyMs: Date.now() - start, fallbackUsed: false,
   };
 }
@@ -289,7 +297,16 @@ async function analyze(req: AnalysisRequest): Promise<ProviderResult<object>> {
 // DASHSCOPE_VIDEO_API_KEY / DASHSCOPE_VIDEO_BASE_URL remain as OPTIONAL
 // overrides for the rare case where video lives on a different workspace than
 // text. Unset → the main DASHSCOPE_API_KEY + DASHSCOPE_BASE_URL are used.
-const VIDEO_MODEL_RE = /^(wan[\d.]+-(video|t2v|i2v|r2v)|happyhorse-[\d.]+-(t2v|i2v|r2v))/i;
+// The matcher must accept EVERY id the picker can send, or the pick is
+// silently replaced by the default engine. Three families were missing:
+//  - "wan3.0-video-prime" / "wan3.0-video"      (all-in-one)
+//  - "wan2.7-videoedit"                          (video-to-video edit)
+//  - "happyhorse-1.0-video-edit"                 (note the dash: video-edit,
+//                                                not the video-edit of the t2v
+//                                                family, and NOT "videoedit")
+//  - "vidu/viduq3-*_reference2video"             (namespaced, so it starts
+//                                                with "vidu/" and not "wan")
+const VIDEO_MODEL_RE = /^(wan[\d.]+-(video|t2v|i2v|r2v|videoedit)|happyhorse-[\d.]+-(t2v|i2v|r2v|video-edit)|vidu\/)/i;
 // wan3.0-video-prime: same capabilities, measured 31s vs 66s for a 4s 720P clip (2026-10-17).
 const DEFAULT_VIDEO_MODEL = process.env.DASHSCOPE_VIDEO_MODEL || 'wan3.0-video-prime';
 
@@ -300,6 +317,12 @@ type VideoMode = 't2v' | 'i2v' | 'r2v';
 // with product references its -r2v sibling. wan3.0-video is all-in-one.
 function resolveVideoModel(requested: string | undefined, mode: VideoMode): string {
   const base = requested && VIDEO_MODEL_RE.test(requested) ? requested : DEFAULT_VIDEO_MODEL;
+  // Models that serve ONE fixed shape — they must be forwarded untouched.
+  // Appending a -t2v/-i2v/-r2v suffix to them builds an id that does not
+  // exist ("happyhorse-1.0-video-edit-t2v"), which 404s on submit.
+  if (base.includes('/')) return base;                                   // vidu/viduq3-*
+  if (/-video-edit$/i.test(base)) return base;                           // happyhorse-1.0-video-edit
+  if (/-videoedit$/i.test(base)) return base;                            // wan2.7-videoedit
   if (/-video(-prime)?$/i.test(base)) return base;        // wan3.0-video(-prime) handles every mode
   const family = base.replace(/-(t2v|i2v|r2v)$/i, '');
   return `${family}-${mode}`;
@@ -316,9 +339,13 @@ function resolveVideoModel(requested: string | undefined, mode: VideoMode): stri
 // other families. Each entry must serve the same INPUT shape, so a t2v pick
 // falls back through the t2v family and the all-in-one wan3.0 models.
 const VIDEO_FALLBACKS: Record<VideoMode, string[]> = {
-  t2v: ['wan3.0-video', 'wan2.7-t2v', 'wan2.6-t2v', 'happyhorse-1.1-t2v', 'happyhorse-1.0-t2v'],
-  i2v: ['wan3.0-video', 'wan2.7-i2v', 'happyhorse-1.1-i2v', 'happyhorse-1.0-i2v'],
-  r2v: ['wan3.0-video', 'wan2.7-r2v', 'happyhorse-1.1-r2v', 'happyhorse-1.0-r2v'],
+  // NOTE: wan2.6-t2v and wan2.6-i2v are deliberately NOT here — the workspace
+  // catalog publishes NO price block for them (empty prices array), so a rung
+  // on either would bill $0 for every clip. Only priced engines get a rung.
+  t2v: ['wan3.0-video', 'wan2.7-t2v', 'happyhorse-1.1-t2v', 'happyhorse-1.0-t2v'],
+  i2v: ['wan3.0-video', 'wan2.7-i2v', 'wan2.6-i2v-flash', 'happyhorse-1.1-i2v', 'happyhorse-1.0-i2v', 'vidu/viduq2-pro-fast_img2video'],
+  r2v: ['wan3.0-video', 'wan2.7-r2v', 'wan2.6-r2v-flash', 'happyhorse-1.1-r2v', 'happyhorse-1.0-r2v',
+        'vidu/viduq3-ad_reference2video', 'vidu/viduq3-mix_reference2video'],
 };
 
 /** The models to try, in order, for this call. */
@@ -386,6 +413,10 @@ async function generateVideoOnModel(
 ): Promise<ProviderResult<{ url: string }>> {
   const isWan3 = /^wan3\.\d+-video/i.test(model);
   const isHappyHorse = /^happyhorse/i.test(model);
+  // The Vidu family (vidu/viduq3-*, vidu/viduq2-*) has its OWN parameter
+  // contract: it takes "size" as "720P"/"1080P" and rejects the Wan 3.0
+  // "resolution" key. Sending the Wan shape to Vidu is a 400.
+  const isVidu = /^vidu\//i.test(model);
 
   // End frame: only wan3.0 does first+last on this plan — the rest 503 so the
   // router hands bookended clips to Veo.
@@ -393,8 +424,10 @@ async function generateVideoOnModel(
     throw new AiProviderError('dashscope', 'video', `${model} has no end-frame mode — Veo handles bookended clips`, 503);
   }
   // Reference images: wan3.0 takes up to 10, HappyHorse/Wan2.7 r2v take several;
-  // cap at 10 and let the API validate the rest.
-  const refMedia = refs.slice(0, 10).map(r => ({ type: 'reference_image', url: `data:${r.mimeType};base64,${r.base64}` }));
+  // cap at 10 and let the API validate the rest. ViduQ3-Mix takes 1 to 7, so
+  // it gets its own cap.
+  const maxRefs = isVidu ? 7 : 10;
+  const refMedia = refs.slice(0, maxRefs).map(r => ({ type: 'reference_image', url: `data:${r.mimeType};base64,${r.base64}` }));
   const frameMedia = srcB64
     ? [
         { type: 'first_frame', url: `data:${srcMime};base64,${srcB64}` },
@@ -404,6 +437,11 @@ async function generateVideoOnModel(
   const input: Record<string, unknown> = { prompt: req.prompt };
   if (mode === 'r2v') input.media = refMedia;
   else if (mode === 'i2v') input.media = frameMedia;
+  // The native endpoint accepts a real negative_prompt field on the input
+  // (the wanx/vidu family reads it). It was never plumbed through, so the
+  // user's "avoid" terms were silently dropped on every Alibaba clip.
+  const neg = (req.negativePrompt || '').trim();
+  if (neg) input.negative_prompt = neg.slice(0, 500);
 
   // Resolution: 1080p only when asked (double the per-second price); 720P default.
   const resolution: '480P' | '720P' | '1080P' = req.resolution === '1080p' ? '1080P' : '720P';
@@ -421,6 +459,16 @@ async function generateVideoOnModel(
       audio: process.env.DASHSCOPE_VIDEO_AUDIO !== 'false',
       watermark: false,
       prompt_extend: process.env.DASHSCOPE_PROMPT_EXTEND === 'true',
+      ...(mode === 't2v' ? { ratio } : {}),
+    };
+  } else if (isVidu) {
+    // Vidu takes "size" (720P/1080P) rather than Wan 3.0's "resolution",
+    // and it always wants a duration and the aspect. The ViduQ3 ad model is
+    // built for a 16-second ad cut, so the duration is clamped to its range
+    // instead of the Wan range.
+    parameters = {
+      size: resolution === '1080P' ? '1080P' : '720P',
+      duration: Math.min(Math.max(wanted, 4), 16),
       ...(mode === 't2v' ? { ratio } : {}),
     };
   } else if (isHappyHorse) {

@@ -25,7 +25,7 @@ import { readJson } from '../lib/safe-storage';
 import { motionUI, motionBase } from '../lib/motion';
 import { FeatureCard } from '../components/ui';
 import { ModelPicker } from '../components/creative/ModelPicker';
-import { MODELS_BY_SECTION, modelOption, validModelValue, imageRequestFor, durationsFor, perSecondRate, effectivePerImage, isTieredImage, type CreativeSection } from '../lib/creative-models';
+import { MODELS_BY_SECTION, modelOption, validModelValue, imageRequestFor, durationsFor, perSecondRate, effectivePerImage, isTieredImage, sizesFor, type CreativeSection } from '../lib/creative-models';
 import { usePricingVisibility } from '../lib/use-pricing-visibility';
 
 // ─── Prompt History ─────────────────────────────────────────────
@@ -161,12 +161,11 @@ const ASPECT_RATIOS_VIDEO = [
 ];
 
 // Output resolution for image modes (nano-banana 1K/2K/4K; Imagen clamps 4K→2K;
-// Grok/DashScope ignore it). 1K default keeps latency/cost unchanged.
-const IMAGE_SIZES = [
-  { label: '1K', value: '1K' as const, hint: 'Fast' },
-  { label: '2K', value: '2K' as const, hint: 'High detail' },
-  { label: '4K', value: '4K' as const, hint: 'Max quality' },
-];
+// the Alibaba image models publish only a 1K and a 2K price tier and clamp
+// anything larger). The list of sizes the USER can pick lives in
+// lib/creative-models.ts (sizesFor), because each engine renders a different
+// range and offering 4K to an engine that cannot render it is a broken
+// promise. 1K default keeps latency/cost unchanged.
 function aspectRatiosFor(mode: Mode) {
   return mode === 'text-to-video' || mode === 'image-to-video'
     ? ASPECT_RATIOS_VIDEO
@@ -282,6 +281,15 @@ export default function CreativeTools() {
   const imageSection = imageSectionFor(mode);
   const videoPick = modelOption(videoSection, validModelValue(videoSection, videoModel));
   const isVeoPick = /^veo/.test(videoPick.value);
+  const imagePick = modelOption(imageSection, validModelValue(imageSection, imageModel));
+  // The picked engine decides which still sizes exist. Alibaba's image models
+  // publish only a 1K and a 2K tier, so a 4K pick on one of them would
+  // silently render 2K while the price panel quoted the 4K rate. The size the
+  // request actually sends is therefore clamped to the engine's own range.
+  const imageSizes = sizesFor(imagePick);
+  const effectiveImageSize = imageSizes.some((s) => s.value === imageSize)
+    ? imageSize
+    : (imageSizes[imageSizes.length - 1]?.value ?? '1K');
 
   // Result + lifecycle
   const [loading, setLoading] = useState(false);
@@ -521,7 +529,7 @@ export default function CreativeTools() {
           enhance: promptBoost !== 'off',
           ...(promptBoost !== 'off' ? { depth: promptBoost } : {}),
           ...(stylePackId ? { stylePackId } : {}),
-          ...(imageSize !== '1K' ? { imageSize } : {}),
+          ...(effectiveImageSize !== '1K' ? { imageSize: effectiveImageSize } : {}),
           ...imageRequestFor(imageSection, imageModel),
         };
         const n = Math.max(1, imageCount);
@@ -547,7 +555,7 @@ export default function CreativeTools() {
           safeZone,
           enhance: promptBoost !== 'off',
           ...(promptBoost !== 'off' ? { depth: promptBoost } : {}),
-          ...(imageSize !== '1K' ? { imageSize } : {}),
+          ...(effectiveImageSize !== '1K' ? { imageSize: effectiveImageSize } : {}),
           ...(extraRefs.length ? { referenceImages: extraRefs.map(r => ({ base64: r.base64, mimeType: r.mimeType, role: r.role })) } : {}),
           ...imageRequestFor(imageSection, imageModel),
         });
@@ -1459,21 +1467,24 @@ export default function CreativeTools() {
               onChange={setImageModel}
               showPrice={canSeePricing}
               priceFor={(o) => {
-                const per = effectivePerImage(o, imageSize);
+                const per = effectivePerImage(o, effectiveImageSize);
                 return per ? `$${per.toFixed(3).replace(/0$/, '')}/img` : '';
               }}
-              priceNote={o => (isTieredImage(o) && imageSize !== '1K' ? 'at 2K' : '')}
+              priceNote={o => (isTieredImage(o) && effectiveImageSize !== '1K' ? `at ${effectiveImageSize}` : '')}
             />
           )}
 
           {/* Image output resolution — nano-banana renders natively at 1K/2K/4K
-              (Imagen clamps 4K→2K; Grok/DashScope ignore). Hidden in Upscale
-              mode — Target size (up to 16K) replaces it there. */}
+              (Imagen clamps 4K→2K; the Alibaba engines publish only a 1K and
+              a 2K price tier, so a 4K button on them would promise a picture
+              the engine cannot render). The control lists only the sizes the
+              picked engine actually produces. Hidden in Upscale mode —
+              Target size (up to 16K) replaces it there. */}
           {!isVideoMode && mode !== 'upscale' && (
             <div>
               <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Resolution</label>
               <div className="flex items-center gap-2 mt-2">
-                {IMAGE_SIZES.map(s => (
+                {imageSizes.map(s => (
                   <button
                     key={s.value}
                     type="button"

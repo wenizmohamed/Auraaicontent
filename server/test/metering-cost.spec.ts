@@ -242,22 +242,26 @@ describe('metering: no double billing anywhere in the pricing table', () => {
   );
 });
 
-describe('metering: Alibaba workspace tiers (2026-11-04 price catalog)', () => {
+describe('metering: Alibaba workspace tiers (price catalog, re-read live 2026-11-06)', () => {
   // The Alibaba workspace price API publishes per-image and per-second tiers.
   // The provider reports the tier it billed and the model id carries it as a
   // ":<tier>" suffix, so the meter must resolve the tier, not the bare id.
-  // Rates below come from the workspace catalog, verified live 2026-11-04.
+  //
+  // The qwen-image-3.0-pro rates were CORRECTED on 2026-11-06: the catalog
+  // publishes $0.04 at 1K and $0.075 at 2K, not the $0.033 / $0.078 that
+  // this file recorded from the 2026-11-04 read. The old numbers over-billed
+  // the 1K tier by 21% and over-billed the 2K tier by 4%.
 
-  it('qwen-image-3.0-pro at 1K bills $0.033 per image', () => {
-    expect(computeCostUsd('qwen-image-3.0-pro:1k')).toBeCloseTo(0.033, 6);
+  it('qwen-image-3.0-pro at 1K bills $0.04 per image', () => {
+    expect(computeCostUsd('qwen-image-3.0-pro:1k')).toBeCloseTo(0.04, 6);
   });
 
-  it('qwen-image-3.0-pro at 2K bills $0.078 per image', () => {
-    expect(computeCostUsd('qwen-image-3.0-pro:2k')).toBeCloseTo(0.078, 6);
+  it('qwen-image-3.0-pro at 2K bills $0.075 per image', () => {
+    expect(computeCostUsd('qwen-image-3.0-pro:2k')).toBeCloseTo(0.075, 6);
   });
 
   it('the bare qwen-image-3.0-pro id bills the 1K rate', () => {
-    expect(computeCostUsd('qwen-image-3.0-pro')).toBeCloseTo(0.033, 6);
+    expect(computeCostUsd('qwen-image-3.0-pro')).toBeCloseTo(0.04, 6);
   });
 
   it('a 2K image costs more than a 1K image', () => {
