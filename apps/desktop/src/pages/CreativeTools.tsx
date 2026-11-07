@@ -258,10 +258,13 @@ export default function CreativeTools() {
   // Image output resolution (nano native; 2K default — same per-image price
   // as 1K on the meter, visibly better detail for ad creative).
   const [imageSize, setImageSize] = useState<'1K' | '2K' | '4K'>('2K');
-  // Prompt boost dial (2026-07-14, Dri's feedback "enhancer completely changed
-  // my prompt"): replaces the binary auto-enhance toggle. 'raw' = translate
-  // only, never reinterprets wording; 'medium' = full model-aware rewrite
-  // (old ON); 'high' = max art direction; 'off' = send exact words untouched.
+  // Prompt rewriting dial (2026-07-14, Dri's feedback "enhancer completely
+  // changed my prompt"): replaces the binary auto-enhance toggle. 'raw' =
+  // translate only, never reinterprets wording; 'medium' = full model-aware
+  // rewrite (old ON); 'high' = max art direction; 'off' = send exact words
+  // untouched. Renamed from "Prompt boost" 2026-11-07 because the name did
+  // not say what the control does, and it sat next to the direction picker
+  // looking like a second version of the same thing.
   const [promptBoost, setPromptBoost] = useState<'off' | 'raw' | 'medium' | 'high'>('medium');
   // TRUE when the prompt in the textarea IS a direction the user accepted from
   // the picker. The server would rewrite it again on every generate, and a

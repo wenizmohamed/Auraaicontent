@@ -289,7 +289,7 @@ export function dialectKeyFor(option: ModelOption, section: CreativeSection): Di
 
 /** What Auto says. The server resolves Auto from the router's own env, so the
  *  picker cannot name an engine that might not run. */
-export const AUTO_DIALECT_HINT = 'AURA picks the engine, then writes the prompt for it. You can pin one engine below to see the exact style.';
+export const AUTO_DIALECT_HINT = 'AURA picks the engine, then writes the prompt for it. Pick one specific engine to see the exact style.';
 
 /** The one line under the engine picker: what kind of prompt this engine wants. */
 export function dialectHintFor(option: ModelOption, section: CreativeSection): string {
