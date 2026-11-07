@@ -1,12 +1,15 @@
-// Golden-input tests for the Alibaba engines added to the Creative Studio
-// catalog on 2026-11-06.
+// Golden-input tests for the Alibaba engines in the Creative Studio catalog.
 //
 // Every expected number here is computed BY HAND from the workspace price
 // API (GET /api/v1/models?page_size=200 on the DashScope workspace host),
-// re-read live on 2026-11-06. The catalog publishes:
-//   images  — "image_number" per image, OR "qima_output_1k"/"qima_output_2k"
-//             per tier (the tier only exists for the Qwen-Image 3.0 family)
-//   video   — "video_ratio_720p" / "video_ratio_1080p" per second
+// re-read live on 2026-11-07 against the two LIVE workspaces: EU (text +
+// image) and Tokyo (video). The catalog publishes:
+//   images  — "图片生成" per image, OR "1K图片生成"/"2K图片生成" per tier
+//             (the tier only exists for the Qwen-Image 3.0 family)
+//   video   — "视频生成（720P）" / "视频生成（1080P）" per second
+//
+// The EU and Tokyo catalogs AGREE on every model they share, so one table
+// serves both.
 //
 // These rows exist because the boot guard only audits *_MODEL env vars: a
 // hardcoded provider rung that nobody priced silently logs $0, and video is
@@ -15,29 +18,29 @@
 import { describe, it, expect } from 'vitest';
 import { computeCostUsd, isPriced } from '../src/lib/ai-pricing';
 
-describe('metering: Alibaba image engines added 2026-11-06', () => {
-  it('qwen-image-2.1-pro: $0.04 per image, flat at every size', () => {
-    // catalog: image_number = 0.04
-    expect(computeCostUsd('qwen-image-2.1-pro', 0, 0)).toBeCloseTo(0.04, 6);
+describe('metering: Alibaba image engines (EU catalog, re-read live 2026-11-07)', () => {
+  it('qwen-image-2.1-pro: $0.035333 per image, flat at every size', () => {
+    // EU catalog: 图片生成 = 0.035333
+    expect(computeCostUsd('qwen-image-2.1-pro', 0, 0)).toBeCloseTo(0.035333, 6);
   });
 
-  it('qwen-image-2.1-turbo: $0.016 per image', () => {
-    // catalog: image_number = 0.016
-    expect(computeCostUsd('qwen-image-2.1-turbo', 0, 0)).toBeCloseTo(0.016, 6);
+  it('qwen-image-2.1-turbo: $0.014133 per image', () => {
+    // EU catalog: 图片生成 = 0.014133
+    expect(computeCostUsd('qwen-image-2.1-turbo', 0, 0)).toBeCloseTo(0.014133, 6);
   });
 
-  it('qwen-image-3.0: $0.03 per image at BOTH the 1K and 2K tier', () => {
-    // catalog: qima_output_1k = 0.03, qima_output_2k = 0.03
-    expect(computeCostUsd('qwen-image-3.0', 0, 0)).toBeCloseTo(0.03, 6);
-    expect(computeCostUsd('qwen-image-3.0:1k', 0, 0)).toBeCloseTo(0.03, 6);
-    expect(computeCostUsd('qwen-image-3.0:2k', 0, 0)).toBeCloseTo(0.03, 6);
+  it('qwen-image-3.0: $0.024754 per image at BOTH the 1K and 2K tier', () => {
+    // EU catalog: 1K图片生成 = 0.024754, 2K图片生成 = 0.024754
+    expect(computeCostUsd('qwen-image-3.0', 0, 0)).toBeCloseTo(0.024754, 6);
+    expect(computeCostUsd('qwen-image-3.0:1k', 0, 0)).toBeCloseTo(0.024754, 6);
+    expect(computeCostUsd('qwen-image-3.0:2k', 0, 0)).toBeCloseTo(0.024754, 6);
   });
 
-  it('qwen-image-3.0-pro: $0.04 at 1K and $0.075 at 2K (the tier really differs)', () => {
-    // catalog: qima_output_1k = 0.04, qima_output_2k = 0.075
-    expect(computeCostUsd('qwen-image-3.0-pro', 0, 0)).toBeCloseTo(0.04, 6);
-    expect(computeCostUsd('qwen-image-3.0-pro:1k', 0, 0)).toBeCloseTo(0.04, 6);
-    expect(computeCostUsd('qwen-image-3.0-pro:2k', 0, 0)).toBeCloseTo(0.075, 6);
+  it('qwen-image-3.0-pro: $0.03438 at 1K and $0.068761 at 2K (the tier really differs)', () => {
+    // EU catalog: 1K图片生成 = 0.03438, 2K图片生成 = 0.068761
+    expect(computeCostUsd('qwen-image-3.0-pro', 0, 0)).toBeCloseTo(0.03438, 6);
+    expect(computeCostUsd('qwen-image-3.0-pro:1k', 0, 0)).toBeCloseTo(0.03438, 6);
+    expect(computeCostUsd('qwen-image-3.0-pro:2k', 0, 0)).toBeCloseTo(0.068761, 6);
   });
 
   it('z-image-turbo: $0.015 standard, $0.03 thinking', () => {
@@ -46,10 +49,10 @@ describe('metering: Alibaba image engines added 2026-11-06', () => {
     expect(computeCostUsd('z-image-turbo:thinking', 0, 0)).toBeCloseTo(0.03, 6);
   });
 
-  it('wan2.6-image and wan2.6-t2i: $0.03 per image', () => {
-    // catalog: image_number = 0.03
-    expect(computeCostUsd('wan2.6-image', 0, 0)).toBeCloseTo(0.03, 6);
-    expect(computeCostUsd('wan2.6-t2i', 0, 0)).toBeCloseTo(0.03, 6);
+  it('wan2.6-image and wan2.6-t2i: $0.028671 per image', () => {
+    // EU catalog: 图片生成 = 0.028671
+    expect(computeCostUsd('wan2.6-image', 0, 0)).toBeCloseTo(0.028671, 6);
+    expect(computeCostUsd('wan2.6-t2i', 0, 0)).toBeCloseTo(0.028671, 6);
   });
 
   it('qwen-mt-image-2.0 (translation engine): $0.0006 per image', () => {
@@ -58,7 +61,7 @@ describe('metering: Alibaba image engines added 2026-11-06', () => {
   });
 });
 
-describe('metering: Alibaba video engines added 2026-11-06', () => {
+describe('metering: Alibaba video engines (Tokyo catalog, re-read live 2026-11-07)', () => {
   it('vidu Q3 Ad: $0.125/s at 720p, $0.15/s at 1080p', () => {
     // catalog: video_ratio_720p = 0.125, video_ratio_1080p = 0.15
     expect(computeCostUsd('vidu/viduq3-ad_reference2video', 0, 0, 1, 16)).toBeCloseTo(2.00, 6);
@@ -106,27 +109,34 @@ describe('metering: Alibaba video engines added 2026-11-06', () => {
     expect(computeCostUsd('wan2.5-t2v-preview:1080p', 0, 0, 1, 8)).toBeCloseTo(1.20, 6);
   });
 
-  it('wan2.7-videoedit: $0.10/s at 720p, $0.15/s at 1080p', () => {
-    expect(computeCostUsd('wan2.7-videoedit', 0, 0, 1, 10)).toBeCloseTo(1.00, 6);
-    expect(computeCostUsd('wan2.7-videoedit:1080p', 0, 0, 1, 10)).toBeCloseTo(1.50, 6);
+  it('wan2.7-videoedit: $0.086012/s at 720p, $0.143353/s at 1080p', () => {
+    // Tokyo catalog: 视频生成（720P）= 0.086012, 视频生成（1080P）= 0.143353
+    expect(computeCostUsd('wan2.7-videoedit', 0, 0, 1, 10)).toBeCloseTo(0.86012, 6);
+    expect(computeCostUsd('wan2.7-videoedit:1080p', 0, 0, 1, 10)).toBeCloseTo(1.43353, 6);
   });
 
-  it('happyhorse-1.0-video-edit: $0.14/s at 720p, $0.24/s at 1080p', () => {
-    expect(computeCostUsd('happyhorse-1.0-video-edit', 0, 0, 1, 10)).toBeCloseTo(1.40, 6);
-    expect(computeCostUsd('happyhorse-1.0-video-edit:1080p', 0, 0, 1, 10)).toBeCloseTo(2.40, 6);
+  it('happyhorse-1.0-video-edit: $0.123769/s at 720p, $0.220034/s at 1080p', () => {
+    expect(computeCostUsd('happyhorse-1.0-video-edit', 0, 0, 1, 10)).toBeCloseTo(1.23769, 6);
+    expect(computeCostUsd('happyhorse-1.0-video-edit:1080p', 0, 0, 1, 10)).toBeCloseTo(2.20034, 6);
   });
 
   it('happyhorse-1.0 generation rungs are priced (dearer than 1.1 at 1080p)', () => {
-    // 1.0: 720p 0.14, 1080p 0.24. 1.1: 720p 0.14, 1080p 0.18.
-    expect(computeCostUsd('happyhorse-1.0-t2v', 0, 0, 1, 10)).toBeCloseTo(1.40, 6);
-    expect(computeCostUsd('happyhorse-1.0-t2v:1080p', 0, 0, 1, 10)).toBeCloseTo(2.40, 6);
-    expect(computeCostUsd('happyhorse-1.0-i2v', 0, 0, 1, 10)).toBeCloseTo(1.40, 6);
-    expect(computeCostUsd('happyhorse-1.0-r2v', 0, 0, 1, 10)).toBeCloseTo(1.40, 6);
+    // Tokyo catalog: 1.0 is 720p 0.123769, 1080p 0.220034.
+    // 1.1 is 720p 0.123769, 1080p 0.165026.
+    expect(computeCostUsd('happyhorse-1.0-t2v', 0, 0, 1, 10)).toBeCloseTo(1.23769, 6);
+    expect(computeCostUsd('happyhorse-1.0-t2v:1080p', 0, 0, 1, 10)).toBeCloseTo(2.20034, 6);
+    expect(computeCostUsd('happyhorse-1.0-i2v', 0, 0, 1, 10)).toBeCloseTo(1.23769, 6);
+    expect(computeCostUsd('happyhorse-1.0-r2v', 0, 0, 1, 10)).toBeCloseTo(1.23769, 6);
   });
 });
 
 describe('metering: every Alibaba engine the picker offers is priced', () => {
   it('the image engines in the Creative Studio catalog all have a price row', () => {
+    // This list is the picker as of 2026-11-07. The engines that exist on no
+    // live workspace (z-image-turbo, wan2.7-image, wan2.7-image-pro) were
+    // removed from the picker — offering an engine that 403s is a broken
+    // promise — but they still carry a price row so the SERVER chain can
+    // pick them up the day the entitlement returns.
     for (const m of [
       'qwen-image-3.0-pro', 'qwen-image-3.0', 'qwen-image-2.1-pro', 'qwen-image-2.1-turbo',
       'z-image-turbo', 'wan2.7-image-pro', 'wan2.7-image',
@@ -150,24 +160,26 @@ describe('metering: every Alibaba engine the picker offers is priced', () => {
   it('every rung of the DashScope intra-provider video ladder is priced', () => {
     // These are hardcoded rungs in dashscope.provider.ts — the boot guard
     // only audits *_MODEL env vars, so an unpriced rung logs $0 silently.
-    // wan2.6-t2v / wan2.6-i2v are absent on purpose: the catalog publishes
-    // no price block for them, so they are not ladder rungs.
+    //
+    // The list mirrors the ladder EXACTLY as of 2026-11-07: the dead Vidu
+    // and wan2.6-*-flash rungs were removed, so they are no longer here.
     for (const m of [
       'wan3.0-video', 'wan2.7-t2v', 'happyhorse-1.1-t2v', 'happyhorse-1.0-t2v',
-      'wan2.7-i2v', 'wan2.6-i2v-flash', 'happyhorse-1.1-i2v', 'happyhorse-1.0-i2v',
-      'vidu/viduq2-pro-fast_img2video',
-      'wan2.7-r2v', 'wan2.6-r2v-flash', 'happyhorse-1.1-r2v', 'happyhorse-1.0-r2v',
-      'vidu/viduq3-ad_reference2video', 'vidu/viduq3-mix_reference2video',
+      'wan2.7-i2v', 'happyhorse-1.1-i2v', 'happyhorse-1.0-i2v',
+      'wan2.7-r2v', 'happyhorse-1.1-r2v', 'happyhorse-1.0-r2v',
     ]) {
       expect(isPriced(m)).toBe(true);
     }
   });
 
-  it('the catalog publishes NO price for wan2.6-t2v / wan2.6-i2v, so they are not rungs', () => {
-    // Guard against someone re-adding them to the ladder: the workspace
-    // catalog returns an EMPTY prices array for both, so a clip on either
-    // would be metered at $0.
-    expect(isPriced('wan2.6-t2v')).toBe(false);
-    expect(isPriced('wan2.6-i2v')).toBe(false);
+  it('wan2.6-t2v / wan2.6-i2v are priced but are NOT ladder rungs', () => {
+    // The EU catalog DOES publish a price for both now ($0.10/s 720P,
+    // $0.15/s 1080P), so they are priced — but the provider does not speak
+    // their payload contract (wan2.6-i2v wants `input.img_url`, not
+    // `input.media`; wan2.6-r2v wants `reference_video_urls`), so they
+    // stay off the ladder. A rung there would submit a malformed request
+    // and then bill the wrong thing.
+    expect(isPriced('wan2.6-t2v')).toBe(true);
+    expect(isPriced('wan2.6-i2v')).toBe(true);
   });
 });

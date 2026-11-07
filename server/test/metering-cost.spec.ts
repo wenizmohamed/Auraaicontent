@@ -34,9 +34,11 @@ describe('metering: text models (token math)', () => {
     expect(computeCostUsd('grok-4.7', 100_000, 50_000)).toBeCloseTo(0.5, 6);
   });
 
-  it('qwen3.8-max: 1M prompt + 1M completion = $8.00', () => {
-    // 1M / 1M * 2.00 = 2.00 ; 1M / 1M * 6.00 = 6.00 ; total 8.00
-    expect(computeCostUsd('qwen3.8-max', 1_000_000, 1_000_000)).toBeCloseTo(8.0, 6);
+  it('qwen3.8-max: 1M prompt + 1M completion = $6.601', () => {
+    // Alibaba EU catalog, re-read live 2026-11-07:
+    // 1M / 1M * 1.65 = 1.65 ; 1M / 1M * 4.951 = 4.951 ; total 6.601
+    // (The old Singapore card was $2.00 / $6.00 = $8.00.)
+    expect(computeCostUsd('qwen3.8-max', 1_000_000, 1_000_000)).toBeCloseTo(6.601, 6);
   });
 
   it('gemini-3.1-pro-preview: 500k prompt + 250k completion = $4.00', () => {
@@ -148,39 +150,44 @@ describe('metering: video per-second pricing', () => {
 
   // Alibaba Token Plan engines (primary since 2026-10-17). Per-second BY
   // RESOLUTION; the provider reports the tier as a ":<res>" suffix.
-  it('wan3.0-video (720P baseline) 8s = $0.80', () => {
-    // 0.10/s * 8s = 0.80
-    expect(computeCostUsd('wan3.0-video', 0, 0, 1, 8)).toBeCloseTo(0.80, 6);
+  it('wan3.0-video (720P baseline) 8s = $0.660104', () => {
+    // Tokyo catalog 2026-11-07: 0.082513/s * 8s = 0.660104
+    expect(computeCostUsd('wan3.0-video', 0, 0, 1, 8)).toBeCloseTo(0.660104, 6);
   });
 
-  it('wan3.0-video-prime (720P, Auto default) 4s = $0.56', () => {
-    // 0.14/s * 4s = 0.56
-    expect(computeCostUsd('wan3.0-video-prime', 0, 0, 1, 4)).toBeCloseTo(0.56, 6);
+  it('wan3.0-video-prime (720P, Auto default) 4s = $0.508796', () => {
+    // Tokyo catalog 2026-11-07: 0.127199/s * 4s = 0.508796
+    expect(computeCostUsd('wan3.0-video-prime', 0, 0, 1, 4)).toBeCloseTo(0.508796, 6);
   });
 
-  it('wan3.0-video:1080p 8s = $1.60 (double the 720P rate)', () => {
-    // 0.20/s * 8s = 1.60
-    expect(computeCostUsd('wan3.0-video:1080p', 0, 0, 1, 8)).toBeCloseTo(1.60, 6);
+  it('wan3.0-video-prime (720P, Auto default) 8s = $1.017592', () => {
+    // 0.127199/s * 8s = 1.017592
+    expect(computeCostUsd('wan3.0-video-prime', 0, 0, 1, 8)).toBeCloseTo(1.017592, 6);
   });
 
-  it('wan3.0-video:480p 30s = $1.50 (longest clip, cheapest tier)', () => {
-    // 0.05/s * 30s = 1.50
-    expect(computeCostUsd('wan3.0-video:480p', 0, 0, 1, 30)).toBeCloseTo(1.50, 6);
+  it('wan3.0-video:1080p 8s = $1.3202 (double the 720P rate)', () => {
+    // Tokyo catalog 2026-11-07: 0.165025/s * 8s = 1.3202
+    expect(computeCostUsd('wan3.0-video:1080p', 0, 0, 1, 8)).toBeCloseTo(1.3202, 6);
   });
 
-  it('happyhorse-1.1-t2v 5s = $0.70', () => {
-    // 0.14/s * 5s = 0.70
-    expect(computeCostUsd('happyhorse-1.1-t2v', 0, 0, 1, 5)).toBeCloseTo(0.70, 6);
+  it('wan3.0-video:480p 30s = $1.23768 (longest clip, cheapest tier)', () => {
+    // Tokyo catalog 2026-11-07: 0.041256/s * 30s = 1.23768
+    expect(computeCostUsd('wan3.0-video:480p', 0, 0, 1, 30)).toBeCloseTo(1.23768, 6);
   });
 
-  it('happyhorse-1.1-i2v:1080p 10s = $1.80', () => {
-    // 0.18/s * 10s = 1.80
-    expect(computeCostUsd('happyhorse-1.1-i2v:1080p', 0, 0, 1, 10)).toBeCloseTo(1.80, 6);
+  it('happyhorse-1.1-t2v 5s = $0.618845', () => {
+    // Tokyo catalog 2026-11-07: 0.123769/s * 5s = 0.618845
+    expect(computeCostUsd('happyhorse-1.1-t2v', 0, 0, 1, 5)).toBeCloseTo(0.618845, 6);
   });
 
-  it('happyhorse-1.1-r2v:480p 15s = $1.05', () => {
-    // 0.07/s * 15s = 1.05
-    expect(computeCostUsd('happyhorse-1.1-r2v:480p', 0, 0, 1, 15)).toBeCloseTo(1.05, 6);
+  it('happyhorse-1.1-i2v:1080p 10s = $1.65026', () => {
+    // Tokyo catalog 2026-11-07: 0.165026/s * 10s = 1.65026
+    expect(computeCostUsd('happyhorse-1.1-i2v:1080p', 0, 0, 1, 10)).toBeCloseTo(1.65026, 6);
+  });
+
+  it('happyhorse-1.1-r2v:480p 15s = $0.9282675', () => {
+    // Tokyo catalog 2026-11-07: 0.0618845/s * 15s = 0.9282675
+    expect(computeCostUsd('happyhorse-1.1-r2v:480p', 0, 0, 1, 15)).toBeCloseTo(0.9282675, 6);
   });
 });
 
@@ -242,26 +249,43 @@ describe('metering: no double billing anywhere in the pricing table', () => {
   );
 });
 
-describe('metering: Alibaba workspace tiers (price catalog, re-read live 2026-11-06)', () => {
+describe('metering: Alibaba workspace tiers (price catalog, re-read live 2026-11-07)', () => {
   // The Alibaba workspace price API publishes per-image and per-second tiers.
   // The provider reports the tier it billed and the model id carries it as a
   // ":<tier>" suffix, so the meter must resolve the tier, not the bare id.
   //
-  // The qwen-image-3.0-pro rates were CORRECTED on 2026-11-06: the catalog
-  // publishes $0.04 at 1K and $0.075 at 2K, not the $0.033 / $0.078 that
-  // this file recorded from the 2026-11-04 read. The old numbers over-billed
-  // the 1K tier by 21% and over-billed the 2K tier by 4%.
+  // The rates were RE-BASED on 2026-11-07 onto the two live workspaces: EU
+  // (text + image) and Tokyo (video). The Singapore workspace that the old
+  // numbers came from is billing-dead, and its catalog published a different
+  // price sheet. The EU and Tokyo catalogs AGREE on every model they share,
+  // so one table serves both.
+  //
+  // The old Singapore card was qwen-image-3.0-pro $0.04/$0.075 and
+  // qwen3.8-max $2.00/$6.00; the live card is $0.03438/$0.068761 and
+  // $1.65/$4.951.
 
-  it('qwen-image-3.0-pro at 1K bills $0.04 per image', () => {
-    expect(computeCostUsd('qwen-image-3.0-pro:1k')).toBeCloseTo(0.04, 6);
+  it('qwen-image-3.0-pro at 1K bills $0.03438 per image', () => {
+    // EU catalog 2026-11-07: 1K image generation = $0.03438
+    expect(computeCostUsd('qwen-image-3.0-pro:1k')).toBeCloseTo(0.03438, 6);
   });
 
-  it('qwen-image-3.0-pro at 2K bills $0.075 per image', () => {
-    expect(computeCostUsd('qwen-image-3.0-pro:2k')).toBeCloseTo(0.075, 6);
+  it('qwen-image-3.0-pro at 2K bills $0.068761 per image', () => {
+    // EU catalog 2026-11-07: 2K image generation = $0.068761
+    expect(computeCostUsd('qwen-image-3.0-pro:2k')).toBeCloseTo(0.068761, 6);
   });
 
   it('the bare qwen-image-3.0-pro id bills the 1K rate', () => {
-    expect(computeCostUsd('qwen-image-3.0-pro')).toBeCloseTo(0.04, 6);
+    expect(computeCostUsd('qwen-image-3.0-pro')).toBeCloseTo(0.03438, 6);
+  });
+
+  it('qwen-image-3.0 (non-pro) bills $0.024754 at BOTH tiers', () => {
+    // The EU catalog publishes the same rate at 1K and 2K, so a bigger frame
+    // costs no more on this engine than on the 1K of the pro model.
+    expect(computeCostUsd('qwen-image-3.0:1k')).toBeCloseTo(0.024754, 6);
+    expect(computeCostUsd('qwen-image-3.0:2k')).toBeCloseTo(0.024754, 6);
+    expect(computeCostUsd('qwen-image-3.0:2k')).toBeLessThan(
+      computeCostUsd('qwen-image-3.0-pro:2k'),
+    );
   });
 
   it('a 2K image costs more than a 1K image', () => {
@@ -270,28 +294,50 @@ describe('metering: Alibaba workspace tiers (price catalog, re-read live 2026-11
     );
   });
 
-  it('wan2.7-t2v at 1080P bills $0.15 per second (720P is $0.10)', () => {
-    expect(computeCostUsd('wan2.7-t2v', 0, 0, 1, 4)).toBeCloseTo(0.4, 6);
-    expect(computeCostUsd('wan2.7-t2v:1080p', 0, 0, 1, 4)).toBeCloseTo(0.6, 6);
+  it('wan2.7-t2v bills the Tokyo rate per second (720P $0.086012, 1080P $0.143353)', () => {
+    // Tokyo catalog 2026-11-07: 0.086012/s at 720P, 0.143353/s at 1080P
+    expect(computeCostUsd('wan2.7-t2v', 0, 0, 1, 4)).toBeCloseTo(0.344048, 6);
+    expect(computeCostUsd('wan2.7-t2v:1080p', 0, 0, 1, 4)).toBeCloseTo(0.573412, 6);
   });
 
   it('wan3.0-video-prime honours the resolution tier it was billed at', () => {
-    // 4s at 480P ($0.068/s) = $0.272 ; at 720P ($0.14/s) = $0.56 ;
-    // at 1080P ($0.28/s) = $1.12
-    expect(computeCostUsd('wan3.0-video-prime:480p', 0, 0, 1, 4)).toBeCloseTo(0.272, 6);
-    expect(computeCostUsd('wan3.0-video-prime', 0, 0, 1, 4)).toBeCloseTo(0.56, 6);
-    expect(computeCostUsd('wan3.0-video-prime:1080p', 0, 0, 1, 4)).toBeCloseTo(1.12, 6);
+    // Tokyo catalog 2026-11-07: 4s at 480P ($0.0636/s) = $0.2544 ;
+    // at 720P ($0.127199/s) = $0.508796 ; at 1080P ($0.254399/s) = $1.017596
+    expect(computeCostUsd('wan3.0-video-prime:480p', 0, 0, 1, 4)).toBeCloseTo(0.2544, 6);
+    expect(computeCostUsd('wan3.0-video-prime', 0, 0, 1, 4)).toBeCloseTo(0.508796, 6);
+    expect(computeCostUsd('wan3.0-video-prime:1080p', 0, 0, 1, 4)).toBeCloseTo(1.017596, 6);
   });
 
-  it('every Alibaba video family the picker offers is priced', () => {
+  it('every Alibaba engine the picker offers is priced', () => {
     // The Creative Studio engine picker offers these ids. An unpriced one
     // logs a $0 UsageEvent, and the boot guard only audits *_MODEL env vars,
     // so hardcoded picker rungs must be priced by hand.
+    //
+    // The list matches the picker exactly as of 2026-11-07 — the engines that
+    // exist on NO live workspace were removed from the picker, and the ones
+    // below are the ones it still shows.
     for (const m of [
       'wan3.0-video', 'wan3.0-video-prime',
       'wan2.7-t2v', 'wan2.7-i2v', 'wan2.7-r2v',
       'happyhorse-1.1-t2v', 'happyhorse-1.1-i2v', 'happyhorse-1.1-r2v',
-      'qwen-image-3.0-pro', 'wan2.7-image', 'wan2.7-image-pro',
+      'qwen-image-3.0-pro', 'qwen-image-3.0', 'qwen-image-2.1-pro', 'qwen-image-2.1-turbo',
+    ]) {
+      expect(isPriced(m)).toBe(true);
+    }
+  });
+
+  it('the engines dropped from the picker still carry a price row', () => {
+    // They are gone from the PICKER (they 403 or 404 on every live
+    // workspace), but the server chain still names them as a standby. A
+    // standby rung with no price row would log $0 the day the entitlement
+    // comes back — which is exactly the silent under-billing this table
+    // exists to prevent.
+    for (const m of [
+      'wan2.7-image', 'wan2.7-image-pro', 'wan2.6-image', 'wan2.6-t2i',
+      'z-image-turbo', 'wan2.6-i2v-flash', 'wan2.6-r2v-flash',
+      'vidu/viduq2-pro-fast_img2video', 'vidu/viduq3-ad_reference2video',
+      'vidu/viduq3-mix_reference2video', 'vidu/viduq3-drama_reference2video',
+      'gemini-omni-flash-preview', 'grok-imagine-video-1.5',
     ]) {
       expect(isPriced(m)).toBe(true);
     }

@@ -7,8 +7,10 @@
 //   server/src/services/providers/ai-router.ts  (chain order per task)
 //   server/src/services/providers/dashscope.provider.ts (Alibaba model ids)
 //   server/src/lib/ai-pricing.ts (every rate quoted here)
-// Re-verified live 2026-11-07 against the LIVE Alibaba workspaces and the
-// Google Vertex AI project.
+// Re-verified live 2026-11-07 against the LIVE Alibaba workspaces: EU for
+// text + image, Tokyo for video. Every rate below is the number the
+// workspace catalog publishes — not an estimate and not carried over from
+// the old, now-dead Singapore card.
 //
 // The Google entries pin VERTEX, not the Developer API. The Developer API key
 // is billing-dead (402 "prepayment credits are depleted" on every model), but
@@ -72,13 +74,16 @@ export interface ModelOption {
  * price shown must be the one that engine actually bills.
  */
 const TIERED_IMAGE_RATES: Record<string, { '1K': number; '2K': number; '4K': number }> = {
-  'qwen-image-3.0-pro': { '1K': 0.04, '2K': 0.075, '4K': 0.075 },
-  'qwen-image-3.0': { '1K': 0.03, '2K': 0.03, '4K': 0.03 },
+  // Alibaba EU catalog, read live 2026-11-07:
+  //   qwen-image-3.0-pro -> 1K $0.03438, 2K $0.068761
+  //   qwen-image-3.0    -> $0.024754 at BOTH tiers (so big frames cost no more)
+  'qwen-image-3.0-pro': { '1K': 0.03438, '2K': 0.068761, '4K': 0.068761 },
+  'qwen-image-3.0': { '1K': 0.024754, '2K': 0.024754, '4K': 0.024754 },
   // Auto runs qwen-image-3.0-pro first in every image section, so it quotes
   // that engine's table. It used to carry a flat $0.033 that no longer
   // exists on the workspace catalog — the picker was under-quoting Auto by
   // more than half at 2K.
-  'auto': { '1K': 0.04, '2K': 0.075, '4K': 0.075 },
+  'auto': { '1K': 0.03438, '2K': 0.068761, '4K': 0.068761 },
   'gemini-nano-banana-2.1': { '1K': 0.034, '2K': 0.050, '4K': 0.113 },
   'gemini-3-pro-image': { '1K': 0.134, '2K': 0.134, '4K': 0.24 },
 };
@@ -105,7 +110,7 @@ export function effectivePerImage(o: ModelOption, imageSize?: '1K' | '2K' | '4K'
 const QWEN_IMAGE: ModelOption = {
   value: 'qwen-image-3.0-pro', label: 'Qwen Image 3.0 Pro', vendor: 'Alibaba',
   hint: 'Sharp product and lifestyle stills, strong text rendering. Edits too.',
-  provider: 'dashscope', model: 'qwen-image-3.0-pro', perImage: 0.04, maxSize: '2K',
+  provider: 'dashscope', model: 'qwen-image-3.0-pro', perImage: 0.03438, maxSize: '2K',
 };
 const WAN_IMAGE_PRO: ModelOption = {
   value: 'wan2.7-image-pro', label: 'Wan 2.7 Image Pro', vendor: 'Alibaba',
@@ -115,7 +120,7 @@ const WAN_IMAGE_PRO: ModelOption = {
 const WAN_IMAGE_FAST: ModelOption = {
   value: 'wan2.7-image', label: 'Wan 2.7 Image', vendor: 'Alibaba',
   hint: 'Fast drafts for less than the Pro price.',
-  provider: 'dashscope', model: 'wan2.7-image', perImage: 0.03, maxSize: '2K',
+  provider: 'dashscope', model: 'wan2.7-image', perImage: 0.027504, maxSize: '2K',
 };
 const GEMINI_IMAGE: ModelOption = {
   value: 'gemini-flash-image', label: 'Gemini Nano Banana 2.1', vendor: 'Google',
@@ -136,17 +141,17 @@ const GROK_IMAGE: ModelOption = {
 const QWEN_IMAGE_21_PRO: ModelOption = {
   value: 'qwen-image-2.1-pro', label: 'Qwen Image 2.1 Pro', vendor: 'Alibaba',
   hint: 'One flat rate at every size. Handles edits as well as new images.',
-  provider: 'dashscope', model: 'qwen-image-2.1-pro', perImage: 0.04, maxSize: '2K',
+  provider: 'dashscope', model: 'qwen-image-2.1-pro', perImage: 0.035333, maxSize: '2K',
 };
 const QWEN_IMAGE_21_TURBO: ModelOption = {
   value: 'qwen-image-2.1-turbo', label: 'Qwen Image 2.1 Turbo', vendor: 'Alibaba',
   hint: 'Cheapest engine that still edits. Renders in about four seconds.',
-  provider: 'dashscope', model: 'qwen-image-2.1-turbo', perImage: 0.016, maxSize: '2K',
+  provider: 'dashscope', model: 'qwen-image-2.1-turbo', perImage: 0.014133, maxSize: '2K',
 };
 const QWEN_IMAGE_30: ModelOption = {
   value: 'qwen-image-3.0', label: 'Qwen Image 3.0', vendor: 'Alibaba',
   hint: 'Same price at 1K and 2K, so big frames cost no more.',
-  provider: 'dashscope', model: 'qwen-image-3.0', perImage: 0.03, maxSize: '2K',
+  provider: 'dashscope', model: 'qwen-image-3.0', perImage: 0.024754, maxSize: '2K',
 };
 const Z_IMAGE_TURBO: ModelOption = {
   value: 'z-image-turbo', label: 'Z Image Turbo', vendor: 'Alibaba',
@@ -179,24 +184,24 @@ export const UPSCALE_MODELS: ModelOption[] = [
 const WAN3_PRIME: ModelOption = {
   value: 'wan3.0-video-prime', label: 'Wan 3.0 Prime', vendor: 'Alibaba',
   hint: 'Fastest: a 4s clip in about 30s. Up to 30s with sound. Text, first frame, first and last frame, or product references.',
-  model: 'wan3.0-video-prime', perSec: 0.14, perSec1080: 0.28, minSeconds: 2, maxSeconds: 30, supports1080: true, tier: 'hd',
+  model: 'wan3.0-video-prime', perSec: 0.127199, perSec1080: 0.254399, minSeconds: 2, maxSeconds: 30, supports1080: true, tier: 'hd',
 };
 const WAN3: ModelOption = {
   value: 'wan3.0-video', label: 'Wan 3.0', vendor: 'Alibaba',
   hint: 'Same engine at the lower rate, about twice the wait. Up to 30s with sound.',
-  model: 'wan3.0-video', perSec: 0.10, perSec1080: 0.20, minSeconds: 2, maxSeconds: 30, supports1080: true, tier: 'hd',
+  model: 'wan3.0-video', perSec: 0.082513, perSec1080: 0.165025, minSeconds: 2, maxSeconds: 30, supports1080: true, tier: 'hd',
 };
 const HH_T2V: ModelOption = {
   value: 'happyhorse-1.1-t2v', label: 'HappyHorse 1.1', vendor: 'Alibaba',
   hint: 'Physically realistic motion, cinematic detail. 3 to 15s.',
-  model: 'happyhorse-1.1-t2v', perSec: 0.14, perSec1080: 0.18, minSeconds: 3, maxSeconds: 15, supports1080: true, tier: 'hd',
+  model: 'happyhorse-1.1-t2v', perSec: 0.123769, perSec1080: 0.165026, minSeconds: 3, maxSeconds: 15, supports1080: true, tier: 'hd',
 };
 const HH_I2V: ModelOption = { ...HH_T2V, value: 'happyhorse-1.1-i2v', model: 'happyhorse-1.1-i2v', hint: 'Animates your still with realistic motion. 3 to 15s.' };
 const HH_R2V: ModelOption = { ...HH_T2V, value: 'happyhorse-1.1-r2v', model: 'happyhorse-1.1-r2v', hint: 'Keeps your exact product from the reference images. 3 to 15s.' };
 const WAN27_T2V: ModelOption = {
   value: 'wan2.7-t2v', label: 'Wan 2.7', vendor: 'Alibaba',
   hint: 'Previous Wan generation. 3 to 10s, 720p.',
-  model: 'wan2.7-t2v', perSec: 0.10, minSeconds: 3, maxSeconds: 10, tier: 'draft',
+  model: 'wan2.7-t2v', perSec: 0.086012, minSeconds: 3, maxSeconds: 10, tier: 'draft',
 };
 const WAN27_I2V: ModelOption = { ...WAN27_T2V, value: 'wan2.7-i2v', model: 'wan2.7-i2v', hint: 'Previous Wan generation, first-frame animation. 3 to 10s.' };
 const WAN27_R2V: ModelOption = { ...WAN27_T2V, value: 'wan2.7-r2v', model: 'wan2.7-r2v', hint: 'Previous Wan generation, multi-reference. 3 to 10s.' };
@@ -244,19 +249,19 @@ const WAN26_I2V_FLASH: ModelOption = {
 };
 
 export const TEXT_TO_VIDEO_MODELS: ModelOption[] = [
-  { value: 'auto', label: 'Auto', hint: 'AURA picks per prompt: Wan 3.0 Prime first, Omni Flash and Grok on standby.', perSec: 0.14, perSec1080: 0.28, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
+  { value: 'auto', label: 'Auto', hint: 'AURA picks per prompt: Wan 3.0 Prime first, Omni Flash and Grok on standby.', perSec: 0.127199, perSec1080: 0.254399, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
   WAN3_PRIME, WAN3, HH_T2V, WAN27_T2V, OMNI, GROK_VIDEO,
 ];
 
 export const IMAGE_TO_VIDEO_MODELS: ModelOption[] = [
-  { value: 'auto', label: 'Auto', hint: 'AURA picks: Wan 3.0 Prime animates your frame first, Omni Flash on standby.', perSec: 0.14, perSec1080: 0.28, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
+  { value: 'auto', label: 'Auto', hint: 'AURA picks: Wan 3.0 Prime animates your frame first, Omni Flash on standby.', perSec: 0.127199, perSec1080: 0.254399, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
   WAN3_PRIME, WAN3, HH_I2V, WAN27_I2V, VIDU_FAST, WAN26_I2V_FLASH, OMNI, GROK_VIDEO,
 ];
 
 // Offered when product reference images are attached: every engine here keeps
 // the exact subject consistent.
 export const REFERENCE_VIDEO_MODELS: ModelOption[] = [
-  { value: 'auto', label: 'Auto', hint: 'AURA picks: Wan 3.0 Prime reference mode first.', perSec: 0.14, perSec1080: 0.28, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
+  { value: 'auto', label: 'Auto', hint: 'AURA picks: Wan 3.0 Prime reference mode first.', perSec: 0.127199, perSec1080: 0.254399, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
   WAN3_PRIME, WAN3, HH_R2V, WAN27_R2V, VIDU_AD, VIDU_MIX, VIDU_DRAMA,
 ];
 
@@ -302,14 +307,17 @@ export function perSecondRate(o: ModelOption, res: '720p' | '1080p'): number {
   return res === '1080p' && o.perSec1080 ? o.perSec1080 : (o.perSec ?? 0);
 }
 
-/** Format a rate for the picker label. Four decimals, trailing zeros
- *  trimmed: the rates in the catalog span $0.125/s down to $0.0006/img,
- *  and a two-decimal format rounded them to $0.13 and $0.00 — a 4%
- *  overstatement on one and a 100% understatement on the other. The meter
- *  charges the exact number, so the label has to show the exact number
- *  too, with just the trailing zeros removed. */
+/** Format a rate for the picker label. Six decimals, trailing zeros
+ *  trimmed: the rates in the catalog span $0.254399/s down to $0.0006/img,
+ *  and a two-decimal format rounded them to $0.25 and $0.00 — a 2%
+ *  overstatement on one and a 100% understatement on the other. Four
+ *  decimals was not enough either: the Alibaba video rates carry six
+ *  significant decimals ($0.127199/s) and truncating them made the label
+ *  disagree with what the meter charges. The meter charges the exact
+ *  number, so the label has to show the exact number too, with just the
+ *  trailing zeros removed. */
 export function formatRate(usd: number): string {
-  const s = usd.toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
+  const s = usd.toFixed(6).replace(/0+$/, '').replace(/\.$/, '');
   return `$${s}`;
 }
 

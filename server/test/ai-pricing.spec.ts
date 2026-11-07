@@ -66,6 +66,25 @@ const REQUIRED_MODELS = [
   'happyhorse-1.1-r2v', 'happyhorse-1.1-r2v:480p', 'happyhorse-1.1-r2v:1080p',
   // Anthropic assistant (chat.ts CLAUDE_ASSISTANT_MODEL)
   'claude-sonnet-4-20250514',
+  // ── 2026-11-07: the live Alibaba workspaces (EU text+image, Tokyo video) ──
+  // The EU/Tokyo catalogs publish these rates; every id the picker or the
+  // server ladder can emit must have a row, including the ":<res>" suffixes.
+  'qwen-image-3.0', 'qwen-image-3.0:1k', 'qwen-image-3.0:2k',
+  'qwen-image-3.0-pro:1k', 'qwen-image-3.0-pro:2k',
+  'qwen-image-2.1-pro', 'qwen-image-2.1-turbo',
+  'wan2.7-t2v:1080p', 'wan2.7-i2v:1080p', 'wan2.7-r2v:1080p',
+  'wan2.7-videoedit', 'wan2.7-videoedit:1080p',
+  'wan2.6-t2v', 'wan2.6-t2v:1080p',
+  'wan2.6-i2v', 'wan2.6-i2v:1080p',
+  'wan2.6-r2v', 'wan2.6-r2v:1080p',
+  'wan2.6-image', 'wan2.6-t2i',
+  'happyhorse-1.0-t2v', 'happyhorse-1.0-t2v:1080p',
+  'happyhorse-1.0-i2v', 'happyhorse-1.0-i2v:1080p',
+  'happyhorse-1.0-r2v', 'happyhorse-1.0-r2v:1080p',
+  'happyhorse-1.0-video-edit', 'happyhorse-1.0-video-edit:1080p',
+  // Vertex AI serves the same Gemini model ids on the same price card, so
+  // those rows must already exist (they are listed above under Gemini).
+  'gemini-3.8-flash', 'gemini-nano-banana-2.1', 'gemini-3-pro-image',
 ];
 
 describe('ai-pricing coverage', () => {

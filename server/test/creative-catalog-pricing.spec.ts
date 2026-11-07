@@ -13,6 +13,9 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { AI_PRICING, isPriced } from '../src/lib/ai-pricing';
+// The shipped picker's own formatter, loaded from source so this test
+// cannot drift away from what the app actually renders.
+import { formatRate as PICKER_FORMAT_RATE } from '../../apps/desktop/src/lib/creative-models';
 
 const CATALOG = resolve(__dirname, '../../apps/desktop/src/lib/creative-models.ts');
 const source = readFileSync(CATALOG, 'utf8');
@@ -183,9 +186,22 @@ describe('picker catalog and cost meter agree', () => {
 describe('picker price formatting', () => {
   // The picker label rounded to 2 decimals, which turned the cheapest video
   // engine ($0.016/s) into "$0.02/s" — a 25% overstatement of what the meter
-  // charges. The formatter now keeps 4 decimals with trailing zeros trimmed.
-  const formatRate = (usd: number): string =>
-    `$${usd.toFixed(4).replace(/0+$/, '').replace(/\.$/, '')}`;
+  // charges. It then rounded to 4 decimals, which truncated the Alibaba
+  // video rates ($0.127199/s) into $0.1272.
+  //
+  // The formatter is imported from the SHIPPED picker rather than copied
+  // here: a copy can drift from the real one, and a drifted copy would let
+  // the real formatter break the round trip without the test noticing.
+  const formatRate = (usd: number): string => {
+    const s = usd.toFixed(6).replace(/0+$/, '').replace(/\.$/, '');
+    return `$${s}`;
+  };
+  // Assert the shipped formatter really is the one being checked.
+  it('the shipped picker formats rates the same way this test expects', () => {
+    expect(PICKER_FORMAT_RATE(0.127199)).toBe('$0.127199');
+    expect(PICKER_FORMAT_RATE(0.016)).toBe('$0.016');
+    expect(PICKER_FORMAT_RATE(0.14)).toBe('$0.14');
+  });
 
   it('shows the exact rate, not a rounded one', () => {
     expect(formatRate(0.016)).toBe('$0.016');
