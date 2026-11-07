@@ -13,9 +13,24 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { AI_PRICING, isPriced } from '../src/lib/ai-pricing';
+import { engineDialect, type EnhanceMode } from '../src/services/prompt-enhancer.service';
 // The shipped picker's own formatter, loaded from source so this test
 // cannot drift away from what the app actually renders.
-import { formatRate as PICKER_FORMAT_RATE } from '../../apps/desktop/src/lib/creative-models';
+import {
+  formatRate as PICKER_FORMAT_RATE,
+  MODELS_BY_SECTION,
+  type CreativeSection,
+} from '../../apps/desktop/src/lib/creative-models';
+
+/** The server has no reference-video mode; reference renders are image-to-video. */
+const FE_TO_SERVER_MODE: Record<CreativeSection, EnhanceMode> = {
+  'text-to-image': 'text-to-image',
+  'image-edit': 'image-edit',
+  'upscale': 'text-to-image',
+  'text-to-video': 'text-to-video',
+  'image-to-video': 'image-to-video',
+  'reference-video': 'image-to-video',
+};
 
 const CATALOG = resolve(__dirname, '../../apps/desktop/src/lib/creative-models.ts');
 const source = readFileSync(CATALOG, 'utf8');
@@ -236,5 +251,23 @@ describe('picker price formatting', () => {
       }
     }
     expect(mismatches, mismatches.join('; ')).toEqual([]);
+  });
+});
+
+// The picker also tells the user WHICH prompt style each engine gets. That
+// line has to match the dialect the enhancer actually applies, otherwise the
+// UI promises a prompt shape the engine never sees.
+describe('picker catalog and prompt dialects agree', () => {
+  it('every engine the picker offers resolves to a dialect', () => {
+    const uncovered: string[] = [];
+    for (const section of Object.keys(MODELS_BY_SECTION) as CreativeSection[]) {
+      const serverMode = FE_TO_SERVER_MODE[section];
+      for (const o of MODELS_BY_SECTION[section]) {
+        if (o.value === 'auto') continue;
+        const d = engineDialect(serverMode, o.provider, o.model);
+        if (!d || !d.includes('ENGINE NOTES')) uncovered.push(`${section}/${o.value}`);
+      }
+    }
+    expect(uncovered).toEqual([]);
   });
 });
