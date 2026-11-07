@@ -7,7 +7,7 @@ import { aiRouter } from '../services/providers/ai-router.js';
 import { historyService } from '../services/history.service.js';
 import { errMessage } from '../services/providers/errors.js';
 import { updateJob, type Job } from './queue.js';
-import { enhanceCreativePrompt, SAFE_ZONE_HINT } from '../services/prompt-enhancer.service.js';
+import { enhanceCreativePrompt, engineForModel, SAFE_ZONE_HINT } from '../services/prompt-enhancer.service.js';
 import { getStylePack } from '../services/style-packs.js';
 
 // Builds the prompt the engine will see. Runs here (not in the HTTP route)
@@ -23,11 +23,13 @@ async function prepareVideoPrompt(j: Job): Promise<{ genPrompt: string; negative
   const videoMode = d.imageBase64 || d.startImageBase64 ? 'image-to-video' : 'text-to-video';
   const hasRefs = Array.isArray(d.referenceImages) && d.referenceImages.length > 0;
   const model: string | undefined = d.model;
-  // Enhancer dialect follows the router's dispatch: grok→xai, veo/omni→gemini,
-  // wan/happyhorse and Auto→dashscope (the video primary).
-  const engine = model && /grok/i.test(model) ? ('xai' as const)
-    : model && /veo|omni|gemini/i.test(model) ? ('gemini' as const)
-    : ('dashscope' as const);
+  // Enhancer dialect follows the router's dispatch. The mapping lives in one
+  // place (engineForModel) so the worker and the route can never disagree.
+  // NOTE the audio split (verified on the live workspaces 2026-11-07): Wan 3.0
+  // renders sound in the same pass and its dialect KEEPS the audio lines,
+  // while Wan 2.7 and HappyHorse 1.1 publish Video only and their dialect
+  // DELETES them. Getting that backwards silently drops the user's sound.
+  const engine = engineForModel(model);
   let enhancedPrompt: string | null = null;
   let autoNegative: string | undefined;
   if (d.enhance !== false) {

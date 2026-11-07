@@ -2,21 +2,27 @@
 // SOTA prompting pass 2026-07-09: per-engine dialects, silent draft→critique
 // quality gate, and vision→prompt reference grounding.
 //
-// Replaces the generic "make it vivid" rewriter with per-engine templates
-// built from triple-verified research (deep-research run wf_5e37c63e):
-//  - Veo 3.1's official structure is [Cinematography] + [Subject] + [Action]
-//    + [Context] + [Style & Ambiance], cinematography FIRST, with audio
-//    directives: dialogue in "quotes", `SFX:` line, `Ambient noise:` line.
-//    (cloud.google.com "ultimate prompting guide for Veo 3.1")
-//  - Veo only accepts ENGLISH prompts — Arabic/any-language briefs must be
-//    translated in this layer, never passed through raw.
+// Replaces the generic "make it vivid" rewriter with per-engine templates.
+// The structure below (camera first, then subject, action, setting, grade,
+// then audio) came from Google's official prompting guide and is still the
+// strongest direction we have, but it is NOT Veo-specific: the live video
+// engines are Alibaba Wan 3.0 / Wan 2.7 / HappyHorse 1.1 (there is no live
+// Veo since 2026-11-07). The base prompt therefore describes the structure
+// without naming a model, and each engine's dialect block carries the part
+// that actually differs:
+//  - English prompts: every engine here wants English. An Arabic or any other
+//    language brief is translated in this layer, never passed through raw.
 //  - Image ads want explicit composition/negative-space-for-copy, lighting,
 //    and EXACT quoted text when copy must render in-image.
 //  - Engines read prompts differently (2026-07-09): nano-banana wants flowing
 //    narrative + quoted typography; Qwen-Image wants fully-specified poster
-//    layouts (and renders Arabic text well); Grok wants short and punchy;
-//    Wan is visual-only (audio lines are wasted words). The dialect block
-//    tunes the SAME creative brief to the engine that will actually run it.
+//    layouts (and renders Arabic text well); Grok wants short and punchy.
+//  - AUDIO CAPABILITY SPLITS THE VIDEO FAMILY (verified on the live
+//    workspaces 2026-11-07): wan3.0-* lists Audio as a response modality and
+//    renders sound in the SAME pass as the picture, so its dialect KEEPS the
+//    audio lines. wan2.7-* and happyhorse-1.1-* publish Video only, so their
+//    dialect DELETES every SFX/dialogue line instead. Getting this backwards
+//    silently throws away the user's sound design.
 //
 // Runs through aiRouter.text so the fallback chain + enrichers apply — which
 // also means learned Memory preferences (creative thumbs-up/down feedback)
@@ -68,21 +74,26 @@ export interface EnhanceInput {
 
 export interface EnhanceResult {
   prompt: string;
-  /** Only for video modes — feeds Veo's real negativePrompt param. */
+  /** Only for video modes — feeds the engine's real negativePrompt param. */
   negativePrompt?: string;
   provider: string;
   model: string;
   latencyMs: number;
 }
 
-const VIDEO_SYSTEM = `You are a film director writing production-grade prompts for an AI video model (Google Veo 3.1).
+// Base VIDEO prompt. Engine-neutral on purpose (2026-11-07): the live video
+// engines are Alibaba Wan 3.0 / Wan 2.7 / HappyHorse 1.1, so the base text
+// describes the STRUCTURE without claiming a model parses it. The dialect
+// block added per engine carries what actually differs, including whether
+// audio lines are wanted at all.
+const VIDEO_SYSTEM = `You are a film director writing production-grade prompts for an AI video model.
 Rewrite the user's idea into ONE continuous shot description using this exact structure, in this order:
 [Cinematography] [Subject] [Action] [Context] [Style & Ambiance] [Audio].
 Rules:
 - START with the camera: shot type, lens/framing, and one clear camera movement (e.g. "Slow dolly push-in, 35mm, shallow depth of field").
 - Then the subject and its defining visual details, then exactly what happens during the shot, then the setting, then style/mood/color grade.
 - ALWAYS write in English. If the user's idea is in Arabic or any other language, translate the intent faithfully (do NOT transliterate).
-- Present tense, concrete visual language. Default to ONE shot with ONE dominant camera move. No cuts. EXCEPTION: if the user explicitly asks for multiple beats/shots, sequence them inline with timestamps ("[00:00] wide establishing … [00:03] medium push-in … [00:06] close hero"). Veo 3.1 parses timestamped beats; keep it to 3 beats max and one clear move per beat.
+- Present tense, concrete visual language. Default to ONE shot with ONE dominant camera move. No cuts. EXCEPTION: if the user explicitly asks for multiple beats/shots, sequence them inline with timestamps ("[00:00] wide establishing … [00:03] medium push-in … [00:06] close hero"). Keep it to 3 beats max and one clear move per beat.
 - End the prompt with audio as plain sentences in the SAME single line: "SFX: <sound effects>. Ambient noise: <background soundscape>." Include spoken dialogue in double quotes ONLY if the user asked for speech; for Arabic-market ads keep any dialogue in the user's language.
 - 90–140 words total. The whole prompt must be ONE single-line string. No literal line breaks. No markdown, no lists, no camera jargon soup. Every term must be purposeful.
 - This is a social-media AD: keep the subject hero-lit and the message readable at a glance.
@@ -90,8 +101,8 @@ Also produce a comma-separated negativePrompt of shot-specific things to avoid (
 Return ONLY compact single-line JSON (no literal newlines inside strings): {"prompt": "...", "negativePrompt": "..."}`;
 
 // Raw mode (depth='raw'): translate-only, never reinterpret. Keeps brand-exact
-// wording intact while still giving Veo an English prompt + a negativePrompt.
-const RAW_VIDEO_SYSTEM = `You are a faithful translator for an AI video model (Google Veo 3.1). Do NOT rewrite, embellish, or reinterpret the user's idea. Preserve their exact intent and wording. ONLY translate to English if it is in another language (translate faithfully, never transliterate), and format as ONE single-line string. Also produce a short comma-separated negativePrompt of obvious artifacts to avoid (plain nouns, never "no X"). Return ONLY compact single-line JSON: {"prompt": "...", "negativePrompt": "..."}`;
+// wording intact while still giving the engine an English prompt + a negativePrompt.
+const RAW_VIDEO_SYSTEM = `You are a faithful translator for an AI video model. Do NOT rewrite, embellish, or reinterpret the user's idea. Preserve their exact intent and wording. ONLY translate to English if it is in another language (translate faithfully, never transliterate), and format as ONE single-line string. Also produce a short comma-separated negativePrompt of obvious artifacts to avoid (plain nouns, never "no X"). Return ONLY compact single-line JSON: {"prompt": "...", "negativePrompt": "..."}`;
 const RAW_IMAGE_SYSTEM = `You are a faithful translator for an AI image model. Do NOT rewrite, embellish, or reinterpret. Preserve the user's exact intent and wording, including any text to render in-image (quote it exactly in its original language). ONLY translate the description to English if needed (faithfully, never transliterate). Return ONLY JSON: {"prompt": "..."}`;
 
 // Depth directives appended to the (non-raw) system prompt.
@@ -119,53 +130,161 @@ Return ONLY JSON: {"prompt": "..."}`;
 // Same brief, different phrasing per engine. Short blocks by design —
 // they steer vocabulary without bloating the system prompt.
 
-const NANO_IMAGE_NOTES = `ENGINE NOTES (Gemini nano-banana): this model reads flowing narrative sentences far better than keyword lists. Describe the scene as one coherent paragraph. It renders in-image typography exceptionally well: put any required copy in double quotes with font style, weight and placement. Photorealism responds to explicit camera + lens + lighting language (e.g. 85mm, f/2.8, softbox key).`;
+// One keyed table, not loose constants, because the FRONTEND shows the user
+// which engine the prompt is written for (apps/desktop/src/lib/creative-models.ts
+// keeps a mirror of DIALECT_HINTS). Two lists drift. One table cannot: the
+// test in server/test/prompt-enhancer.spec.ts asserts the mirror matches.
 
-const QWEN_IMAGE_NOTES = `ENGINE NOTES (Qwen-Image): strongest at poster-style layouts and dense, accurate text rendering, including Arabic script (keep Arabic in-image text in Arabic). Spell out any text EXACTLY in double quotes, with font style and position. Fully specify the layout: name every major element and where it sits in the frame. Text-heavy ads, flat design and infographics are this engine's sweet spot.`;
+/** Every prompt dialect the enhancer knows. */
+export type DialectKey =
+  | 'qwen-image'
+  | 'qwen-image-21'
+  | 'nano-banana'
+  | 'grok-image'
+  | 'z-image'
+  | 'wan3'
+  | 'wan'
+  | 'happyhorse'
+  | 'grok-video'
+  | 'vidu'
+  | 'none';
 
-const GROK_IMAGE_NOTES = `ENGINE NOTES (Grok Imagine): favors concise, punchy, subject-first prompts. Lead with the hero subject in the first clause and stay near the LOWER word bound. Bold stylization lands well; long meandering prose drifts.`;
+const DIALECT_NOTES: Record<DialectKey, string> = {
+  'nano-banana': `ENGINE NOTES (Gemini nano-banana): this model reads flowing narrative sentences far better than keyword lists. Describe the scene as one coherent paragraph. It renders in-image typography exceptionally well: put any required copy in double quotes with font style, weight and placement. Photorealism responds to explicit camera + lens + lighting language (e.g. 85mm, f/2.8, softbox key).`,
 
-// Z-Image Turbo tops the open-source text-to-image benchmark and is listed as
-// the current No.1 open-source model on Artificial Analysis. It is strong at
-// bilingual Chinese-English text rendering, so it gets its own note.
-const Z_IMAGE_NOTES = `ENGINE NOTES (Z-Image Turbo): photo-real output and strong bilingual Chinese-English text rendering. Put any copy in double quotes exactly as written and say where it sits in the frame. Describe the scene plainly and concretely; this engine rewards specificity over poetry. 50–90 words.`;
+  'qwen-image': `ENGINE NOTES (Qwen-Image): strongest at poster-style layouts and dense, accurate text rendering, including Arabic script (keep Arabic in-image text in Arabic). Spell out any text EXACTLY in double quotes, with font style and position. Fully specify the layout: name every major element and where it sits in the frame. Text-heavy ads, flat design and infographics are this engine's sweet spot.`,
 
-// Qwen-Image 2.1 takes up to TEN reference images and supports LOCAL edits
-// ("change only the shoe"). Its note has to say so, otherwise the enhancer
-// writes a full redraw instruction and the edit lands wrong.
-const QWEN_IMAGE_21_NOTES = `ENGINE NOTES (Qwen-Image 2.1): this engine takes up to ten reference images and understands LOCAL edits. When the user asks to change one thing, name exactly which element changes and then say explicitly that everything else must stay identical (product, logo, colours, framing, lighting). Refer to the source as "Image 1". 50–100 words.`;
+  'grok-image': `ENGINE NOTES (Grok Imagine): favors concise, punchy, subject-first prompts. Lead with the hero subject in the first clause and stay near the LOWER word bound. Bold stylization lands well; long meandering prose drifts.`,
 
-const WAN_VIDEO_NOTES = `ENGINE NOTES (Wan text-to-video): VISUAL-ONLY engine. Omit the SFX/Ambient/dialogue sentences entirely and spend those words on motion instead. One continuous scene: explicit motion verbs for the subject AND one clear camera move. 60–100 words.`;
-const GROK_VIDEO_NOTES = `ENGINE NOTES (Grok Imagine video): favors short, high-energy cinematic beats. 60–90 words, one bold camera move, strong stylization. Keep the SFX and Ambient clauses to a few words each.`;
+  // Z-Image Turbo tops the open-source text-to-image benchmark and is listed as
+  // the current No.1 open-source model on Artificial Analysis. It is strong at
+  // bilingual Chinese-English text rendering, so it gets its own note.
+  'z-image': `ENGINE NOTES (Z-Image Turbo): photo-real output and strong bilingual Chinese-English text rendering. Put any copy in double quotes exactly as written and say where it sits in the frame. Describe the scene plainly and concretely; this engine rewards specificity over poetry. 50–90 words.`,
 
-// Wan 3.0 renders sound in the SAME pass as the picture (the catalog lists
-// Audio as a response modality), and Wan 2.6 Flash supports stable
-// multi-speaker dialogue. The plain Wan note above tells the enhancer to
-// delete every audio line, so the sound capability was never used on the
-// engines that actually have it.
-const WAN3_VIDEO_NOTES = `ENGINE NOTES (Wan 3.0): renders sound in the same pass as the picture, so KEEP the audio lines but make them specific and short. Name one camera move, one subject action, and one setting. If the brief implies speech, give the line in the user's own language in double quotes and mark who says it. End with "SFX: <sound>." 60–110 words.`;
+  // Qwen-Image 2.1 takes up to TEN reference images and supports LOCAL edits
+  // ("change only the shoe"). Its note has to say so, otherwise the enhancer
+  // writes a full redraw instruction and the edit lands wrong.
+  'qwen-image-21': `ENGINE NOTES (Qwen-Image 2.1): this engine takes up to ten reference images and understands LOCAL edits. When the user asks to change one thing, name exactly which element changes and then say explicitly that everything else must stay identical (product, logo, colours, framing, lighting). Refer to the source as "Image 1". 50–100 words.`,
 
-// Vidu Q3 is an advertising engine: it wants shot-by-shot beats with the
-// subject locked, not one continuous take.
-const VIDU_VIDEO_NOTES = `ENGINE NOTES (Vidu Q3): an advertising engine. Write ONE 16-second cut as two or three numbered beats, each starting with a camera move ("[00:00] slow push-in on the product, ..."). The product stays identical in every beat, lit consistently. Name the marketing beat you are building toward (reveal, benefit, call to action). Sound lines are welcome and should name the mood. 70–120 words.`;
+wan: `ENGINE NOTES (Wan text-to-video): VISUAL-ONLY engine. Omit the SFX/Ambient/dialogue sentences entirely and spend those words on motion instead. One continuous scene: explicit motion verbs for the subject AND one clear camera move. 60–100 words.`,
+  'grok-video': `ENGINE NOTES (Grok Imagine video): favors short, high-energy cinematic beats. 60–90 words, one bold camera move, strong stylization. Keep the SFX and Ambient clauses to a few words each.`,
 
-function engineDialect(mode: EnhanceMode, engine?: string, model?: string): string {
-  const m = (model || '').toLowerCase();
+  // Wan 3.0 renders sound in the SAME pass as the picture (the catalog lists
+  // Audio as a response modality), and Wan 2.6 Flash supports stable
+  // multi-speaker dialogue. The plain Wan note above tells the enhancer to
+  // delete every audio line, so the sound capability was never used on the
+  // engines that actually have it.
+  wan3: `ENGINE NOTES (Wan 3.0): renders sound in the same pass as the picture, so KEEP the audio lines but make them specific and short. Name one camera move, one subject action, and one setting. If the brief implies speech, give the line in the user's own language in double quotes and mark who says it. End with "SFX: <sound>." 60–110 words.`,
+
+  // HappyHorse 1.1 publishes Video only on the live workspace (no audio
+  // modality), so it must NOT inherit the Wan 3.0 instruction to keep the audio
+  // lines. It is its own engine family: the most physically accurate motion of
+  // the three, so it rewards concrete weight, inertia and momentum.
+  happyhorse: `ENGINE NOTES (HappyHorse 1.1): VISUAL-ONLY engine, it publishes no audio, so omit the SFX/Ambient/dialogue sentences entirely and spend those words on motion instead. This is our most physically accurate engine, so be concrete about weight, inertia and momentum: how the subject accelerates, settles and reacts. One continuous shot, one clear camera move. 60–100 words.`,
+
+  // Vidu Q3 is an advertising engine: it wants shot-by-shot beats with the
+  // subject locked, not one continuous take.
+  vidu: `ENGINE NOTES (Vidu Q3): an advertising engine. Write ONE 16-second cut as two or three numbered beats, each starting with a camera move ("[00:00] slow push-in on the product, ..."). The product stays identical in every beat, lit consistently. Name the marketing beat you are building toward (reveal, benefit, call to action). Sound lines are welcome and should name the mood. 70–120 words.`,
+
+  // No live engine lands here. A Google video engine would.
+  none: '',
+};
+
+/**
+ * The one line the UI shows under the engine picker: what kind of prompt this
+ * engine wants. Plain words, no jargon, because the whole point is that the
+ * user can see why switching engines changes the prompt.
+ *
+ * The frontend mirrors this table (apps/desktop/src/lib/creative-models.ts).
+ * server/test/prompt-enhancer.spec.ts asserts the two agree, so a new
+ * engine cannot ship with a prompt nobody can explain.
+ */
+export const DIALECT_HINTS: Record<DialectKey, string> = {
+  'qwen-image': 'Prompt written for Qwen Image. The layout is spelled out and any text in the picture is quoted exactly.',
+  'qwen-image-21': 'Prompt written for Qwen Image 2.1. It names what changes and says plainly that the rest stays the same.',
+  'nano-banana': 'Prompt written for Gemini. One flowing paragraph, with the camera and lens named.',
+  'grok-image': 'Prompt written for Grok. Short and punchy, with the subject first.',
+  'z-image': 'Prompt written for Z-Image. A plain concrete description, with any copy quoted exactly.',
+  wan3: 'Prompt written for Wan 3.0. This engine makes the sound too, so describe what the scene sounds like.',
+  wan: 'Prompt written for Wan 2.7. This engine makes no sound, so the prompt covers motion only.',
+  happyhorse: 'Prompt written for HappyHorse. This engine makes no sound, so the prompt spends its words on weight and momentum.',
+  'grok-video': 'Prompt written for Grok video. Short, high energy beats.',
+  vidu: 'Prompt written for Vidu. Numbered beats for one advertising cut.',
+  none: 'Prompt written for a generic engine.',
+};
+
+/**
+ * The engine AND model Auto will actually run, read from the same env the
+ * router uses. This is what makes "Auto" prompt-correct: point
+ * AI_IMAGE_PRIMARY at a different provider and the prompt follows it.
+ */
+export function autoEngineFor(mode: EnhanceMode): { engine: string; model?: string } {
   const isVideo = mode === 'text-to-video' || mode === 'image-to-video';
-  if (isVideo) {
-    // Order matters: the Vidu family is checked before the Wan rule, because
-    // a Vidu pick must never inherit Wan's visual-only instruction.
-    if (m.includes('vidu')) return VIDU_VIDEO_NOTES;
-    if (/wan3\./.test(m)) return WAN3_VIDEO_NOTES;
-    if (m.includes('wan') || (!m && engine === 'dashscope')) return WAN_VIDEO_NOTES;
-    if (m.includes('grok') || (!m && engine === 'xai')) return GROK_VIDEO_NOTES;
-    return ''; // Veo / omni. VIDEO_SYSTEM is already Veo-native
+  const primary = (isVideo ? process.env.AI_VIDEO_PRIMARY : process.env.AI_IMAGE_PRIMARY) || 'dashscope';
+  if (primary === 'dashscope') {
+    return {
+      engine: 'dashscope',
+      model: isVideo
+        ? (process.env.DASHSCOPE_VIDEO_MODEL || 'wan3.0-video-prime')
+        : (process.env.DASHSCOPE_IMAGE_MODEL || 'qwen-image-3.0-pro'),
+    };
   }
-  if (m.includes('z-image')) return Z_IMAGE_NOTES;
-  if (m.includes('qwen-image-2.1')) return QWEN_IMAGE_21_NOTES;
-  if (m.includes('qwen') || m.includes('wan') || (!m && engine === 'dashscope')) return QWEN_IMAGE_NOTES;
-  if (m.includes('grok') || (!m && engine === 'xai')) return GROK_IMAGE_NOTES;
-  return NANO_IMAGE_NOTES; // gemini / vertex default (nano-banana)
+  return { engine: primary };
+}
+
+/** The engine a model id belongs to. Absent model = Auto = Alibaba. */
+export function engineForModel(model?: string): 'gemini' | 'xai' | 'dashscope' | 'vertex' {
+  const m = (model || '').toLowerCase();
+  if (!m) return 'dashscope';
+  if (m.includes('grok')) return 'xai';
+  if (m.includes('veo') || m.includes('omni') || m.includes('gemini')) return 'gemini';
+  return 'dashscope';
+}
+
+export function engineDialect(mode: EnhanceMode, engine?: string, model?: string): string {
+  return DIALECT_NOTES[dialectKeyFor(mode, engine, model)];
+}
+
+/**
+ * Which dialect an engine/model pair gets. Split out from engineDialect so
+ * the UI can ask the same question the prompt asks, without shipping the
+ * whole instruction block over the wire.
+ */
+export function dialectKeyFor(mode: EnhanceMode, engine?: string, model?: string): DialectKey {
+  const isVideo = mode === 'text-to-video' || mode === 'image-to-video';
+  let m = (model || '').toLowerCase();
+  let eng = engine;
+
+  // Auto (nothing picked): resolve from the router's own env, so the prompt
+  // is written for the engine that will actually run.
+  if (!m && !eng) {
+    const auto = autoEngineFor(mode);
+    eng = auto.engine;
+    m = (auto.model || '').toLowerCase();
+  }
+  // An engine with no model: the provider's default model decides the
+  // dialect, and that default is an env value too.
+  if (eng === 'dashscope' && !m) {
+    m = (isVideo
+      ? (process.env.DASHSCOPE_VIDEO_MODEL || 'wan3.0-video-prime')
+      : (process.env.DASHSCOPE_IMAGE_MODEL || 'qwen-image-3.0-pro')).toLowerCase();
+  }
+  if (isVideo) {
+    // Order matters: each family is checked before the next, because a pick
+    // must never inherit another family's instruction (Vidu is not Wan,
+    // HappyHorse is not Wan 3.0, Wan 3.0 is not Wan 2.7).
+    if (m.includes('vidu')) return 'vidu';
+    if (/wan3\./.test(m)) return 'wan3';
+    if (m.includes('happyhorse')) return 'happyhorse';
+    if (m.includes('wan')) return 'wan';
+    if (m.includes('grok') || (!m && eng === 'xai')) return 'grok-video';
+    return 'none'; // A Google video engine would land here. There is no live one.
+  }
+  if (m.includes('z-image')) return 'z-image';
+  if (m.includes('qwen-image-2.1')) return 'qwen-image-21';
+  if (m.includes('qwen') || m.includes('wan') || (!m && eng === 'dashscope')) return 'qwen-image';
+  if (m.includes('grok') || (!m && eng === 'xai')) return 'grok-image';
+  return 'nano-banana'; // gemini / vertex default (nano-banana)
 }
 
 // Silent self-critique before output — one call, zero extra round-trips.

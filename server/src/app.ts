@@ -43,6 +43,7 @@ import { startTokenHealthWorker } from './workers/tokenHealth.worker.js';
 import { startSchedulerWorker } from './workers/scheduler.worker.js';
 import { initJobWorkers } from './workers/register.js';
 import { startGeminiModelValidator } from './services/providers/gemini-model-validator.js';
+import { autoEngineFor } from './services/prompt-enhancer.service.js';
 import { initSentry } from './lib/sentry.js';
 import { registerRateLimiter } from './middleware/rate-limiter.js';
 import { kimiStatus } from './services/providers/kimi.provider.js';
@@ -331,6 +332,20 @@ export async function buildApp() {
   // user-visible 500. Runs daily after a 5s warmup. (RES-2, after the
   // gemini-3.1-flash-lite-preview deprecation incident.)
   startGeminiModelValidator();
+
+  // Log which engine "Auto" resolves to for prompts. The prompt enhancer
+  // writes for a SPECIFIC engine (whether the audio lines are kept or dropped
+  // depends on it), so if this and the router disagree the prompt is written
+  // for the wrong engine and nobody can see why. One line at boot makes a
+  // mismatch obvious in pm2 logs instead of silent.
+  {
+    const img = autoEngineFor('text-to-image');
+    const vid = autoEngineFor('text-to-video');
+    app.log.info(
+      { image: `${img.engine}/${img.model || 'default'}`, video: `${vid.engine}/${vid.model || 'default'}` },
+      '[prompt] Auto engine resolution (the prompt is written for these)',
+    );
+  }
 
   return app;
 }

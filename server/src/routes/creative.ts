@@ -11,7 +11,7 @@ import { db } from '../db/prisma.js';
 import { searchPinterest, searchPinterestMulti, fetchPinterestImageBase64 } from '../services/pinterest.service.js';
 import { historyService } from '../services/history.service.js';
 import { sanitizePrompt, validatePrompt } from '../middleware/sanitize.js';
-import { enhanceCreativePrompt, enhanceCreativeVariants, SAFE_ZONE_HINT, type EnhanceMode, type EnhanceVariant } from '../services/prompt-enhancer.service.js';
+import { enhanceCreativePrompt, enhanceCreativeVariants, SAFE_ZONE_HINT, type EnhanceMode, type EnhanceDepth, type EnhanceVariant } from '../services/prompt-enhancer.service.js';
 import { getStylePack, listStylePacks } from '../services/style-packs.js';
 import { recordMemory } from '../services/memory.service.js';
 import { upscaleImage } from '../services/upscale.service.js';
@@ -399,15 +399,22 @@ export async function creativeRoutes(app: FastifyInstance) {
   });
 
   // POST /api/creative/prompt/improve
-  // Model-aware magic pen (upgraded 2026-07-02). Video prompts follow Veo's
-  // official [Cinematography]+[Subject]+[Action]+[Context]+[Style&Ambiance]
-  // formula with SFX/Ambient-noise audio lines; image prompts follow an
-  // ad-creative composition structure; Arabic briefs are translated (Veo is
+  // Model-aware magic pen (upgraded 2026-07-02). Video prompts follow the
+  // [Cinematography]+[Subject]+[Action]+[Context]+[Style&Ambiance] formula
+  // with SFX/Ambient-noise audio lines; image prompts follow an ad-creative
+  // composition structure; Arabic briefs are translated (the engines are
   // English-only) while in-image ad copy stays in its original language.
-  // Body: { prompt, mode?, clientId?, safeZone?, hasRefs? }
+  //
+  // The picked engine and the boost level BOTH come in with the request
+  // (2026-11-07). Without them the enhancer wrote for a generic engine: the
+  // "Suggest 3 directions" button was sending video prompts to an audio-less
+  // dialect, so the user's sound design was dropped. Auto (no provider, no
+  // model) resolves server-side from the router's own env.
+  // Body: { prompt, mode?, clientId?, safeZone?, hasRefs?, stylePackId?, provider?, model?, depth? }
   app.post('/creative/prompt/improve', async (request, reply) => {
-    const { prompt: rawImp, mode, clientId, safeZone, hasRefs, stylePackId } = (request.body as {
+    const { prompt: rawImp, mode, clientId, safeZone, hasRefs, stylePackId, provider, model, depth } = (request.body as {
       prompt?: string; mode?: string; clientId?: string; safeZone?: boolean; hasRefs?: boolean; stylePackId?: string;
+      provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex'; model?: string; depth?: EnhanceDepth;
     }) || {};
     if (!rawImp || typeof rawImp !== 'string' || !rawImp.trim()) {
       return reply.status(400).send({ error: 'prompt is required' });
@@ -417,11 +424,18 @@ export async function creativeRoutes(app: FastifyInstance) {
     const prompt = sanitizePrompt(rawImp);
     const validModes: EnhanceMode[] = ['text-to-image', 'image-edit', 'text-to-video', 'image-to-video'];
     const enhanceMode: EnhanceMode = validModes.includes(mode as EnhanceMode) ? (mode as EnhanceMode) : 'text-to-image';
+    // The boost dial travels with the request so the suggestions come back at
+    // the same strength the user's next Generate will use.
+    const validDepths: EnhanceDepth[] = ['raw', 'low', 'medium', 'high'];
+    const enhanceDepth: EnhanceDepth = validDepths.includes(depth as EnhanceDepth) ? (depth as EnhanceDepth) : 'medium';
 
     try {
       const enhanceInput = {
         prompt,
         mode: enhanceMode,
+        engine: provider,
+        model: typeof model === 'string' && model.trim() ? model.trim() : undefined,
+        depth: enhanceDepth,
         clientId: clientId || undefined,
         orgId: request.orgId,
         userId: request.user?.userId,
