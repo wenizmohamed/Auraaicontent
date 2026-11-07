@@ -215,12 +215,13 @@ async function runAgentLoopInner(
     const envKey = p === 'gemini' ? 'GEMINI_API_KEY'
       : p === 'xai' ? 'XAI_API_KEY'
       : p === 'dashscope' ? 'DASHSCOPE_API_KEY'
+      : p === 'vertex' ? 'VERTEX_API_KEY'
       : 'MOONSHOT_API_KEY';
     return !!process.env[envKey];
   });
   if (probeChain.length === 0) {
     await ctx.emit('agent:error', {
-      message: 'No LLM provider configured (need GEMINI_API_KEY, XAI_API_KEY, DASHSCOPE_API_KEY, or MOONSHOT_API_KEY)',
+      message: 'No LLM provider configured (need GEMINI_API_KEY, XAI_API_KEY, DASHSCOPE_API_KEY, VERTEX_API_KEY, or MOONSHOT_API_KEY)',
       at: new Date().toISOString(),
     });
     return { iterations: 0, stopReason: 'error', messages: [], error: 'no provider configured' };

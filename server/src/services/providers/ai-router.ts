@@ -1,6 +1,7 @@
 import { xaiProvider } from './xai.provider.js';
 import { geminiProvider } from './gemini.provider.js';
 import { dashscopeProvider } from './dashscope.provider.js';
+import { vertexProvider } from './vertex.provider.js';
 import { isRetryableAiError, isSafetyBlock, AllProvidersFailedError, AiCancelledError, abortReasonText, throwIfCancelled, type ProviderFailure } from './errors.js';
 import { filterAvailable, recordSuccess, recordFailure, getCircuitSnapshot } from './circuit-breaker.js';
 import type { AiProvider, AiProviderName, AiTask, AiTelemetryEntry, AnalysisRequest, ImageRequest, ProviderResult, TextRequest, VideoRequest } from './types.js';
@@ -111,6 +112,7 @@ const PROVIDERS: Record<AiProviderName, AiProvider> = {
   xai: xaiProvider,
   gemini: geminiProvider,
   dashscope: dashscopeProvider,
+  vertex: vertexProvider,
 };
 
 // Per-task fallback chain (order = preference). The PRIMARY map above picks
@@ -121,17 +123,23 @@ const CHAIN: Record<string, AiProviderName[]> = {
   // and is cheaper than DashScope AND doesn't run Qwen's strict content filter
   // that false-blocks benign marketing prompts. So xai is the 2nd hop; DashScope
   // (strict filter, pricier) is the last resort. gemini stays primary.
-  text: ['dashscope', 'gemini', 'xai'],  // qwen3.8-max first (2026-10-17); github-models lane removed 2026-10-13
-  // Stills: Qwen Image 3.0 Pro first (2026-10-17), nano-banana second, Grok last.
-  image: ['dashscope', 'gemini', 'xai'],
+  // 2026-11-07: vertex inserted as the 2nd hop. The Gemini Developer API key
+  // is billing-dead (402 "prepayment credits are depleted" on EVERY model),
+  // so vertex — the same Google models on a funded Vertex entitlement — must
+  // come BEFORE gemini, or every call pays a doomed 402 round-trip first.
+  text: ['dashscope', 'vertex', 'gemini', 'xai'],  // qwen3.8-max first (2026-10-17); github-models lane removed 2026-10-13
+  // Stills: Qwen Image 3.0 Pro first (2026-10-17), vertex nano-banana second, Grok last.
+  image: ['dashscope', 'vertex', 'gemini', 'xai'],
   // image_edit SKIPS xai: xAI's /images/edits returns 403 permission-denied for
   // this team, and 403 is non-retryable → it used to HALT the ladder before
   // the next hop, so edits failed whenever the first engine was capped/down.
-  // Qwen Image (unified gen+edit) → nano-banana; both can actually edit.
-  image_edit: ['dashscope', 'gemini'],
-  analysis: ['dashscope', 'gemini', 'xai'],  // qwen3.8-max reads images natively (verified 2026-10-17)
+  // Qwen Image (unified gen+edit) → vertex nano-banana → gemini; all can edit.
+  image_edit: ['dashscope', 'vertex', 'gemini'],
+  analysis: ['dashscope', 'vertex', 'gemini', 'xai'],  // qwen3.8-max reads images natively (verified 2026-10-17)
   // Clips: wan3.0-video first (all-in-one: text, first/last frame, references,
   // up to 30s with audio), Veo second, Grok last. (2026-10-17)
+  // vertex is NOT in the video chain: Vertex serves no video model at all
+  // (every veo-* id 404s; omni is Developer-API only and that key is 402).
   video: ['dashscope', 'gemini', 'xai'],
 };
 
@@ -143,6 +151,7 @@ function providerAvailable(name: AiProviderName): boolean {
     case 'dashscope': return !!process.env.DASHSCOPE_API_KEY;
     case 'xai': return !!process.env.XAI_API_KEY;
     case 'gemini': return !!process.env.GEMINI_API_KEY;
+    case 'vertex': return !!process.env.VERTEX_API_KEY;
     default: return false;
   }
 }

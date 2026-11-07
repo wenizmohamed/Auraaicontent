@@ -623,9 +623,10 @@ export async function adminRoutes(app: FastifyInstance) {
       // Per-model + per-provider via metadata->>'model'. We pull raw model strings
       // and bucket provider in JS so we don't lock ourselves to a hardcoded list.
       const modelRows = await db.$queryRaw<Array<{
-        model: string | null; calls: bigint; costUsd: Prisma.Decimal | null;
+        model: string | null; provider: string | null; calls: bigint; costUsd: Prisma.Decimal | null;
       }>>`
         SELECT (u.metadata->>'model') AS model,
+               (u.metadata->>'provider') AS provider,
                COUNT(*)::bigint        AS calls,
                COALESCE(SUM(u."costUsd"), 0) AS "costUsd"
         FROM "UsageEvent" u
@@ -633,15 +634,23 @@ export async function adminRoutes(app: FastifyInstance) {
           AND u."createdAt" <= ${to}
           AND (${orgId ?? null}::text IS NULL OR u."orgId" = ${orgId ?? null}::text)
           AND u.metadata ? 'model'
-        GROUP BY (u.metadata->>'model')
+        GROUP BY (u.metadata->>'model'), (u.metadata->>'provider')
         ORDER BY "costUsd" DESC
       `;
 
-      function providerOf(model: string): string {
+      // Bucket by the provider the router ACTUALLY recorded (metadata->>'provider')
+      // rather than re-inferring it from the model id. Model-shape inference
+      // cannot tell a Vertex-served gemini-* from a Developer-API gemini-*: both
+      // are the same id, but they are different providers with different
+      // breakers. The recorded provider is authoritative; the model-shape rules
+      // remain only as a fallback for rows written before the field existed.
+      function providerOf(model: string, recorded?: string | null): string {
+        if (recorded) return recorded;
         const m = model.toLowerCase();
         if (m.startsWith('gemini') || m.startsWith('imagen') || m.startsWith('veo')) return 'gemini';
         if (m.startsWith('grok') || m.startsWith('xai-') || m.startsWith('x-ai')) return 'xai';
         if (m.startsWith('kimi') || m.startsWith('moonshot')) return 'kimi';
+        if (m.startsWith('qwen') || m.startsWith('wan') || m.startsWith('happyhorse')) return 'dashscope';
         if (m.startsWith('gpt') || m.startsWith('o1') || m.startsWith('o3') || m.startsWith('openai')) return 'openai';
         if (m.startsWith('claude') || m.startsWith('anthropic')) return 'anthropic';
         return 'other';
@@ -653,7 +662,7 @@ export async function adminRoutes(app: FastifyInstance) {
         if (!r.model) continue;
         const c = Number(r.calls), co = Number(r.costUsd ?? 0);
         topModels.push({ model: r.model, calls: c, costUsd: co });
-        const p = providerOf(r.model);
+        const p = providerOf(r.model, r.provider);
         const cur = byProvider[p] ?? { calls: 0, costUsd: 0 };
         cur.calls += c; cur.costUsd += co;
         byProvider[p] = cur;

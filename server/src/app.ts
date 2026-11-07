@@ -207,6 +207,22 @@ export async function buildApp() {
           role: 'fallback (text + image). Qwen/DeepSeek/GLM/MiniMax/Kimi + Qwen/Wan image; no video',
           rank: 4,
         },
+        // Vertex AI / Agent Platform (added 2026-11-07). The Gemini Developer
+        // API key is billing-dead (402 "prepayment credits are depleted"), but
+        // this entitlement on the same Google Cloud project is funded: text,
+        // image, image-edit and analysis all answer 200. No video model exists
+        // on Vertex, which is why it is absent from the video chain.
+        vertex: {
+          configured: !!process.env.VERTEX_API_KEY,
+          textModel: process.env.VERTEX_TEXT_MODEL || 'gemini-3.8-flash',
+          imageModel: process.env.VERTEX_IMAGE_MODEL || 'gemini-nano-banana-2.1',
+          analysisModel: process.env.VERTEX_ANALYSIS_MODEL || 'gemini-3.8-flash',
+          project: process.env.VERTEX_PROJECT || 'hubz-510406',
+          location: process.env.VERTEX_LOCATION || 'us',
+          baseURL: process.env.VERTEX_HOST || 'https://aiplatform.googleapis.com',
+          role: 'fallback (text + image + image-edit + analysis). No video engine on Vertex',
+          rank: 3,
+        },
       },
     };
   });
@@ -237,6 +253,7 @@ export async function buildApp() {
       nodeVersion: process.version,
       envFingerprints: {
         GEMINI_API_KEY: fingerprint('GEMINI_API_KEY'),
+        VERTEX_API_KEY: fingerprint('VERTEX_API_KEY'),
         XAI_API_KEY: fingerprint('XAI_API_KEY'),
         MOONSHOT_API_KEY: fingerprint('MOONSHOT_API_KEY'),
         DATABASE_URL: fingerprint('DATABASE_URL'),

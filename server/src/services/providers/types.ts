@@ -1,4 +1,10 @@
-export type AiProviderName = 'xai' | 'gemini' | 'dashscope'; // github removed 2026-10-13: GitHub Models shut down 2026-07-30
+// 'vertex' = Google Vertex AI / Agent Platform (added 2026-11-07). It is a
+// DISTINCT name from 'gemini' on purpose: the Gemini provider talks to the
+// Developer API (generativelanguage.googleapis.com), which is billing-dead
+// (402 "prepayment credits are depleted"). Vertex lives on the same Google
+// Cloud project but is fully funded. Sharing a name would let a Vertex
+// failure trip Gemini's circuit breaker and take out both.
+export type AiProviderName = 'xai' | 'gemini' | 'dashscope' | 'vertex'; // github removed 2026-10-13: GitHub Models shut down 2026-07-30
 export type AiTask = 'text' | 'image' | 'image_edit' | 'video' | 'analysis' | 'embedding';
 
 export interface TextRequest {
@@ -34,6 +40,10 @@ export interface ImageRequest {
   // 512/1K/2K/4K via imageConfig.imageSize; Imagen accepts 1K/2K (4K is
   // clamped to 2K in the provider). Other providers ignore it.
   imageSize?: '1K' | '2K' | '4K';
+  // Caller-side cancellation (job deadline / user pressed Stop). Mirrors
+  // TextRequest.signal and VideoRequest.signal so a long image render can be
+  // abandoned instead of running to its provider timeout.
+  signal?: AbortSignal;
 }
 
 export interface VideoRequest {
@@ -79,6 +89,8 @@ export interface AnalysisRequest {
   prompt: string;
   imageBase64: string;
   mimeType: string;
+  // Caller-side cancellation — same contract as the other request types.
+  signal?: AbortSignal;
 }
 
 export interface ProviderResult<T = unknown> {

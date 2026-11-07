@@ -26,6 +26,9 @@ vi.hoisted(() => {
   process.env.AI_TEXT_PRIMARY = "gemini";
   process.env.XAI_API_KEY = "";
   process.env.DASHSCOPE_API_KEY = "";
+  // Vertex is in the text chain now. A populated server .env would otherwise
+  // leak a live Vertex key into this test and give it a real second provider.
+  process.env.VERTEX_API_KEY = "";
   process.env.GITHUB_MODELS_TOKEN = "";
   process.env.GITHUB_TOKEN = "";
   delete process.env.GEMINI_TEXT_LADDER;

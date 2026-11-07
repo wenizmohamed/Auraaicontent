@@ -41,6 +41,26 @@ export const env = {
   GEMINI_EMBEDDING_MODEL: optional('GEMINI_EMBEDDING_MODEL', 'gemini-embedding-2-preview'),
   GEMINI_TIMEOUT_MS: parseInt(optional('GEMINI_TIMEOUT_MS', '90000'), 10),
 
+  // Vertex AI / Agent Platform (Google Cloud project hubz-510406).
+  // Added 2026-11-07. The Gemini Developer API key above is billing-dead
+  // (402 "prepayment credits are depleted" on every model), while the Vertex
+  // entitlement on the same project is funded and serves text + image +
+  // image-edit + analysis.
+  //
+  // The location lives in the PATH, not the host: the working URL is
+  //   https://aiplatform.googleapis.com/v1/projects/<project>/locations/<location>/publishers/google/models/<id>:generateContent
+  // `us-aiplatform.googleapis.com` answers 400 "Invalid hostname".
+  VERTEX_API_KEY: optional('VERTEX_API_KEY', ''),
+  VERTEX_PROJECT: optional('VERTEX_PROJECT', 'hubz-510406'),
+  VERTEX_LOCATION: optional('VERTEX_LOCATION', 'us'),
+  VERTEX_HOST: optional('VERTEX_HOST', 'https://aiplatform.googleapis.com'),
+  VERTEX_TEXT_MODEL: optional('VERTEX_TEXT_MODEL', 'gemini-3.8-flash'),
+  VERTEX_IMAGE_MODEL: optional('VERTEX_IMAGE_MODEL', 'gemini-nano-banana-2.1'),
+  VERTEX_IMAGE_EDIT_MODEL: optional('VERTEX_IMAGE_EDIT_MODEL', 'gemini-nano-banana-2.1'),
+  VERTEX_ANALYSIS_MODEL: optional('VERTEX_ANALYSIS_MODEL', 'gemini-3.8-flash'),
+  VERTEX_TIMEOUT_MS: parseInt(optional('VERTEX_TIMEOUT_MS', '90000'), 10),
+  VERTEX_IMAGE_TIMEOUT_MS: parseInt(optional('VERTEX_IMAGE_TIMEOUT_MS', '180000'), 10),
+
   // DashScope (Alibaba Model Studio workspace) — multi-model text + image.
   DASHSCOPE_API_KEY: optional('DASHSCOPE_API_KEY', ''),
   DASHSCOPE_BASE_URL: optional('DASHSCOPE_BASE_URL', 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1'),

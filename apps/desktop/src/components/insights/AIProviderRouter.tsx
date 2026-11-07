@@ -20,6 +20,8 @@ interface Props {
 const PROVIDER_LABELS: Record<string, { label: string; tier: 'primary' | 'fallback' | 'tertiary' }> = {
   gemini:    { label: 'Gemini',  tier: 'primary' },
   google:    { label: 'Gemini',  tier: 'primary' },
+  vertex:    { label: 'Vertex',  tier: 'primary' },
+  dashscope: { label: 'Alibaba', tier: 'primary' },
   grok:      { label: 'Grok',    tier: 'fallback' },
   xai:       { label: 'Grok',    tier: 'fallback' },
   kimi:      { label: 'Kimi',    tier: 'tertiary' },

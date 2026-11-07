@@ -82,6 +82,18 @@ describe('ai-pricing coverage', () => {
     expect(isPriced('totally-made-up-model-xyz')).toBe(false);
   });
 
+  // Vertex's OpenAI-compatible route requires a `google/` publisher prefix on
+  // the model id (a bare id answers 400 "Malformed publisher model"). That
+  // prefix is a routing artifact — without normalisation every Vertex chat
+  // call would be metered at $0, because the price table keys off the bare id.
+  it('prices a Vertex publisher-prefixed model id as the bare id', () => {
+    expect(isPriced('google/gemini-3.8-flash')).toBe(true);
+    expect(computeCostUsd('google/gemini-3.8-flash', 1_000_000, 1_000_000, 1))
+      .toBe(computeCostUsd('gemini-3.8-flash', 1_000_000, 1_000_000, 1));
+    // And it must be a REAL cost, not a silent $0.
+    expect(computeCostUsd('google/gemini-3.8-flash', 1_000_000, 1_000_000, 1)).toBeGreaterThan(0);
+  });
+
   it('auditConfiguredModelPricing flags an unpriced *_MODEL env var', () => {
     const unpriced = auditConfiguredModelPricing({
       GEMINI_TEXT_MODEL: 'gemini-pro-latest',          // priced

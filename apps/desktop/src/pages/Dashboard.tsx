@@ -100,9 +100,11 @@ function formatTokens(n: number): string {
 
 // Rough cost estimation per provider (input+output blended USD per 1M tokens)
 const PROVIDER_COST_PER_M: Record<string, number> = {
-  gemini: 5.0,    // Gemini 3.1 Pro avg ~$5/M
-  xai: 3.0,       // Grok 4.20 ~$3/M
-  moonshot: 1.0,  // Kimi K2.6 ~$1/M
+  gemini: 5.0,      // Gemini 3.1 Pro avg ~$5/M
+  vertex: 5.0,      // Vertex serves the same Gemini models on the same card
+  dashscope: 1.65,  // Qwen 3.8 Max input ~$1.65/M on the Alibaba catalog
+  xai: 3.0,         // Grok 4.20 ~$3/M
+  moonshot: 1.0,    // Kimi K2.6 ~$1/M
 };
 
 function estimateCostUsd(providerStats: { provider: string; totalTokens: number }[]): number {
@@ -157,6 +159,10 @@ function Sparkline({ data, color, height = 32, width = 100 }: { data: number[]; 
 
 const PROVIDER_META: Record<string, { label: string; color: (d: boolean) => string; bg: (d: boolean) => string }> = {
   gemini: { label: 'Gemini', color: (d) => d ? 'text-blue-400' : 'text-blue-600', bg: (d) => d ? 'bg-blue-500/10' : 'bg-blue-50' },
+  // Vertex AI is the Google Cloud route to the same Gemini models. It gets
+  // its own teal so the dashboard shows WHICH Google endpoint ran.
+  vertex: { label: 'Vertex', color: (d) => d ? 'text-teal-400' : 'text-teal-600', bg: (d) => d ? 'bg-teal-500/10' : 'bg-teal-50' },
+  dashscope: { label: 'Alibaba', color: (d) => d ? 'text-amber-400' : 'text-amber-600', bg: (d) => d ? 'bg-amber-500/10' : 'bg-amber-50' },
   xai: { label: 'Grok', color: (d) => d ? 'text-orange-400' : 'text-orange-600', bg: (d) => d ? 'bg-orange-500/10' : 'bg-orange-50' },
   moonshot: { label: 'Kimi', color: (d) => d ? 'text-purple-400' : 'text-purple-600', bg: (d) => d ? 'bg-purple-500/10' : 'bg-purple-50' },
 };

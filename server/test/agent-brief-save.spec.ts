@@ -127,6 +127,9 @@ describe('shapeToolHistoryFor', () => {
     const { shapeToolHistoryFor } = await import('../src/services/llm/chat.js');
     const messages = [{ role: 'user', content: 'hi' }, { role: 'assistant', content: null, tool_calls: [call(signed)] }];
     expect(shapeToolHistoryFor('gemini', messages)).toEqual(messages);
+    // Vertex returns the SAME google thought_signature shape on tool calls
+    // (verified live 2026-11-07), so it keeps the signature too.
+    expect(shapeToolHistoryFor('vertex', messages)).toEqual(messages);
     for (const p of ['xai', 'dashscope', 'moonshot'] as const) {
       const out = shapeToolHistoryFor(p, messages) as typeof messages;
       expect(out[1].tool_calls![0]).not.toHaveProperty('extra_content');

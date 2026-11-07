@@ -334,10 +334,20 @@ export const AI_PRICING: Record<string, PricePoint> = {
 // (test + boot check) to assert that every model configured in .env is priced.
 export const PRICED_MODELS: string[] = Object.keys(AI_PRICING);
 
+// Vertex AI's OpenAI-compatible route REQUIRES a publisher prefix on the model
+// id (`google/gemini-3.8-flash`); a bare id answers 400 "Malformed publisher
+// model". That prefix is a routing artifact of the endpoint, not part of the
+// model's identity — it must not leak into the price lookup, or every Vertex
+// chat call would be metered at $0 (the key is `google/gemini-3.8-flash`, the
+// table has `gemini-3.8-flash`).
+export function normalizeModelKey(model: string): string {
+  return model.startsWith('google/') ? model.slice('google/'.length) : model;
+}
+
 // True when the model has an explicit price entry. Lets callers record
 // metadata.priced=false instead of writing a misleading $0 (Phase 1).
 export function isPriced(model: string): boolean {
-  return Object.prototype.hasOwnProperty.call(AI_PRICING, model);
+  return Object.prototype.hasOwnProperty.call(AI_PRICING, normalizeModelKey(model));
 }
 
 // Boot-time coverage guard (Phase 2): scan env for every configured model name
@@ -362,15 +372,16 @@ export function auditConfiguredModelPricing(env: NodeJS.ProcessEnv = process.env
 const warnedUnpriced = new Set<string>();
 
 export function priceFor(model: string): PricePoint {
-  const p = AI_PRICING[model];
+  const key = normalizeModelKey(model);
+  const p = AI_PRICING[key];
   if (!p) {
     // Loud-but-once: an unpriced model is tracked as a call but costed at $0,
     // silently undercounting spend. Surfacing it means adding a new model to
     // .env can't quietly break the cost meter (it did for the gemini "-latest"
     // aliases + Claude assistant until 2026-06-29).
-    if (!warnedUnpriced.has(model)) {
-      warnedUnpriced.add(model);
-      console.warn(`[ai-pricing] no price for model "${model}" — usage tracked but costed $0. Add it to AI_PRICING.`);
+    if (!warnedUnpriced.has(key)) {
+      warnedUnpriced.add(key);
+      console.warn(`[ai-pricing] no price for model "${key}" — usage tracked but costed $0. Add it to AI_PRICING.`);
     }
     return { promptPerM: 0, completionPerM: 0 };
   }

@@ -33,7 +33,7 @@ export interface UpscaleInput {
    *  image-capable models: gemini nano-banana, qwen-image-2.0(-pro),
    *  wan2.7-image(-pro). Falls back through the router chain if omitted. */
   model?: string;
-  provider?: 'gemini' | 'xai' | 'dashscope';
+  provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex';
   orgId?: string;
   userId?: string;
   clientId?: string;
@@ -45,7 +45,7 @@ export interface UpscaleResult {
   width: number;
   height: number;
   scale: number;               // effective long-edge multiplier applied
-  provider: 'sharp' | 'fal' | 'gemini' | 'xai' | 'dashscope';
+  provider: 'sharp' | 'fal' | 'gemini' | 'xai' | 'dashscope' | 'vertex';
   format: 'png' | 'jpeg';
   bytes: number;
   /** true when an AI model added detail (vs pure interpolation). */

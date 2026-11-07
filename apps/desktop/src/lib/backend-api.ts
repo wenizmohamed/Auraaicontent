@@ -511,9 +511,9 @@ export const apiKeysApi = {
 // ─── Creative ────────────────────────────────────────────────────
 
 export const creativeApi = {
-  generateImage: (data: { prompt: string; aspectRatio?: string; clientId?: string; model?: string; provider?: 'gemini' | 'xai' | 'dashscope'; quality?: 'standard' | 'ultra'; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K'; enhance?: boolean; depth?: 'raw' | 'low' | 'medium' | 'high'; stylePackId?: string }) =>
+  generateImage: (data: { prompt: string; aspectRatio?: string; clientId?: string; model?: string; provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex'; quality?: 'standard' | 'ultra'; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K'; enhance?: boolean; depth?: 'raw' | 'low' | 'medium' | 'high'; stylePackId?: string }) =>
     request<any>('/api/creative/images/generate', { method: 'POST', body: JSON.stringify(data) }, { timeoutMs: 290000 }),  // under nginx's 300s /api/ budget; Qwen multi-reference 2K edits can pass 120s
-  editImage: (data: { prompt: string; imageBase64: string; mimeType?: string; aspectRatio?: string; clientId?: string; model?: string; provider?: 'gemini' | 'xai' | 'dashscope'; referenceImages?: { base64: string; mimeType: string; role?: 'content' | 'style' | 'character' }[]; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K'; enhance?: boolean; depth?: 'raw' | 'low' | 'medium' | 'high' }) =>
+  editImage: (data: { prompt: string; imageBase64: string; mimeType?: string; aspectRatio?: string; clientId?: string; model?: string; provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex'; referenceImages?: { base64: string; mimeType: string; role?: 'content' | 'style' | 'character' }[]; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K'; enhance?: boolean; depth?: 'raw' | 'low' | 'medium' | 'high' }) =>
     request<any>('/api/creative/images/edit', { method: 'POST', body: JSON.stringify(data) }, { timeoutMs: 290000 }),  // under nginx's 300s /api/ budget; Qwen multi-reference 2K edits can pass 120s
   // Teach-the-AI thumbs (2026-07-14): records a win/miss memory for the client
   // so future enhancements/generations lean toward or away from this style.
@@ -521,7 +521,7 @@ export const creativeApi = {
     request<{ ok: boolean; memoryId: string | null }>('/api/creative/feedback', { method: 'POST', body: JSON.stringify({ generationId, liked }) }),
   // Upscaler up to 16K (2026-07-14). Source = a saved result URL (assetUrl/url)
   // or base64. Fast (sharp Lanczos) by default; ai tier when funded.
-  upscale: (data: { sourceUrl?: string; imageBase64?: string; mimeType?: string; scale?: 2 | 4 | 8; targetLongEdge?: number; format?: 'png' | 'jpeg' | 'auto'; mode?: 'fast' | 'ai'; model?: string; provider?: 'gemini' | 'xai' | 'dashscope'; clientId?: string }) =>
+  upscale: (data: { sourceUrl?: string; imageBase64?: string; mimeType?: string; scale?: 2 | 4 | 8; targetLongEdge?: number; format?: 'png' | 'jpeg' | 'auto'; mode?: 'fast' | 'ai'; model?: string; provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex'; clientId?: string }) =>
     request<{ assetUrl: string; fileUrl: string; width: number; height: number; scale: number; provider: string; format: string; bytes: number; assetId: string | null }>('/api/creative/images/upscale', { method: 'POST', body: JSON.stringify(data) }, { timeoutMs: 150000 }),
   generateVideo: (data: {
     prompt: string;

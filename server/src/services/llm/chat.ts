@@ -32,7 +32,7 @@ import type {
   ChatCompletionChunk,
 } from 'openai/resources/chat/completions';
 import { db } from '../../db/prisma.js';
-import { computeCostUsd, isPriced } from '../../lib/ai-pricing.js';
+import { computeCostUsd, isPriced, normalizeModelKey } from '../../lib/ai-pricing.js';
 import { assertOrgBudget } from '../../lib/budget.js';
 import { enrichWithKnowledge } from '../../lib/knowledge-enricher.js';
 import { enrichWithMemory } from '../../lib/memory-enricher.js';
@@ -40,7 +40,11 @@ import { enrichWithBrandKit } from '../../lib/brand-kit-enricher.js';
 import { filterAvailable, recordSuccess, recordFailure } from '../providers/circuit-breaker.js';
 import { isRetryableAiError, isSafetyBlock } from '../providers/errors.js';
 
-export type ProviderName = 'gemini' | 'xai' | 'moonshot' | 'dashscope';
+// 'vertex' = Google Vertex AI / Agent Platform (added 2026-11-07). The Gemini
+// Developer API key is billing-dead (402 on every model), but Vertex serves the
+// same Gemini models on a funded entitlement of the same Google Cloud project.
+// It is a separate name so its breaker is separate from gemini's.
+export type ProviderName = 'gemini' | 'xai' | 'moonshot' | 'dashscope' | 'vertex';
 
 // RAG grounding for the chat stack. ai-router already enriches creative/text
 // generation with the client's knowledge base + learned memory + brand kit;
@@ -96,15 +100,19 @@ function persistChatUsage(meta: UsageMeta | undefined, model: string, provider: 
     return;
   }
   const priced = isPriced(model);  // Phase 1: a real $0 vs cost-unknown.
+  // Record the bare model id. Vertex's OpenAI-compatible route needs the
+  // `google/` publisher prefix on the wire, but that is a routing artifact —
+  // storing it would split one model into two rows in the admin cost view.
+  const modelKey = normalizeModelKey(model);
   void db.usageEvent.create({
     data: {
       orgId: meta.orgId,
       userId: meta.userId ?? null,
       kind: 'ai.text',
       units: t ?? 0,
-      costUsd: computeCostUsd(model, p, c, 1),
+      costUsd: computeCostUsd(modelKey, p, c, 1),
       ref: meta.jobId ?? meta.clientId ?? null,
-      metadata: { model, task: 'text', provider, priced, promptTokens: p, completionTokens: c, surface: 'chat', ...(priced ? {} : { unpricedModel: model }) },
+      metadata: { model: modelKey, task: 'text', provider, priced, promptTokens: p, completionTokens: c, surface: 'chat', ...(priced ? {} : { unpricedModel: modelKey }) },
     },
   }).catch((err: any) => {
     console.warn('[chat] usage persist failed:', err?.message || err);
@@ -128,6 +136,14 @@ const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/openai/';
 const XAI_BASE = process.env.XAI_BASE_URL || 'https://api.x.ai/v1';
 const MOONSHOT_BASE = process.env.MOONSHOT_BASE_URL || 'https://api.moonshot.ai/v1';
 const DASHSCOPE_BASE = process.env.DASHSCOPE_BASE_URL || 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1';
+// Vertex OpenAI-compatible route (added 2026-11-07). The location lives in the
+// PATH; the hostname stays global — `us-aiplatform.googleapis.com` answers 400
+// "Invalid hostname". Verified live 2026-11-07: tool calling returns
+// finish_reason 'tool_calls' with a google thought_signature, and streaming works.
+const VERTEX_PROJECT = process.env.VERTEX_PROJECT || 'hubz-510406';
+const VERTEX_LOCATION = process.env.VERTEX_LOCATION || 'us';
+const VERTEX_BASE = process.env.VERTEX_BASE_URL
+  || `https://aiplatform.googleapis.com/v1/projects/${VERTEX_PROJECT}/locations/${VERTEX_LOCATION}/endpoints/openapi`;
 
 const cache = new Map<ProviderName, OpenAI>();
 
@@ -183,6 +199,37 @@ function clientFor(p: ProviderName, geminiModelOverride?: string): ProviderClien
       ? geminiModelOverride : (process.env.DASHSCOPE_TEXT_MODEL || 'qwen3.8-max');
     return { client: cached, model: dsModel, provider: p };
   }
+  if (p === 'vertex') {
+    // Google Vertex AI / Agent Platform. The OpenAI-compatible endpoint
+    // requires the publisher prefix on the model id — a bare 'gemini-3.8-flash'
+    // answers 400 "Malformed publisher model" (verified live 2026-11-07).
+    const key = process.env.VERTEX_API_KEY;
+    if (!key) throw new Error('VERTEX_API_KEY missing');
+    if (!cached) {
+      // The Vertex OpenAI-compatible route does NOT accept `Authorization:
+      // Bearer <api-key>` — it answers 401 "Expected OAuth 2 access token" and,
+      // if both are sent, "API keys are not supported by this API" (verified
+      // live 2026-11-07). It wants the key in `x-goog-api-key`. The OpenAI SDK
+      // always sends the Bearer header, so it is suppressed here by passing
+      // `Authorization: undefined`, which makes the SDK omit the header
+      // entirely rather than send an empty value.
+      cached = new OpenAI({
+        apiKey: key,
+        baseURL: VERTEX_BASE,
+        timeout: LLM_TIMEOUT_MS,
+        maxRetries: 1,
+        defaultHeaders: { 'x-goog-api-key': key, Authorization: undefined },
+      });
+      cache.set(p, cached);
+    }
+    // A per-call override is honoured only when it is Gemini-shaped: a qwen id
+    // (the agent's AGENT_MODEL) belongs to the dashscope hop and must never be
+    // forwarded to Vertex (it would 404 the rung).
+    const vModel = geminiModelOverride && /^(gemini|nano|veo|imagen)/i.test(geminiModelOverride)
+      ? geminiModelOverride
+      : (process.env.VERTEX_TEXT_MODEL || 'gemini-3.8-flash');
+    return { client: cached, model: `google/${vModel}`, provider: p };
+  }
   // moonshot
   const key = process.env.MOONSHOT_API_KEY;
   if (!key) throw new Error('MOONSHOT_API_KEY missing');
@@ -201,7 +248,9 @@ function clientFor(p: ProviderName, geminiModelOverride?: string): ProviderClien
 // It had been dropped 2026-07-21 when the old key 401'd access_terminated.
 // Final rung: only reached when gemini + xai + dashscope all fail.
 // 2026-10-17: Alibaba first everywhere (qwen3.8-max), Grok, then Gemini, then Kimi.
-export const DEFAULT_CHAIN: ProviderName[] = ['dashscope', 'xai', 'gemini', 'moonshot'];
+// 2026-11-07: vertex inserted before gemini — the Developer API key is billing-dead
+// (402 on every model), so Gemini must not be tried first.
+export const DEFAULT_CHAIN: ProviderName[] = ['dashscope', 'vertex', 'xai', 'gemini', 'moonshot'];
 
 function resolveChain(env: string | undefined, fallbackChain: ProviderName[] = DEFAULT_CHAIN): ProviderName[] {
   if (!env) return fallbackChain;
@@ -305,7 +354,10 @@ export function shapeToolHistoryFor<M extends { role: string }>(provider: Provid
   return messages.map((m) => {
     const calls = (m as { tool_calls?: Array<Record<string, any>> }).tool_calls;
     if (m.role !== 'assistant' || !Array.isArray(calls) || calls.length === 0) return m;
-    if (provider === 'gemini') {
+    // Vertex returns the SAME google thought_signature on tool calls as the
+    // Developer API does (verified live 2026-11-07: finish_reason 'tool_calls'
+    // with extra_content.google.thought_signature), so it takes the same branch.
+    if (provider === 'gemini' || provider === 'vertex') {
       if (calls[0]?.extra_content?.google?.thought_signature) return m;
       const first = { ...calls[0], extra_content: { google: { thought_signature: GEMINI_SKIP_SIGNATURE } } };
       return { ...m, tool_calls: [first, ...calls.slice(1)] };
@@ -445,10 +497,12 @@ export function chainStatus(chain: ProviderName[] = DEFAULT_CHAIN): Array<{ prov
     const envKey = p === 'gemini' ? 'GEMINI_API_KEY'
       : p === 'xai' ? 'XAI_API_KEY'
       : p === 'dashscope' ? 'DASHSCOPE_API_KEY'
+      : p === 'vertex' ? 'VERTEX_API_KEY'
       : 'MOONSHOT_API_KEY';
     const modelEnv = p === 'gemini' ? (process.env.GEMINI_CHAT_MODEL || 'gemini-3.1-pro-preview')
       : p === 'xai' ? (process.env.XAI_TEXT_MODEL || 'grok-4.7')
       : p === 'dashscope' ? (process.env.DASHSCOPE_TEXT_MODEL || 'qwen3.8-max')
+      : p === 'vertex' ? (process.env.VERTEX_TEXT_MODEL || 'gemini-3.8-flash')
       : (process.env.MOONSHOT_MODEL || 'kimi-k2.6');
     return { provider: p, configured: !!process.env[envKey], model: modelEnv };
   });

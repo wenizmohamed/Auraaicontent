@@ -42,7 +42,10 @@ export interface EnhanceInput {
   prompt: string;
   mode: EnhanceMode;
   /** Engine hint from the FE picker — shapes vocabulary + constraints. */
-  engine?: 'gemini' | 'xai' | 'dashscope';
+  // 'vertex' = Google Vertex AI (added 2026-11-07). It serves the same
+  // nano-banana / gemini-3-pro-image models as the Developer API, so it must
+  // get the GOOGLE dialect, not the Alibaba one.
+  engine?: 'gemini' | 'xai' | 'dashscope' | 'vertex';
   /** Exact model id when the user picked one — sharper dialect than engine. */
   model?: string;
   /** How aggressively to rewrite. Defaults to 'medium' (legacy behavior). */
@@ -162,7 +165,7 @@ function engineDialect(mode: EnhanceMode, engine?: string, model?: string): stri
   if (m.includes('qwen-image-2.1')) return QWEN_IMAGE_21_NOTES;
   if (m.includes('qwen') || m.includes('wan') || (!m && engine === 'dashscope')) return QWEN_IMAGE_NOTES;
   if (m.includes('grok') || (!m && engine === 'xai')) return GROK_IMAGE_NOTES;
-  return NANO_IMAGE_NOTES; // gemini default (nano-banana)
+  return NANO_IMAGE_NOTES; // gemini / vertex default (nano-banana)
 }
 
 // Silent self-critique before output — one call, zero extra round-trips.

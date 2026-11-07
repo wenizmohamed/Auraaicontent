@@ -7,7 +7,14 @@
 //   server/src/services/providers/ai-router.ts  (chain order per task)
 //   server/src/services/providers/dashscope.provider.ts (Alibaba model ids)
 //   server/src/lib/ai-pricing.ts (every rate quoted here)
-// Verified live against the Alibaba Token Plan key on 2026-10-17.
+// Re-verified live 2026-11-07 against the LIVE Alibaba workspaces and the
+// Google Vertex AI project.
+//
+// The Google entries pin VERTEX, not the Developer API. The Developer API key
+// is billing-dead (402 "prepayment credits are depleted" on every model), but
+// the Vertex entitlement on the same Google Cloud project is funded and
+// serves both image models. The server still keeps the Developer-API route as
+// a standby so the lane recovers by itself when the credits return.
 
 export type CreativeSection =
   | 'text-to-image'
@@ -18,7 +25,10 @@ export type CreativeSection =
   | 'reference-video';
 
 export type Vendor = 'Alibaba' | 'Google' | 'xAI';
-export type ProviderName = 'gemini' | 'xai' | 'dashscope';
+// 'vertex' = Google Vertex AI / Agent Platform (added 2026-11-07). It serves
+// the same gemini-nano-banana / gemini-3-pro-image models as the Developer
+// API, but on a funded entitlement, so it is what the Google entries pin.
+export type ProviderName = 'gemini' | 'xai' | 'dashscope' | 'vertex';
 
 export interface ModelOption {
   /** Picker id. 'auto' = AURA decides. */
@@ -110,12 +120,12 @@ const WAN_IMAGE_FAST: ModelOption = {
 const GEMINI_IMAGE: ModelOption = {
   value: 'gemini-flash-image', label: 'Gemini Nano Banana 2.1', vendor: 'Google',
   hint: 'Newest Google image model. Native 1K to 4K output, every aspect ratio, precise edits.',
-  provider: 'gemini', model: 'gemini-nano-banana-2.1',
+  provider: 'vertex', model: 'gemini-nano-banana-2.1',
 };
 const GEMINI_IMAGE_ULTRA: ModelOption = {
   value: 'gemini-pro-image', label: 'Gemini 3 Pro Image', vendor: 'Google',
   hint: 'Top Google tier for print and 4K campaign art.',
-  provider: 'gemini', model: 'gemini-3-pro-image', quality: 'ultra',
+  provider: 'vertex', model: 'gemini-3-pro-image', quality: 'ultra',
 };
 const GROK_IMAGE: ModelOption = {
   value: 'grok-imagine-image-2.0', label: 'Grok Imagine 2.0', vendor: 'xAI',
