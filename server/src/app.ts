@@ -178,7 +178,7 @@ export async function buildApp() {
   // chat-with-fallback helper (text/orchestrator/agent tools).
   app.get('/api/providers/status', async () => {
     return {
-      orchestrator: process.env.GEMINI_CHAT_MODEL || 'gemini-3.1-pro-preview',
+      orchestrator: process.env.DASHSCOPE_TEXT_MODEL || 'qwen3.8-max',
       fallbackChain: chainStatus(DEFAULT_CHAIN),
       providers: {
         gemini: {
@@ -188,24 +188,24 @@ export async function buildApp() {
           imageModel: process.env.GEMINI_IMAGE_MODEL || 'gemini-3.1-flash-image-preview',
           videoModel: process.env.GEMINI_VIDEO_MODEL || 'gemini-omni-flash-preview',
           baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
-          role: 'PRIMARY. Orchestrator, assistant, analysis, image, video',
-          rank: 1,
+          role: 'standby (text + analysis + image). The Developer API key is billing-dead (402); this lane recovers by itself when credits return',
+          rank: 4,
         },
         grok: {
           configured: !!process.env.XAI_API_KEY,
           model: process.env.XAI_TEXT_MODEL || 'grok-4.7',
           baseURL: process.env.XAI_BASE_URL || 'https://api.x.ai/v1',
           role: 'fallback (text + image + video)',
-          rank: 2,
+          rank: 3,
         },
-        kimi: { ...kimiStatus(), role: 'tertiary. Long-context (text only)', rank: 3 },
+        kimi: { ...kimiStatus(), role: 'tertiary. Long-context (text only)', rank: 5 },
         dashscope: {
           configured: !!process.env.DASHSCOPE_API_KEY,
           textModel: process.env.DASHSCOPE_TEXT_MODEL || 'qwen3.8-max',
           imageModel: process.env.DASHSCOPE_IMAGE_MODEL || 'qwen-image-3.0-pro',
           baseURL: process.env.DASHSCOPE_BASE_URL || 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
-          role: 'fallback (text + image). Qwen/DeepSeek/GLM/MiniMax/Kimi + Qwen/Wan image; no video',
-          rank: 4,
+          role: 'PRIMARY (text + image + analysis + video). Qwen / Wan / HappyHorse on the EU + Tokyo workspaces',
+          rank: 1,
         },
         // Vertex AI / Agent Platform (added 2026-11-07). The Gemini Developer
         // API key is billing-dead (402 "prepayment credits are depleted"), but
@@ -221,7 +221,7 @@ export async function buildApp() {
           location: process.env.VERTEX_LOCATION || 'us',
           baseURL: process.env.VERTEX_HOST || 'https://aiplatform.googleapis.com',
           role: 'fallback (text + image + image-edit + analysis). No video engine on Vertex',
-          rank: 3,
+          rank: 2,
         },
       },
     };
