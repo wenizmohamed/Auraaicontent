@@ -559,7 +559,7 @@ export const creativeApi = {
     request<{ packs: { id: string; name: string; tagline: string; category: string; palette: string[] }[] }>('/api/creative/style-packs'),
   getJob: (jobId: string) =>
     request<{ id: string; status: string; progress: number; result?: any; error?: string }>(`/api/creative/jobs/${jobId}`),
-  improvePrompt: (prompt: string, mode?: string, opts?: { clientId?: string; safeZone?: boolean; hasRefs?: boolean; stylePackId?: string }) =>
+  improvePrompt: (prompt: string, mode?: string, opts?: { clientId?: string; safeZone?: boolean; hasRefs?: boolean; stylePackId?: string; provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex'; model?: string; depth?: 'raw' | 'low' | 'medium' | 'high' }) =>
     request<{ original: string; improved: string; negativePrompt: string | null; variants?: { label: string; prompt: string; negativePrompt?: string }[]; mode: string | null; provider: string; latencyMs: number }>(
       '/api/creative/prompt/improve',
       { method: 'POST', body: JSON.stringify({ prompt, mode, ...(opts || {}) }) },

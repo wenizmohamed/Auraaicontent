@@ -24,8 +24,9 @@ import { useClients } from '../lib/client-context';
 import { readJson } from '../lib/safe-storage';
 import { motionUI, motionBase } from '../lib/motion';
 import { FeatureCard } from '../components/ui';
+import { Tooltip } from '../components/ui/Tooltip';
 import { ModelPicker } from '../components/creative/ModelPicker';
-import { MODELS_BY_SECTION, modelOption, validModelValue, imageRequestFor, durationsFor, perSecondRate, effectivePerImage, isTieredImage, sizesFor, formatRate, type CreativeSection } from '../lib/creative-models';
+import { MODELS_BY_SECTION, modelOption, validModelValue, imageRequestFor, durationsFor, perSecondRate, effectivePerImage, isTieredImage, sizesFor, formatRate, dialectHintFor, type CreativeSection } from '../lib/creative-models';
 import { usePricingVisibility } from '../lib/use-pricing-visibility';
 
 // ─── Prompt History ─────────────────────────────────────────────
@@ -160,6 +161,36 @@ const ASPECT_RATIOS_VIDEO = [
   { label: '9:16', value: '9:16', hint: 'Story / Reel' },
 ];
 
+// The four rewriting levels. `plain` is the always-visible sentence under
+// the control (a hover tooltip is invisible on touch and in a screenshot, so
+// it cannot be the only place this is explained); `hint` is the hover detail.
+const PROMPT_REWRITE_LEVELS = [
+  {
+    v: 'off' as const,
+    label: 'Off',
+    plain: 'Your exact words reach the engine. No rewriting at all.',
+    hint: 'Send your exact words, untouched.',
+  },
+  {
+    v: 'raw' as const,
+    label: 'Raw',
+    plain: 'Your wording is kept. AURA only translates it to the engine language and adds technical negatives.',
+    hint: 'Keep your wording. Only translate for the engine (for example Arabic to English for video) and add technical negatives. Never reinterprets your idea.',
+  },
+  {
+    v: 'medium' as const,
+    label: '✨ Pro',
+    plain: 'AURA rewrites your idea into a full production prompt for the engine you picked: framing, light, lens and sound.',
+    hint: 'Full rewrite into a production-grade prompt for the selected engine (composition, lighting, cinematography, audio).',
+  },
+  {
+    v: 'high' as const,
+    label: 'Max',
+    plain: 'AURA rewrites it hard. Every framing, light and colour decision is spelled out.',
+    hint: 'Pushes art direction to the limit. Most specific composition, lighting and palette.',
+  },
+];
+
 // Output resolution for image modes (nano-banana 1K/2K/4K; Imagen clamps 4K→2K;
 // the Alibaba image models publish only a 1K and a 2K price tier and clamp
 // anything larger). The list of sizes the USER can pick lives in
@@ -232,6 +263,11 @@ export default function CreativeTools() {
   // only, never reinterprets wording; 'medium' = full model-aware rewrite
   // (old ON); 'high' = max art direction; 'off' = send exact words untouched.
   const [promptBoost, setPromptBoost] = useState<'off' | 'raw' | 'medium' | 'high'>('medium');
+  // TRUE when the prompt in the textarea IS a direction the user accepted from
+  // the picker. The server would rewrite it again on every generate, and a
+  // second rewrite drifts further from what the user chose. So the generate
+  // call sends enhance:false and this flag tells the UI to say so.
+  const [acceptedDirection, setAcceptedDirection] = useState(false);
   const [lastEnhanced, setLastEnhanced] = useState('');
   // Thumbs on the result → POST /creative/feedback → the AI learns this
   // client's taste (memory loop). genId comes back from every generation.
@@ -282,6 +318,11 @@ export default function CreativeTools() {
   const videoPick = modelOption(videoSection, validModelValue(videoSection, videoModel));
   const isVeoPick = /^veo/.test(videoPick.value);
   const imagePick = modelOption(imageSection, validModelValue(imageSection, imageModel));
+  // Whether the server may rewrite the prompt on this generate. A prompt the
+  // user accepted from the direction picker is already the finished version,
+  // so rewriting it again would drift away from what they chose (and cost a
+  // second enhancer call). The UI says so when this is false.
+  const rewritePrompt = promptBoost !== 'off' && !acceptedDirection;
   // The picked engine decides which still sizes exist. Alibaba's image models
   // publish only a 1K and a 2K tier, so a 4K pick on one of them would
   // silently render 2K while the price panel quoted the 4K rate. The size the
@@ -526,8 +567,8 @@ export default function CreativeTools() {
           aspectRatio,
           clientId: selectedClientId || undefined,
           safeZone,
-          enhance: promptBoost !== 'off',
-          ...(promptBoost !== 'off' ? { depth: promptBoost } : {}),
+          enhance: rewritePrompt,
+          ...(rewritePrompt ? { depth: promptBoost } : {}),
           ...(stylePackId ? { stylePackId } : {}),
           ...(effectiveImageSize !== '1K' ? { imageSize: effectiveImageSize } : {}),
           ...imageRequestFor(imageSection, imageModel),
@@ -553,8 +594,8 @@ export default function CreativeTools() {
           aspectRatio,
           clientId: selectedClientId || undefined,
           safeZone,
-          enhance: promptBoost !== 'off',
-          ...(promptBoost !== 'off' ? { depth: promptBoost } : {}),
+          enhance: rewritePrompt,
+          ...(rewritePrompt ? { depth: promptBoost } : {}),
           ...(effectiveImageSize !== '1K' ? { imageSize: effectiveImageSize } : {}),
           ...(extraRefs.length ? { referenceImages: extraRefs.map(r => ({ base64: r.base64, mimeType: r.mimeType, role: r.role })) } : {}),
           ...imageRequestFor(imageSection, imageModel),
@@ -577,8 +618,8 @@ export default function CreativeTools() {
           tier: eng.tier,
           clientId: selectedClientId || undefined,
           safeZone,
-          enhance: promptBoost !== 'off',
-          ...(promptBoost !== 'off' ? { depth: promptBoost } : {}),
+          enhance: rewritePrompt,
+          ...(rewritePrompt ? { depth: promptBoost } : {}),
           ...(stylePackId ? { stylePackId } : {}),
           ...(eng.supports1080 && videoRes === '1080p' ? { resolution: '1080p' as const } : {}),
           ...(negPrompt.trim() ? { negativePrompt: negPrompt.trim() } : {}),
@@ -689,11 +730,21 @@ export default function CreativeTools() {
     setImprovedPreview(null);
     setImprovedVariants([]);
     try {
+      // The engine decides how the prompt is written, so the suggestions have
+      // to be written for the engine that will actually run. Auto sends
+      // nothing and the server resolves it from the router's own env.
+      const engine = isVideoMode
+        ? (videoPick.value === 'auto' ? {} : { model: videoPick.model })
+        : imageRequestFor(imageSection, imageModel);
       const out = await creativeApi.improvePrompt(prompt.trim(), mode, {
         clientId: selectedClientId || undefined,
         safeZone,
         hasRefs: extraRefs.length > 0 || !!sourceBase64,
         ...(stylePackId ? { stylePackId } : {}),
+        ...engine,
+        // "off" is not a rewriting depth the server knows. When rewriting is
+        // off, the suggestions are still written, just at the normal depth.
+        depth: promptBoost === 'off' ? 'medium' : promptBoost,
       });
       // Non-destructive: surface AI options so the user can pick one, discard,
       // or keep their original. Prefer 3 distinct directions; fall back to the
@@ -731,6 +782,7 @@ export default function CreativeTools() {
     setOriginalBeforeImprove(prompt);
     setOriginalNegBeforeImprove(negPrompt);
     setPrompt(improvedPreview);
+    setAcceptedDirection(true);
     setImprovedPreview(null);
   };
 
@@ -744,6 +796,7 @@ export default function CreativeTools() {
     setOriginalBeforeImprove(prompt);
     setOriginalNegBeforeImprove(negPrompt);
     setPrompt(v.prompt);
+    setAcceptedDirection(true);
     seedNegPrompt(v.negativePrompt);
     setImprovedVariants([]);
     setImprovedPreview(null);
@@ -752,6 +805,7 @@ export default function CreativeTools() {
   const undoImprovedPrompt = () => {
     if (originalBeforeImprove === null) return;
     setPrompt(originalBeforeImprove);
+    setAcceptedDirection(false);
     // Also restore the Avoid field that apply/accept overwrote — a half-reverted
     // prompt/negative pair would ship the wrong art direction on next generate.
     if (originalNegBeforeImprove !== null) {
@@ -1018,6 +1072,65 @@ export default function CreativeTools() {
               </div>
               <p className="text-[10px] text-zinc-600 mt-1.5">{upscaleAi ? 'Regenerates with real added detail via the selected engine below, then scales.' : 'Sharp Lanczos resample. Instant, no new detail. Great for clean AI images.'}</p>
             </div>
+            {upscaleAi && (
+              <div className="basis-full">
+                <ModelPicker
+                  label="AI detail model"
+                  options={MODELS_BY_SECTION['upscale']}
+                  value={validModelValue('upscale', imageModel)}
+                  onChange={setImageModel}
+                  showPrice={canSeePricing}
+                  priceFor={(o) => {
+                    const per = effectivePerImage(o, effectiveImageSize);
+                    return per ? `${formatRate(per)}/img` : '';
+                  }}
+                  priceNote={o => (isTieredImage(o) && effectiveImageSize !== '1K' ? `at ${effectiveImageSize}` : '')}
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Model picker — FIRST, because the engine decides how the prompt is
+            written. Picking it after typing meant the prompt was written for
+            the wrong engine (the "Improve with AI" button had no engine at
+            all, so it wrote for a generic one). */}
+        {mode !== 'upscale' && (
+          <div className="space-y-2">
+            {isVideoMode ? (
+              <ModelPicker
+                label={extraRefs.length > 0 ? 'Model · keeps your product consistent' : 'Model'}
+                options={MODELS_BY_SECTION[videoSection]}
+                value={videoPick.value}
+                onChange={setVideoModel}
+                showPrice={canSeePricing}
+                priceFor={(o) => {
+                  if (!o.perSec) return '';
+                  // Three decimals: the cheapest engine is $0.016/s, and
+                  // toFixed(2) rounded that to $0.02 — a 25% overstatement
+                  // of the rate the meter actually charges.
+                  return `${formatRate(perSecondRate(o, videoRes))}/s`;
+                }}
+                footnote={videoRes === '1080p' ? 'Rates shown at 1080p.' : undefined}
+              />
+            ) : (
+              <ModelPicker
+                label="Model"
+                options={MODELS_BY_SECTION[imageSection]}
+                value={validModelValue(imageSection, imageModel)}
+                onChange={setImageModel}
+                showPrice={canSeePricing}
+                priceFor={(o) => {
+                  const per = effectivePerImage(o, effectiveImageSize);
+                  return per ? `${formatRate(per)}/img` : '';
+                }}
+                priceNote={o => (isTieredImage(o) && effectiveImageSize !== '1K' ? `at ${effectiveImageSize}` : '')}
+              />
+            )}
+            {/* The live answer to "why is my prompt different per model?" */}
+            <p className="text-[11px] leading-snug" style={{ color: 'var(--color-fg-muted)' }}>
+              {isVideoMode ? dialectHintFor(videoPick, videoSection) : dialectHintFor(imagePick, imageSection)}
+            </p>
           </div>
         )}
 
@@ -1032,16 +1145,19 @@ export default function CreativeTools() {
               type="button"
               onClick={handleImprovePrompt}
               disabled={!prompt.trim() || improving || loading}
-              title="Improve this prompt with AI (Gemini primary, Grok fallback)"
+              title="Three different takes on your idea, written for the engine you picked."
               className="flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider hover:bg-[color:var(--color-info-subtle)] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
               style={{ borderColor: 'var(--color-info)', background: 'var(--color-info-subtle)', color: 'var(--color-info)' }}
             >
               {improving
                 ? <Loader2 className="w-3 h-3 animate-spin" />
                 : <PenTool className="w-3 h-3" />}
-              {improving ? 'Improving...' : 'Improve with AI'}
+              {improving ? 'Thinking...' : 'Suggest 3 directions'}
             </button>
           </div>
+          <p className="text-[10px] mb-2" style={{ color: 'var(--color-fg-muted)' }}>
+            Three different takes on your idea. Nothing is generated and your prompt stays untouched until you pick one.
+          </p>
           <div className="relative">
             <textarea
               ref={promptRef}
@@ -1055,6 +1171,9 @@ export default function CreativeTools() {
                 const start = el.selectionStart;
                 const end = el.selectionEnd;
                 setPrompt(e.target.value);
+                // A hand edit means the prompt is the user's own again, so the
+                // "no second rewrite" guard no longer applies.
+                setAcceptedDirection(false);
                 // Restore caret after the controlled re-render. Without this,
                 // typing in the middle of text moves the cursor to the end.
                 requestAnimationFrame(() => {
@@ -1076,7 +1195,7 @@ export default function CreativeTools() {
               type="button"
               onClick={handleImprovePrompt}
               disabled={!prompt.trim() || improving || loading}
-              title="Magic pen. Improve prompt"
+              title="Suggest 3 directions for your prompt"
               className="absolute bottom-2 right-2 w-8 h-8 rounded-lg border hover:bg-[color:var(--color-info-subtle)] disabled:opacity-30 disabled:cursor-not-allowed transition-all flex items-center justify-center"
               style={{ background: 'var(--color-info-subtle)', borderColor: 'var(--color-info)', color: 'var(--color-info)' }}
             >
@@ -1087,6 +1206,62 @@ export default function CreativeTools() {
           </div>
         </div>
         )}
+
+          {/* Prompt rewriting — how much the server-side enhancer may rewrite
+              the prompt on EVERY generate. This is NOT the "Suggest 3
+              directions" button above (that one gives you three options and
+              changes nothing until you pick one).
+              Raw answers "the enhancer completely changed my prompt": it ONLY
+              translates (Arabic to English) and never reinterprets.
+              Hidden in Upscale mode (no prompt). */}
+          {mode !== 'upscale' && (
+          <div>
+            <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Prompt rewriting</label>
+            <div className="flex items-center gap-2 mt-2">
+              {PROMPT_REWRITE_LEVELS.map(o => (
+                <Tooltip key={o.v} content={o.hint} side="top">
+                  <button
+                    type="button"
+                    onClick={() => setPromptBoost(o.v)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                      promptBoost === o.v ? '' : 'bg-white/[0.03] text-zinc-500 border-white/[0.06] hover:border-white/[0.1]'
+                    }`}
+                    style={promptBoost === o.v
+                      ? { background: 'var(--color-accent-subtle)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' }
+                      : undefined}
+                  >
+                    {o.label}
+                  </button>
+                </Tooltip>
+              ))}
+            </div>
+            {/* Always-visible plain English for the CURRENT level. A hover
+                tooltip is invisible on touch and on a screenshot, so it cannot
+                be the only place this is explained. */}
+            <p className="text-[11px] leading-snug mt-2" style={{ color: 'var(--color-fg-muted)' }}>
+              {PROMPT_REWRITE_LEVELS.find(o => o.v === promptBoost)?.plain}
+            </p>
+            {acceptedDirection ? (
+              <div className="mt-2 rounded-lg border px-2.5 py-2" style={{ borderColor: 'var(--color-info)', background: 'var(--color-info-subtle)' }}>
+                <p className="text-[11px] leading-snug" style={{ color: 'var(--color-info)' }}>
+                  Using your picked direction as-is. AURA will not rewrite it a second time.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setAcceptedDirection(false)}
+                  className="mt-1.5 text-[10px] underline underline-offset-2"
+                  style={{ color: 'var(--color-info)' }}
+                >
+                  Let AURA rewrite it
+                </button>
+              </div>
+            ) : promptBoost !== 'off' ? (
+              <p className="text-[10px] leading-snug mt-2" style={{ color: 'var(--color-fg-muted)' }}>
+                This runs on every Generate. If you pick a direction above, AURA leaves that version alone.
+              </p>
+            ) : null}
+          </div>
+          )}
 
         {/* Improve-with-AI — 3 distinct creative directions to pick from. */}
         <AnimatePresence>
@@ -1101,7 +1276,7 @@ export default function CreativeTools() {
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider font-bold" style={{ color: 'var(--color-info)' }}>
                     <Sparkles className="w-3 h-3" />
-                    Pick a creative direction
+                    Three directions. Pick one to use it
                   </div>
                   <button type="button" onClick={discardImprovedPrompt} className="text-[10px] text-[color:var(--color-fg-subtle)] hover:text-[color:var(--color-fg)] inline-flex items-center gap-1"><X className="w-3 h-3" /> Dismiss</button>
                 </div>
@@ -1375,39 +1550,6 @@ export default function CreativeTools() {
             </div>
           )}
 
-          {/* Prompt boost dial — how much the server-side enhancer may rewrite.
-              Raw answers "the enhancer completely changed my prompt": it ONLY
-              translates (Arabic→English for Veo) and never reinterprets.
-              Hidden in Upscale mode (no prompt). */}
-          {mode !== 'upscale' && (
-          <div>
-            <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Prompt boost</label>
-            <div className="flex items-center gap-2 mt-2">
-              {([
-                { v: 'off' as const, label: 'Off', hint: 'Send your exact words, untouched.' },
-                { v: 'raw' as const, label: 'Raw', hint: 'Keep your wording. Only translate for the engine (e.g. Arabic→English for video) and add technical negatives. Never reinterprets your idea.' },
-                { v: 'medium' as const, label: '✨ Pro', hint: 'Full rewrite into a production-grade prompt for the selected engine (composition, lighting, cinematography, audio).' },
-                { v: 'high' as const, label: 'Max', hint: 'Pushes art direction to the limit. Most specific composition, lighting and palette.' },
-              ]).map(o => (
-                <button
-                  key={o.v}
-                  type="button"
-                  onClick={() => setPromptBoost(o.v)}
-                  title={o.hint}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-                    promptBoost === o.v ? '' : 'bg-white/[0.03] text-zinc-500 border-white/[0.06] hover:border-white/[0.1]'
-                  }`}
-                  style={promptBoost === o.v
-                    ? { background: 'var(--color-accent-subtle)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' }
-                    : undefined}
-                >
-                  {o.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          )}
-
           {/* B3 — social safe-zone toggle: keep platform-UI bands clear.
               Hidden in Upscale mode. */}
           {mode !== 'upscale' && (
@@ -1456,24 +1598,6 @@ export default function CreativeTools() {
             </div>
           )}
 
-          {/* Model picker — Auto by default (AURA routes: Qwen Image 3.0 Pro
-              first, Gemini and Grok on standby). In Upscale mode it only
-              matters when AI detail is on (it picks the detail engine). */}
-          {!isVideoMode && (mode !== 'upscale' || upscaleAi) && (
-            <ModelPicker
-              label={mode === 'upscale' ? 'AI detail model' : 'Model'}
-              options={MODELS_BY_SECTION[imageSection]}
-              value={validModelValue(imageSection, imageModel)}
-              onChange={setImageModel}
-              showPrice={canSeePricing}
-              priceFor={(o) => {
-                const per = effectivePerImage(o, effectiveImageSize);
-                return per ? `${formatRate(per)}/img` : '';
-              }}
-              priceNote={o => (isTieredImage(o) && effectiveImageSize !== '1K' ? `at ${effectiveImageSize}` : '')}
-            />
-          )}
-
           {/* Image output resolution — nano-banana renders natively at 1K/2K/4K
               (Imagen clamps 4K→2K; the Alibaba engines publish only a 1K and
               a 2K price tier, so a 4K button on them would promise a picture
@@ -1502,24 +1626,6 @@ export default function CreativeTools() {
                 ))}
               </div>
             </div>
-          )}
-
-          {isVideoMode && (
-            <ModelPicker
-              label={extraRefs.length > 0 ? 'Model · keeps your product consistent' : 'Model'}
-              options={MODELS_BY_SECTION[videoSection]}
-              value={videoPick.value}
-              onChange={setVideoModel}
-              showPrice={canSeePricing}
-              priceFor={(o) => {
-                if (!o.perSec) return '';
-                // Three decimals: the cheapest engine is $0.016/s, and
-                // toFixed(2) rounded that to $0.02 — a 25% overstatement
-                // of the rate the meter actually charges.
-                return `${formatRate(perSecondRate(o, videoRes))}/s`;
-              }}
-              footnote={videoRes === '1080p' ? 'Rates shown at 1080p.' : undefined}
-            />
           )}
 
           {isVideoMode && (

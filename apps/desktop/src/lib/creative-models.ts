@@ -233,6 +233,70 @@ export function validModelValue(section: CreativeSection, value: string): string
   return MODELS_BY_SECTION[section].some((o) => o.value === value) ? value : 'auto';
 }
 
+/**
+ * The prompt dialect each engine family gets. This MIRRORS the server table
+ * (server/src/services/prompt-enhancer.service.ts, DIALECT_HINTS) so the line
+ * under the engine picker tells the truth about the prompt that will be sent.
+ *
+ * server/test/prompt-enhancer.spec.ts asserts the two agree, so a new engine
+ * cannot ship with a prompt nobody can explain.
+ */
+export type DialectKey =
+  | 'qwen-image'
+  | 'qwen-image-21'
+  | 'nano-banana'
+  | 'grok-image'
+  | 'z-image'
+  | 'wan3'
+  | 'wan'
+  | 'happyhorse'
+  | 'grok-video'
+  | 'vidu'
+  | 'none';
+
+export const DIALECT_HINTS: Record<DialectKey, string> = {
+  'qwen-image': 'Prompt written for Qwen Image. The layout is spelled out and any text in the picture is quoted exactly.',
+  'qwen-image-21': 'Prompt written for Qwen Image 2.1. It names what changes and says plainly that the rest stays the same.',
+  'nano-banana': 'Prompt written for Gemini. One flowing paragraph, with the camera and lens named.',
+  'grok-image': 'Prompt written for Grok. Short and punchy, with the subject first.',
+  'z-image': 'Prompt written for Z-Image. A plain concrete description, with any copy quoted exactly.',
+  wan3: 'Prompt written for Wan 3.0. This engine makes the sound too, so describe what the scene sounds like.',
+  wan: 'Prompt written for Wan 2.7. This engine makes no sound, so the prompt covers motion only.',
+  happyhorse: 'Prompt written for HappyHorse. This engine makes no sound, so the prompt spends its words on weight and momentum.',
+  'grok-video': 'Prompt written for Grok video. Short, high energy beats.',
+  vidu: 'Prompt written for Vidu. Numbered beats for one advertising cut.',
+  none: 'Prompt written for a generic engine.',
+};
+
+/** Which dialect an engine gets. Same rules as the server resolver. */
+export function dialectKeyFor(option: ModelOption, section: CreativeSection): DialectKey {
+  const isVideo = section === 'text-to-video' || section === 'image-to-video' || section === 'reference-video';
+  const m = (option.model || '').toLowerCase();
+  if (isVideo) {
+    if (m.includes('vidu')) return 'vidu';
+    if (/wan3\./.test(m)) return 'wan3';
+    if (m.includes('happyhorse')) return 'happyhorse';
+    if (m.includes('wan')) return 'wan';
+    if (m.includes('grok')) return 'grok-video';
+    return 'none';
+  }
+  if (m.includes('z-image')) return 'z-image';
+  if (m.includes('qwen-image-2.1')) return 'qwen-image-21';
+  if (m.includes('qwen') || m.includes('wan')) return 'qwen-image';
+  if (m.includes('grok')) return 'grok-image';
+  return 'nano-banana';
+}
+
+/** What Auto says. The server resolves Auto from the router's own env, so the
+ *  picker cannot name an engine that might not run. */
+export const AUTO_DIALECT_HINT = 'AURA picks the engine, then writes the prompt for it. You can pin one engine below to see the exact style.';
+
+/** The one line under the engine picker: what kind of prompt this engine wants. */
+export function dialectHintFor(option: ModelOption, section: CreativeSection): string {
+  if (option.value === 'auto') return AUTO_DIALECT_HINT;
+  return DIALECT_HINTS[dialectKeyFor(option, section)];
+}
+
 /** Request pieces for an image call. Auto sends nothing (server primary + chain). */
 export function imageRequestFor(section: CreativeSection, value: string): { provider?: ProviderName; model?: string; quality?: 'standard' | 'ultra' } {
   const o = modelOption(section, value);
@@ -240,9 +304,10 @@ export function imageRequestFor(section: CreativeSection, value: string): { prov
   return { provider: o.provider, ...(o.model ? { model: o.model } : {}), ...(o.quality ? { quality: o.quality } : {}) };
 }
 
-/** Clip lengths the UI offers. 16 is here because the Vidu Q3 ad engine is
- * built for a 16-second ad cut — offering only 15 would make the engine's
- * headline promise unreachable from the picker. */
+/** Clip lengths the UI offers. The fastest engine's shortest clip is 2s and
+ *  the longest is 30s, so the list spans that range and each engine's own
+ *  min/max filters it (durationsFor). Wan 2.7 tops out at 10s, HappyHorse at
+ *  15s, Wan 3.0 at 30s. */
 const ALL_DURATIONS = [4, 6, 8, 10, 12, 15, 16, 20, 30];
 /** Clip lengths the engine accepts (Auto follows its primary, capped at 15s so
  *  a standby engine can still serve the clip). */
