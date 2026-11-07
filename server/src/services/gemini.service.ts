@@ -123,6 +123,20 @@ const EMBED_TIMEOUT_MS = parseInt(process.env.GEMINI_EMBED_TIMEOUT_MS || '15000'
 // (a query for "ceramic coating" served CSS junk and the lead-gen pack).
 // Silent garbage is worse than no context, so the fallback must refuse to
 // serve a vector it cannot compare against the store.
+//
+// WHY VERTEX IS NOT A FALLBACK (2026-11-07): Vertex serves
+// gemini-embedding-001, which returns 3072 dims — the SAME COUNT as the
+// store — so the length guard above cannot detect the swap. It was measured
+// against real prod chunk vectors:
+//     cos(stored, vertex-same-text)      = 0.0090 – 0.0231
+//     cos(stored, vertex-unrelated-text) ≈ 0
+// i.e. Vertex's embedding space is ORTHOGONAL to the space that wrote our
+// 3,450 chunk vectors (gemini-embedding-2-preview, Developer API, now 402).
+// Wiring Vertex in here would look correct (right dimension, healthy
+// internal space) while silently serving UNRANKED chunks — the exact
+// 2026-11-05 bug. A Vertex re-embed is only safe as a FULL store migration
+// (every chunk and memory rewritten in one run, old vectors discarded).
+// DO NOT add a Vertex branch to embedText or dashscopeEmbed.
 const STORED_EMBED_DIMS = 3072;
 async function dashscopeEmbed(text: string): Promise<number[]> {
   const key = process.env.DASHSCOPE_API_KEY;
@@ -192,7 +206,14 @@ export async function embedText(text: string, ctx?: EmbedContext): Promise<numbe
       EMBED_CACHE.set(key, { vec, at: Date.now() });
       return vec;
     } catch (fbErr: any) {
-      console.warn('[gemini/embedding] dashscope fallback also failed:', fbErr?.message || fbErr);
+      // Say the truth, loudly. The retrieval and memory callers treat this
+      // throw as "no vector" and fall back to the LEXICAL lane, which works
+      // and needs no key. A generic swallowed warning made the RAG dashboard
+      // look healthy while every retrieval was silently unranked.
+      console.warn(
+        '[gemini/embedding] NO embedding provider reachable — serving the lexical lane instead. ' +
+        `primary: ${err?.message || String(err)} | fallback: ${fbErr?.message || fbErr}`,
+      );
     }
     if (err instanceof GeminiUnavailableError) throw err;
     // Wrap raw Google SDK errors with a clean message

@@ -339,13 +339,24 @@ function resolveVideoModel(requested: string | undefined, mode: VideoMode): stri
 // other families. Each entry must serve the same INPUT shape, so a t2v pick
 // falls back through the t2v family and the all-in-one wan3.0 models.
 const VIDEO_FALLBACKS: Record<VideoMode, string[]> = {
-  // NOTE: wan2.6-t2v and wan2.6-i2v are deliberately NOT here — the workspace
-  // catalog publishes NO price block for them (empty prices array), so a rung
-  // on either would bill $0 for every clip. Only priced engines get a rung.
+  // Every rung here was probed LIVE on 2026-11-07 (not inferred from a
+  // catalog): a rung that 403s is a broken promise and burns the request's
+  // whole time budget before the chain reaches a live engine.
+  //
+  // REMOVED 2026-11-07 — served only by the old Singapore workspace, dead on
+  // every live one now: wan2.6-i2v-flash, wan2.6-r2v-flash,
+  // vidu/viduq2-pro-fast_img2video, vidu/viduq3-ad_reference2video,
+  // vidu/viduq3-mix_reference2video.
+  //
+  // STILL OUT (2026-11-07): wan2.6-t2v and wan2.6-i2v are priced on the EU
+  // catalog ($0.10/s 720P, $0.15/s 1080P) and wan2.6-t2v even submits on EU,
+  // but wan2.6-i2v needs `input.img_url` instead of `input.media` and
+  // wan2.6-r2v wants `reference_video_urls` — a different payload contract
+  // this provider does not speak. A rung there would submit a malformed
+  // request and then bill $0 on the pricing table.
   t2v: ['wan3.0-video', 'wan2.7-t2v', 'happyhorse-1.1-t2v', 'happyhorse-1.0-t2v'],
-  i2v: ['wan3.0-video', 'wan2.7-i2v', 'wan2.6-i2v-flash', 'happyhorse-1.1-i2v', 'happyhorse-1.0-i2v', 'vidu/viduq2-pro-fast_img2video'],
-  r2v: ['wan3.0-video', 'wan2.7-r2v', 'wan2.6-r2v-flash', 'happyhorse-1.1-r2v', 'happyhorse-1.0-r2v',
-        'vidu/viduq3-ad_reference2video', 'vidu/viduq3-mix_reference2video'],
+  i2v: ['wan3.0-video', 'wan2.7-i2v', 'happyhorse-1.1-i2v', 'happyhorse-1.0-i2v'],
+  r2v: ['wan3.0-video', 'wan2.7-r2v', 'happyhorse-1.1-r2v', 'happyhorse-1.0-r2v'],
 };
 
 /** The models to try, in order, for this call. */
