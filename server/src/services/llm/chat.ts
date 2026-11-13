@@ -39,6 +39,7 @@ import { enrichWithMemory } from '../../lib/memory-enricher.js';
 import { enrichWithBrandKit } from '../../lib/brand-kit-enricher.js';
 import { filterAvailable, recordSuccess, recordFailure } from '../providers/circuit-breaker.js';
 import { isRetryableAiError, isSafetyBlock } from '../providers/errors.js';
+import { anthropicApiKey } from '../providers/anthropic.provider.js';
 
 // 'vertex' = Google Vertex AI / Agent Platform (added 2026-11-07). The Gemini
 // Developer API key is billing-dead (402 on every model), but Vertex serves the
@@ -147,10 +148,10 @@ const dsExtras = (provider: string, model?: string, params?: { max_tokens?: numb
   if (provider === 'moonshot' && /k3\.1|k2\.5/i.test(model || '')) return { temperature: 1 };
   return {};
 };
-function getAnthropicBase(): string {
-  const raw = (process.env.ANTHROPIC_BASE_URL || 'https://claudeapikey.dev').replace(/\/+$/, '');
-  return raw.endsWith('/v1') ? raw : `${raw}/v1`;
-}
+// Anthropic's own OpenAI-compatible endpoint, with an official Claude Console
+// key only. No reseller and no Claude Code impersonation: see the comment at
+// the top of providers/anthropic.provider.ts.
+const ANTHROPIC_OPENAI_BASE = 'https://api.anthropic.com/v1/';
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/openai/';
 function getXaiBase(): string {
   return process.env.XAI_BASE_URL || 'https://api.x.ai/v1';
@@ -176,9 +177,9 @@ const cache = new Map<string, OpenAI>();
 
 function clientFor(p: ProviderName, geminiModelOverride?: string): ProviderClient {
   if (p === 'anthropic') {
-    const key = process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_API_KEY;
-    if (!key) throw new Error('ANTHROPIC_AUTH_TOKEN missing');
-    const base = getAnthropicBase();
+    const key = anthropicApiKey();
+    if (!key) throw new Error('ANTHROPIC_API_KEY (an official sk-ant-api Claude Console key) missing');
+    const base = ANTHROPIC_OPENAI_BASE;
     const cacheKey = `${p}:${base}:${key.slice(-8)}`;
     let cached = cache.get(cacheKey);
     if (!cached) {
@@ -187,13 +188,6 @@ function clientFor(p: ProviderName, geminiModelOverride?: string): ProviderClien
         baseURL: base,
         timeout: LLM_TIMEOUT_MS,
         maxRetries: 1,
-        defaultHeaders: {
-          'x-api-key': key,
-          'anthropic-version': '2023-06-01',
-          'anthropic-beta': 'claude-code-20250219,interleaved-thinking-2025-05-14',
-          'x-app': 'cli',
-          'User-Agent': 'claude-cli/2.1.0 (external, cli)',
-        },
       });
       cache.set(cacheKey, cached);
     }
@@ -543,7 +537,7 @@ export function chainStatus(chain: ProviderName[] = DEFAULT_CHAIN): Array<{ prov
     if (p === 'anthropic') {
       return {
         provider: p,
-        configured: !!(process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_API_KEY),
+        configured: !!anthropicApiKey(),
         model: process.env.CLAUDE_ASSISTANT_MODEL || process.env.ANTHROPIC_TEXT_MODEL || 'claude-sonnet-5-5',
       };
     }

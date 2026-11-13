@@ -10,16 +10,37 @@ import { AiProviderError, AiCancelledError, abortReasonText, throwIfCancelled } 
 import { runModelLadder, readLadder } from './model-chain.js';
 
 const TIMEOUT = parseInt(process.env.ANTHROPIC_TIMEOUT_MS || '120000', 10);
-const CLAUDE_CODE_ANCHOR = "You are Claude Code, Anthropic's official CLI for Claude.";
 
-function baseUrl(): string {
-  const raw = (process.env.ANTHROPIC_BASE_URL || 'https://claudeapikey.dev').replace(/\/+$/, '');
-  return raw.endsWith('/v1') ? raw : `${raw}/v1`;
+// Claude through the OFFICIAL Anthropic API with a Claude Console key, and
+// nothing else.
+//
+// Until 2026-11-14 this pointed at a reseller (claudeapikey.dev) and dressed
+// every request up as the Claude Code CLI (claude-code beta header, claude-cli
+// User-Agent, a "You are Claude Code" system prompt with the real
+// instructions moved into the user turn) so a Claude SUBSCRIPTION token would
+// be accepted. Anthropic does not allow that for an app: developers building
+// products "should use API key authentication through Claude Console", and
+// Anthropic does "not permit third-party developers ... to route requests
+// through Free, Pro, Max, or Ultra plan credentials on behalf of their users"
+// (code.claude.com/docs/en/legal-and-compliance, read 2026-11-14). The
+// reseller was also out of balance and was receiving client prompts.
+//
+// Without an official key the provider reports itself unconfigured and every
+// chain skips it.
+const ANTHROPIC_API = 'https://api.anthropic.com/v1';
+
+/** The official Claude Console API key, or undefined. Console API keys start
+ *  sk-ant-api. Everything else is ignored, including a reseller token and a
+ *  Claude subscription token (`claude setup-token` makes sk-ant-oat...), which
+ *  Anthropic does not allow an app to use. */
+export function anthropicApiKey(): string | undefined {
+  const k = (process.env.ANTHROPIC_API_KEY || '').trim();
+  return k.startsWith('sk-ant-api') ? k : undefined;
 }
 
 function getKey(): string {
-  const key = process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_API_KEY;
-  if (!key) throw new AiProviderError('anthropic', 'init', 'ANTHROPIC_AUTH_TOKEN not set', 401);
+  const key = anthropicApiKey();
+  if (!key) throw new AiProviderError('anthropic', 'init', 'ANTHROPIC_API_KEY (an official sk-ant-api Claude Console key) is not set', 401);
   return key;
 }
 
@@ -83,16 +104,12 @@ async function anthropicFetch(
   opts.signal?.addEventListener('abort', onCallerAbort, { once: true });
   try {
     const key = getKey();
-    const res = await fetch(`${baseUrl()}${path}`, {
+    const res = await fetch(`${ANTHROPIC_API}${path}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${key}`,
         'x-api-key': key,
         'anthropic-version': '2023-06-01',
-        'anthropic-beta': 'claude-code-20250219,interleaved-thinking-2025-05-14',
-        'x-app': 'cli',
-        'User-Agent': 'claude-cli/2.1.0 (external, cli)',
       },
       body: JSON.stringify(body),
       signal: controller.signal,
@@ -169,18 +186,10 @@ export const anthropicProvider: AiProvider = {
     }
 
     const start = Date.now();
-    // claude-sonnet-5-5 / claude-opus-5-5 require temperature=1 and emit ~300-600
-    // thinking tokens before text blocks, sharing max_tokens.
     const maxTokens = Math.max(req.maxTokens ?? (req.json ? 8192 : 4096), 2048);
     const systemText = req.json
       ? `${req.system ? `${req.system}\n\n` : ''}Respond ONLY with valid raw JSON (no markdown code fences, no commentary).`
       : req.system;
-    const systemBlocks = [
-      { type: 'text', text: CLAUDE_CODE_ANCHOR },
-    ];
-    const combinedUserPrompt = systemText
-      ? `${systemText}\n\n${req.prompt}`
-      : req.prompt;
 
     const result = await runModelLadder('anthropic', 'text', ladder, async (entry) => {
       const data = await anthropicFetch(
@@ -189,9 +198,11 @@ export const anthropicProvider: AiProvider = {
           model: entry.model,
           temperature: 1,
           max_tokens: maxTokens,
-          system: systemBlocks,
+          // The real system prompt goes in `system`, where the official API
+          // expects it.
+          ...(systemText ? { system: systemText } : {}),
           messages: [
-            { role: 'user', content: combinedUserPrompt },
+            { role: 'user', content: req.prompt },
           ],
         },
         { timeoutMs: req.timeoutMs, signal: req.signal, label: 'text' },
@@ -240,9 +251,6 @@ export const anthropicProvider: AiProvider = {
           model: entry.model,
           temperature: 1,
           max_tokens: 4096,
-          system: [
-            { type: 'text', text: CLAUDE_CODE_ANCHOR },
-          ],
           messages: [
             {
               role: 'user',

@@ -53,7 +53,8 @@ for (const [path, exportName, name] of [
   ['../src/services/providers/moonshot.provider.js', 'moonshotProvider', 'moonshot'],
   ['../src/services/providers/anthropic.provider.js', 'anthropicProvider', 'anthropic'],
 ] as const) {
-  vi.doMock(path, () => ({ [exportName]: stubProvider(name) }));
+  // The router also asks the Anthropic module whether an official key is set.
+  vi.doMock(path, () => ({ [exportName]: stubProvider(name), ...(name === 'anthropic' ? { anthropicApiKey: () => undefined } : {}) }));
 }
 
 const { aiRouter } = await import('../src/services/providers/ai-router.js');

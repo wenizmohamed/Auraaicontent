@@ -25,9 +25,9 @@ export const env = {
   XAI_VIDEO_MODEL: optional('XAI_VIDEO_MODEL', 'grok-imagine-video'),
   XAI_TIMEOUT_MS: parseInt(optional('XAI_TIMEOUT_MS', '90000'), 10),
 
-  // Anthropic (Claude Sonnet 5.5 / Opus 5.5 via claudeapikey.dev or Anthropic)
-  ANTHROPIC_BASE_URL: optional('ANTHROPIC_BASE_URL', 'https://claudeapikey.dev'),
-  ANTHROPIC_AUTH_TOKEN: optional('ANTHROPIC_AUTH_TOKEN', ''),
+  // Anthropic (Claude) through the official API only, with a Claude Console
+  // key (sk-ant-...). The reseller base URL and the subscription-style
+  // ANTHROPIC_AUTH_TOKEN were removed 2026-11-14 (providers/anthropic.provider.ts).
   ANTHROPIC_API_KEY: optional('ANTHROPIC_API_KEY', ''),
   ANTHROPIC_TEXT_MODEL: optional('ANTHROPIC_TEXT_MODEL', 'claude-sonnet-5-5'),
   ANTHROPIC_OPUS_MODEL: optional('ANTHROPIC_OPUS_MODEL', 'claude-opus-5-5'),

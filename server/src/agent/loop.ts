@@ -16,6 +16,7 @@ import type {
 import { TOOL_BY_NAME, toOpenAITools, validateToolInput, formatValidationError } from './tools/index.js';
 import type { ToolContext } from './tool-types.js';
 import { chatStream, DEFAULT_CHAIN, type ProviderName } from '../services/llm/chat.js';
+import { anthropicApiKey } from '../services/providers/anthropic.provider.js';
 import { historyService } from '../services/history.service.js';
 import { SYSTEM } from './system-prompt.js';
 
@@ -212,7 +213,7 @@ async function runAgentLoopInner(
   // chatStream() helper still tries each provider per iteration in case
   // quota / network state changes mid-run.
   const probeChain = DEFAULT_CHAIN.filter((p) => {
-    if (p === 'anthropic') return !!(process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_API_KEY);
+    if (p === 'anthropic') return !!anthropicApiKey();
     const envKey = p === 'gemini' ? 'GEMINI_API_KEY'
       : p === 'xai' ? 'XAI_API_KEY'
       : p === 'dashscope' ? 'DASHSCOPE_API_KEY'
@@ -222,7 +223,7 @@ async function runAgentLoopInner(
   });
   if (probeChain.length === 0) {
     await ctx.emit('agent:error', {
-      message: 'No LLM provider configured (need ANTHROPIC_AUTH_TOKEN, GEMINI_API_KEY, XAI_API_KEY, DASHSCOPE_API_KEY, VERTEX_API_KEY, or MOONSHOT_API_KEY)',
+      message: 'No LLM provider configured (need ANTHROPIC_API_KEY, GEMINI_API_KEY, XAI_API_KEY, DASHSCOPE_API_KEY, VERTEX_API_KEY, or MOONSHOT_API_KEY)',
       at: new Date().toISOString(),
     });
     return { iterations: 0, stopReason: 'error', messages: [], error: 'no provider configured' };

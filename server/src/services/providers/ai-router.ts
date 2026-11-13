@@ -2,7 +2,7 @@ import { xaiProvider } from './xai.provider.js';
 import { geminiProvider } from './gemini.provider.js';
 import { dashscopeProvider } from './dashscope.provider.js';
 import { vertexProvider } from './vertex.provider.js';
-import { anthropicProvider } from './anthropic.provider.js';
+import { anthropicProvider, anthropicApiKey } from './anthropic.provider.js';
 import { moonshotProvider } from './moonshot.provider.js';
 import { minimaxProvider } from './minimax.provider.js';
 import { isRetryableAiError, isSafetyBlock, AllProvidersFailedError, AiCancelledError, abortReasonText, throwIfCancelled, type ProviderFailure } from './errors.js';
@@ -144,7 +144,7 @@ const CHAIN: Record<string, AiProviderName[]> = {
 // non-retryable "key not set" and break the fallback.
 function providerAvailable(name: AiProviderName): boolean {
   switch (name) {
-    case 'anthropic': return !!(process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_API_KEY);
+    case 'anthropic': return !!anthropicApiKey();
     case 'dashscope': return !!process.env.DASHSCOPE_API_KEY;
     case 'xai': return !!process.env.XAI_API_KEY;
     case 'gemini': return !!process.env.GEMINI_API_KEY;
