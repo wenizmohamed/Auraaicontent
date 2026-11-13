@@ -9,6 +9,7 @@ interface Args {
   aspectRatio?: '16:9' | '9:16';
   durationSeconds?: number;
   tier?: 'draft' | 'hd';
+  resolution?: '720p' | '1080p';
   model?: string;
   clientId?: string;
 }
@@ -35,7 +36,8 @@ export const tool = defineTool<Args, Result>({
       prompt: { type: 'string', description: 'What happens in the clip: subject, action, setting, camera, mood, audio' },
       aspectRatio: { type: 'string', enum: ['16:9', '9:16'], description: '9:16 for reels, stories and TikTok; 16:9 for landscape. Defaults to 9:16' },
       durationSeconds: { type: 'integer', description: 'Clip length in seconds, 4 to 15. Defaults to 6' },
-      tier: { type: 'string', enum: ['draft', 'hd'], description: 'Defaults to hd (1080p/2K flagship); use draft only when the user asks for a fast preview' },
+      tier: { type: 'string', enum: ['draft', 'hd'], description: 'Which engine class: hd (the default) uses the flagship engines, draft a fast engine for a quick preview. It does not set the resolution' },
+      resolution: { type: 'string', enum: ['720p', '1080p'], description: 'Defaults to 720p. Use 1080p only when the user asks for 1080p, Full HD or final quality: it costs about twice as much per second' },
       model: { type: 'string', description: 'Optional engine override (wan3.0-video-prime, MiniMax-H3, MiniMax-H3-Max, gemini-omni-1.2-flash, grok-imagine-video-1.5, happyhorse-1.1-t2v)' },
       clientId: { type: 'string', description: 'Override active client; falls back to session clientId' },
     },
@@ -51,6 +53,8 @@ export const tool = defineTool<Args, Result>({
     const requested = typeof args.durationSeconds === 'number' ? Math.round(args.durationSeconds) : 6;
     const durationSeconds = Math.min(Math.max(requested, 4), 15);
     const tier = args.tier === 'draft' ? 'draft' : 'hd';
+    // 720p unless the user asked for 1080p (Weni 2026-11-14).
+    const resolution: '720p' | '1080p' = args.resolution === '1080p' ? '1080p' : '720p';
     const pinnedModel = typeof args.model === 'string' && args.model.trim() ? args.model.trim() : undefined;
     const autoPick = !pinnedModel ? selectBestCreativeEngine('text-to-video', args.prompt, { fast: tier === 'draft' }) : null;
     const effectiveModel = pinnedModel || autoPick!.model;
@@ -76,7 +80,7 @@ export const tool = defineTool<Args, Result>({
     }
 
     await ctx.emit('agent:thought', {
-      text: `AURA Video Director -> ${effectiveProvider}/${effectiveModel} (${durationSeconds}s ${aspectRatio}, ${tier === 'hd' ? '1080p' : '720p'})...`,
+      text: `AURA Video Director -> ${effectiveProvider}/${effectiveModel} (${durationSeconds}s ${aspectRatio}, ${resolution})...`,
       at: new Date().toISOString(),
     });
 
@@ -86,7 +90,7 @@ export const tool = defineTool<Args, Result>({
           prompt: genPrompt,
           aspectRatio,
           durationSeconds,
-          resolution: tier === 'hd' ? '1080p' : '720p',
+          resolution,
           tier,
           fast: tier === 'draft',
           model: effectiveModel,

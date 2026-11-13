@@ -89,7 +89,8 @@ export async function creativeVideoWorker(j: Job): Promise<any> {
   }, 3000);
   try {
     const { genPrompt, negativePrompt, enhancedPrompt, effectiveModel, effectiveProvider } = await prepareVideoPrompt(j);
-    const effectiveRes = j.data.resolution || (j.data.tier === 'draft' ? '720p' : '1080p');
+    // 720p unless the job asked for 1080p (the route already defaults it).
+    const effectiveRes = j.data.resolution || '720p';
     const result = await aiRouter.video(
       {
         prompt: genPrompt,

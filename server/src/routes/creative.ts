@@ -353,7 +353,10 @@ export async function creativeRoutes(app: FastifyInstance) {
     const orgId = request.orgId;
     const userId = request.user?.userId;
     const effectiveTier = tier === 'draft' ? 'draft' : 'hd';
-    const effectiveResolution = resolution || (effectiveTier === 'hd' ? '1080p' : '720p');
+    // 720p unless the caller asks for 1080p (Weni 2026-11-14). The tier picks
+    // the engine class; it no longer forces 1080p, which doubled the per-second
+    // cost of every default clip.
+    const effectiveResolution = resolution || '720p';
     const job = createJob('creative-video', {
       orgId, userId,
       prompt, aspectRatio, durationSeconds, resolution: effectiveResolution, clientId,
