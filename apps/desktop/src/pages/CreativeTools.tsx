@@ -289,9 +289,10 @@ export default function CreativeTools() {
   const [stylePacks, setStylePacks] = useState<{ id: string; name: string; tagline: string; category: string; palette: string[] }[]>([]);
   const [stylePackId, setStylePackId] = useState('');
   useEffect(() => { creativeApi.stylePacks().then(r => setStylePacks(r.packs || [])).catch(() => { /* picker stays hidden */ }); }, []);
-  // Video resolution: 1080p is Veo-only and requires an 8s clip; selecting it
-  // auto-bumps duration to 8 (server also degrades gracefully to 720p).
-  const [videoRes, setVideoRes] = useState<'720p' | '1080p'>('1080p');
+  // Video resolution: 720p by default (Weni 2026-11-14); 1080p is one click
+  // and costs about twice as much per second on the Alibaba engines. Engines
+  // without 1080p drop back to 720p (effect below).
+  const [videoRes, setVideoRes] = useState<'720p' | '1080p'>('720p');
   // Optional "avoid" terms — merged into Veo's negativePrompt server-side.
   const [negPrompt, setNegPrompt] = useState('');
   // Video model pick (per-section catalog). 'auto' = the server picks from
