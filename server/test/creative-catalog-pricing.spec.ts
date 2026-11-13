@@ -146,8 +146,9 @@ describe('picker catalog and cost meter agree', () => {
     let m: RegExpExecArray | null;
     while ((m = re.exec(block))) {
       const [, id, k1, k2, k4] = m;
-      // 'auto' has no model row of its own — it quotes its first engine.
-      const target = id === 'auto' ? 'qwen-image-3.0-pro' : id;
+      // 'auto' has no model row of its own — it quotes the engine it lands on
+      // most (Gemini 3 Pro Image: the fall-through pick for generate and edit).
+      const target = id === 'auto' ? 'gemini-3-pro-image' : id;
       const hasTierRows = AI_PRICING[`${target}:1k`] != null;
 
       if (!hasTierRows) {
@@ -185,9 +186,8 @@ describe('picker catalog and cost meter agree', () => {
   });
 
   it('the Auto entries do not carry a flat per-image rate any more', () => {
-    // Auto runs qwen-image-3.0-pro first, so it must quote that engine's tier
-    // table. A hardcoded flat rate on the Auto row is what produced the
-    // stale $0.033 quote.
+    // Auto must quote the tier table of the engine it lands on. A hardcoded
+    // flat rate on the Auto row is what produced the stale $0.033 quote.
     const autoRows = source.split('\n').filter((l) => l.includes("value: 'auto'"));
     expect(autoRows.length).toBeGreaterThan(0);
     const withFlat = autoRows.filter((l) => /perImage:\s*[\d.]+/.test(l));

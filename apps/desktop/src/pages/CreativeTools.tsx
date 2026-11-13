@@ -294,9 +294,10 @@ export default function CreativeTools() {
   const [videoRes, setVideoRes] = useState<'720p' | '1080p'>('1080p');
   // Optional "avoid" terms — merged into Veo's negativePrompt server-side.
   const [negPrompt, setNegPrompt] = useState('');
-  // Video model pick (per-section catalog). 'auto' = AURA Smart Pick.
+  // Video model pick (per-section catalog). 'auto' = the server picks from
+  // the prompt (selectBestCreativeEngine, a keyword match).
   const [videoModel, setVideoModel] = useState('auto');
-  // Image model pick. 'auto' = AURA Smart Pick.
+  // Image model pick. 'auto' = the server picks from the prompt.
   const [imageModel, setImageModel] = useState<string>('auto');
   // B3: keep the platform-UI safe zones (top/bottom bands) clear of key elements.
   const [safeZone, setSafeZone] = useState(false);
@@ -1721,7 +1722,7 @@ export default function CreativeTools() {
                   price is just that engine's rate × duration. No hidden tier. */}
               {(() => {
                 const rate = perSecondRate(videoPick, videoRes);
-                const name = videoPick.value === 'auto' ? 'Auto (AURA Smart Pick)' : videoPick.label;
+                const name = videoPick.value === 'auto' ? 'Auto (AURA picks from your prompt)' : videoPick.label;
                 // Cost line is owner/admin/accounting only; everyone else still
                 // sees which engine and how long the clip is, just no money.
                 return (

@@ -59,7 +59,11 @@ const TIERED_IMAGE_RATES: Record<string, { '1K': number; '2K': number; '4K': num
   'qwen-image-3.0-pro': { '1K': 0.03438, '2K': 0.068761, '4K': 0.068761 },
   'wan2.7-image-pro': { '1K': 0.044257, '2K': 0.075, '4K': 0.075 },
   'wan2.7-image': { '1K': 0.027504, '2K': 0.027504, '4K': 0.027504 },
-  'auto': { '1K': 0.03438, '2K': 0.068761, '4K': 0.068761 },
+  // Auto quotes the engine it lands on most: Gemini 3 Pro Image is the
+  // fall-through pick for generate and edit, and the first hop for the
+  // upscale detail pass. Quoting Qwen's $0.034 here showed a quarter of the
+  // real price for most Auto images.
+  'auto': { '1K': 0.134, '2K': 0.134, '4K': 0.24 },
   'gemini-nano-banana-2.1': { '1K': 0.034, '2K': 0.050, '4K': 0.113 },
   'gemini-3-pro-image': { '1K': 0.134, '2K': 0.134, '4K': 0.24 },
   'grok-imagine-image-2.0': { '1K': 0.04, '2K': 0.06, '4K': 0.06 },
@@ -128,7 +132,10 @@ const MINIMAX_IMAGE_01: ModelOption = {
 };
 
 export const TEXT_TO_IMAGE_MODELS: ModelOption[] = [
-  { value: 'auto', label: 'Auto (Carbon Smart Pick)', hint: 'Gemini 4 Carbon directs & routes per prompt: Gemini 3 Pro Image, MiniMax H3-Image 4K, Qwen Image 3.0 Pro, Wan 2.7 Image Pro, Nano Banana 2.1, and Grok 2.0.' },
+  // The Auto hints describe selectBestCreativeEngine (server/src/services/
+  // prompt-enhancer.service.ts) word for word: a keyword match on the prompt,
+  // NOT a model call. Change one, change the other.
+  { value: 'auto', label: 'Auto', hint: 'AURA picks the engine from your words: Qwen Image 3.0 Pro for Arabic and posters, Wan 2.7 Image Pro for luxury product close-ups, MiniMax H3-Image for portraits, Grok Imagine 2.0 for neon and street styles, Gemini 3 Pro Image for the rest.' },
   GEMINI_IMAGE_ULTRA, GEMINI_IMAGE,
   MINIMAX_H3_IMAGE, MINIMAX_H3_IMAGE_FAST, MINIMAX_IMAGE_01,
   QWEN_IMAGE, WAN27_IMAGE_PRO, WAN27_IMAGE,
@@ -136,7 +143,7 @@ export const TEXT_TO_IMAGE_MODELS: ModelOption[] = [
 ];
 
 export const IMAGE_EDIT_MODELS: ModelOption[] = [
-  { value: 'auto', label: 'Auto (Carbon Smart Pick)', hint: 'Gemini 4 Carbon directs & routes edits: Gemini 3 Pro Image and Qwen Image 3.0 Pro first, MiniMax H3-Image 4K, Wan 2.7 Image Pro, Nano Banana 2.1, and Grok 2.0 on standby.' },
+  { value: 'auto', label: 'Auto', hint: 'AURA picks the engine from your instruction: Qwen Image 3.0 Pro when it contains Arabic, Gemini 3 Pro Image for everything else.' },
   GEMINI_IMAGE_ULTRA, GEMINI_IMAGE,
   MINIMAX_H3_IMAGE, MINIMAX_H3_IMAGE_FAST, MINIMAX_IMAGE_01,
   QWEN_IMAGE, WAN27_IMAGE_PRO, WAN27_IMAGE,
@@ -144,7 +151,7 @@ export const IMAGE_EDIT_MODELS: ModelOption[] = [
 ];
 
 export const UPSCALE_MODELS: ModelOption[] = [
-  { value: 'auto', label: 'Auto (Carbon Smart Pick)', hint: 'AURA picks the sharpest detail engine: Qwen Image 3.0 Pro, MiniMax H3-Image 4K, Wan 2.7 Image Pro, and Gemini 3 Pro Image.' },
+  { value: 'auto', label: 'Auto', hint: 'The detail pass runs on Gemini 3 Pro Image first, with Qwen Image 3.0 Pro and MiniMax H3-Image on standby.' },
   QWEN_IMAGE, MINIMAX_H3_IMAGE, MINIMAX_H3_IMAGE_FAST, WAN27_IMAGE_PRO, WAN27_IMAGE,
   GEMINI_IMAGE, GEMINI_IMAGE_ULTRA, GROK_IMAGE_2, MINIMAX_IMAGE_01,
 ];
@@ -202,17 +209,17 @@ const GROK_VIDEO_15_LITE: ModelOption = {
 };
 
 export const TEXT_TO_VIDEO_MODELS: ModelOption[] = [
-  { value: 'auto', label: 'Auto (Carbon Smart Pick)', hint: 'Gemini 4 Carbon directs cinematography & routes per prompt: Wan 3.0 Prime (native sound), MiniMax H3 (2K + stereo sound), Gemini Omni 1.2 Flash, Grok Video 1.5, and HappyHorse 1.1.', perSec: 0.127199, perSec1080: 0.254399, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
+  { value: 'auto', label: 'Auto', hint: 'AURA picks the engine from your words: MiniMax H3 for people talking on camera, Grok Imagine Video 1.5 for fast action, Gemini Omni 1.2 Flash for animals and nature without sound, Wan 3.0 Prime with sound for the rest.', perSec: 0.127199, perSec1080: 0.254399, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
   WAN3_PRIME, WAN3, MINIMAX_H3_VIDEO, MINIMAX_H3_MAX_VIDEO, OMNI_12_FLASH, OMNI_11_FLASH, GROK_VIDEO_15, GROK_VIDEO_15_LITE, HH_T2V,
 ];
 
 export const IMAGE_TO_VIDEO_MODELS: ModelOption[] = [
-  { value: 'auto', label: 'Auto (Carbon Smart Pick)', hint: 'Gemini 4 Carbon directs motion & routes: Wan 3.0 Prime and MiniMax H3 (2K + audio) animate your frame first, with Gemini Omni 1.2 Flash, Grok Video 1.5, and HappyHorse 1.1 on standby.', perSec: 0.127199, perSec1080: 0.254399, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
+  { value: 'auto', label: 'Auto', hint: 'AURA picks the engine from your words: MiniMax H3 for people talking on camera, Wan 3.0 Prime with sound for the rest and whenever you add an end frame.', perSec: 0.127199, perSec1080: 0.254399, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
   WAN3_PRIME, WAN3, MINIMAX_H3_VIDEO, MINIMAX_H3_MAX_VIDEO, OMNI_12_FLASH, OMNI_11_FLASH, GROK_VIDEO_15, GROK_VIDEO_15_LITE, HH_I2V,
 ];
 
 export const REFERENCE_VIDEO_MODELS: ModelOption[] = [
-  { value: 'auto', label: 'Auto (Carbon Smart Pick)', hint: 'Gemini 4 Carbon directs reference shots: Wan 3.0 Prime reference mode first, then MiniMax H3 (2K + audio), Wan 3.0, and HappyHorse 1.1.', perSec: 0.127199, perSec1080: 0.254399, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
+  { value: 'auto', label: 'Auto', hint: 'Wan 3.0 Prime reference mode keeps your exact product across the clip, with MiniMax H3 and HappyHorse 1.1 on standby.', perSec: 0.127199, perSec1080: 0.254399, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
   WAN3_PRIME, WAN3, MINIMAX_H3_VIDEO, HH_R2V,
 ];
 

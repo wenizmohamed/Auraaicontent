@@ -76,7 +76,7 @@ export async function adminRoutes(app: FastifyInstance) {
   app.delete<{ Params: { orgId: string } }>('/orgs/:orgId', async (request, reply) => {
     const { orgId } = request.params;
     if (PROTECTED_ORG_IDS.has(orgId)) {
-      return reply.status(400).send({ error: 'This is the primary AURA workspace — it cannot be deleted.' });
+      return reply.status(400).send({ error: 'This is the primary AURA workspace. It cannot be deleted.' });
     }
     if (orgId === request.orgId) {
       return reply.status(400).send({ error: "You can't delete the workspace you're currently signed into. Switch workspaces first, then delete." });

@@ -225,10 +225,10 @@ function usageOf(response: any): { promptTokens?: number; completionTokens?: num
 // response came back finishReason=MAX_TOKENS with NO text part — verified
 // live 2026-11-07). Disabling it is what makes a small budget safe.
 //
-// Note: gemini-4-argon does NOT accept thinkingBudget (400). It is last in
-// the ladder and only reached when everything cheaper is exhausted.
-// gemini-4-carbon and gemini-4-argon do NOT accept thinkingBudget (HTTP 400),
-// and image modalities should not send thinkingBudget either.
+// Gemini 4 on VERTEX answers HTTP 400 to any thinkingBudget (re-verified
+// live 2026-11-13 for argon and carbon; the Developer API accepts it), so
+// it is omitted for gemini-4-*. Image modalities never send it either.
+// Pinned by test/vertex-provider.spec.ts.
 function generationConfig(model: string, extra: Record<string, unknown> = {}): Record<string, unknown> {
   const modalities = Array.isArray(extra.responseModalities) ? (extra.responseModalities as string[]) : [];
   const isGemini4 = /^gemini-4/i.test(model);

@@ -244,7 +244,7 @@ const WALKTHROUGH_STEPS: Array<{
   {
     icon: Wand2,
     title: '5. Creative Tools',
-    description: 'Generate studio images, edit existing frames, and direct native-audio videos. Prompt-engineered by Gemini 4 Carbon across Gemini 3 Pro Image, MiniMax H3 4K/2K, Alibaba Wan 3.0 Prime & Qwen 3.0 Pro, and Grok 2.0.',
+    description: 'Generate images, edit existing frames, and make videos with sound. Gemini 4 Carbon rewrites your prompt for the engine: Gemini 3 Pro Image, MiniMax H3, Wan 3.0 Prime, Qwen Image 3.0 Pro or Grok Imagine 2.0.',
     href: '/creative',
     cta: 'Open Studio',
     color: (d) => d ? 'text-pink-400' : 'text-pink-600',
@@ -1084,7 +1084,7 @@ export default function Dashboard() {
               </li>
               <li className="flex items-start gap-2">
                 <span className="mt-1.5 h-1 w-1 rounded-full flex-shrink-0" style={{ background: 'var(--color-accent)' }} />
-                <span><span className="font-semibold">Creative Director:</span> Gemini 4 Carbon directs prompts across Gemini 3 Pro Image, MiniMax H3 (4K/2K), Wan 3.0 Prime, Qwen 3.0 Pro, and Grok 2.0.</span>
+                <span><span className="font-semibold">Creative Studio:</span> Gemini 4 Carbon rewrites each prompt for the engine that runs it: Gemini 3 Pro Image, MiniMax H3, Wan 3.0 Prime, Qwen Image 3.0 Pro or Grok Imagine 2.0.</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="mt-1.5 h-1 w-1 rounded-full flex-shrink-0" style={{ background: 'var(--color-accent)' }} />
