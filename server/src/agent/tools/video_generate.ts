@@ -1,4 +1,5 @@
 import { defineTool } from '../tool-types.js';
+import { scopedClientId } from './client-scope.js';
 import { aiRouter } from '../../services/providers/ai-router.js';
 import { historyService } from '../../services/history.service.js';
 import { enhanceCreativePrompt, engineForModel, selectBestCreativeEngine } from '../../services/prompt-enhancer.service.js';
@@ -45,7 +46,7 @@ export const tool = defineTool<Args, Result>({
   async handler(args, ctx) {
     if (ctx.signal.aborted) throw new Error('video_generate aborted');
 
-    const clientId = args.clientId || ctx.clientId || undefined;
+    const clientId = await scopedClientId(ctx, args.clientId);
     const aspectRatio = args.aspectRatio === '16:9' ? '16:9' : '9:16';
     const requested = typeof args.durationSeconds === 'number' ? Math.round(args.durationSeconds) : 6;
     const durationSeconds = Math.min(Math.max(requested, 4), 15);

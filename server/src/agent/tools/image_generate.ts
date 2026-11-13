@@ -1,4 +1,5 @@
 import { defineTool } from '../tool-types.js';
+import { scopedClientId } from './client-scope.js';
 import { aiRouter } from '../../services/providers/ai-router.js';
 import { storageService } from '../../services/storage.service.js';
 import { historyService } from '../../services/history.service.js';
@@ -108,7 +109,7 @@ export const tool = defineTool<Args, Result>({
   async handler(args, ctx) {
     checkAbort(ctx.signal);
 
-    const clientId = args.clientId || ctx.clientId || undefined;
+    const clientId = await scopedClientId(ctx, args.clientId);
     const aspectRatio: AspectRatio = args.aspectRatio || '1:1';
     const { width, height } = DIMENSIONS[aspectRatio];
 

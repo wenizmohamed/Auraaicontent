@@ -18,6 +18,7 @@
 import sharp from 'sharp';
 import { storageService } from './storage.service.js';
 import { aiRouter } from './providers/ai-router.js';
+import { safeFetch } from '../lib/safe-fetch.js';
 
 export const MAX_LONG_EDGE = 16384; // "16K"
 
@@ -82,9 +83,11 @@ async function loadSource(input: UpscaleInput): Promise<Buffer> {
       return fs.readFileSync(abs);
     }
     assertPublicHttpUrl(input.sourceUrl);
-    const res = await fetch(input.sourceUrl, { signal: AbortSignal.timeout(20000) });
-    if (!res.ok) throw new Error(`Could not fetch source image (${res.status})`);
-    return Buffer.from(await res.arrayBuffer());
+    // assertPublicHttpUrl checks the NAME only; safeFetch checks the resolved
+    // address at connect time and re-checks every redirect hop.
+    const res = await safeFetch(input.sourceUrl, { accept: 'image/*', maxBytes: 50 * 1024 * 1024, timeoutMs: 20000 });
+    if (res.status < 200 || res.status >= 300) throw new Error(`Could not fetch source image (${res.status})`);
+    return res.body;
   }
   throw new Error('No source image (base64 or sourceUrl required)');
 }

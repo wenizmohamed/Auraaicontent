@@ -12,6 +12,7 @@ import { aiRouter } from '../services/providers/ai-router.js';
 import { db } from '../db/prisma.js';
 import { errStatus, errMessage } from '../services/providers/errors.js';
 import { assertPublicHttpUrl } from '../services/upscale.service.js';
+import { safeFetch } from '../lib/safe-fetch.js';
 
 async function fetchPageText(url: string, timeoutMs = 8000): Promise<string | null> {
   try {
@@ -20,12 +21,13 @@ async function fetchPageText(url: string, timeoutMs = 8000): Promise<string | nu
     // into an internal-network probe (the page text is summarised back to the
     // caller). Public http(s) hosts only — throws for loopback/private ranges.
     assertPublicHttpUrl(u);
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), timeoutMs);
-    const res = await fetch(u, { signal: ctrl.signal, headers: { 'User-Agent': 'Mozilla/5.0 AURABot' } });
-    clearTimeout(t);
-    if (!res.ok) return null;
-    const html = await res.text();
+    // The name check above is not enough on its own: the page text goes back
+    // to the caller, so a redirect or a DNS name pointing inside the box would
+    // read internal pages. safeFetch checks the address at connect time and
+    // re-checks every redirect hop.
+    const res = await safeFetch(u, { timeoutMs, accept: 'text/html,*/*;q=0.8', maxBytes: 3 * 1024 * 1024 });
+    if (res.status < 200 || res.status >= 300) return null;
+    const html = res.body.toString('utf8');
     // crude tag strip → text; cap length to keep the prompt lean
     return html.replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ')
       .replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 6000);

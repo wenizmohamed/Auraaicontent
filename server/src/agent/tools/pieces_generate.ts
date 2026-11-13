@@ -1,5 +1,6 @@
 import { chatStream } from '../../services/llm/chat.js';
 import { defineTool } from '../tool-types.js';
+import { scopedClientId } from './client-scope.js';
 import type { NormalizedBrief } from './brief_analyze.js';
 
 // Tool LLM rides the Gemini → Grok → Kimi fallback chain.
@@ -151,7 +152,8 @@ export const tool = defineTool<Args, Result>({
   },
   async handler(args, ctx) {
     assertNotAborted(ctx.signal);
-
+    // clientId comes from the model; it is written onto a CalendarMonth below.
+    await scopedClientId(ctx, args.clientId);
 
     const count = typeof args.pieceCount === 'number' && args.pieceCount > 0
       ? Math.min(Math.floor(args.pieceCount), 60)

@@ -1,5 +1,7 @@
 import fs from 'fs';
 import { defineTool } from '../tool-types.js';
+import { scopedClientId } from './client-scope.js';
+import { safeFetch } from '../../lib/safe-fetch.js';
 import { recordMemory, type MemoryKind } from '../../services/memory.service.js';
 import { aiRouter } from '../../services/providers/ai-router.js';
 import { storageService } from '../../services/storage.service.js';
@@ -21,19 +23,6 @@ interface Result {
   savedAssetUrl: string | null;
   visualSummary: string | null;
   note: string;
-}
-
-function isBlockedHost(rawUrl: string): boolean {
-  try {
-    const u = new URL(rawUrl);
-    if (u.protocol !== 'http:' && u.protocol !== 'https:') return true;
-    const h = u.hostname.toLowerCase();
-    if (h === 'localhost' || h === '0.0.0.0' || h === '::1' || h.endsWith('.local') || h.endsWith('.internal')) return true;
-    if (/^(127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.)/.test(h)) return true;
-    return false;
-  } catch {
-    return true;
-  }
 }
 
 function sniffImageMime(buf: Buffer): 'image/png' | 'image/jpeg' | 'image/webp' | null {
@@ -69,32 +58,29 @@ async function tryFetchVisualReference(
     const mime = sniffImageMime(buffer);
     return mime ? { buffer, mimeType: mime } : null;
   }
-  if (isBlockedHost(imageUrl)) return null;
-
+  // Both the page URL and the og:image it points to come from outside, so
+  // both go through the SSRF guard (public addresses only, checked at connect
+  // time; redirects re-checked; body capped). Any refusal just means "no
+  // visual", the rule itself is still saved.
   try {
-    const res = await fetch(imageUrl, {
+    const res = await safeFetch(imageUrl, {
       signal,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; AuraBrandBot/1.0)',
-        Accept: 'image/*,text/html,application/xhtml+xml;q=0.9,*/*;q=0.8',
-      },
+      accept: 'image/*,text/html,application/xhtml+xml;q=0.9,*/*;q=0.8',
+      maxBytes: 20 * 1024 * 1024,
     });
-    if (!res.ok) return null;
-    const ct = (res.headers.get('content-type') || '').toLowerCase();
-    if (ct.startsWith('image/')) {
-      const buffer = Buffer.from(await res.arrayBuffer());
-      const mime = sniffImageMime(buffer);
-      return mime ? { buffer, mimeType: mime } : null;
+    if (res.status < 200 || res.status >= 300) return null;
+    if (res.contentType.startsWith('image/')) {
+      const mime = sniffImageMime(res.body);
+      return mime ? { buffer: res.body, mimeType: mime } : null;
     }
-    if (ct.includes('text/html')) {
-      const html = (await res.text()).slice(0, 250_000);
+    if (res.contentType.includes('text/html')) {
+      const html = res.body.subarray(0, 250_000).toString('utf8');
       const ogImg = extractMetaImageUrl(html);
-      if (ogImg && !isBlockedHost(ogImg)) {
-        const imgRes = await fetch(ogImg, { signal });
-        if (imgRes.ok) {
-          const buffer = Buffer.from(await imgRes.arrayBuffer());
-          const mime = sniffImageMime(buffer);
-          if (mime) return { buffer, mimeType: mime };
+      if (ogImg) {
+        const imgRes = await safeFetch(new URL(ogImg, res.url).toString(), { signal, accept: 'image/*', maxBytes: 20 * 1024 * 1024 });
+        if (imgRes.status >= 200 && imgRes.status < 300) {
+          const mime = sniffImageMime(imgRes.body);
+          if (mime) return { buffer: imgRes.body, mimeType: mime };
         }
       }
     }
@@ -150,7 +136,7 @@ export const tool = defineTool<Args, Result>({
   async handler(args, ctx) {
     if (ctx.signal.aborted) throw new Error('brand_memory_save aborted');
 
-    const targetClientId = args.orgWide ? null : (args.clientId || ctx.clientId || null);
+    const targetClientId = args.orgWide ? null : ((await scopedClientId(ctx, args.clientId)) ?? null);
     const kind: MemoryKind = args.kind || 'preference';
     let visualSummary: string | null = null;
     let savedAssetId: string | null = null;

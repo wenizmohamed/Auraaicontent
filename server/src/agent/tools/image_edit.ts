@@ -1,5 +1,7 @@
 import fs from 'fs';
 import { defineTool } from '../tool-types.js';
+import { scopedClientId } from './client-scope.js';
+import { safeFetch, UnsafeUrlError } from '../../lib/safe-fetch.js';
 import { aiRouter } from '../../services/providers/ai-router.js';
 import { storageService } from '../../services/storage.service.js';
 import { historyService } from '../../services/history.service.js';
@@ -27,19 +29,6 @@ interface Result {
   model: string;
 }
 
-function isBlockedHost(rawUrl: string): boolean {
-  try {
-    const u = new URL(rawUrl);
-    if (u.protocol !== 'http:' && u.protocol !== 'https:') return true;
-    const h = u.hostname.toLowerCase();
-    if (h === 'localhost' || h === '0.0.0.0' || h === '::1' || h.endsWith('.local') || h.endsWith('.internal')) return true;
-    if (/^(127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.)/.test(h)) return true;
-    return false;
-  } catch {
-    return true;
-  }
-}
-
 function sniffMime(buf: Buffer): 'image/png' | 'image/jpeg' | 'image/webp' {
   if (buf.length >= 4 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return 'image/png';
   if (buf.length >= 12 && buf.subarray(0, 4).toString('ascii') === 'RIFF' && buf.subarray(8, 12).toString('ascii') === 'WEBP') return 'image/webp';
@@ -52,13 +41,20 @@ async function readImageBytes(urlOrPath: string, signal: AbortSignal): Promise<{
     const buffer = fs.readFileSync(localAbs);
     return { buffer, mimeType: sniffMime(buffer) };
   }
-  if (isBlockedHost(urlOrPath)) {
-    throw new Error('image_edit: sourceUrl must be a saved /uploads/ file or a public https image URL');
+  // The URL comes from the model, so it goes through the SSRF guard: public
+  // addresses only (checked at connect time), redirects re-checked, 20 MB cap.
+  let res;
+  try {
+    res = await safeFetch(urlOrPath, { signal, accept: 'image/*', maxBytes: 20 * 1024 * 1024 });
+  } catch (e) {
+    if (e instanceof UnsafeUrlError) {
+      throw new Error('image_edit: sourceUrl must be a saved /uploads/ file or a public https image URL');
+    }
+    throw e;
   }
-  const res = await fetch(urlOrPath, { signal });
-  if (!res.ok) throw new Error(`image_edit: failed to download source image (${res.status})`);
-  const buffer = Buffer.from(await res.arrayBuffer());
-  return { buffer, mimeType: sniffMime(buffer) };
+  if (res.status < 200 || res.status >= 300) throw new Error(`image_edit: failed to download source image (${res.status})`);
+  if (!res.contentType.startsWith('image/')) throw new Error('image_edit: sourceUrl did not return an image');
+  return { buffer: res.body, mimeType: sniffMime(res.body) };
 }
 
 export const tool = defineTool<Args, Result>({
@@ -103,7 +99,7 @@ export const tool = defineTool<Args, Result>({
   async handler(args, ctx) {
     if (ctx.signal.aborted) throw new Error('image_edit aborted');
 
-    const clientId = args.clientId || ctx.clientId || undefined;
+    const clientId = await scopedClientId(ctx, args.clientId);
     let resolvedUrl = args.sourceUrl?.trim() || '';
 
     if (args.assetId) {

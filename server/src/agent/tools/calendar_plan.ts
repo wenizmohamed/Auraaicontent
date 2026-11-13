@@ -1,4 +1,5 @@
 import { defineTool } from '../tool-types.js';
+import { scopedClientId } from './client-scope.js';
 import type { Piece } from './pieces_generate.js';
 
 interface Args {
@@ -98,6 +99,8 @@ export const tool = defineTool<Args, Result>({
   },
   async handler(args, ctx) {
     assertNotAborted(ctx.signal);
+    // clientId comes from the model; it is written onto a CalendarMonth below.
+    await scopedClientId(ctx, args.clientId);
 
     if (!Array.isArray(args.pieces) || args.pieces.length === 0) {
       throw new Error('calendar_plan requires at least one piece');

@@ -1,4 +1,5 @@
 import { defineTool } from '../tool-types.js';
+import { scopedClientId } from './client-scope.js';
 import {
   enhanceCreativePrompt,
   enhanceCreativeVariants,
@@ -73,7 +74,7 @@ export const tool = defineTool<Args, Result>({
   async handler(args, ctx) {
     if (ctx.signal.aborted) throw new Error('prompt_improve aborted');
 
-    const clientId = args.clientId || ctx.clientId || undefined;
+    const clientId = await scopedClientId(ctx, args.clientId);
     const mode: EnhanceMode = args.mode || 'text-to-image';
     const pinnedModel = typeof args.model === 'string' && args.model.trim() ? args.model.trim() : undefined;
     const autoPick = !pinnedModel ? selectBestCreativeEngine(mode, args.prompt) : null;

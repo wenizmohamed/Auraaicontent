@@ -10,6 +10,9 @@ auditConfiguredModelPricing();
 
 const app = await buildApp();
 
-await app.listen({ port: env.PORT, host: '0.0.0.0' });
+// Loopback only. nginx (TLS, security headers, body limits) is the public
+// front door; with 0.0.0.0 and no firewall the API also answered plain HTTP
+// on the public IP at :8080, bypassing all of it. Set HOST to override.
+await app.listen({ port: env.PORT, host: process.env.HOST || '127.0.0.1' });
 await attachRealtime(app);
 console.log(`AURA server running on http://localhost:${env.PORT} (socket.io: /socket.io)`);
