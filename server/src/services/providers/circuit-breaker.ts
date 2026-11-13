@@ -152,7 +152,12 @@ export function recordFailure(provider: string, task: string, reason: string): v
   // chain answers immediately instead of every request paying a doomed
   // round trip. (Live case 2026-10-30: Alibaba token plan, 105 wasted calls.)
   const isQuota = BILLING_EXHAUSTION.test(reason);
-  const cooldown = isQuota ? QUOTA_COOLDOWN_MS : COOLDOWN_MS;
+  // Gateway subscription-pool cooldown or dead key: open immediately for 60s
+  // so subsequent calls route directly to the healthy fallback provider with
+  // zero wasted latency, then auto-probe after 60s when the pool refreshes.
+  const isSubscriptionOrAuthDown =
+    /subscription_not_found|no active subscription|subscription.{0,30}(not found|expired|inactive|unavailable)|no available (account|channel|subscription|upstream)|group.{0,20}unavailable|invalid authentication|invalid.?api.?key|incorrect.?api.?key|api_key_invalid/i.test(reason);
+  const cooldown = isQuota ? QUOTA_COOLDOWN_MS : isSubscriptionOrAuthDown ? 60_000 : COOLDOWN_MS;
 
   // A failed half-open probe means the provider is still down — re-open
   // immediately without waiting for THRESHOLD again.
@@ -168,12 +173,12 @@ export function recordFailure(provider: string, task: string, reason: string): v
 
   b.consecutiveFailures++;
   b.lastFailureReason = reason.slice(0, 120);
-  if (b.consecutiveFailures >= THRESHOLD && b.state === 'closed') {
+  if ((isQuota || isSubscriptionOrAuthDown || b.consecutiveFailures >= THRESHOLD) && b.state === 'closed') {
     b.state = 'open';
     b.openedAt = Date.now();
     b.cooldownMs = cooldown;
     b.tripCount++;
-    console.warn(`[circuit] ${b.provider}:${b.task} tripped → open ${cooldown}ms after ${b.consecutiveFailures} consecutive failures (${reason.slice(0, 80)})`);
+    console.warn(`[circuit] ${b.provider}:${b.task} tripped → open ${cooldown}ms after ${b.consecutiveFailures} failure(s) (${reason.slice(0, 80)})`);
   }
 }
 

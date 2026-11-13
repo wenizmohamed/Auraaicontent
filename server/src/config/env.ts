@@ -25,19 +25,21 @@ export const env = {
   XAI_VIDEO_MODEL: optional('XAI_VIDEO_MODEL', 'grok-imagine-video'),
   XAI_TIMEOUT_MS: parseInt(optional('XAI_TIMEOUT_MS', '90000'), 10),
 
+  // Anthropic (Claude Sonnet 5.5 / Opus 5.5 via claudeapikey.dev or Anthropic)
+  ANTHROPIC_BASE_URL: optional('ANTHROPIC_BASE_URL', 'https://claudeapikey.dev'),
+  ANTHROPIC_AUTH_TOKEN: optional('ANTHROPIC_AUTH_TOKEN', ''),
+  ANTHROPIC_API_KEY: optional('ANTHROPIC_API_KEY', ''),
+  ANTHROPIC_TEXT_MODEL: optional('ANTHROPIC_TEXT_MODEL', 'claude-sonnet-5-5'),
+  ANTHROPIC_OPUS_MODEL: optional('ANTHROPIC_OPUS_MODEL', 'claude-opus-5-5'),
+  ANTHROPIC_TIMEOUT_MS: parseInt(optional('ANTHROPIC_TIMEOUT_MS', '120000'), 10),
+
   // Gemini
   GEMINI_API_KEY: optional('GEMINI_API_KEY', ''),
-  GEMINI_TEXT_MODEL: optional('GEMINI_TEXT_MODEL', 'gemini-3.1-pro-preview'),
-  GEMINI_FLASH_TEXT_MODEL: optional('GEMINI_FLASH_TEXT_MODEL', 'gemini-3.1-flash-lite-preview'),
-  GEMINI_IMAGE_MODEL: optional('GEMINI_IMAGE_MODEL', 'gemini-3.1-flash-image-preview'),
-  // imagen-4.0-fast-generate-001 was the default until 2026-05-04 when Google
-  // started returning 404 "model not found". Falling back to the gemini flash
-  // image model which is currently active. Override in .env to switch back if
-  // imagen returns.
-  GEMINI_IMAGE_FAST_MODEL: optional('GEMINI_IMAGE_FAST_MODEL', 'gemini-3.1-flash-image-preview'),
-  // Veo 3.1 was retired by Google (404 "no longer available", verified 2026-10-30).
-  // Omni Flash is the live Google video engine.
-  GEMINI_VIDEO_MODEL: optional('GEMINI_VIDEO_MODEL', 'gemini-omni-flash-preview'),
+  GEMINI_TEXT_MODEL: optional('GEMINI_TEXT_MODEL', 'gemini-4-carbon'),
+  GEMINI_FLASH_TEXT_MODEL: optional('GEMINI_FLASH_TEXT_MODEL', 'gemini-3.8-flash'),
+  GEMINI_IMAGE_MODEL: optional('GEMINI_IMAGE_MODEL', 'gemini-3-pro-image'),
+  GEMINI_IMAGE_FAST_MODEL: optional('GEMINI_IMAGE_FAST_MODEL', 'gemini-nano-banana-2.1'),
+  GEMINI_VIDEO_MODEL: optional('GEMINI_VIDEO_MODEL', 'gemini-omni-1.2-flash'),
   GEMINI_EMBEDDING_MODEL: optional('GEMINI_EMBEDDING_MODEL', 'gemini-embedding-2-preview'),
   GEMINI_TIMEOUT_MS: parseInt(optional('GEMINI_TIMEOUT_MS', '90000'), 10),
 

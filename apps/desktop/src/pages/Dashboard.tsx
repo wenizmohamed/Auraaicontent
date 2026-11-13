@@ -100,11 +100,12 @@ function formatTokens(n: number): string {
 
 // Rough cost estimation per provider (input+output blended USD per 1M tokens)
 const PROVIDER_COST_PER_M: Record<string, number> = {
-  gemini: 5.0,      // Gemini 3.1 Pro avg ~$5/M
-  vertex: 5.0,      // Vertex serves the same Gemini models on the same card
+  gemini: 5.0,      // Gemini 4 Argon / Carbon blended ~$5/M
+  vertex: 5.0,      // Vertex AI serves Gemini 4 Argon / Carbon
   dashscope: 1.65,  // Qwen 3.8 Max input ~$1.65/M on the Alibaba catalog
-  xai: 3.0,         // Grok 4.20 ~$3/M
-  moonshot: 1.0,    // Kimi K2.6 ~$1/M
+  minimax: 1.5,     // MiniMax M3 / H3 blended
+  xai: 3.0,         // Grok 4.7 ~$3/M
+  moonshot: 1.0,    // Kimi K3.1 Pro Highspeed ~$1/M
 };
 
 function estimateCostUsd(providerStats: { provider: string; totalTokens: number }[]): number {
@@ -158,11 +159,12 @@ function Sparkline({ data, color, height = 32, width = 100 }: { data: number[]; 
 }
 
 const PROVIDER_META: Record<string, { label: string; color: (d: boolean) => string; bg: (d: boolean) => string }> = {
-  gemini: { label: 'Gemini', color: (d) => d ? 'text-blue-400' : 'text-blue-600', bg: (d) => d ? 'bg-blue-500/10' : 'bg-blue-50' },
+  gemini: { label: 'Gemini 4', color: (d) => d ? 'text-blue-400' : 'text-blue-600', bg: (d) => d ? 'bg-blue-500/10' : 'bg-blue-50' },
   // Vertex AI is the Google Cloud route to the same Gemini models. It gets
   // its own teal so the dashboard shows WHICH Google endpoint ran.
-  vertex: { label: 'Vertex', color: (d) => d ? 'text-teal-400' : 'text-teal-600', bg: (d) => d ? 'bg-teal-500/10' : 'bg-teal-50' },
+  vertex: { label: 'Vertex AI', color: (d) => d ? 'text-teal-400' : 'text-teal-600', bg: (d) => d ? 'bg-teal-500/10' : 'bg-teal-50' },
   dashscope: { label: 'Alibaba', color: (d) => d ? 'text-amber-400' : 'text-amber-600', bg: (d) => d ? 'bg-amber-500/10' : 'bg-amber-50' },
+  minimax: { label: 'MiniMax', color: (d) => d ? 'text-cyan-400' : 'text-cyan-600', bg: (d) => d ? 'bg-cyan-500/10' : 'bg-cyan-50' },
   xai: { label: 'Grok', color: (d) => d ? 'text-orange-400' : 'text-orange-600', bg: (d) => d ? 'bg-orange-500/10' : 'bg-orange-50' },
   moonshot: { label: 'Kimi', color: (d) => d ? 'text-purple-400' : 'text-purple-600', bg: (d) => d ? 'bg-purple-500/10' : 'bg-purple-50' },
 };
@@ -242,7 +244,7 @@ const WALKTHROUGH_STEPS: Array<{
   {
     icon: Wand2,
     title: '5. Creative Tools',
-    description: 'Generate images from text, edit existing images with AI, create videos from prompts, or turn a still image into a video. All powered by Gemini and Grok with automatic fallback.',
+    description: 'Generate studio images, edit existing frames, and direct native-audio videos. Prompt-engineered by Gemini 4 Carbon across Gemini 3 Pro Image, MiniMax H3 4K/2K, Alibaba Wan 3.0 Prime & Qwen 3.0 Pro, and Grok 2.0.',
     href: '/creative',
     cta: 'Open Studio',
     color: (d) => d ? 'text-pink-400' : 'text-pink-600',
@@ -297,7 +299,7 @@ function WalkthroughSection({ isDark, glass, glassStatic, textPrimary, textSecon
         <button
           onClick={toggle}
           aria-expanded={open}
-          aria-label={open ? 'Collapse AURAAI walkthrough' : 'Expand AURAAI walkthrough'}
+          aria-label={open ? 'Collapse AURA walkthrough' : 'Expand AURA walkthrough'}
           className={`w-full flex items-center justify-between p-6 text-start cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] rounded-2xl ${isDark ? 'hover:bg-white/[0.02]' : 'hover:bg-slate-50'}`}
         >
           <div className="flex items-center gap-3">
@@ -378,7 +380,7 @@ export default function Dashboard() {
   const [activity, setActivity] = useState<ActivityEntry[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState<string | null>(null);
-  // "What's new on AURAAI" — everyone sees the latest product updates.
+  // "What's new on AURA" — everyone sees the latest product updates.
   // The NEW badge lights up until the user has seen the newest entry.
   const [changelog, setChangelog] = useState<ChangelogEntry[]>([]);
   const [changelogUnseen, setChangelogUnseen] = useState(false);
@@ -479,7 +481,7 @@ export default function Dashboard() {
               style={{ borderColor: 'var(--color-border-subtle)' }}
             >
               <span className="text-[10px] uppercase tracking-[0.28em]" style={{ color: 'var(--color-fg-subtle)' }}>
-                AURAAI · Vol. 02 · No. {String(Math.ceil((Date.now() - new Date(new Date().getFullYear(), 0, 1).getTime()) / 86400000)).padStart(3, '0')}
+                AURA · Vol. 02 · No. {String(Math.ceil((Date.now() - new Date(new Date().getFullYear(), 0, 1).getTime()) / 86400000)).padStart(3, '0')}
               </span>
               <span className="text-[10px] uppercase tracking-[0.28em] hidden sm:inline" style={{ color: 'var(--color-fg-subtle)' }}>
                 {currentDate}
@@ -518,7 +520,7 @@ export default function Dashboard() {
                       />
                     </svg>
                   </span>{' '}
-                  on AURAAI.
+                  on AURA.
                 </h1>
                 <p
                   className="mt-5 max-w-lg text-[15px] leading-[1.55]"
@@ -876,13 +878,13 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* ─── What's new on AURAAI — product changelog, visible to everyone.
+      {/* ─── What's new on AURA — product changelog, visible to everyone.
           Entries ship with each deploy (server/src/routes/changelog.ts). ─── */}
       {changelog.length > 0 && (
         <motion.div {...fadeUp(0.22)} className={`rounded-2xl overflow-hidden ${glassStatic}`}>
           <div className="px-5 pt-4 pb-1 flex items-center gap-2">
             <Sparkles className="w-4 h-4" style={{ color: 'var(--color-accent)' }} />
-            <h2 className={`text-sm font-bold ${textPrimary}`}>What's new on AURAAI</h2>
+            <h2 className={`text-sm font-bold ${textPrimary}`}>What's new on AURA</h2>
             {changelogUnseen && (
               <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider"
                 style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>
@@ -1078,15 +1080,15 @@ export default function Dashboard() {
             <ul className={`space-y-2 text-[12.5px] ${textPrimary}`}>
               <li className="flex items-start gap-2">
                 <span className="mt-1.5 h-1 w-1 rounded-full flex-shrink-0" style={{ background: 'var(--color-accent)' }} />
-                <span><span className="font-semibold">Primary:</span> Gemini handles all text + image + video by default.</span>
+                <span><span className="font-semibold">AURA Agent &amp; Chat:</span> Powered by Google Gemini 4 Argon (19 autonomous tools) with Vertex AI Gemini 4 Argon failover.</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="mt-1.5 h-1 w-1 rounded-full flex-shrink-0" style={{ background: 'var(--color-accent)' }} />
-                <span><span className="font-semibold">Fallback:</span> Grok takes over within milliseconds on Gemini outage or rate-limit.</span>
+                <span><span className="font-semibold">Creative Director:</span> Gemini 4 Carbon directs prompts across Gemini 3 Pro Image, MiniMax H3 (4K/2K), Wan 3.0 Prime, Qwen 3.0 Pro, and Grok 2.0.</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="mt-1.5 h-1 w-1 rounded-full flex-shrink-0" style={{ background: 'var(--color-accent)' }} />
-                <span><span className="font-semibold">Tertiary:</span> Kimi for long-context (200k+ tokens) text-only requests.</span>
+                <span><span className="font-semibold">Multi-Engine Chain:</span> Automatic failover across Gemini 4, Vertex AI, Alibaba, MiniMax, Grok 4.7, and Kimi K3.1 Pro.</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="mt-1.5 h-1 w-1 rounded-full flex-shrink-0" style={{ background: 'var(--color-accent)' }} />

@@ -11,7 +11,7 @@ import { db } from '../db/prisma.js';
 import { searchPinterest, searchPinterestMulti, fetchPinterestImageBase64 } from '../services/pinterest.service.js';
 import { historyService } from '../services/history.service.js';
 import { sanitizePrompt, validatePrompt } from '../middleware/sanitize.js';
-import { enhanceCreativePrompt, enhanceCreativeVariants, SAFE_ZONE_HINT, type EnhanceMode, type EnhanceDepth, type EnhanceVariant } from '../services/prompt-enhancer.service.js';
+import { enhanceCreativePrompt, enhanceCreativeVariants, engineForModel, selectBestCreativeEngine, SAFE_ZONE_HINT, type EnhanceMode, type EnhanceDepth, type EnhanceVariant } from '../services/prompt-enhancer.service.js';
 import { getStylePack, listStylePacks } from '../services/style-packs.js';
 import { recordMemory } from '../services/memory.service.js';
 import { upscaleImage } from '../services/upscale.service.js';
@@ -28,50 +28,54 @@ export async function creativeRoutes(app: FastifyInstance) {
 
   // POST /api/creative/images/generate
   app.post('/creative/images/generate', { preHandler: capGuard('ai.image', 'image.generate') }, async (request, reply) => {
-    const { prompt: rawPrompt, aspectRatio, clientId, quality, model, provider, safeZone, imageSize, enhance, depth, stylePackId } = request.body as { prompt: string; aspectRatio?: string; clientId?: string; quality?: 'standard' | 'ultra'; model?: string; provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex'; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K'; enhance?: boolean; depth?: 'raw' | 'low' | 'medium' | 'high'; stylePackId?: string };
+    const { prompt: rawPrompt, aspectRatio, clientId, quality, model, provider, safeZone, imageSize, enhance, depth, stylePackId, useBrandKit } = request.body as { prompt: string; aspectRatio?: string; clientId?: string; quality?: 'standard' | 'ultra'; model?: string; provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax'; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K'; enhance?: boolean; depth?: 'raw' | 'low' | 'medium' | 'high'; stylePackId?: string; useBrandKit?: boolean };
     const v = validatePrompt(rawPrompt);
     if (!v.valid) return reply.status(400).send({ error: v.error });
     const prompt = sanitizePrompt(rawPrompt);
     const stylePack = getStylePack(stylePackId);
-    // Auto pro-prompt (default ON, 2026-07-03): short user prompts are the #1
-    // quality killer — expand them through the model-aware enhancer BEFORE
-    // generation. Best-effort: any enhancer failure falls back to the raw
-    // prompt. enhance:false (FE toggle) opts out. The enhancer already folds
-    // the safe-zone constraint into its composition guidance.
+    const autoPick = (!provider && !model) ? selectBestCreativeEngine('text-to-image', prompt, { quality }) : null;
+    const effectiveProvider = provider || autoPick?.provider;
+    const effectiveModel = (typeof model === 'string' && model.trim() ? model.trim() : undefined) || autoPick?.model;
+    const effectiveSize = imageSize || '2K';
+
     let enhancedPrompt: string | null = null;
     if (enhance !== false) {
       try {
-        const e = await enhanceCreativePrompt({ prompt, mode: 'text-to-image', engine: provider, model, depth, clientId: clientId || undefined, orgId: request.orgId, userId: request.user?.userId, safeZone: Boolean(safeZone), stylePack });
+        const e = await enhanceCreativePrompt({ prompt, mode: 'text-to-image', engine: effectiveProvider, model: effectiveModel, depth, clientId: clientId || undefined, orgId: request.orgId, userId: request.user?.userId, useBrandKit: Boolean(useBrandKit), safeZone: Boolean(safeZone), stylePack });
         if (e.prompt && e.prompt.trim() && e.prompt.trim() !== prompt) enhancedPrompt = e.prompt.trim();
       } catch (e) { request.log.warn(`prompt-enhancer failed (image): ${errMessage(e)}`); }
     }
-    // Pack must survive enhance:false AND enhancer failure — append the raw
-    // design contract so the style still lands on the model.
     const packTail = stylePack && !enhancedPrompt ? `\n\nArt direction (follow exactly): ${stylePack.image}` : '';
     const genPrompt = (enhancedPrompt ?? (safeZone ? `${prompt}\n\n${SAFE_ZONE_HINT}` : prompt)) + packTail;
 
     try {
-      const result = await aiRouter.image({ prompt: genPrompt, aspectRatio, quality, model, imageSize }, { orgId: request.orgId, userId: request.user?.userId, clientId, preferredProvider: provider });
-      // Persist to assets. Gemini/Grok return base64; DashScope (qwen/wan)
-      // returns an EXPIRING OSS url, so fetch+store it too — otherwise the
-      // image vanishes when the signed link expires and never hits the gallery.
+      const result = await aiRouter.image({ prompt: genPrompt, aspectRatio, quality, model: effectiveModel, imageSize: effectiveSize }, { orgId: request.orgId, userId: request.user?.userId, clientId, preferredProvider: effectiveProvider, skipBrandKit: true });
+      // ALWAYS persist generated image bytes to local storage (/uploads/...) even
+      // when no clientId is selected: Gemini/Grok return raw base64 (with no URL)
+      // and DashScope/MiniMax return expiring CDN links that break Recent
+      // generations or CORS fetch when chaining into Edit/Animate. Only gate
+      // db.asset.create() on clientId.
       let savedAsset = null;
-      if (clientId) {
-        let buf: Buffer | null = null;
-        if (result.output.base64) {
-          buf = Buffer.from(result.output.base64, 'base64');
-        } else if (result.output.url) {
-          try { buf = Buffer.from(await (await fetch(result.output.url)).arrayBuffer()); }
-          catch (e) { request.log.warn(`image url fetch failed: ${errMessage(e)}`); }
-        }
-        if (buf) {
-          const { fileUrl, thumbUrl } = await storageService.saveFile(buf, `ai-gen-${Date.now()}.png`, 'image/png');
+      let storedFileUrl: string | null = null;
+      let storedThumbUrl: string | null = null;
+      let buf: Buffer | null = null;
+      if (result.output.base64) {
+        buf = Buffer.from(result.output.base64, 'base64');
+      } else if (result.output.url) {
+        try { buf = Buffer.from(await (await fetch(result.output.url)).arrayBuffer()); }
+        catch (e) { request.log.warn(`image url fetch failed: ${errMessage(e)}`); }
+      }
+      if (buf) {
+        const saved = await storageService.saveFile(buf, `ai-gen-${Date.now()}.png`, 'image/png');
+        storedFileUrl = saved.fileUrl;
+        storedThumbUrl = saved.thumbUrl ?? null;
+        if (clientId) {
           savedAsset = await db.asset.create({
-            data: { orgId: request.orgId!, clientId, name: `ai-gen-${Date.now()}.png`, mimeType: 'image/png', fileUrl, thumbUrl, tags: ['ai-generated'], safeForClient: true },
+            data: { orgId: request.orgId!, clientId, name: `ai-gen-${Date.now()}.png`, mimeType: 'image/png', fileUrl: saved.fileUrl, thumbUrl: saved.thumbUrl, tags: ['ai-generated'], safeForClient: true },
           });
         }
       }
-      const finalUrl = savedAsset?.fileUrl || result.output.url || null;
+      const finalUrl = savedAsset?.fileUrl || storedFileUrl || result.output.url || null;
       // generationId returned so the FE thumbs (POST /creative/feedback) can
       // reference this exact generation for the learn-from-feedback loop.
       const generationId = await historyService.record({
@@ -82,7 +86,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         surface: 'creative_tools',
         prompt,
         outputUrl: finalUrl,
-        thumbnailUrl: savedAsset?.thumbUrl || finalUrl,
+        thumbnailUrl: savedAsset?.thumbUrl || storedThumbUrl || finalUrl,
         provider: result.provider,
         model: result.model,
         latencyMs: result.latencyMs,
@@ -118,42 +122,51 @@ export async function creativeRoutes(app: FastifyInstance) {
 
   // POST /api/creative/images/edit
   app.post('/creative/images/edit', { preHandler: capGuard('ai.image', 'image.edit') }, async (request, reply) => {
-    const { prompt: rawEditPrompt, imageBase64, mimeType, aspectRatio, clientId, model, provider, referenceImages, safeZone, imageSize, enhance, depth } = request.body as { prompt?: string; imageBase64?: string; mimeType?: string; aspectRatio?: string; clientId?: string; model?: string; provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex'; referenceImages?: { base64: string; mimeType: string; role?: 'content' | 'style' | 'character' }[]; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K'; enhance?: boolean; depth?: 'raw' | 'low' | 'medium' | 'high' };
+    const { prompt: rawEditPrompt, imageBase64, mimeType, aspectRatio, clientId, model, provider, referenceImages, safeZone, imageSize, enhance, depth, useBrandKit } = request.body as { prompt?: string; imageBase64?: string; mimeType?: string; aspectRatio?: string; clientId?: string; model?: string; provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax'; referenceImages?: { base64: string; mimeType: string; role?: 'content' | 'style' | 'character' }[]; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K'; enhance?: boolean; depth?: 'raw' | 'low' | 'medium' | 'high'; useBrandKit?: boolean };
     if (!rawEditPrompt || !imageBase64) return reply.status(400).send({ error: 'prompt and imageBase64 are required' });
     const ev = validatePrompt(rawEditPrompt);
     if (!ev.valid) return reply.status(400).send({ error: ev.error });
     const prompt = sanitizePrompt(rawEditPrompt);
 
     try {
-      // referenceImages = additional input frames (multi-image edit). Gemini's
-      // imageEdit inlines imageBase64 (primary) + every referenceImage, with the
-      // optional per-image `role` (content/style/character) preserved (B1).
       const refs = Array.isArray(referenceImages)
         ? referenceImages.filter((r) => r?.base64 && r?.mimeType)
             .slice(0, 8)
             .map((r) => ({ base64: r.base64, mimeType: r.mimeType, ...(r.role ? { role: r.role } : {}) }))
         : undefined;
-      // Auto pro-prompt (default ON) — precise edit instructions beat vague ones.
+      const autoPick = (!provider && !model) ? selectBestCreativeEngine('image-edit', prompt, { hasRefs: !!refs?.length }) : null;
+      const effectiveProvider = provider || autoPick?.provider;
+      const effectiveModel = (typeof model === 'string' && model.trim() ? model.trim() : undefined) || autoPick?.model;
       let enhancedPrompt: string | null = null;
       if (enhance !== false) {
         try {
-          // Vision→prompt: the edit source image is described by the analysis
-          // model so the instruction grounds in what's ACTUALLY in the image.
-          const e = await enhanceCreativePrompt({ prompt, mode: 'image-edit', engine: provider, model, depth, clientId: clientId || undefined, orgId: request.orgId, userId: request.user?.userId, safeZone: Boolean(safeZone), hasRefs: !!refs?.length, refImageBase64: imageBase64, refImageMime: mimeType || 'image/png' });
+          const e = await enhanceCreativePrompt({ prompt, mode: 'image-edit', engine: effectiveProvider, model: effectiveModel, depth, clientId: clientId || undefined, orgId: request.orgId, userId: request.user?.userId, useBrandKit: Boolean(useBrandKit), safeZone: Boolean(safeZone), hasRefs: !!refs?.length, refImageBase64: imageBase64, refImageMime: mimeType || 'image/png' });
           if (e.prompt && e.prompt.trim() && e.prompt.trim() !== prompt) enhancedPrompt = e.prompt.trim();
         } catch (e) { request.log.warn(`prompt-enhancer failed (edit): ${errMessage(e)}`); }
       }
       const genPrompt = enhancedPrompt ?? (safeZone ? `${prompt}\n\n${SAFE_ZONE_HINT}` : prompt);
-      const result = await aiRouter.image({ prompt: genPrompt, imageBase64, mimeType: mimeType || 'image/png', aspectRatio, model, referenceImages: refs, imageSize }, { orgId: request.orgId, userId: request.user?.userId, clientId, preferredProvider: provider });
+      const result = await aiRouter.image({ prompt: genPrompt, imageBase64, mimeType: mimeType || 'image/png', aspectRatio, model: effectiveModel, referenceImages: refs, imageSize: imageSize || '2K' }, { orgId: request.orgId, userId: request.user?.userId, clientId, preferredProvider: effectiveProvider, skipBrandKit: true });
       let savedAsset = null;
-      if (result.output.base64 && clientId) {
-        const buf = Buffer.from(result.output.base64, 'base64');
-        const { fileUrl, thumbUrl } = await storageService.saveFile(buf, `ai-edit-${Date.now()}.png`, 'image/png');
-        savedAsset = await db.asset.create({
-          data: { orgId: request.orgId!, clientId, name: `ai-edit-${Date.now()}.png`, mimeType: 'image/png', fileUrl, thumbUrl, tags: ['ai-edited'], safeForClient: true },
-        });
+      let storedFileUrl: string | null = null;
+      let storedThumbUrl: string | null = null;
+      let buf: Buffer | null = null;
+      if (result.output.base64) {
+        buf = Buffer.from(result.output.base64, 'base64');
+      } else if (result.output.url) {
+        try { buf = Buffer.from(await (await fetch(result.output.url)).arrayBuffer()); }
+        catch (e) { request.log.warn(`edit image url fetch failed: ${errMessage(e)}`); }
       }
-      const finalUrl = savedAsset?.fileUrl || result.output.url || null;
+      if (buf) {
+        const saved = await storageService.saveFile(buf, `ai-edit-${Date.now()}.png`, 'image/png');
+        storedFileUrl = saved.fileUrl;
+        storedThumbUrl = saved.thumbUrl ?? null;
+        if (clientId) {
+          savedAsset = await db.asset.create({
+            data: { orgId: request.orgId!, clientId, name: `ai-edit-${Date.now()}.png`, mimeType: 'image/png', fileUrl: saved.fileUrl, thumbUrl: saved.thumbUrl, tags: ['ai-edited'], safeForClient: true },
+          });
+        }
+      }
+      const finalUrl = savedAsset?.fileUrl || storedFileUrl || result.output.url || null;
       const generationId = await historyService.record({
         orgId: request.orgId,
         userId: request.user?.userId,
@@ -162,7 +175,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         surface: 'creative_tools',
         prompt,
         outputUrl: finalUrl,
-        thumbnailUrl: savedAsset?.thumbUrl || finalUrl,
+        thumbnailUrl: savedAsset?.thumbUrl || storedThumbUrl || finalUrl,
         provider: result.provider,
         model: result.model,
         latencyMs: result.latencyMs,
@@ -215,7 +228,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         format: format === 'png' || format === 'jpeg' ? format : 'auto',
         mode: mode === 'ai' ? 'ai' : 'fast',
         model: typeof model === 'string' ? model : undefined,
-        provider: provider === 'gemini' || provider === 'xai' || provider === 'dashscope' || provider === 'vertex' ? provider : undefined,
+        provider: provider === 'gemini' || provider === 'xai' || provider === 'dashscope' || provider === 'vertex' || provider === 'minimax' ? provider : undefined,
         orgId: request.orgId, userId: request.user?.userId, clientId: clientId || undefined,
       });
       // Persist to the client's assets so it lands in the gallery.
@@ -285,16 +298,18 @@ export async function creativeRoutes(app: FastifyInstance) {
       negativePrompt,
       referenceImages,
       model,
+      provider,
       enhance,
       depth,
       stylePackId,
+      useBrandKit,
     } = request.body as {
       prompt?: string; aspectRatio?: string; durationSeconds?: number; resolution?: '720p' | '1080p' | '4k'; clientId?: string;
       imageBase64?: string; mimeType?: string;
       startImageBase64?: string; startMimeType?: string; endImageBase64?: string; endMimeType?: string;
       tier?: string; safeZone?: boolean; negativePrompt?: unknown;
       referenceImages?: { base64: string; mimeType: string }[];
-      model?: string; enhance?: boolean; depth?: 'raw' | 'low' | 'medium' | 'high'; stylePackId?: string;
+      model?: string; provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax'; enhance?: boolean; depth?: 'raw' | 'low' | 'medium' | 'high'; stylePackId?: string; useBrandKit?: boolean;
     };
     if (!prompt) return reply.status(400).send({ error: 'prompt is required' });
     {
@@ -337,21 +352,22 @@ export async function creativeRoutes(app: FastifyInstance) {
 
     const orgId = request.orgId;
     const userId = request.user?.userId;
+    const effectiveTier = tier === 'draft' ? 'draft' : 'hd';
+    const effectiveResolution = resolution || (effectiveTier === 'hd' ? '1080p' : '720p');
     const job = createJob('creative-video', {
-      // orgId/userId travel IN the job data (not via closure) so the durable
-      // queue dispatches with the correct owner even under concurrent requests
-      // and after restarts — and so /creative/jobs scoping can authorize.
       orgId, userId,
-      prompt, aspectRatio, durationSeconds, resolution, clientId,
+      prompt, aspectRatio, durationSeconds, resolution: effectiveResolution, clientId,
       imageBase64, mimeType,
       startImageBase64, startMimeType, endImageBase64, endMimeType,
-      tier: tier === 'hd' ? 'hd' : 'draft',
+      tier: effectiveTier,
       userNegative: typeof negativePrompt === 'string' ? negativePrompt.slice(0, 300) : undefined,
       enhance: enhance !== false,
       depth,
       safeZone: Boolean(safeZone),
+      useBrandKit: Boolean(useBrandKit),
       stylePackId: stylePack?.id,
       referenceImages: videoRefs,
+      provider,
       model: typeof model === 'string' && model.trim() ? model.trim() : undefined,
       originalPrompt: prompt,
     });
@@ -412,9 +428,9 @@ export async function creativeRoutes(app: FastifyInstance) {
   // model) resolves server-side from the router's own env.
   // Body: { prompt, mode?, clientId?, safeZone?, hasRefs?, stylePackId?, provider?, model?, depth? }
   app.post('/creative/prompt/improve', async (request, reply) => {
-    const { prompt: rawImp, mode, clientId, safeZone, hasRefs, stylePackId, provider, model, depth } = (request.body as {
+    const { prompt: rawImp, mode, clientId, safeZone, hasRefs, stylePackId, provider, model, depth, useBrandKit } = (request.body as {
       prompt?: string; mode?: string; clientId?: string; safeZone?: boolean; hasRefs?: boolean; stylePackId?: string;
-      provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex'; model?: string; depth?: EnhanceDepth;
+      provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax'; model?: string; depth?: EnhanceDepth; useBrandKit?: boolean;
     }) || {};
     if (!rawImp || typeof rawImp !== 'string' || !rawImp.trim()) {
       return reply.status(400).send({ error: 'prompt is required' });
@@ -424,21 +440,22 @@ export async function creativeRoutes(app: FastifyInstance) {
     const prompt = sanitizePrompt(rawImp);
     const validModes: EnhanceMode[] = ['text-to-image', 'image-edit', 'text-to-video', 'image-to-video'];
     const enhanceMode: EnhanceMode = validModes.includes(mode as EnhanceMode) ? (mode as EnhanceMode) : 'text-to-image';
-    // The boost dial travels with the request so the suggestions come back at
-    // the same strength the user's next Generate will use.
     const validDepths: EnhanceDepth[] = ['raw', 'low', 'medium', 'high'];
     const enhanceDepth: EnhanceDepth = validDepths.includes(depth as EnhanceDepth) ? (depth as EnhanceDepth) : 'medium';
+    const trimmedModel = typeof model === 'string' && model.trim() ? model.trim() : undefined;
+    const autoPick = (!provider && !trimmedModel) ? selectBestCreativeEngine(enhanceMode, prompt, { hasRefs: Boolean(hasRefs) }) : null;
 
     try {
       const enhanceInput = {
         prompt,
         mode: enhanceMode,
-        engine: provider,
-        model: typeof model === 'string' && model.trim() ? model.trim() : undefined,
+        engine: provider || (trimmedModel ? engineForModel(trimmedModel) : autoPick?.provider),
+        model: trimmedModel || autoPick?.model,
         depth: enhanceDepth,
         clientId: clientId || undefined,
         orgId: request.orgId,
         userId: request.user?.userId,
+        useBrandKit: Boolean(useBrandKit),
         safeZone: Boolean(safeZone),
         hasRefs: Boolean(hasRefs),
         stylePack: getStylePack(stylePackId),
@@ -483,10 +500,11 @@ export async function creativeRoutes(app: FastifyInstance) {
         original: prompt,
         improved: result.prompt,
         negativePrompt: result.negativePrompt || null,
-        // 3 distinct creative directions to choose from (empty → FE uses `improved`).
+        // 3 distinct creative directions to choose from (empty -> FE uses `improved`).
         variants,
         mode: enhanceMode,
         provider: result.provider,
+        model: result.model,
         latencyMs: result.latencyMs,
       };
     } catch (err) {

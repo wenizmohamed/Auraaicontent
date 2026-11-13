@@ -1,7 +1,39 @@
-import { describe, it, expect } from 'vitest';
-import { isRetryableAiError, AllProvidersFailedError } from '../src/services/providers/errors.js';
+import { describe, it, expect, afterEach } from 'vitest';
+import { isRetryableAiError, isProviderWideCredentialError, AllProvidersFailedError } from '../src/services/providers/errors.js';
+import { recordFailure, isProviderOpen, resetAllCircuits } from '../src/services/providers/circuit-breaker.js';
 
 describe('provider credential problems fall through the chain', () => {
+  afterEach(() => {
+    resetAllCircuits();
+  });
+
+  it('treats Anthropic Sub2API 403 SUBSCRIPTION_NOT_FOUND as retryable and provider-wide, tripping breaker on strike 1', () => {
+    const msg = '[anthropic/text] HTTP 403: {"code":"SUBSCRIPTION_NOT_FOUND","message":"No active subscription found for this group"}';
+    const err = new Error(msg);
+    (err as any).statusCode = 403;
+    expect(isRetryableAiError(err)).toBe(true);
+    expect(isProviderWideCredentialError(msg)).toBe(true);
+
+    expect(isProviderOpen('anthropic', 'text')).toBe(false);
+    recordFailure('anthropic', 'text', msg);
+    expect(isProviderOpen('anthropic', 'text')).toBe(true);
+  });
+
+  it('treats Alibaba 401 Incorrect API key provided as retryable and provider-wide', () => {
+    const msg = '401 Incorrect API key provided. Please check your API key.';
+    const err = new Error(msg);
+    (err as any).status = 401;
+    expect(isRetryableAiError(err)).toBe(true);
+    expect(isProviderWideCredentialError(msg)).toBe(true);
+  });
+
+  it('treats gateway model catalog mismatch (400 not in available catalog) as retryable across inner model ladder', () => {
+    const msg = '400 {"error":{"message":"模型 claude-sonnet-4-5-20250929 当前不在此 Key 的可用目录中"}}';
+    const err = new Error(msg);
+    (err as any).status = 400;
+    expect(isRetryableAiError(err)).toBe(true);
+    expect(isProviderWideCredentialError(msg)).toBe(false);
+  });
   it('treats Alibaba 403 "access to model denied" as retryable', () => {
     // THE regression (2026-11-06): the workspace key lost its chat
     // entitlement and answered 403. The generic /403/ rule made it

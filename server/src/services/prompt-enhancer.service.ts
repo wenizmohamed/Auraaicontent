@@ -30,6 +30,7 @@
 // model tier — enhancement must feel instant next to generation.
 
 import { aiRouter } from './providers/ai-router.js';
+import type { AiProviderName } from './providers/types.js';
 import { db } from '../db/prisma.js';
 
 export type EnhanceMode = 'text-to-image' | 'image-edit' | 'text-to-video' | 'image-to-video';
@@ -51,7 +52,7 @@ export interface EnhanceInput {
   // 'vertex' = Google Vertex AI (added 2026-11-07). It serves the same
   // nano-banana / gemini-3-pro-image models as the Developer API, so it must
   // get the GOOGLE dialect, not the Alibaba one.
-  engine?: 'gemini' | 'xai' | 'dashscope' | 'vertex';
+  engine?: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax';
   /** Exact model id when the user picked one — sharper dialect than engine. */
   model?: string;
   /** How aggressively to rewrite. Defaults to 'medium' (legacy behavior). */
@@ -59,6 +60,9 @@ export interface EnhanceInput {
   clientId?: string;
   orgId?: string;
   userId?: string;
+  /** Opt-in brand kit conditioning. Off by default in Creative Studio so active
+   *  client brand copy never hijacks unrelated prompts; on in Agent campaigns. */
+  useBrandKit?: boolean;
   /** Reels/Stories safe-zone toggle — folded into composition guidance. */
   safeZone?: boolean;
   /** Whether reference images are attached (changes edit phrasing). */
@@ -86,19 +90,42 @@ export interface EnhanceResult {
 // describes the STRUCTURE without claiming a model parses it. The dialect
 // block added per engine carries what actually differs, including whether
 // audio lines are wanted at all.
-const VIDEO_SYSTEM = `You are a film director writing production-grade prompts for an AI video model.
-Rewrite the user's idea into ONE continuous shot description using this exact structure, in this order:
-[Cinematography] [Subject] [Action] [Context] [Style & Ambiance] [Audio].
+// Strip pasted AI-chat meta instructions ("Copy this prompt into your generator...",
+// "Export each slide separately...", "If your generator supports...") while never
+// removing lines that carry hex codes, explicit slide headers, or quoted copy.
+export function stripChatMetaWrapper(raw: string): string {
+  if (!raw) return '';
+  const lines = raw.split(/\r?\n/);
+  const cleaned = lines.filter((line) => {
+    const t = line.trim();
+    if (!t) return true;
+    if (/#[0-9a-fA-F]{3,8}\b/.test(t) || /\bslide\s*\d+\b/i.test(t) || /"[^"]{2,}"/.test(t)) return true;
+    if (/^(copy|paste)\s+(and\s+paste\s+)?this\s+(prompt|into|below)\b/i.test(t)) return false;
+    if (/^here\s+(is|'s)\s+(your|the|a)\s+(ready[- ]to[- ]use\s+|master\s+)?prompt\b/i.test(t)) return false;
+    if (/^export\s+each\s+slide\s+separately\b/i.test(t)) return false;
+    if (/^if\s+your\s+(image\s+)?generator\s+supports\b/i.test(t)) return false;
+    if (/^(pro\s+tip|usage\s+note|how\s+to\s+use)\s*:/i.test(t)) return false;
+    return true;
+  });
+  const joined = cleaned.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  return joined || raw.trim();
+}
+
+const VIDEO_SYSTEM = `You are AURA (powered by Gemini 4 Carbon), an elite commercial film director and cinematographer writing production-grade prompts for 2026 flagship AI video engines (Alibaba Wan 3.0 Prime with native audio, MiniMax H3 2K cinema with stereo audio, Google Gemini Omni 1.2 Flash Video, HappyHorse 1.1 physics, xAI Grok Imagine Video 1.5).
+First, understand the user's real intent: effortlessly decode messy shorthand, typos, slang, Arabic/English mix, pop-culture or sports references, and imaginative concepts into crystal-clear visual storytelling.
+Rewrite the user's idea into ONE cohesive cinematic shot description using this exact sequence:
+[Cinematography & Camera Rig] [Hero Subject & Micro-Textures] [Physical Action & Temporal Progression] [Environment & Lighting Physics] [Color Grade & Atmosphere] [Audio].
 Rules:
-- START with the camera: shot type, lens/framing, and one clear camera movement (e.g. "Slow dolly push-in, 35mm, shallow depth of field").
-- Then the subject and its defining visual details, then exactly what happens during the shot, then the setting, then style/mood/color grade.
-- ALWAYS write in English. If the user's idea is in Arabic or any other language, translate the intent faithfully (do NOT transliterate).
-- Present tense, concrete visual language. Default to ONE shot with ONE dominant camera move. No cuts. EXCEPTION: if the user explicitly asks for multiple beats/shots, sequence them inline with timestamps ("[00:00] wide establishing … [00:03] medium push-in … [00:06] close hero"). Keep it to 3 beats max and one clear move per beat.
-- End the prompt with audio as plain sentences in the SAME single line: "SFX: <sound effects>. Ambient noise: <background soundscape>." Include spoken dialogue in double quotes ONLY if the user asked for speech; for Arabic-market ads keep any dialogue in the user's language.
-- 90–140 words total. The whole prompt must be ONE single-line string. No literal line breaks. No markdown, no lists, no camera jargon soup. Every term must be purposeful.
-- This is a social-media AD: keep the subject hero-lit and the message readable at a glance.
-Also produce a comma-separated negativePrompt of shot-specific things to avoid (styles, objects, artifacts. Plain nouns/phrases, never "no X").
-Return ONLY compact single-line JSON (no literal newlines inside strings): {"prompt": "...", "negativePrompt": "..."}`;
+- START with the camera rig and optics: shot scale, focal length, depth of field, and one fluid physical camera movement (e.g. "Low-angle Steadicam push-in on an 85mm anamorphic prime, shallow f/1.8 depth of field"). Preserve any specific camera, lens, or aesthetic cue the user asked for.
+- Describe every hero subject with tangible physical materials (condensation droplets, brushed anodized metal, fabric weave, fur strands, natural skin subsurface scattering) and choreograph how the action unfolds over time with realistic weight, momentum, and secondary motion.
+- If the user references iconic sports, pop-culture, or character archetypes (especially in stylized, animal, or playful scenes), translate the archetype into unmistakable visual wardrobe and staging (such as iconic jersey colors, squad numbers like crimson-and-green #7 vs sky-blue-and-white striped #10, signature stance, and stadium atmosphere) so every engine renders it faithfully without safety-filter false positives.
+- ALWAYS write in English. If the user's idea is in Arabic or another language, translate the visual intent faithfully (do NOT transliterate), while keeping any requested spoken dialogue or in-scene signage in its original language inside double quotes.
+- Never invent or insert unrelated brand names, logos, or copy that the user did not ask for. Never use em-dashes or en-dashes.
+- Present tense, concrete visual language. Default to ONE continuous shot with ONE dominant camera move. EXCEPTION: if the user asks for a multi-cut ad or long sequence, choreograph up to 3 timestamped beats inline ("[00:00] wide establishing ... [00:03] medium tracking ... [00:06] macro hero reveal").
+- End with audio as plain sentences in the SAME single line (unless the engine dialect explicitly says to omit audio): "SFX: <foley and impact sounds>. Ambient noise: <room tone or environmental soundscape>."
+- Adaptive length: 90-145 words for standard concepts, expanding up to 220 words when preserving multi-beat storyboards, exact spoken lines, or explicit brand hex/material specs. The whole prompt must be ONE single-line string with no literal line breaks, no markdown, and no filler.
+Also produce a comma-separated negativePrompt of shot-specific artifacts to avoid (morphing geometry, floating limbs, jitter, watermark, text overlay glitches: plain nouns/phrases, never "no X").
+Return ONLY compact single-line JSON: {"prompt": "...", "negativePrompt": "..."}`;
 
 // Raw mode (depth='raw'): translate-only, never reinterpret. Keeps brand-exact
 // wording intact while still giving the engine an English prompt + a negativePrompt.
@@ -112,18 +139,24 @@ const DEPTH_NOTES: Record<Exclude<EnhanceDepth, 'raw'>, string> = {
   high: '\nDEPTH = HIGH: maximize art-direction specificity. Every one of composition, lighting, color palette and finish must be named precisely and vividly, at the upper word bound. Never generic.',
 };
 
-const IMAGE_SYSTEM = `You are a creative director writing prompts for an AI image model producing premium social-media ad creative.
-Rewrite the user's idea into ONE production-grade prompt with this flow:
-subject & focal point → composition & framing (rule of thirds, negative space where ad copy would sit) → lighting (quality, direction, mood) → color palette & photographic style → technical finish (lens, depth of field, texture).
+const IMAGE_SYSTEM = `You are AURA (powered by Gemini 4 Carbon), an executive creative director and master photographer writing prompts for 2026 flagship AI image engines (Google Gemini 3 Pro Image, Gemini Nano Banana 2.1, MiniMax H3-Image 4K, Qwen Image 3.0 Pro, Wan 2.7 Image Pro, xAI Grok Imagine 2.0).
+First, understand what the user truly wants: decode shorthand, typos, casual phrasing, Arabic/English code-switching, cultural or sports references, editorial graphic layouts, and multi-character interactions with effortless precision.
+Rewrite the user's idea into ONE production-grade visual prompt following this flow:
+hero subjects or editorial layout structure -> composition, camera angle, margins & spatial staging -> lighting geometry (key/fill/rim direction, Kelvin warmth, specular highlights) -> color story (including exact hex codes when given) & environment -> optical or typographic finish.
 Rules:
-- Write the prompt in English (translate the user's intent if needed), EXCEPT text that must render inside the image: quote that text EXACTLY as the user wrote it, in its original language, in double quotes, and describe its typography and placement.
-- Concrete nouns, purposeful adjectives, present tense. 60–110 words, flowing prose, no lists, no markdown.
-- This is ad creative: the product/subject must be unmistakably the hero; backgrounds support, never compete.
+- SINGLE-FRAME CONTRACT: One image generation call renders ONE standalone full-bleed frame, NEVER a multi-panel collage, contact sheet, or "seven separate slides" inside a single image. If the user pastes a multi-slide carousel brief, render ONLY the single requested slide (or Slide 1, the cover slide, when no slide number is specified) as one complete full-bleed artwork, omitting all other slides.
+- Honor every specific subject, count, action, style, film stock, hex color code, layout margin, or camera cue the user mentioned. Never replace their subject or force a generic studio backdrop when their scene calls for a stadium, street, cafe, editorial graphic card, or fantasy world.
+- If the user references iconic sports, pop-culture, or character archetypes in creative/stylized/animal concepts (e.g. cats as Ronaldo and Messi), translate those references into unmistakable visual details (distinctive crimson-and-green #7 kit vs sky-blue-and-white vertical-striped #10 kit, athletic posture, stitched leather match ball, floodlit pitch) so the image engine nails the scene cleanly without celebrity-likeness blocks.
+- Write the scene description in English (translate faithfully if needed), EXCEPT text that must render inside the image: quote any headline, subheadline, slide counter, jersey number, logo, or Arabic/English copy EXACTLY as written in double quotes, specifying font style, weight, material treatment, and exact placement in the frame. Never add unrequested text or unrelated brand names.
+- ADAPTIVE FIDELITY: Use concrete physical nouns and optical terms (subsurface scattering, rim light, 85mm f/1.8, tactile grain). Write 70-130 words for concise ideas, expanding up to 220 words when preserving rich master briefs with explicit quoted copy, hex palettes (#XXXXXX), and layout margins. Flowing prose, no markdown, no bullet lists, never use em-dashes or en-dashes.
 Return ONLY JSON: {"prompt": "..."}`;
 
-const EDIT_SYSTEM = `You are a retoucher/art director writing edit instructions for an AI image-editing model.
-Rewrite the user's request into ONE precise edit instruction: what changes, what stays untouched (subject identity, brand elements), and how the result should look (lighting/color continuity with the original).
-Write in English (translate if needed), except text to render in-image. Quote that exactly in its original language. 40–90 words, prose only.
+const EDIT_SYSTEM = `You are AURA (powered by Gemini 4 Carbon), a master commercial retoucher and art director writing precision edit instructions for multi-modal AI image-editing engines (Google Gemini 3 Pro Image, Gemini Nano Banana 2.1, MiniMax H3-Image 4K, Qwen Image 3.0 Pro, Wan 2.7 Image Pro, xAI Grok Imagine 2.0).
+Decode any shorthand or typos in the user's request and rewrite it into ONE unambiguous edit instruction:
+1. State the exact visual modification, replacement, or multi-image synthesis first.
+2. Explicitly lock what must remain pixel-consistent from the base/reference images (product geometry, brand logo, facial identity, perspective, and camera angle).
+3. Specify how new or modified elements integrate seamlessly into the existing lighting direction, shadow falloff, reflections, and color grade (preserving any explicit hex color codes).
+Write in English (translate if needed), except in-image text which must be quoted EXACTLY in its original language. Never inject unrelated brand names. 50-120 words, prose only, never use em-dashes or en-dashes.
 Return ONLY JSON: {"prompt": "..."}`;
 
 // ─── Per-engine dialects (2026-07-09) ────────────────────────────
@@ -138,77 +171,67 @@ Return ONLY JSON: {"prompt": "..."}`;
 /** Every prompt dialect the enhancer knows. */
 export type DialectKey =
   | 'qwen-image'
+  | 'wan-image'
   | 'qwen-image-21'
   | 'nano-banana'
   | 'grok-image'
+  | 'minimax-image'
   | 'z-image'
   | 'wan3'
   | 'wan'
   | 'happyhorse'
   | 'grok-video'
+  | 'omni-video'
+  | 'hailuo-h3'
   | 'vidu'
   | 'none';
 
 const DIALECT_NOTES: Record<DialectKey, string> = {
-  'nano-banana': `ENGINE NOTES (Gemini nano-banana): this model reads flowing narrative sentences far better than keyword lists. Describe the scene as one coherent paragraph. It renders in-image typography exceptionally well: put any required copy in double quotes with font style, weight and placement. Photorealism responds to explicit camera + lens + lighting language (e.g. 85mm, f/2.8, softbox key).`,
+  'nano-banana': `ENGINE NOTES (Gemini 3 Pro Image & Nano Banana 2.1 / nano-banana): this model reads flowing narrative sentences far better than keyword lists. Describe the scene as one coherent paragraph. It excels at multi-subject composition, world knowledge, in-image typography, and multi-reference blends: put any required copy in double quotes with font style, weight and placement. Photorealism responds to explicit camera + lens + lighting language (e.g. 85mm, f/2.8, softbox key).`,
 
   'qwen-image': `ENGINE NOTES (Qwen-Image): strongest at poster-style layouts and dense, accurate text rendering, including Arabic script (keep Arabic in-image text in Arabic). Spell out any text EXACTLY in double quotes, with font style and position. Fully specify the layout: name every major element and where it sits in the frame. Text-heavy ads, flat design and infographics are this engine's sweet spot.`,
 
-  'grok-image': `ENGINE NOTES (Grok Imagine): favors concise, punchy, subject-first prompts. Lead with the hero subject in the first clause and stay near the LOWER word bound. Bold stylization lands well; long meandering prose drifts.`,
+  'wan-image': `ENGINE NOTES (Wan 2.7 Image Pro): Alibaba's flagship photorealistic cinema and luxury product engine. Emphasize tactile micro-textures (skin pores, fabric weave, brushed metal, liquid condensation), optical lens physics (e.g. 85mm f/1.4 prime, creamy bokeh, volumetric rim lighting), and three-dimensional foreground/midground/background depth. For edits, lock the hero subject's geometry and match shadow falloff and surface reflections.`,
 
-  // Z-Image Turbo tops the open-source text-to-image benchmark and is listed as
-  // the current No.1 open-source model on Artificial Analysis. It is strong at
-  // bilingual Chinese-English text rendering, so it gets its own note.
-  'z-image': `ENGINE NOTES (Z-Image Turbo): photo-real output and strong bilingual Chinese-English text rendering. Put any copy in double quotes exactly as written and say where it sits in the frame. Describe the scene plainly and concretely; this engine rewards specificity over poetry. 50–90 words.`,
+  'grok-image': `ENGINE NOTES (Grok Imagine 2.0): favors concise, punchy, subject-first prompts with bold contrast and editorial lighting. Lead with the hero subject and its physical materials in the first clause, name the lighting setup clearly, and stay near the LOWER word bound. Supports native 2K generation and image edits.`,
 
-  // Qwen-Image 2.1 takes up to TEN reference images and supports LOCAL edits
-  // ("change only the shoe"). Its note has to say so, otherwise the enhancer
-  // writes a full redraw instruction and the edit lands wrong.
-  'qwen-image-21': `ENGINE NOTES (Qwen-Image 2.1): this engine takes up to ten reference images and understands LOCAL edits. When the user asks to change one thing, name exactly which element changes and then say explicitly that everything else must stay identical (product, logo, colours, framing, lighting). Refer to the source as "Image 1". 50–100 words.`,
+  'minimax-image': `ENGINE NOTES (MiniMax H3-Image & Image-01): native 4K studio photorealism, rich editorial portraiture, character consistency, and multi-image composition. Describe subjects, skin and material micro-textures, lighting ratios, and optical depth (focal length + aperture) in clear flowing prose. Put any in-image copy in double quotes with font style and placement. For edits, state clearly what changes while keeping subject identity and lighting cohesive. 65-110 words.`,
 
-wan: `ENGINE NOTES (Wan text-to-video): VISUAL-ONLY engine. Omit the SFX/Ambient/dialogue sentences entirely and spend those words on motion instead. One continuous scene: explicit motion verbs for the subject AND one clear camera move. 60–100 words.`,
-  'grok-video': `ENGINE NOTES (Grok Imagine video): favors short, high-energy cinematic beats. 60–90 words, one bold camera move, strong stylization. Keep the SFX and Ambient clauses to a few words each.`,
+  'z-image': `ENGINE NOTES (Z-Image Turbo): photo-real output and strong bilingual Chinese-English text rendering. Put any copy in double quotes exactly as written and say where it sits in the frame. Describe the scene plainly and concretely; this engine rewards specificity over poetry. 50-90 words.`,
 
-  // Wan 3.0 renders sound in the SAME pass as the picture (the catalog lists
-  // Audio as a response modality), and Wan 2.6 Flash supports stable
-  // multi-speaker dialogue. The plain Wan note above tells the enhancer to
-  // delete every audio line, so the sound capability was never used on the
-  // engines that actually have it.
-  wan3: `ENGINE NOTES (Wan 3.0): renders sound in the same pass as the picture, so KEEP the audio lines but make them specific and short. Name one camera move, one subject action, and one setting. If the brief implies speech, give the line in the user's own language in double quotes and mark who says it. End with "SFX: <sound>." 60–110 words.`,
+  'qwen-image-21': `ENGINE NOTES (Qwen-Image 2.1): this engine takes up to ten reference images and understands LOCAL edits. When the user asks to change one thing, name exactly which element changes and then say explicitly that everything else must stay identical (product, logo, colours, framing, lighting). Refer to the source as "Image 1". 50-100 words.`,
 
-  // HappyHorse 1.1 publishes Video only on the live workspace (no audio
-  // modality), so it must NOT inherit the Wan 3.0 instruction to keep the audio
-  // lines. It is its own engine family: the most physically accurate motion of
-  // the three, so it rewards concrete weight, inertia and momentum.
-  happyhorse: `ENGINE NOTES (HappyHorse 1.1): VISUAL-ONLY engine, it publishes no audio, so omit the SFX/Ambient/dialogue sentences entirely and spend those words on motion instead. This is our most physically accurate engine, so be concrete about weight, inertia and momentum: how the subject accelerates, settles and reacts. One continuous shot, one clear camera move. 60–100 words.`,
+  wan: `ENGINE NOTES (Wan text-to-video): VISUAL-ONLY engine. Omit the SFX/Ambient/dialogue sentences entirely and spend those words on motion instead. One continuous scene: explicit motion verbs for the subject AND one clear camera move. 60-100 words.`,
 
-  // Vidu Q3 is an advertising engine: it wants shot-by-shot beats with the
-  // subject locked, not one continuous take.
-  vidu: `ENGINE NOTES (Vidu Q3): an advertising engine. Write ONE 16-second cut as two or three numbered beats, each starting with a camera move ("[00:00] slow push-in on the product, ..."). The product stays identical in every beat, lit consistently. Name the marketing beat you are building toward (reveal, benefit, call to action). Sound lines are welcome and should name the mood. 70–120 words.`,
+  'grok-video': `ENGINE NOTES (Grok Imagine Video 1.5): favors high-energy 1080p cinematic beats, crisp camera movement (tracking, whip-pan, slow push-in), and dynamic lighting physics. 60-95 words, one decisive camera move, vivid temporal action. Keep the SFX and Ambient clauses concise.`,
 
-  // No live engine lands here. A Google video engine would.
+  'omni-video': `ENGINE NOTES (Gemini Omni 1.2 Flash Video): Google's native multimodal video engine on the Interactions API. Reads natural cinematic prose best. Omit explicit SFX/Ambient tags and spend every word on continuous physical motion, camera choreography, optical lighting, and material realism across 4 to 12 seconds. 65-110 words.`,
+
+  'hailuo-h3': `ENGINE NOTES (MiniMax H3 / Hailuo H3): renders native 2K cinema video with synchronized stereo audio (4 to 15s), micro-expression human acting, and complex camera choreography. KEEP the audio lines and make them vivid and specific. Choreograph one decisive physical camera move (dolly, Steadicam arc, crane, handheld push-in), expressive human acting or physical motion, lighting geometry, and atmosphere. If spoken dialogue is implied, write it in double quotes in the speaker's language. End with "SFX: <sound>. Ambient noise: <soundscape>." 75-120 words.`,
+
+  wan3: `ENGINE NOTES (Wan 3.0): renders synchronized sound in the same pass as the video (2 to 30s at 720p/1080p), so KEEP the audio lines and make them vivid and specific. Choreograph the camera move, subject action, physical environment, and lighting. If the brief implies speech, give the line in the user's own language in double quotes and mark who says it. End with "SFX: <sound>. Ambient noise: <soundscape>." 70-120 words.`,
+
+  happyhorse: `ENGINE NOTES (HappyHorse 1.1): VISUAL-ONLY engine, it publishes no audio, so omit the SFX/Ambient/dialogue sentences entirely and spend those words on motion instead. This is our most physically accurate engine, so be concrete about weight, inertia and momentum: how the subject accelerates, settles and reacts. One continuous shot, one clear camera move. 60-100 words.`,
+
+  vidu: `ENGINE NOTES (Vidu Q3): an advertising engine. Write ONE 16-second cut as two or three numbered beats, each starting with a camera move ("[00:00] slow push-in on the product, ..."). The product stays identical in every beat, lit consistently. Name the marketing beat you are building toward (reveal, benefit, call to action). Sound lines are welcome and should name the mood. 70-120 words.`,
+
   none: '',
 };
 
-/**
- * The one line the UI shows under the engine picker: what kind of prompt this
- * engine wants. Plain words, no jargon, because the whole point is that the
- * user can see why switching engines changes the prompt.
- *
- * The frontend mirrors this table (apps/desktop/src/lib/creative-models.ts).
- * server/test/prompt-enhancer.spec.ts asserts the two agree, so a new
- * engine cannot ship with a prompt nobody can explain.
- */
 export const DIALECT_HINTS: Record<DialectKey, string> = {
   'qwen-image': 'Prompt written for Qwen Image. The layout is spelled out and any text in the picture is quoted exactly.',
+  'wan-image': 'Prompt written for Wan 2.7 Image. Rich optical lighting, physical surface texture, and camera depth.',
   'qwen-image-21': 'Prompt written for Qwen Image 2.1. It names what changes and says plainly that the rest stays the same.',
   'nano-banana': 'Prompt written for Gemini. One flowing paragraph, with the camera and lens named.',
   'grok-image': 'Prompt written for Grok. Short and punchy, with the subject first.',
+  'minimax-image': 'Prompt written for MiniMax H3-Image. Native up-to-4K photorealism, studio lighting, and character fidelity.',
   'z-image': 'Prompt written for Z-Image. A plain concrete description, with any copy quoted exactly.',
   wan3: 'Prompt written for Wan 3.0. This engine makes the sound too, so describe what the scene sounds like.',
   wan: 'Prompt written for Wan 2.7. This engine makes no sound, so the prompt covers motion only.',
   happyhorse: 'Prompt written for HappyHorse. This engine makes no sound, so the prompt spends its words on weight and momentum.',
   'grok-video': 'Prompt written for Grok video. Short, high energy beats.',
+  'omni-video': 'Prompt written for Gemini Omni Video. Flowing cinematic motion, camera optics, and physical realism.',
+  'hailuo-h3': 'Prompt written for MiniMax H3. Native 2K cinema motion, human micro-expressions, and synchronized stereo sound.',
   vidu: 'Prompt written for Vidu. Numbered beats for one advertising cut.',
   none: 'Prompt written for a generic engine.',
 };
@@ -229,13 +252,22 @@ export function autoEngineFor(mode: EnhanceMode): { engine: string; model?: stri
         : (process.env.DASHSCOPE_IMAGE_MODEL || 'qwen-image-3.0-pro'),
     };
   }
+  if (primary === 'minimax') {
+    return {
+      engine: 'minimax',
+      model: isVideo
+        ? (process.env.MINIMAX_VIDEO_MODEL || 'MiniMax-H3')
+        : (process.env.MINIMAX_IMAGE_MODEL || 'MiniMax-H3-Image'),
+    };
+  }
   return { engine: primary };
 }
 
 /** The engine a model id belongs to. Absent model = Auto = Alibaba. */
-export function engineForModel(model?: string): 'gemini' | 'xai' | 'dashscope' | 'vertex' {
+export function engineForModel(model?: string): 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax' {
   const m = (model || '').toLowerCase();
   if (!m) return 'dashscope';
+  if (m.includes('minimax') || m.includes('hailuo') || m === 'image-01') return 'minimax';
   if (m.includes('grok')) return 'xai';
   if (m.includes('veo') || m.includes('omni') || m.includes('gemini')) return 'gemini';
   return 'dashscope';
@@ -269,22 +301,119 @@ export function dialectKeyFor(mode: EnhanceMode, engine?: string, model?: string
       ? (process.env.DASHSCOPE_VIDEO_MODEL || 'wan3.0-video-prime')
       : (process.env.DASHSCOPE_IMAGE_MODEL || 'qwen-image-3.0-pro')).toLowerCase();
   }
+  if (eng === 'minimax' && !m) {
+    m = (isVideo
+      ? (process.env.MINIMAX_VIDEO_MODEL || 'MiniMax-H3')
+      : (process.env.MINIMAX_IMAGE_MODEL || 'MiniMax-H3-Image')).toLowerCase();
+  }
   if (isVideo) {
     // Order matters: each family is checked before the next, because a pick
     // must never inherit another family's instruction (Vidu is not Wan,
-    // HappyHorse is not Wan 3.0, Wan 3.0 is not Wan 2.7).
+    // HappyHorse is not Wan 3.0, Wan 3.0 is not Wan 2.7, MiniMax H3 is not Wan).
+    if (m.includes('minimax') || m.includes('hailuo') || (!m && eng === 'minimax')) return 'hailuo-h3';
+    if (m.includes('omni') || m.includes('veo')) return 'omni-video';
     if (m.includes('vidu')) return 'vidu';
     if (/wan3\./.test(m)) return 'wan3';
     if (m.includes('happyhorse')) return 'happyhorse';
     if (m.includes('wan')) return 'wan';
     if (m.includes('grok') || (!m && eng === 'xai')) return 'grok-video';
-    return 'none'; // A Google video engine would land here. There is no live one.
+    if (!m && (eng === 'gemini' || eng === 'vertex')) return 'omni-video';
+    return 'none';
   }
+  if (m.includes('minimax') || m === 'image-01' || (!m && eng === 'minimax')) return 'minimax-image';
   if (m.includes('z-image')) return 'z-image';
   if (m.includes('qwen-image-2.1')) return 'qwen-image-21';
-  if (m.includes('qwen') || m.includes('wan') || (!m && eng === 'dashscope')) return 'qwen-image';
+  if (m.includes('wan')) return 'wan-image';
+  if (m.includes('qwen') || (!m && eng === 'dashscope')) return 'qwen-image';
   if (m.includes('grok') || (!m && eng === 'xai')) return 'grok-image';
   return 'nano-banana'; // gemini / vertex default (nano-banana)
+}
+
+export interface SmartEnginePick {
+  provider: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax';
+  model: string;
+  reason: string;
+}
+
+/**
+ * AURA's per-prompt Creative Director router. Inspects the user's intent,
+ * language, layout density, subject complexity, and motion requirements to pick
+ * the highest-performing engine when the user leaves the picker on Auto.
+ */
+export function selectBestCreativeEngine(
+  mode: EnhanceMode,
+  prompt: string,
+  opts: { fast?: boolean; hasRefs?: boolean; hasEndFrame?: boolean; quality?: 'standard' | 'ultra' } = {},
+): SmartEnginePick {
+  const p = (prompt || '').trim();
+  const hasArabic = /[\u0600-\u06FF]/.test(p);
+
+  if (mode === 'image-edit') {
+    if (hasArabic) {
+      return { provider: 'dashscope', model: 'qwen-image-3.0-pro', reason: 'Arabic typography and structured layout edit' };
+    }
+    return {
+      provider: 'gemini',
+      model: opts.fast ? 'gemini-nano-banana-2.1' : 'gemini-3-pro-image',
+      reason: 'Flagship identity-preserving multimodal image edit',
+    };
+  }
+
+  if (mode === 'text-to-image') {
+    if (!hasArabic && /\b(carousel|slide\s*\d+)\b/i.test(p)) {
+      return { provider: 'gemini', model: 'gemini-3-pro-image', reason: 'Editorial social card layout, exact typography, and hex palette control' };
+    }
+    if (hasArabic || /\b(poster|infographic|flyer|menu|brochure|typography|calligraphy|arabic)\b/i.test(p)) {
+      return { provider: 'dashscope', model: 'qwen-image-3.0-pro', reason: 'Bilingual typography and structured poster layout' };
+    }
+    if (opts.fast) {
+      return { provider: 'gemini', model: 'gemini-nano-banana-2.1', reason: 'Fast high-coherence Gemini image synthesis' };
+    }
+    if (/\b(neon|cyberpunk|synthwave|vaporwave|street\s*art|graffiti|dark\s*noir)\b/i.test(p) && opts.quality !== 'ultra') {
+      return { provider: 'xai', model: 'grok-imagine-image-2.0', reason: 'Punchy high-contrast 2K aesthetic' };
+    }
+    if (
+      /\b(perfume|oud|serum|skincare|cosmetic|macro\s+shot|condensation\s+droplets|luxury\s+bottle|watch\s+dial)\b/i.test(p)
+      && !/"[^"]+"/.test(p)
+      && opts.quality !== 'ultra'
+    ) {
+      return { provider: 'dashscope', model: 'wan2.7-image-pro', reason: 'Photorealistic luxury product and tactile micro-texture' };
+    }
+    if (/\b(editorial\s+portrait|fashion\s+editorial|headshot|beauty\s+campaign|4k\s+portrait)\b/i.test(p) && opts.quality !== 'ultra') {
+      return { provider: 'minimax', model: 'MiniMax-H3-Image', reason: 'Native 4K studio portrait and character photorealism' };
+    }
+    return {
+      provider: 'gemini',
+      model: 'gemini-3-pro-image',
+      reason: 'Flagship world-knowledge, multi-subject composition, and studio optics',
+    };
+  }
+
+  // Video modes: text-to-video & image-to-video
+  if (opts.hasEndFrame || opts.hasRefs) {
+    return { provider: 'dashscope', model: 'wan3.0-video-prime', reason: 'First/last frame and reference-consistent 1080p video' };
+  }
+  if (opts.fast) {
+    return { provider: 'gemini', model: 'gemini-omni-1.1-flash', reason: 'Fast native multimodal video generation' };
+  }
+  if (/\b(monologue|talking\s+head|lip[\s-]?sync|micro[\s-]?expression|facial\s+expression|emotional\s+close[\s-]?up|actor\s+delivering|presenter\s+speaking)\b/i.test(p)) {
+    return { provider: 'minimax', model: 'MiniMax-H3', reason: 'Native 2K human acting, micro-expressions, and stereo audio' };
+  }
+  if (/\b(whip[\s-]?pan|car\s+chase|drift|fpv|drone\s+dive|parkour|explosion|high[\s-]?speed)\b/i.test(p) && mode === 'text-to-video') {
+    return { provider: 'xai', model: 'grok-imagine-video-1.5', reason: 'High-energy 1080p dynamic action cinematography' };
+  }
+  if (
+    mode === 'text-to-video'
+    && !/\b(audio|sound|sfx|dialogue|speaking|talking|voice|music|singing|whisper)\b/i.test(p)
+    && /\b(cat|cats|dog|dogs|wildlife|animal|ocean\s+waves|timelapse|botanical)\b/i.test(p)
+  ) {
+    return { provider: 'gemini', model: 'gemini-omni-1.2-flash', reason: 'Natural organic motion and multimodal world physics' };
+  }
+  return {
+    provider: 'dashscope',
+    model: 'wan3.0-video-prime',
+    reason: 'Flagship 1080p cinema video with synchronized native audio',
+  };
 }
 
 // Silent self-critique before output — one call, zero extra round-trips.
@@ -366,23 +495,41 @@ export async function enhanceCreativePrompt(input: EnhanceInput): Promise<Enhanc
     system = `${base}${dialect ? `\n${dialect}` : ''}${DEPTH_NOTES[depth]}${QUALITY_GATE}`;
   }
 
-  // Shared with enhanceCreativeVariants — one source of truth for the
-  // motion-first/edit/refs/safe-zone/style-pack guards (the 2026-08-02 review
-  // traced three bugs to this block having silently diverged copies).
-  const notes = enhanceNotes(input, isVideo);
-  // Brand lookup + reference-image vision run in PARALLEL — enhancement must
-  // stay fast even when both are needed.
+  const cleanedPrompt = depth === 'raw' ? input.prompt.trim() : stripChatMetaWrapper(input.prompt);
+  const effectiveInput: EnhanceInput = { ...input, prompt: cleanedPrompt };
+
+  // Shared with enhanceCreativeVariants: one source of truth for the
+  // motion-first/edit/refs/safe-zone/style-pack/single-slide guards.
+  const notes = enhanceNotes(effectiveInput, isVideo);
+  // Brand lookup runs ONLY when opt-in useBrandKit is enabled; reference-image
+  // vision always runs when a frame is attached.
   const [brand, refContext] = await Promise.all([
-    brandContext(input.clientId, input.orgId),
+    input.useBrandKit ? brandContext(input.clientId, input.orgId) : Promise.resolve(''),
     describeReference(input),
   ]);
 
-  const userMsg = `${notes.length ? notes.map(n => `NOTE: ${n}`).join('\n') + '\n\n' : ''}User idea:\n"${input.prompt.trim()}"${brand}${refContext}`;
+  const userMsg = `${notes.length ? notes.map(n => `NOTE: ${n}`).join('\n') + '\n\n' : ''}User idea:\n"${cleanedPrompt}"${brand}${refContext}`;
+
+  const enhancerModel = process.env.PROMPT_ENHANCER_MODEL || 'gemini-4-carbon';
+  const enhancerProvider = (process.env.PROMPT_ENHANCER_PROVIDER as AiProviderName | undefined) || 'gemini';
 
   const result = await aiRouter.text(
-    // Flash tier: enhancement must feel instant next to a 30-180s generation.
-    { prompt: userMsg, system, json: true, temperature: 0.7, maxTokens: 800, model: process.env.PROMPT_ENHANCER_MODEL || 'qwen3.8-flash' },
-    { orgId: input.orgId, userId: input.userId, clientId: input.clientId },
+    {
+      prompt: userMsg,
+      system,
+      json: true,
+      temperature: 0.65,
+      maxTokens: 8192,
+      model: enhancerModel,
+    },
+    {
+      orgId: input.orgId,
+      userId: input.userId,
+      clientId: input.clientId,
+      skipBrandKit: true,
+      skipKnowledge: true,
+      preferredProvider: enhancerProvider,
+    },
   );
 
   const out = result.output as any;
@@ -406,9 +553,17 @@ export async function enhanceCreativePrompt(input: EnhanceInput): Promise<Enhanc
 export interface EnhanceVariant { label: string; prompt: string; negativePrompt?: string; }
 export interface EnhanceVariantsResult { variants: EnhanceVariant[]; provider: string; model: string; latencyMs: number; }
 
-// Build the shared context notes (motion-first, refs, safe-zone, style pack).
-function enhanceNotes(input: EnhanceInput, isVideo: boolean): string[] {
+// Build the shared context notes (motion-first, single-slide carousel, refs, safe-zone, style pack).
+export function enhanceNotes(input: EnhanceInput, isVideo: boolean): string[] {
   const notes: string[] = [];
+  if (
+    input.mode === 'text-to-image'
+    && (/\bslide\s*1\b[\s\S]*\bslide\s*2\b/i.test(input.prompt) || /\b([2-9]|1\d)[\s-]*slide\s+carousel\b/i.test(input.prompt))
+  ) {
+    const targetMatch = input.prompt.match(/\b(?:render|generate|only|just)\s+slide\s*(\d+)\b/i);
+    const targetSlide = targetMatch ? `Slide ${targetMatch[1]}` : 'Slide 1 (the Cover slide)';
+    notes.push(`SINGLE-SLIDE CAROUSEL RULE. This image engine renders ONE standalone frame per call, NEVER multiple slides, split-screens, or grids. Render ONLY ${targetSlide} as one full-bleed artwork. Preserve the global art direction, exact hex color codes, layout margins, typography hierarchy, slide counter (such as "01/07"), and the exact quoted copy for ${targetSlide} ONLY. Omit the copy and scenes of all other slides, and NEVER write phrases like "seven separate slides" or "carousel set".`);
+  }
   if (input.mode === 'image-to-video') {
     notes.push('HARD RULE. The shot animates FROM a provided still image that IS frame one. Describe ONLY the motion, camera movement, pacing and audio. Do NOT re-describe, restyle, or replace the subject/product. It already exists in the frame and must stay pixel-identical. If you name the subject at all, name it only to say what it DOES, never what it looks like.');
   }
@@ -419,7 +574,7 @@ function enhanceNotes(input: EnhanceInput, isVideo: boolean): string[] {
   if (input.safeZone) notes.push('Composition constraint: keep the top ~15% and bottom ~15% of the frame free of key elements and any rendered text (platform UI bands).');
   if (input.stylePack) {
     const directive = isVideo ? input.stylePack.video : input.stylePack.image;
-    notes.push(`STYLE PACK "${input.stylePack.name}"the art direction below is a HARD constraint; weave its exact palette, materials, lighting and mood into the prompt (the user's subject stays the hero): ${directive}`);
+    notes.push(`STYLE PACK "${input.stylePack.name}": the art direction below is a HARD constraint; weave its exact palette, materials, lighting and mood into the prompt (the user's subject stays the hero): ${directive}`);
   }
   return notes;
 }
@@ -428,7 +583,7 @@ function enhanceNotes(input: EnhanceInput, isVideo: boolean): string[] {
 // directions for the same idea (each a full production-grade prompt), so the
 // user explores angles instead of accepting one guess. One AI call (fast/cheap).
 export async function enhanceCreativeVariants(input: EnhanceInput, count = 3): Promise<EnhanceVariantsResult> {
-  // depth='raw' is a brand-exact contract (translate-only, never rewrite) — 3
+  // depth='raw' is a brand-exact contract (translate-only, never rewrite): 3
   // "creative directions" would violate it by definition. Honor it through the
   // single-shot raw path and return that as the one variant.
   if (input.depth === 'raw') {
@@ -454,17 +609,35 @@ export async function enhanceCreativeVariants(input: EnhanceInput, count = 3): P
   const variantsDirective = `\n\nOUTPUT CONTRACT OVERRIDE. This section supersedes every earlier instruction about the output JSON shape (the single-object {"prompt": ...} form no longer applies).\nNOW PRODUCE ${count} DISTINCT CREATIVE DIRECTIONS for the SAME user idea. Each must be a GENUINELY different angle. ${varianceAxis}, NOT reworded versions of one another. Give each a short 2-4 word Title-Case LABEL naming its angle (e.g. "Cinematic Hero", "Lifestyle Editorial", "Bold Graphic"). Each direction's "prompt" must INDEPENDENTLY follow every rule above except the superseded output shape.\nThe ONLY valid output is compact single-line JSON with exactly ${count} items: {"variants":[{"label":"...","prompt":"..."${isVideo ? ',"negativePrompt":"..."' : ''}}]}. Any other shape is invalid.`;
   const system = `${base}${dialect ? `\n${dialect}` : ''}${DEPTH_NOTES[depth]}${QUALITY_GATE}${variantsDirective}`;
 
-  const notes = enhanceNotes(input, isVideo);
-  const [brand, refContext] = await Promise.all([brandContext(input.clientId, input.orgId), describeReference(input)]);
-  const userMsg = `${notes.length ? notes.map(n => `NOTE: ${n}`).join('\n') + '\n\n' : ''}User idea:\n"${input.prompt.trim()}"${brand}${refContext}`;
+  const cleanedPrompt = stripChatMetaWrapper(input.prompt);
+  const effectiveInput: EnhanceInput = { ...input, prompt: cleanedPrompt };
+  const notes = enhanceNotes(effectiveInput, isVideo);
+  const [brand, refContext] = await Promise.all([
+    input.useBrandKit ? brandContext(input.clientId, input.orgId) : Promise.resolve(''),
+    describeReference(input),
+  ]);
+  const userMsg = `${notes.length ? notes.map(n => `NOTE: ${n}`).join('\n') + '\n\n' : ''}User idea:\n"${cleanedPrompt}"${brand}${refContext}`;
+
+  const enhancerModel = process.env.PROMPT_ENHANCER_MODEL || 'gemini-4-carbon';
+  const enhancerProvider = (process.env.PROMPT_ENHANCER_PROVIDER as AiProviderName | undefined) || 'gemini';
 
   const result = await aiRouter.text(
-    // No maxTokens on purpose: gemini's json path ignores it (own 65536 budget)
-    // and passing 2200 to the xai fallback truncated 3 full directions + its
-    // thinking tokens into unparseable JSON. temperature still reaches the
-    // providers that honor it (xai/dashscope) for direction spread.
-    { prompt: userMsg, system, json: true, temperature: 0.9, model: process.env.PROMPT_ENHANCER_MODEL || 'qwen3.8-flash' },
-    { orgId: input.orgId, userId: input.userId, clientId: input.clientId },
+    {
+      prompt: userMsg,
+      system,
+      json: true,
+      temperature: 0.85,
+      maxTokens: 12288,
+      model: enhancerModel,
+    },
+    {
+      orgId: input.orgId,
+      userId: input.userId,
+      clientId: input.clientId,
+      skipBrandKit: true,
+      skipKnowledge: true,
+      preferredProvider: enhancerProvider,
+    },
   );
   const out = result.output as any;
   const raw = Array.isArray(out?.variants) ? out.variants : [];

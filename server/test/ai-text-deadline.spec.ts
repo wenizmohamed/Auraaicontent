@@ -29,6 +29,9 @@ vi.hoisted(() => {
   // Vertex is in the text chain now. A populated server .env would otherwise
   // leak a live Vertex key into this test and give it a real second provider.
   process.env.VERTEX_API_KEY = "";
+  process.env.ANTHROPIC_AUTH_TOKEN = "";
+  process.env.ANTHROPIC_API_KEY = "";
+  process.env.MOONSHOT_API_KEY = "";
   process.env.GITHUB_MODELS_TOKEN = "";
   process.env.GITHUB_TOKEN = "";
   delete process.env.GEMINI_TEXT_LADDER;

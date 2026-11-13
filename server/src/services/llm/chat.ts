@@ -44,7 +44,7 @@ import { isRetryableAiError, isSafetyBlock } from '../providers/errors.js';
 // Developer API key is billing-dead (402 on every model), but Vertex serves the
 // same Gemini models on a funded entitlement of the same Google Cloud project.
 // It is a separate name so its breaker is separate from gemini's.
-export type ProviderName = 'gemini' | 'xai' | 'moonshot' | 'dashscope' | 'vertex';
+export type ProviderName = 'anthropic' | 'gemini' | 'xai' | 'moonshot' | 'dashscope' | 'vertex';
 
 // RAG grounding for the chat stack. ai-router already enriches creative/text
 // generation with the client's knowledge base + learned memory + brand kit;
@@ -131,55 +131,97 @@ export interface ProviderClient {
 const LLM_TIMEOUT_MS = parseInt(process.env.LLM_TIMEOUT_MS || '120000', 10);
 // qwen3.8 thinking off unless DASHSCOPE_THINKING=true (halves latency; see dashscope.provider).
 const DS_THINKING = process.env.DASHSCOPE_THINKING === 'true';
-const dsExtras = (provider: string) => (provider === 'dashscope' && !DS_THINKING ? { enable_thinking: false } : {});
+const dsExtras = (provider: string, model?: string, params?: { max_tokens?: number | null }) => {
+  if (provider === 'anthropic') {
+    return {
+      temperature: 1,
+      max_tokens: Math.max(params?.max_tokens ?? 4096, 2048),
+    };
+  }
+  if (provider === 'dashscope' && !DS_THINKING) return { enable_thinking: false };
+  if (provider === 'moonshot' && /k3\.1|k2\.5/i.test(model || '')) return { temperature: 1 };
+  return {};
+};
+function getAnthropicBase(): string {
+  const raw = (process.env.ANTHROPIC_BASE_URL || 'https://claudeapikey.dev').replace(/\/+$/, '');
+  return raw.endsWith('/v1') ? raw : `${raw}/v1`;
+}
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/openai/';
-const XAI_BASE = process.env.XAI_BASE_URL || 'https://api.x.ai/v1';
-const MOONSHOT_BASE = process.env.MOONSHOT_BASE_URL || 'https://api.moonshot.ai/v1';
-const DASHSCOPE_BASE = process.env.DASHSCOPE_BASE_URL || 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1';
+function getXaiBase(): string {
+  return process.env.XAI_BASE_URL || 'https://api.x.ai/v1';
+}
+function getMoonshotBase(): string {
+  return process.env.MOONSHOT_BASE_URL || 'https://api.moonshot.ai/v1';
+}
+function getDashscopeBase(): string {
+  return process.env.DASHSCOPE_BASE_URL || 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1';
+}
 // Vertex OpenAI-compatible route (added 2026-11-07). The location lives in the
 // PATH; the hostname stays global — `us-aiplatform.googleapis.com` answers 400
 // "Invalid hostname". Verified live 2026-11-07: tool calling returns
 // finish_reason 'tool_calls' with a google thought_signature, and streaming works.
-const VERTEX_PROJECT = process.env.VERTEX_PROJECT || 'hubz-510406';
-const VERTEX_LOCATION = process.env.VERTEX_LOCATION || 'us';
-const VERTEX_BASE = process.env.VERTEX_BASE_URL
-  || `https://aiplatform.googleapis.com/v1/projects/${VERTEX_PROJECT}/locations/${VERTEX_LOCATION}/endpoints/openapi`;
+function getVertexBase(): string {
+  const project = process.env.VERTEX_PROJECT || 'hubz-510406';
+  const location = process.env.VERTEX_LOCATION || 'us';
+  return process.env.VERTEX_BASE_URL
+    || `https://aiplatform.googleapis.com/v1/projects/${project}/locations/${location}/endpoints/openapi`;
+}
 
-const cache = new Map<ProviderName, OpenAI>();
+const cache = new Map<string, OpenAI>();
 
 function clientFor(p: ProviderName, geminiModelOverride?: string): ProviderClient {
-  let cached = cache.get(p);
+  if (p === 'anthropic') {
+    const key = process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_API_KEY;
+    if (!key) throw new Error('ANTHROPIC_AUTH_TOKEN missing');
+    const base = getAnthropicBase();
+    const cacheKey = `${p}:${base}:${key.slice(-8)}`;
+    let cached = cache.get(cacheKey);
+    if (!cached) {
+      cached = new OpenAI({
+        apiKey: key,
+        baseURL: base,
+        timeout: LLM_TIMEOUT_MS,
+        maxRetries: 1,
+        defaultHeaders: {
+          'x-api-key': key,
+          'anthropic-version': '2023-06-01',
+          'anthropic-beta': 'claude-code-20250219,interleaved-thinking-2025-05-14',
+          'x-app': 'cli',
+          'User-Agent': 'claude-cli/2.1.0 (external, cli)',
+        },
+      });
+      cache.set(cacheKey, cached);
+    }
+    const cModel = geminiModelOverride && /^claude-/i.test(geminiModelOverride)
+      ? geminiModelOverride
+      : (process.env.CLAUDE_ASSISTANT_MODEL || process.env.ANTHROPIC_TEXT_MODEL || 'claude-sonnet-5-5');
+    return { client: cached, model: cModel, provider: p };
+  }
   if (p === 'gemini') {
     const key = process.env.GEMINI_API_KEY;
     if (!key) throw new Error('GEMINI_API_KEY missing');
+    const cacheKey = `${p}:${GEMINI_BASE}:${key.slice(-8)}`;
+    let cached = cache.get(cacheKey);
     if (!cached) {
       cached = new OpenAI({ apiKey: key, baseURL: GEMINI_BASE, timeout: LLM_TIMEOUT_MS, maxRetries: 1 });
-      cache.set(p, cached);
+      cache.set(cacheKey, cached);
     }
-    // A caller (the agent) can force a reasoning-tier model on the gemini hop
-    // without changing GEMINI_CHAT_MODEL, which the assistant shares. The
-    // override applies ONLY to gemini: the xai/dashscope fallbacks keep their
-    // own ids, since a gemini model string would 400 on those endpoints.
-    //
-    // The override must be GEMINI-SHAPED. The agent sets AGENT_MODEL=qwen3.8-max
-    // (an Alibaba id) and passes it as modelOverride; that id is meant for the
-    // dashscope hop only. Forwarding it to Google made the gemini rung 404
-    // ("models/qwen3.8-max is not found") and killed the agent whenever
-    // dashscope was unavailable — root-caused live 2026-10-30. The dashscope
-    // branch below already guards by shape; this is the same guard mirrored.
     const model = (geminiModelOverride && /^(gemini|nano|veo|imagen|learnlm)/i.test(geminiModelOverride))
       ? geminiModelOverride
-      : (process.env.GEMINI_CHAT_MODEL || 'gemini-3.1-pro-preview');
+      : (process.env.GEMINI_CHAT_MODEL || 'gemini-4-argon');
     return { client: cached, model, provider: p };
   }
   if (p === 'xai') {
     const key = process.env.XAI_API_KEY;
     if (!key) throw new Error('XAI_API_KEY missing');
+    const base = getXaiBase();
+    const cacheKey = `${p}:${base}:${key.slice(-8)}`;
+    let cached = cache.get(cacheKey);
     if (!cached) {
-      cached = new OpenAI({ apiKey: key, baseURL: XAI_BASE, timeout: LLM_TIMEOUT_MS, maxRetries: 1 });
-      cache.set(p, cached);
+      cached = new OpenAI({ apiKey: key, baseURL: base, timeout: LLM_TIMEOUT_MS, maxRetries: 1 });
+      cache.set(cacheKey, cached);
     }
-    return { client: cached, model: process.env.XAI_TEXT_MODEL || 'grok-4.20', provider: p };
+    return { client: cached, model: process.env.XAI_TEXT_MODEL || 'grok-4.7', provider: p };
   }
   if (p === 'dashscope') {
     // Alibaba Qwen. Already the third hop for creative work in ai-router, but it
@@ -189,9 +231,12 @@ function clientFor(p: ProviderName, geminiModelOverride?: string): ProviderClien
     // 'tool_calls' correctly.
     const key = process.env.DASHSCOPE_API_KEY;
     if (!key) throw new Error('DASHSCOPE_API_KEY missing');
+    const base = getDashscopeBase();
+    const cacheKey = `${p}:${base}:${key.slice(-8)}`;
+    let cached = cache.get(cacheKey);
     if (!cached) {
-      cached = new OpenAI({ apiKey: key, baseURL: DASHSCOPE_BASE, timeout: LLM_TIMEOUT_MS, maxRetries: 1 });
-      cache.set(p, cached);
+      cached = new OpenAI({ apiKey: key, baseURL: base, timeout: LLM_TIMEOUT_MS, maxRetries: 1 });
+      cache.set(cacheKey, cached);
     }
     // Honour a per-call override when it is a DashScope-shaped id (the agent's
     // AGENT_MODEL); a Gemini id falling through the chain must not be forwarded.
@@ -205,6 +250,9 @@ function clientFor(p: ProviderName, geminiModelOverride?: string): ProviderClien
     // answers 400 "Malformed publisher model" (verified live 2026-11-07).
     const key = process.env.VERTEX_API_KEY;
     if (!key) throw new Error('VERTEX_API_KEY missing');
+    const base = getVertexBase();
+    const cacheKey = `${p}:${base}:${key.slice(-8)}`;
+    let cached = cache.get(cacheKey);
     if (!cached) {
       // The Vertex OpenAI-compatible route does NOT accept `Authorization:
       // Bearer <api-key>` — it answers 401 "Expected OAuth 2 access token" and,
@@ -215,42 +263,35 @@ function clientFor(p: ProviderName, geminiModelOverride?: string): ProviderClien
       // entirely rather than send an empty value.
       cached = new OpenAI({
         apiKey: key,
-        baseURL: VERTEX_BASE,
+        baseURL: base,
         timeout: LLM_TIMEOUT_MS,
         maxRetries: 1,
         defaultHeaders: { 'x-goog-api-key': key, Authorization: undefined },
       });
-      cache.set(p, cached);
+      cache.set(cacheKey, cached);
     }
     // A per-call override is honoured only when it is Gemini-shaped: a qwen id
     // (the agent's AGENT_MODEL) belongs to the dashscope hop and must never be
     // forwarded to Vertex (it would 404 the rung).
     const vModel = geminiModelOverride && /^(gemini|nano|veo|imagen)/i.test(geminiModelOverride)
       ? geminiModelOverride
-      : (process.env.VERTEX_TEXT_MODEL || 'gemini-3.8-flash');
+      : (process.env.VERTEX_TEXT_MODEL || 'gemini-4-argon');
     return { client: cached, model: `google/${vModel}`, provider: p };
   }
   // moonshot
   const key = process.env.MOONSHOT_API_KEY;
   if (!key) throw new Error('MOONSHOT_API_KEY missing');
+  const base = getMoonshotBase();
+  const cacheKey = `${p}:${base}:${key.slice(-8)}`;
+  let cached = cache.get(cacheKey);
   if (!cached) {
-    cached = new OpenAI({ apiKey: key, baseURL: MOONSHOT_BASE, timeout: LLM_TIMEOUT_MS, maxRetries: 1 });
-    cache.set(p, cached);
+    cached = new OpenAI({ apiKey: key, baseURL: base, timeout: LLM_TIMEOUT_MS, maxRetries: 1 });
+    cache.set(cacheKey, cached);
   }
-  return { client: cached, model: process.env.MOONSHOT_MODEL || 'kimi-k2.6', provider: p };
+  return { client: cached, model: process.env.MOONSHOT_MODEL || 'kimi-k3.1-pro-highspeed', provider: p };
 }
 
-// Default chain — Gemini PRIMARY (Radix company-card key), Grok fallback,
-// Kimi tertiary.  Override per-call when a feature has a different routing
-// preference (e.g. agent orchestrator wants the model named in AGENT_MODEL).
-// moonshot/kimi restored 2026-08-14 — fresh Kimi plan key on the
-// api.kimi.com/coding/v1 base (MOONSHOT_BASE_URL), model k3 (1M context).
-// It had been dropped 2026-07-21 when the old key 401'd access_terminated.
-// Final rung: only reached when gemini + xai + dashscope all fail.
-// 2026-10-17: Alibaba first everywhere (qwen3.8-max), Grok, then Gemini, then Kimi.
-// 2026-11-07: vertex inserted before gemini — the Developer API key is billing-dead
-// (402 on every model), so Gemini must not be tried first.
-export const DEFAULT_CHAIN: ProviderName[] = ['dashscope', 'vertex', 'xai', 'gemini', 'moonshot'];
+export const DEFAULT_CHAIN: ProviderName[] = ['gemini', 'vertex', 'xai', 'dashscope', 'moonshot', 'anthropic'];
 
 function resolveChain(env: string | undefined, fallbackChain: ProviderName[] = DEFAULT_CHAIN): ProviderName[] {
   if (!env) return fallbackChain;
@@ -381,7 +422,7 @@ export interface ChatTextResult {
 
 export async function chatText(
   params: Omit<ChatCompletionCreateParamsNonStreaming, 'model' | 'stream'>,
-  options?: { chain?: ProviderName[]; chainEnv?: string; meta?: UsageMeta; enrich?: boolean },
+  options?: { chain?: ProviderName[]; chainEnv?: string; meta?: UsageMeta; enrich?: boolean; modelOverride?: string },
 ): Promise<ChatTextResult> {
   // Spend gate — mirror ai-router so the chat stack (assistant/agent/research)
   // honours the same monthly org budget cap. No-op when orgId/budget absent.
@@ -392,14 +433,14 @@ export async function chatText(
     ? await enrichLastUserTurn(params.messages, options.meta)
     : params.messages;
   const out = await withFallback(async ({ client, model, provider }) => {
-    const r: ChatCompletion = await client.chat.completions.create({ ...params, ...dsExtras(provider), messages: shapeToolHistoryFor(provider, messages), model, stream: false } as any);
+    const r: ChatCompletion = await client.chat.completions.create({ ...params, ...dsExtras(provider, model, params as any), messages: shapeToolHistoryFor(provider, messages), model, stream: false } as any);
     const choice = r.choices?.[0]?.message as
       | { content?: string | null; reasoning_content?: string | null }
       | undefined;
     let text = choice?.content ?? '';
     if (!text && choice?.reasoning_content) text = choice.reasoning_content;
     return { text, usage: r.usage };
-  }, options);
+  }, { chain: options?.chain, chainEnv: options?.chainEnv, geminiModel: options?.modelOverride });
   persistChatUsage(
     options?.meta,
     out.model,
@@ -456,7 +497,7 @@ export async function chatStream(
   } as ChatCompletionCreateParamsStreaming;
   const out = await withFallback(async ({ client, model, provider }) => {
     const stream = await client.chat.completions.create(
-      { ...paramsWithUsage, ...dsExtras(provider), messages: shapeToolHistoryFor(provider, paramsWithUsage.messages), model } as typeof paramsWithUsage,
+      { ...paramsWithUsage, ...dsExtras(provider, model, paramsWithUsage as any), messages: shapeToolHistoryFor(provider, paramsWithUsage.messages), model } as typeof paramsWithUsage,
       { signal: options?.signal },
     );
     return stream;
@@ -494,16 +535,23 @@ export async function chatStream(
 // Diagnostic: which providers in the chain currently have credentials set.
 export function chainStatus(chain: ProviderName[] = DEFAULT_CHAIN): Array<{ provider: ProviderName; configured: boolean; model: string }> {
   return chain.map((p) => {
+    if (p === 'anthropic') {
+      return {
+        provider: p,
+        configured: !!(process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_API_KEY),
+        model: process.env.CLAUDE_ASSISTANT_MODEL || process.env.ANTHROPIC_TEXT_MODEL || 'claude-sonnet-5-5',
+      };
+    }
     const envKey = p === 'gemini' ? 'GEMINI_API_KEY'
       : p === 'xai' ? 'XAI_API_KEY'
       : p === 'dashscope' ? 'DASHSCOPE_API_KEY'
       : p === 'vertex' ? 'VERTEX_API_KEY'
       : 'MOONSHOT_API_KEY';
-    const modelEnv = p === 'gemini' ? (process.env.GEMINI_CHAT_MODEL || 'gemini-3.1-pro-preview')
+    const modelEnv = p === 'gemini' ? (process.env.GEMINI_CHAT_MODEL || 'gemini-4-argon')
       : p === 'xai' ? (process.env.XAI_TEXT_MODEL || 'grok-4.7')
       : p === 'dashscope' ? (process.env.DASHSCOPE_TEXT_MODEL || 'qwen3.8-max')
-      : p === 'vertex' ? (process.env.VERTEX_TEXT_MODEL || 'gemini-3.8-flash')
-      : (process.env.MOONSHOT_MODEL || 'kimi-k2.6');
+      : p === 'vertex' ? (process.env.VERTEX_TEXT_MODEL || 'gemini-4-argon')
+      : (process.env.MOONSHOT_MODEL || 'kimi-k3.1-pro-highspeed');
     return { provider: p, configured: !!process.env[envKey], model: modelEnv };
   });
 }

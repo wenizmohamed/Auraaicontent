@@ -29,9 +29,10 @@ interface Citation {
 
 interface EnrichedMessage extends ChatMessage {
   action?: ActionResult;
-  /** Trust UI — model that generated this message. */
+  /** Trust UI: provider & exact model that generated this message. */
   provider?: string;
-  /** Trust UI — round-trip latency in ms. */
+  model?: string;
+  /** Trust UI: round-trip latency in ms. */
   latencyMs?: number;
   /** RAG sources / web citations cited by this reply, if the backend returned them. */
   citations?: Citation[];
@@ -73,6 +74,9 @@ interface AgentRunView {
   /** Streamed narrative text accumulated from agent:message deltas. */
   text: string;
   steps: AgentToolStep[];
+  /** Orchestrator provider and model captured from agent:thought. */
+  provider?: string;
+  model?: string;
   /** Client the run was started for, captured at start so the once-registered
    * socket handlers never read a stale selectedClientId. */
   clientId?: string | null;
@@ -90,6 +94,9 @@ const TOOL_LABELS: Record<string, string> = {
   compliance_check: 'Checking compliance',
   client_switch: 'Switching client',
   image_generate: 'Generating an image',
+  image_edit: 'Editing the image',
+  prompt_improve: 'Engineering studio prompt (Carbon)',
+  brand_memory_save: 'Saving to Brand Memory',
   competitor_scrape: 'Scanning competitors',
   visual_search: 'Finding reference visuals',
   asset_search: 'Searching brand assets',
@@ -162,6 +169,16 @@ function summarizeToolResult(tool: string, result: unknown): string {
     }
     case 'image_generate':
       return r.url ? 'Image generated and saved to the gallery' : 'Image generated';
+    case 'image_edit':
+      return r.url ? 'Edited image saved to the gallery' : 'Image edited';
+    case 'prompt_improve':
+      return Array.isArray(r.variants) && r.variants.length > 0
+        ? `${r.variants.length} studio prompt directions crafted with Gemini 4 Carbon`
+        : 'Studio prompt engineered with Gemini 4 Carbon';
+    case 'brand_memory_save':
+      return r.savedAssetId
+        ? 'Saved to Brand Memory + archived reference in Gallery'
+        : 'Saved to Brand Memory';
     case 'video_generate':
       return r.url ? 'Video generated and saved to History' : 'Video generated';
     case 'brief_save':
@@ -195,7 +212,10 @@ function linkForStep(tool: string, result: unknown, clientId?: string | null): {
     case 'hashtag_research':
       return r.persistedPostId ? { to: '/content-review', label: 'See it in Content Review' } : undefined;
     case 'image_generate':
+    case 'image_edit':
       return r.assetId || r.url ? { to: '/gallery', label: 'Open the gallery' } : undefined;
+    case 'brand_memory_save':
+      return r.savedAssetId ? { to: '/gallery', label: 'Open the gallery' } : undefined;
     case 'video_generate':
       return r.url ? { to: '/history', label: 'Open History' } : undefined;
     case 'brief_save':
@@ -216,15 +236,25 @@ function newSessionUid(): string {
  * chip recolors with the active theme instead of hardcoded hex.
  */
 const PROVIDER_TIERS: Record<string, { label: string; tint: string; ring: string }> = {
-  gemini:    { label: 'Gemini',  tint: 'color-mix(in srgb, var(--color-accent) 14%, transparent)', ring: 'var(--color-accent)' },
-  google:    { label: 'Gemini',  tint: 'color-mix(in srgb, var(--color-accent) 14%, transparent)', ring: 'var(--color-accent)' },
-  vertex:    { label: 'Vertex',  tint: 'color-mix(in srgb, var(--color-accent) 14%, transparent)', ring: 'var(--color-accent)' },
+  anthropic: { label: 'Claude',  tint: 'color-mix(in srgb, var(--color-accent) 16%, transparent)', ring: 'var(--color-accent)' },
+  claude:    { label: 'Claude',  tint: 'color-mix(in srgb, var(--color-accent) 16%, transparent)', ring: 'var(--color-accent)' },
+  gemini:    { label: 'Gemini 4 Argon', tint: 'color-mix(in srgb, var(--color-accent) 15%, transparent)', ring: 'var(--color-accent)' },
+  google:    { label: 'Gemini 4 Argon', tint: 'color-mix(in srgb, var(--color-accent) 15%, transparent)', ring: 'var(--color-accent)' },
+  vertex:    { label: 'Vertex · Gemini 4', tint: 'color-mix(in srgb, var(--color-accent) 14%, transparent)', ring: 'var(--color-accent)' },
   dashscope: { label: 'Alibaba', tint: 'color-mix(in srgb, var(--color-accent) 14%, transparent)', ring: 'var(--color-accent)' },
+  minimax:   { label: 'MiniMax', tint: 'color-mix(in srgb, var(--color-accent) 14%, transparent)', ring: 'var(--color-accent)' },
   grok:      { label: 'Grok',    tint: 'color-mix(in srgb, var(--color-fg) 8%, transparent)',     ring: 'var(--color-fg-muted)' },
   xai:       { label: 'Grok',    tint: 'color-mix(in srgb, var(--color-fg) 8%, transparent)',     ring: 'var(--color-fg-muted)' },
   kimi:      { label: 'Kimi',    tint: 'color-mix(in srgb, var(--color-fg) 6%, transparent)',     ring: 'var(--color-fg-subtle)' },
   moonshot:  { label: 'Kimi',    tint: 'color-mix(in srgb, var(--color-fg) 6%, transparent)',     ring: 'var(--color-fg-subtle)' },
 };
+
+function parseOrchestratorThought(text?: string): { provider: string; model: string } | null {
+  if (!text) return null;
+  const m = text.match(/^Orchestrator:\s*([a-z0-9_-]+)\/([^\s(]+)/i);
+  if (!m) return null;
+  return { provider: m[1], model: m[2].replace(/^google\//i, '') };
+}
 
 // ─── Conversation persistence ────────────────────────────────────────
 // The transcript lived only in React state, so a refresh wiped the whole
@@ -456,7 +486,7 @@ export default function RadixAssistant() {
           const turn = out.turn;
           if (turn.message) {
             const action = turn.action as ActionResult | undefined;
-            setMessages(prev => [...prev, { ...turn.message!, action, provider: turn.provider, latencyMs: turn.latencyMs }]);
+            setMessages(prev => [...prev, { ...turn.message!, action, provider: turn.provider, model: turn.model, latencyMs: turn.latencyMs }]);
             if (action?.type === 'create_client' && action.result?.id) fetchClients().catch(() => {});
           } else {
             setError(turn.error || 'Chat failed');
@@ -505,9 +535,17 @@ export default function RadixAssistant() {
         const steps: AgentToolStep[] = [];
         let text = '';
         let errorMessage: string | undefined;
+        let runProvider: string | undefined;
+        let runModel: string | undefined;
         for (const ev of session.events) {
           const p = (ev.payload ?? {}) as Record<string, any>;
-          if (ev.type === 'agent:message' && typeof p.text === 'string') text += p.text;
+          if (ev.type === 'agent:thought' && typeof p.text === 'string') {
+            const parsedOrch = parseOrchestratorThought(p.text);
+            if (parsedOrch) {
+              runProvider = parsedOrch.provider;
+              runModel = parsedOrch.model;
+            }
+          } else if (ev.type === 'agent:message' && typeof p.text === 'string') text += p.text;
           else if (ev.type === 'agent:tool_start') steps.push({ id: p.toolCallId, tool: p.tool, status: 'running' });
           else if (ev.type === 'agent:tool_result') {
             const st = steps.find(x => x.id === p.toolCallId);
@@ -526,11 +564,11 @@ export default function RadixAssistant() {
         if (finished) {
           // Long runs can exceed the event page; the saved reply is the source of truth.
           const saved = [...session.messages].reverse().find(m => m.role === 'assistant')?.content || '';
-          agentRunRef.current = { ...run, steps, text: saved || text };
+          agentRunRef.current = { ...run, steps, text: saved || text, provider: runProvider, model: runModel };
           finalizeRun(session.status === 'failed' ? (errorMessage || 'The run stopped before finishing') : undefined);
           return;
         }
-        patchRun(prev => ({ ...prev, steps, text }));
+        patchRun(prev => ({ ...prev, steps, text, provider: runProvider ?? prev.provider, model: runModel ?? prev.model }));
       } catch {
         // Session not found (the reload beat the run's start) or a network blip.
         misses += 1;
@@ -603,6 +641,7 @@ export default function RadixAssistant() {
         ...out.message,
         action,
         provider: out.provider,
+        model: out.model,
         latencyMs: out.latencyMs,
         citations,
         reasoning,
@@ -658,6 +697,8 @@ export default function RadixAssistant() {
     const msg: EnrichedMessage = {
       role: 'assistant',
       content: text || (runError ? 'The run stopped before producing a reply.' : 'Done.'),
+      provider: run.provider || 'gemini',
+      model: run.model || 'gemini-4-argon',
       steps: run.steps.length ? run.steps : undefined,
       runError,
     };
@@ -687,7 +728,13 @@ export default function RadixAssistant() {
       if (uid && agentRunRef.current) s.emit('session:join', { sessionUid: uid });
     });
     s.on('agent:thought', (p: { text: string }) => {
-      patchRun(prev => ({ ...prev, phase: 'running', status: p.text }));
+      const parsedOrch = parseOrchestratorThought(p.text);
+      patchRun(prev => ({
+        ...prev,
+        phase: 'running',
+        status: p.text,
+        ...(parsedOrch ? { provider: parsedOrch.provider, model: parsedOrch.model } : {}),
+      }));
     });
     s.on('agent:message', (p: { text: string; streaming?: boolean }) => {
       patchRun(prev => {
@@ -880,16 +927,16 @@ export default function RadixAssistant() {
     .toLocaleString('en-US', { month: 'long', year: 'numeric' });
   const starterJobs = [
     {
+      label: 'Generate a 5-slide 4:5 brand carousel',
+      prompt: `Create a 5-slide 4:5 Instagram carousel for ${currentClient?.name || 'our brand'}: generate each slide individually with consistent typography and palette, and save all slides to the Gallery.`,
+    },
+    {
       label: 'Plan next month for this client',
       prompt: `Plan ${nextMonthLabel} for ${currentClient?.name || 'the selected client'}: read the brief, draft the posts, and build the calendar.`,
     },
     {
       label: 'Rewrite the captions that failed compliance',
       prompt: 'Find the posts that failed compliance, rewrite their captions so they pass, and re-check them.',
-    },
-    {
-      label: 'Find reference visuals for the new campaign',
-      prompt: `Find reference visuals for ${currentClient?.name || 'our client'}'s next campaign and summarize the visual direction.`,
     },
   ];
 
@@ -1007,8 +1054,8 @@ export default function RadixAssistant() {
         transition={motionUI}
         style={{ zIndex: Z.widget, background: 'linear-gradient(135deg, var(--color-accent-hover), var(--color-accent))' }}
         className="fixed bottom-6 right-6 w-14 h-14 rounded-full shadow-2xl cursor-pointer overflow-hidden grid place-items-center"
-        title={open ? 'Close assistant' : 'Open AURAAI Assistant'}
-        aria-label={open ? 'Close assistant' : 'Open AURAAI Assistant'}
+        title={open ? 'Close assistant' : 'Open AURA Assistant'}
+        aria-label={open ? 'Close assistant' : 'Open AURA Assistant'}
         aria-expanded={open}
       >
         <motion.span
@@ -1043,16 +1090,18 @@ export default function RadixAssistant() {
             {/* Header */}
             <div className="px-4 py-3 border-b border-white/[0.06] flex items-center gap-3">
               <div className="relative w-8 h-8 rounded-lg overflow-hidden border border-accent/30 shrink-0">
-                <img src="./radix-dna.jpg" alt="Radix" className="w-full h-full object-cover" />
+                <img src="./radix-dna.jpg" alt="AURA" className="w-full h-full object-cover" />
                 {/* Live status dot — pulses while a run is in flight. */}
                 <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2"
                   style={{ background: loading ? 'var(--color-warning)' : 'var(--color-success)', borderColor: '#0c0c0c' }} />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold text-white flex items-center gap-1.5">
-                  Radix
-                  <span className="text-[9px] font-bold uppercase tracking-wider rounded px-1 py-0.5"
-                    style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>Agent</span>
+                  AURA
+                  <span className="text-[9px] font-bold uppercase tracking-wider rounded px-1.5 py-0.5"
+                    style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>
+                    {mode === 'agent' ? 'Agent · Gemini 4 Argon' : 'Chat · Gemini 4 Argon'}
+                  </span>
                 </p>
                 <p className="text-[10px] text-fg-subtle truncate">
                   {loading ? 'Working…' : currentClient ? `${currentClient.name} · ready` : 'ready'}
@@ -1102,10 +1151,10 @@ export default function RadixAssistant() {
               {messages.length === 0 && !loading && (
                 <div className="h-full flex flex-col items-center justify-center text-center px-4">
                   <div className="w-14 h-14 rounded-2xl overflow-hidden border border-accent/20 mb-3 shadow-[0_0_30px_-8px_rgba(245,158,11,0.3)]">
-                    <img src="./radix-dna.jpg" alt="Radix" className="w-full h-full object-cover" />
+                    <img src="./radix-dna.jpg" alt="AURA" className="w-full h-full object-cover" />
                   </div>
-                  <p className="text-sm text-fg-muted mb-1 font-medium">I'm Radix. Your content strategist.</p>
-                  <p className="text-xs text-fg-subtle mb-4">I can generate content, search visual refs, pull your brief, and more.</p>
+                  <p className="text-sm text-fg-muted mb-1 font-medium">I'm AURA on Gemini 4 Argon.</p>
+                  <p className="text-xs text-fg-subtle mb-4">Your autonomous Creative Director: carousels, 4K stills, cinema reels, brand memory, and full calendars.</p>
 
                   {/* Starter jobs: real work the agent runs end to end.
                       Clicking fills the input so the user can adjust first. */}
@@ -1399,7 +1448,7 @@ function PromptBox({ value, onChange, onSend, loading, maxChars, textareaRef, pl
             }
           }}
           rows={1}
-          placeholder={loading ? 'Working…' : (placeholder || 'Ask AURAAI anything…  (Enter to send, Shift+Enter for newline)')}
+          placeholder={loading ? 'Working…' : (placeholder || 'Ask AURA anything…  (Enter to send, Shift+Enter for newline)')}
           disabled={loading}
           className="flex-1 resize-none bg-transparent text-sm leading-snug outline-none placeholder:opacity-50 disabled:opacity-50"
           style={{ color: 'var(--color-fg)', minHeight: '22px', maxHeight: '132px' }}
@@ -1522,7 +1571,7 @@ function MessageRow({ message, isLast, onRetry, renderAction, onOpenLink }: Mess
         {/* Trust strip + hover actions */}
         {!isUser ? (
           <div className="mt-1 flex h-5 items-center gap-2 px-1 text-[10px]" style={{ color: 'var(--color-fg-subtle)' }}>
-            <ModelChip provider={message.provider} />
+            <ModelChip provider={message.provider} model={message.model} />
             {message.latencyMs != null ? <span>{message.latencyMs}ms</span> : null}
             {message.citations && message.citations.length > 0 ? (
               <span style={{ color: 'var(--color-fg-subtle)' }}>· {message.citations.length} source{message.citations.length === 1 ? '' : 's'}</span>
@@ -1581,16 +1630,31 @@ function MessageRow({ message, isLast, onRetry, renderAction, onOpenLink }: Mess
 
 // ─── Trust UI sub-components ─────────────────────────────────────────
 
-function ModelChip({ provider }: { provider?: string }) {
-  if (!provider) return null;
-  const tier = PROVIDER_TIERS[provider.toLowerCase()];
+function friendlyModelLabel(provider?: string, model?: string): string | null {
+  const m = (model || '').replace(/^google\//i, '').toLowerCase();
+  const isVertex = (provider || '').toLowerCase() === 'vertex';
+  if (m.includes('gemini-4-argon')) return isVertex ? 'Vertex · Gemini 4 Argon' : 'Gemini 4 Argon';
+  if (m.includes('gemini-4-carbon')) return isVertex ? 'Vertex · Gemini 4 Carbon' : 'Gemini 4 Carbon';
+  if (m.includes('gemini-4-hydrogen')) return isVertex ? 'Vertex · Gemini 4 Hydrogen' : 'Gemini 4 Hydrogen';
+  if (m.includes('gemini-3.8-flash')) return 'Gemini 3.8 Flash';
+  if (m.includes('qwen3.8-max')) return 'Qwen 3.8 Max';
+  if (m.includes('grok-4.7')) return 'Grok 4.7';
+  if (m.includes('kimi-k3.1')) return 'Kimi K3.1 Pro';
+  if (m.includes('claude-sonnet-5-5')) return 'Claude Sonnet 5.5';
+  return null;
+}
+
+function ModelChip({ provider, model }: { provider?: string; model?: string }) {
+  if (!provider && !model) return null;
+  const tier = provider ? PROVIDER_TIERS[provider.toLowerCase()] : undefined;
+  const label = friendlyModelLabel(provider, model) || tier?.label || model || provider;
   if (!tier) {
     return (
       <span
         className="rounded px-1 py-0.5 font-mono"
         style={{ background: 'var(--color-bg-sunken)', color: 'var(--color-fg-muted)' }}
       >
-        {provider}
+        {label}
       </span>
     );
   }
@@ -1604,7 +1668,7 @@ function ModelChip({ provider }: { provider?: string }) {
       }}
     >
       <span className="h-1 w-1 rounded-full" style={{ background: tier.ring }} aria-hidden />
-      {tier.label}
+      {label}
     </span>
   );
 }

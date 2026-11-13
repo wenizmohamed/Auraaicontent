@@ -192,7 +192,7 @@ export async function orgsRoutes(app: FastifyInstance) {
     const orgName = org?.name ?? 'an organization';
     sendEmail({
       to: invite.email,
-      subject: `You're invited to join ${orgName} on AURAAI`,
+      subject: `You're invited to join ${orgName} on AURA`,
       html: inviteEmailHtml({ orgName, inviterName: inviter?.name, role: invite.role, inviteUrl, expiresAt }),
       text: inviteEmailText({ orgName, inviterName: inviter?.name, role: invite.role, inviteUrl, expiresAt }),
     }).catch((e) => console.error('[invite-email] send failed', e));
@@ -232,7 +232,7 @@ export async function orgsRoutes(app: FastifyInstance) {
 
   // PATCH /api/orgs/:orgId — rename the workspace. OWNER/ADMIN only
   // (assertOrgPrivilege checks membership in THIS org + privilege).
-  // Added 2026-08-14 for the AURAAI rebrand: the org display name renders in
+  // Added 2026-08-14 for the AURA rebrand: the org display name renders in
   // the switcher/topbar and there was no sanctioned way to change it.
   app.patch('/:orgId', { preHandler: [authGuard] }, async (request, reply) => {
     const { orgId } = request.params as { orgId: string };

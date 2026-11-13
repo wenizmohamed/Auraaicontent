@@ -21,6 +21,9 @@ import {
   engineDialect,
   engineForModel,
   autoEngineFor,
+  selectBestCreativeEngine,
+  stripChatMetaWrapper,
+  enhanceNotes,
   dialectKeyFor as serverDialectKeyFor,
   DIALECT_HINTS as SERVER_DIALECT_HINTS,
   type EnhanceMode,
@@ -73,6 +76,10 @@ describe('engine resolution', () => {
     expect(engineForModel('grok-imagine-video')).toBe('xai');
     expect(engineForModel('veo-3.1-generate-preview')).toBe('gemini');
     expect(engineForModel('gemini-omni-flash-preview')).toBe('gemini');
+    expect(engineForModel('MiniMax-H3')).toBe('minimax');
+    expect(engineForModel('MiniMax-H3-Max')).toBe('minimax');
+    expect(engineForModel('MiniMax-H3-Image')).toBe('minimax');
+    expect(engineForModel('image-01')).toBe('minimax');
     // Absent model = Auto = the Alibaba primary.
     expect(engineForModel(undefined)).toBe('dashscope');
     expect(engineForModel('')).toBe('dashscope');
@@ -244,5 +251,103 @@ describe('the picker and the enhancer agree', () => {
         expect(d).toContain('ENGINE NOTES');
       }
     }
+  });
+});
+
+describe('AURA selectBestCreativeEngine smart routing', () => {
+  it('routes Arabic or poster/typography image prompts to qwen-image-3.0-pro', () => {
+    expect(selectBestCreativeEngine('text-to-image', 'ملصق قهوة فاخرة في دبي')).toMatchObject({
+      provider: 'dashscope',
+      model: 'qwen-image-3.0-pro',
+    });
+    expect(selectBestCreativeEngine('text-to-image', 'Minimalist cafe menu poster with bold typography')).toMatchObject({
+      provider: 'dashscope',
+      model: 'qwen-image-3.0-pro',
+    });
+  });
+
+  it('routes neon/cyberpunk aesthetics to grok-imagine-image-2.0', () => {
+    expect(selectBestCreativeEngine('text-to-image', 'Cyberpunk neon alley in Tokyo rain')).toMatchObject({
+      provider: 'xai',
+      model: 'grok-imagine-image-2.0',
+    });
+  });
+
+  it('routes luxury macro product prompts without text to wan2.7-image-pro', () => {
+    expect(selectBestCreativeEngine('text-to-image', 'Luxury bottle of matte black oud perfume on wet basalt')).toMatchObject({
+      provider: 'dashscope',
+      model: 'wan2.7-image-pro',
+    });
+  });
+
+  it('routes multi-subject world-knowledge prompts to gemini-3-pro-image', () => {
+    expect(selectBestCreativeEngine('text-to-image', 'two cats dressed as ronaldo and messi playing football')).toMatchObject({
+      provider: 'gemini',
+      model: 'gemini-3-pro-image',
+    });
+  });
+
+  it('routes dynamic FPV/action video prompts to grok-imagine-video-1.5', () => {
+    expect(selectBestCreativeEngine('text-to-video', 'FPV drone dive chasing a drift car through mountain hairpins')).toMatchObject({
+      provider: 'xai',
+      model: 'grok-imagine-video-1.5',
+    });
+  });
+
+  it('routes silent organic animal/nature clips to gemini-omni-1.2-flash and audio/default cinema clips to wan3.0-video-prime', () => {
+    expect(selectBestCreativeEngine('text-to-video', 'Two playful cats chasing a ball across sunlit grass')).toMatchObject({
+      provider: 'gemini',
+      model: 'gemini-omni-1.2-flash',
+    });
+    expect(selectBestCreativeEngine('text-to-video', 'Luxury espresso pour with crisp café ambient sound and steam SFX')).toMatchObject({
+      provider: 'dashscope',
+      model: 'wan3.0-video-prime',
+    });
+  });
+
+  it('maps Gemini Omni 1.2 Flash and 1.1 Flash to omni-video dialect', () => {
+    expect(serverDialectKeyFor('text-to-video', 'gemini', 'gemini-omni-1.2-flash')).toBe('omni-video');
+    expect(serverDialectKeyFor('text-to-video', 'gemini', 'gemini-omni-1.1-flash')).toBe('omni-video');
+    expect(engineDialect('text-to-video', 'gemini', 'gemini-omni-1.2-flash')).toContain('Gemini Omni 1.2 Flash Video');
+  });
+
+  it('maps MiniMax H3 video to hailuo-h3 (keeping stereo audio) and MiniMax H3-Image / image-01 to minimax-image', () => {
+    expect(serverDialectKeyFor('text-to-video', 'minimax', 'MiniMax-H3')).toBe('hailuo-h3');
+    expect(serverDialectKeyFor('image-to-video', 'minimax', 'MiniMax-H3-Max')).toBe('hailuo-h3');
+    expect(engineDialect('text-to-video', 'minimax', 'MiniMax-H3')).toMatch(/KEEP the audio/i);
+    expect(serverDialectKeyFor('text-to-image', 'minimax', 'MiniMax-H3-Image')).toBe('minimax-image');
+    expect(serverDialectKeyFor('image-edit', 'minimax', 'image-01')).toBe('minimax-image');
+    expect(engineDialect('text-to-image', 'minimax', 'MiniMax-H3-Image')).toContain('MiniMax H3-Image');
+  });
+
+  it('strips pasted chat meta-instructions while keeping hexes, slides, and quoted copy intact', () => {
+    const raw = [
+      'Copy this prompt into your generator to get the best result:',
+      'Palette: #03261C deep emerald, #EEE8CE warm cream, 80px safe margins.',
+      'SLIDE 1: "THE FUTURE OF BRANDING" with counter "01/07"',
+      'SLIDE 2: "WHY SPEED WINS" with counter "02/07"',
+      'Export each slide separately at 1080x1350.',
+      'If your image generator supports style references, attach your logo.',
+    ].join('\n');
+    const cleaned = stripChatMetaWrapper(raw);
+    expect(cleaned).not.toMatch(/Copy this prompt/i);
+    expect(cleaned).not.toMatch(/Export each slide separately/i);
+    expect(cleaned).not.toMatch(/If your image generator supports/i);
+    expect(cleaned).toContain('#03261C');
+    expect(cleaned).toContain('SLIDE 1: "THE FUTURE OF BRANDING"');
+  });
+
+  it('injects the single-slide carousel guard when a multi-slide brief is sent to text-to-image', () => {
+    const carouselBrief = '7-slide carousel\nSLIDE 1: "HOOK HEADLINE"\nSLIDE 2: "SECOND POINT"';
+    const notes = enhanceNotes({ prompt: carouselBrief, mode: 'text-to-image' }, false);
+    expect(notes.some((n) => n.includes('SINGLE-SLIDE CAROUSEL RULE') && n.includes('Slide 1'))).toBe(true);
+
+    const targeted = enhanceNotes({ prompt: `${carouselBrief}\nPlease render slide 4 only`, mode: 'text-to-image' }, false);
+    expect(targeted.some((n) => n.includes('SINGLE-SLIDE CAROUSEL RULE') && n.includes('Slide 4'))).toBe(true);
+
+    expect(selectBestCreativeEngine('text-to-image', carouselBrief)).toMatchObject({
+      provider: 'gemini',
+      model: 'gemini-3-pro-image',
+    });
   });
 });

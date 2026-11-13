@@ -25,6 +25,7 @@ interface Props {
 const VENDOR_TONE: Record<string, string> = {
   Alibaba: 'var(--color-accent)',
   Google: 'var(--color-fg)',
+  MiniMax: 'var(--color-info)',
   xAI: 'var(--color-fg-muted)',
 };
 

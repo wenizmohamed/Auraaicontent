@@ -22,7 +22,7 @@ import { encrypt, encryptOpt } from '../lib/secrets.js';
 import { issueState, consumeState } from '../lib/oauth-state.js';
 import { getPlatformModule, listPlatformIds, PLATFORM_LABELS } from '../integrations/registry.js';
 
-const APP_BASE_URL = process.env.RADIX_APP_BASE_URL || 'https://radix.synapseai-labs.com';
+const APP_BASE_URL = process.env.RADIX_APP_BASE_URL || 'https://auracontnt.com';
 
 function redirectUri(platform: string): string {
   return `${APP_BASE_URL}/api/integrations/oauth/${platform}/callback`;

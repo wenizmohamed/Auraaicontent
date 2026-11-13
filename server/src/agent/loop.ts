@@ -23,7 +23,7 @@ import { SYSTEM } from './system-prompt.js';
 // workflows (scrape -> analyze -> gen -> caption -> compliance chains
 // routinely hit 14-16 iters).  20 keeps the safety cap but stops truncating
 // valid multi-client plans.
-const MAX_ITERATIONS = parseInt(process.env.AGENT_MAX_ITERATIONS ?? '20', 10);
+const MAX_ITERATIONS = parseInt(process.env.AGENT_MAX_ITERATIONS ?? '25', 10);
 // Wall-clock budget. A thorough run (brief, 3 posts, 3 captions, hashtags,
 // 4 compliance passes) took 14 minutes on 2026-10-17 with no failures: the
 // loop had no clock, only an iteration cap. Past the budget the model gets one
@@ -75,7 +75,7 @@ export function salvageJsonArgs(buf: string): string {
   return s; // let the validator report it
 }
 
-const AGENT_MODEL = process.env.AGENT_MODEL || 'qwen3.8-max';  // 2026-10-17: Alibaba flagship; applies on the dashscope hop (gemini ids only on gemini)
+const AGENT_MODEL = process.env.AGENT_MODEL || 'gemini-4-argon';
 
 function isAbortError(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false;
@@ -212,6 +212,7 @@ async function runAgentLoopInner(
   // chatStream() helper still tries each provider per iteration in case
   // quota / network state changes mid-run.
   const probeChain = DEFAULT_CHAIN.filter((p) => {
+    if (p === 'anthropic') return !!(process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_API_KEY);
     const envKey = p === 'gemini' ? 'GEMINI_API_KEY'
       : p === 'xai' ? 'XAI_API_KEY'
       : p === 'dashscope' ? 'DASHSCOPE_API_KEY'
@@ -221,7 +222,7 @@ async function runAgentLoopInner(
   });
   if (probeChain.length === 0) {
     await ctx.emit('agent:error', {
-      message: 'No LLM provider configured (need GEMINI_API_KEY, XAI_API_KEY, DASHSCOPE_API_KEY, VERTEX_API_KEY, or MOONSHOT_API_KEY)',
+      message: 'No LLM provider configured (need ANTHROPIC_AUTH_TOKEN, GEMINI_API_KEY, XAI_API_KEY, DASHSCOPE_API_KEY, VERTEX_API_KEY, or MOONSHOT_API_KEY)',
       at: new Date().toISOString(),
     });
     return { iterations: 0, stopReason: 'error', messages: [], error: 'no provider configured' };
@@ -261,11 +262,10 @@ async function runAgentLoopInner(
     try {
       const opened = await chatStream(
         {
-          // 6144 budget: Gemini 3 thinking mode can consume 1-2K tokens on
-          // reasoning_content before emitting visible content or tool_calls.
-          // 4096 was occasionally cutting off in the middle of multi-tool
-          // iterations. 6144 covers typical reasoning + tool JSON + narrative.
-          max_tokens: 6144,
+          // 16384 budget: Gemini 4 Argon uses deep multi-step reasoning before
+          // emitting visible content or multi-tool JSON arguments (carousels,
+          // multi-post edits, compliance passes). 16384 prevents truncation.
+          max_tokens: 16384,
           messages,
           ...(wrapUpRequested ? {} : { tools }),
         },

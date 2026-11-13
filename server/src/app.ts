@@ -173,57 +173,67 @@ export async function buildApp() {
     timestamp: new Date().toISOString(),
   }));
 
-  // Provider matrix (public) — Gemini 3.1 Pro PRIMARY (Radix company-card
-  // billing), Grok fallback, Kimi K2 tertiary.  No Claude in any form.
-  // Chain enforced both at AiRouter (image/video/analysis) AND at the
-  // chat-with-fallback helper (text/orchestrator/agent tools).
+  // Provider matrix (public): Gemini 4 Argon PRIMARY for AURA Chat + Agent,
+  // Gemini 4 Carbon PRIMARY for Creative Prompt Engineering + Vision Analysis,
+  // Smart Creative Routing across Gemini 3 Pro Image, MiniMax H3 / H3-Image,
+  // Alibaba Qwen Image 3.0 Pro / Wan 3.0 Prime, Vertex AI, xAI Grok, and Kimi.
   app.get('/api/providers/status', async () => {
     return {
-      orchestrator: process.env.DASHSCOPE_TEXT_MODEL || 'qwen3.8-max',
+      orchestrator: process.env.AGENT_MODEL || 'gemini-4-argon',
+      chatModel: process.env.GEMINI_CHAT_MODEL || 'gemini-4-argon',
+      promptDirectorModel: process.env.PROMPT_ENHANCER_MODEL || 'gemini-4-carbon',
       fallbackChain: chainStatus(DEFAULT_CHAIN),
       providers: {
         gemini: {
           configured: !!process.env.GEMINI_API_KEY,
-          chatModel: process.env.GEMINI_CHAT_MODEL || 'gemini-3.1-pro-preview',
-          analysisModel: process.env.GEMINI_TEXT_MODEL || 'gemini-3.1-pro-preview',
-          imageModel: process.env.GEMINI_IMAGE_MODEL || 'gemini-3.1-flash-image-preview',
-          videoModel: process.env.GEMINI_VIDEO_MODEL || 'gemini-omni-flash-preview',
+          chatModel: process.env.GEMINI_CHAT_MODEL || 'gemini-4-argon',
+          agentModel: process.env.AGENT_MODEL || 'gemini-4-argon',
+          promptDirectorModel: process.env.PROMPT_ENHANCER_MODEL || 'gemini-4-carbon',
+          analysisModel: process.env.GEMINI_ANALYSIS_MODEL || 'gemini-4-carbon',
+          imageModel: process.env.GEMINI_IMAGE_MODEL || 'gemini-3-pro-image',
+          videoModel: process.env.GEMINI_VIDEO_MODEL || 'gemini-omni-1.2-flash',
           baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
-          role: 'standby (text + analysis + image). The Developer API key is billing-dead (402); this lane recovers by itself when credits return',
+          role: 'PRIMARY (AURA Agent + Chat on Gemini 4 Argon, Creative Prompt Director + Vision on Gemini 4 Carbon, Gemini 3 Pro Image & Nano Banana 2.1, Gemini Omni 1.2 Video)',
+          rank: 1,
+        },
+        vertex: {
+          configured: !!process.env.VERTEX_API_KEY,
+          textModel: process.env.VERTEX_TEXT_MODEL || 'gemini-4-argon',
+          imageModel: process.env.VERTEX_IMAGE_MODEL || 'gemini-3-pro-image',
+          analysisModel: process.env.VERTEX_ANALYSIS_MODEL || 'gemini-4-carbon',
+          project: process.env.VERTEX_PROJECT || 'hubz-510406',
+          location: process.env.VERTEX_LOCATION || 'us',
+          baseURL: process.env.VERTEX_HOST || 'https://aiplatform.googleapis.com',
+          role: 'high-availability failover (Gemini 4 Argon + Carbon text/agent/analysis + Gemini 3 Pro Image & Nano Banana 2.1)',
+          rank: 2,
+        },
+        dashscope: {
+          configured: !!process.env.DASHSCOPE_API_KEY,
+          textModel: process.env.DASHSCOPE_TEXT_MODEL || 'qwen3.8-max',
+          imageModel: process.env.DASHSCOPE_IMAGE_MODEL || 'qwen-image-3.0-pro',
+          videoModel: process.env.DASHSCOPE_VIDEO_MODEL || 'wan3.0-video-prime',
+          baseURL: process.env.DASHSCOPE_BASE_URL || 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
+          role: 'PRIMARY Creative Video & Bilingual Typography (Wan 3.0 Prime native-audio 1080p, Qwen Image 3.0 Pro, Wan 2.7 Image Pro, HappyHorse 1.1)',
+          rank: 3,
+        },
+        minimax: {
+          configured: !!process.env.MINIMAX_API_KEY,
+          textModel: process.env.MINIMAX_TEXT_MODEL || 'MiniMax-M3',
+          imageModel: process.env.MINIMAX_IMAGE_MODEL || 'MiniMax-H3-Image',
+          videoModel: process.env.MINIMAX_VIDEO_MODEL || 'MiniMax-H3',
+          role: 'Cinema 2K Video + Stereo Audio & Native 4K Studio Portraits (MiniMax H3, H3-Max, H3-Image 4K, Image-01)',
           rank: 4,
         },
         grok: {
           configured: !!process.env.XAI_API_KEY,
           model: process.env.XAI_TEXT_MODEL || 'grok-4.7',
+          imageModel: process.env.XAI_IMAGE_MODEL || 'grok-imagine-image-2.0',
+          videoModel: process.env.XAI_VIDEO_MODEL || 'grok-imagine-video-1.5',
           baseURL: process.env.XAI_BASE_URL || 'https://api.x.ai/v1',
-          role: 'fallback (text + image + video)',
-          rank: 3,
+          role: 'Dynamic Action Video, High-Contrast 2K Aesthetics & Fast Reasoning Fallback (Grok 4.7, Grok Imagine 2.0, Grok Video 1.5)',
+          rank: 5,
         },
-        kimi: { ...kimiStatus(), role: 'tertiary. Long-context (text only)', rank: 5 },
-        dashscope: {
-          configured: !!process.env.DASHSCOPE_API_KEY,
-          textModel: process.env.DASHSCOPE_TEXT_MODEL || 'qwen3.8-max',
-          imageModel: process.env.DASHSCOPE_IMAGE_MODEL || 'qwen-image-3.0-pro',
-          baseURL: process.env.DASHSCOPE_BASE_URL || 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
-          role: 'PRIMARY (text + image + analysis + video). Qwen / Wan / HappyHorse on the EU + Tokyo workspaces',
-          rank: 1,
-        },
-        // Vertex AI / Agent Platform (added 2026-11-07). The Gemini Developer
-        // API key is billing-dead (402 "prepayment credits are depleted"), but
-        // this entitlement on the same Google Cloud project is funded: text,
-        // image, image-edit and analysis all answer 200. No video model exists
-        // on Vertex, which is why it is absent from the video chain.
-        vertex: {
-          configured: !!process.env.VERTEX_API_KEY,
-          textModel: process.env.VERTEX_TEXT_MODEL || 'gemini-3.8-flash',
-          imageModel: process.env.VERTEX_IMAGE_MODEL || 'gemini-nano-banana-2.1',
-          analysisModel: process.env.VERTEX_ANALYSIS_MODEL || 'gemini-3.8-flash',
-          project: process.env.VERTEX_PROJECT || 'hubz-510406',
-          location: process.env.VERTEX_LOCATION || 'us',
-          baseURL: process.env.VERTEX_HOST || 'https://aiplatform.googleapis.com',
-          role: 'fallback (text + image + image-edit + analysis). No video engine on Vertex',
-          rank: 2,
-        },
+        kimi: { ...kimiStatus(), role: 'Long-context copywriting & research fallback (Kimi K3.1 Pro Highspeed)', rank: 6 },
       },
     };
   });

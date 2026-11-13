@@ -72,11 +72,19 @@ export default function Agent() {
   return (
     <div className="mx-auto h-full max-w-6xl px-4 py-6">
       <div className="mb-4">
-        <h1 className="font-display text-[28px] font-bold tracking-tight" style={{ color: 'var(--color-fg)' }}>
-          Agent
-        </h1>
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <h1 className="font-display text-[28px] font-bold tracking-tight" style={{ color: 'var(--color-fg)' }}>
+            AURA Agent
+          </h1>
+          <span
+            className="rounded-md px-2 py-0.5 font-mono text-[11px] font-semibold"
+            style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}
+          >
+            Gemini 4 Argon · 19 Tools
+          </span>
+        </div>
         <p className="mt-1 text-[13px]" style={{ color: 'var(--color-fg-muted)' }}>
-          Preview the assistant's plan, then approve to run. Replay past sessions to see what actually happened.
+          Autonomous content-ops and creative studio orchestration powered by Google Gemini 4 Argon. Preview plans or replay full multi-tool session traces.
         </p>
       </div>
 

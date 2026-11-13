@@ -56,23 +56,24 @@ const IMAGE_TIMEOUT = parseInt(process.env.VERTEX_IMAGE_TIMEOUT_MS || '180000', 
 // Model ladders. A pinned model (the Creative Studio picker) wins over the
 // ladder head, the same way gemini.provider.ts honours req.model.
 const TEXT_LADDER = [
-  process.env.VERTEX_TEXT_MODEL || 'gemini-3.8-flash',
-  'gemini-3.1-flash-lite',
+  process.env.VERTEX_TEXT_MODEL || 'gemini-4-argon',
+  'gemini-4-carbon',
+  'gemini-4-hydrogen',
+  'gemini-3.8-flash',
   'gemini-3.5-flash',
-  'gemini-3.1-pro-preview',
-  'gemini-4-argon',
+  'gemini-3.1-flash-lite',
 ];
 const IMAGE_LADDER = [
-  process.env.VERTEX_IMAGE_MODEL || 'gemini-nano-banana-2.1',
+  process.env.VERTEX_IMAGE_MODEL || 'gemini-3-pro-image',
+  'gemini-nano-banana-2.1',
   'gemini-3.1-flash-image',
-  'gemini-3-pro-image',
 ];
 const IMAGE_EDIT_LADDER = [
-  process.env.VERTEX_IMAGE_EDIT_MODEL || 'gemini-nano-banana-2.1',
+  process.env.VERTEX_IMAGE_EDIT_MODEL || 'gemini-3-pro-image',
+  'gemini-nano-banana-2.1',
   'gemini-3.1-flash-image',
-  'gemini-3-pro-image',
 ];
-const ANALYSIS_MODEL = process.env.VERTEX_ANALYSIS_MODEL || 'gemini-3.8-flash';
+const ANALYSIS_MODEL = process.env.VERTEX_ANALYSIS_MODEL || 'gemini-4-carbon';
 
 // Retry budget. Only 429 (quota) and 5xx (transient) are worth a backoff.
 const RETRY_BACKOFFS_MS = [500, 1500];
@@ -222,10 +223,15 @@ function usageOf(response: any): { promptTokens?: number; completionTokens?: num
 //
 // Note: gemini-4-argon does NOT accept thinkingBudget (400). It is last in
 // the ladder and only reached when everything cheaper is exhausted.
-function generationConfig(extra: Record<string, unknown> = {}): Record<string, unknown> {
+// gemini-4-carbon and gemini-4-argon do NOT accept thinkingBudget (HTTP 400),
+// and image modalities should not send thinkingBudget either.
+function generationConfig(model: string, extra: Record<string, unknown> = {}): Record<string, unknown> {
+  const modalities = Array.isArray(extra.responseModalities) ? (extra.responseModalities as string[]) : [];
+  const isGemini4 = /^gemini-4/i.test(model);
+  const omitThinking = isGemini4 || modalities.includes('IMAGE');
   return {
-    maxOutputTokens: 8192,
-    thinkingConfig: { thinkingBudget: 0 },
+    maxOutputTokens: isGemini4 ? 16384 : 8192,
+    ...(omitThinking ? {} : { thinkingConfig: { thinkingBudget: 0 } }),
     ...extra,
   };
 }
@@ -281,12 +287,13 @@ export const vertexProvider: AiProvider = {
       ? Math.min(Math.max(req.temperature, 0), 2) : undefined;
 
     const result = await runModelLadder('vertex', 'text', ladder, async (entry) => {
+      const minMaxTokens = /^gemini-4/i.test(entry.model) ? 16384 : 8192;
       const body: any = {
         contents: [{ role: 'user', parts: [{ text: req.prompt }] }],
-        generationConfig: generationConfig({
-          ...(req.json ? { responseMimeType: 'application/json' } : {}),
+        generationConfig: generationConfig(entry.model, {
+          ...(req.json ? { responseMimeType: 'application/json', maxOutputTokens: Math.max(req.maxTokens || 16384, 16384) } : {}),
           ...(temperature !== undefined ? { temperature } : {}),
-          ...(req.maxTokens ? { maxOutputTokens: req.maxTokens } : {}),
+          ...(!req.json && req.maxTokens ? { maxOutputTokens: Math.max(req.maxTokens, minMaxTokens) } : {}),
         }),
       };
       // systemInstruction is a top-level field, not part of contents.
@@ -331,7 +338,7 @@ export const vertexProvider: AiProvider = {
       if (effectiveSize) imageConfig.imageSize = effectiveSize;
       const body = {
         contents: [{ role: 'user', parts: [{ text: req.prompt }] }],
-        generationConfig: generationConfig({
+        generationConfig: generationConfig(entry.model, {
           responseModalities: ['TEXT', 'IMAGE'],
           ...(Object.keys(imageConfig).length ? { imageConfig } : {}),
         }),
@@ -389,7 +396,7 @@ export const vertexProvider: AiProvider = {
     const result = await runModelLadder('vertex', 'image_edit', ladder, async (entry) => {
       const body = {
         contents: [{ role: 'user', parts }],
-        generationConfig: generationConfig({
+        generationConfig: generationConfig(entry.model, {
           responseModalities: ['TEXT', 'IMAGE'],
           ...(Object.keys(imageConfig).length ? { imageConfig } : {}),
         }),
@@ -447,7 +454,7 @@ export const vertexProvider: AiProvider = {
             { text: req.prompt },
           ],
         }],
-        generationConfig: generationConfig({ responseMimeType: 'application/json' }),
+        generationConfig: generationConfig(ANALYSIS_MODEL, { responseMimeType: 'application/json' }),
       }, signal, 'analysis'),
     ));
     return {

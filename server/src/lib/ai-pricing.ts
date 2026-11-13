@@ -35,6 +35,23 @@ export const AI_PRICING: Record<string, PricePoint> = {
   // 2026-11-05 (it is in the live catalog and answers generateContent).
   // Bump these two numbers on 2026-12-01.
   'gemini-4-argon':                    { promptPerM: 2.00, completionPerM: 10.00 },
+  'gemini-4-carbon':                   { promptPerM: 1.50, completionPerM: 7.50 },
+  'gemini-4-hydrogen':                 { promptPerM: 1.50, completionPerM: 7.50 },
+  'gemini-embedding-2':                { promptPerM: 0.20, completionPerM: 0 },
+  'qwen4-max-preview':                 { promptPerM: 2.00, completionPerM: 6.00 },
+  'glm-5.3':                           { promptPerM: 0.60, completionPerM: 2.20 },
+  'glm-5.2':                           { promptPerM: 0.50, completionPerM: 2.00 },
+  'deepseek-v4.1-flash':               { promptPerM: 0.14, completionPerM: 0.28 },
+  'kimi-k3.1-pro':                     { promptPerM: 0.95, completionPerM: 4.00 },
+  'kimi-k3.1-pro-highspeed':           { promptPerM: 0.95, completionPerM: 4.00 },
+  'kimi-k3':                           { promptPerM: 3.00, completionPerM: 15.00 },
+  'grok-imagine-video-1.5-lite':       { promptPerM: 0,    completionPerM: 0,    perSecond: 0.04 },
+  'grok-imagine-video-1.5-lite:480p':  { promptPerM: 0,    completionPerM: 0,    perSecond: 0.025 },
+  'grok-imagine-video-1.5-lite:1080p': { promptPerM: 0,    completionPerM: 0,    perSecond: 0.08 },
+  'wan2.7-image-pro:1k':               { promptPerM: 0,    completionPerM: 0,    perCall: 0.044257 },
+  'wan2.7-image-pro:2k':               { promptPerM: 0,    completionPerM: 0,    perCall: 0.075 },
+  'wan2.7-image:1k':                   { promptPerM: 0,    completionPerM: 0,    perCall: 0.027504 },
+  'wan2.7-image:2k':                   { promptPerM: 0,    completionPerM: 0,    perCall: 0.027504 },
   // gemini-3.1-pro-preview: $2/$12 (≤200k) – $4/$18 (>200k). Baseline ≤200k.
   'gemini-3.1-pro-preview':            { promptPerM: 2.00, completionPerM: 12.00 },
   // gemini-3.1-flash-lite-preview: $0.25/$1.50 text. Audio prompt rate higher.
@@ -80,6 +97,8 @@ export const AI_PRICING: Record<string, PricePoint> = {
   // gemini-omni-flash-preview (video via Interactions API): $17.50/1M video
   // tokens ≈ $0.10/s of 720p (Google pricing page, verified 2026-07-02).
   'gemini-omni-flash-preview':         { promptPerM: 0,    completionPerM: 0,    perSecond: 0.10 },
+  'gemini-omni-1.2-flash':             { promptPerM: 0,    completionPerM: 0,    perSecond: 0.08 },
+  'gemini-omni-1.1-flash':             { promptPerM: 0,    completionPerM: 0,    perSecond: 0.06 },
   // ── Alibaba video prices, RE-BASED on the live workspace catalogs (2026-11-07).
   //
   // The old Singapore workspace is dead (403 AccessDenied.Unpurchased on every
@@ -172,10 +191,20 @@ export const AI_PRICING: Record<string, PricePoint> = {
   // gemini.provider.ts; was unpriced (logged $0).
   'imagen-4.0-fast-generate-001':      { promptPerM: 0,    completionPerM: 0,    perCall: 0.02 },
 
-  // ─── Anthropic Claude (assistant via chat.ts CLAUDE_ASSISTANT_MODEL) ──
-  // Claude Sonnet 4: $3/M input, $15/M output.
+  // ─── Anthropic Claude (primary text/reasoning via anthropic.provider + chat.ts) ──
   'claude-sonnet-4-20250514':          { promptPerM: 3.00, completionPerM: 15.00 },
-  'claude-sonnet-5':                   { promptPerM: 3.00, completionPerM: 15.00 },  // newest sonnet (assistant model; Anthropic key currently unset)
+  'claude-sonnet-4-6':                 { promptPerM: 3.00, completionPerM: 15.00 },
+  'claude-sonnet-5':                   { promptPerM: 3.00, completionPerM: 15.00 },
+  'claude-sonnet-5-5':                 { promptPerM: 3.00, completionPerM: 15.00 },
+  'claude-fable-5-1':                  { promptPerM: 3.00, completionPerM: 15.00 },
+  'claude-opus-4-6':                   { promptPerM: 5.00, completionPerM: 25.00 },
+  'claude-opus-4-7':                   { promptPerM: 5.00, completionPerM: 25.00 },
+  'claude-opus-4-8':                   { promptPerM: 5.00, completionPerM: 25.00 },
+  'claude-opus-5':                     { promptPerM: 5.00, completionPerM: 25.00 },
+  'claude-opus-5-5':                   { promptPerM: 5.00, completionPerM: 25.00 },
+  'claude-haiku-4-5':                  { promptPerM: 1.00, completionPerM: 5.00 },
+  'claude-haiku-4-5-20251001':         { promptPerM: 1.00, completionPerM: 5.00 },
+  'claude-haiku-5-5':                  { promptPerM: 1.00, completionPerM: 5.00 },
 
   // ─── xAI Grok ───────────────────────────────────────────────────
   // grok-4.20 was $5/$15 a few months ago; xAI cut it sharply in 2026.
@@ -191,6 +220,8 @@ export const AI_PRICING: Record<string, PricePoint> = {
   'grok-imagine-image':                { promptPerM: 0,    completionPerM: 0,    perCall: 0.02 },
   'grok-imagine-image-quality':        { promptPerM: 0,    completionPerM: 0,    perCall: 0.05 },  // $0.05 per live xAI API 2026-08-14 (was mis-recorded 0.03)
   'grok-imagine-image-2.0':            { promptPerM: 0,    completionPerM: 0,    perCall: 0.04 },  // newest image gen, $0.04/img (docs + API standard tier)
+  'grok-imagine-image-2.0:1k':         { promptPerM: 0,    completionPerM: 0,    perCall: 0.04 },
+  'grok-imagine-image-2.0:2k':         { promptPerM: 0,    completionPerM: 0,    perCall: 0.06 },
   // grok-imagine video is priced per second BY RESOLUTION (docs.x.ai/developers/
   // pricing, verified 2026-10-17): video-1.5 $0.08 / $0.14 / $0.25 at 480p /
   // 720p / 1080p; legacy video $0.05 / $0.07. The provider requests 720p by
@@ -215,6 +246,26 @@ export const AI_PRICING: Record<string, PricePoint> = {
   // keeps k3 usage visible in cost reports instead of logging $0.
   'k3':                                { promptPerM: 3.00, completionPerM: 15.00 },
 
+  // ─── MiniMax M Plan (api.minimax.io — H3 2K Video, H3-Image 4K, M3 Text) ──
+  // Verified live 2026-11-12: MiniMax-H3 renders 768P ($0.08/s) and 2K ($0.13/s,
+  // mapped to the picker's :1080p HD tier and :2k alias) with native stereo
+  // audio; MiniMax-H3-Max renders fast 480P ($0.05/s) / 768P ($0.08/s) drafts;
+  // MiniMax-H3-Image renders up to 4096x4096 4K stills & edits ($0.035/image);
+  // image-01 renders ultra-economy drafts & character-ref frames ($0.0035/image).
+  'MiniMax-H3':                        { promptPerM: 0,    completionPerM: 0,    perSecond: 0.08 },
+  'MiniMax-H3:1080p':                  { promptPerM: 0,    completionPerM: 0,    perSecond: 0.13 },
+  'MiniMax-H3:2k':                     { promptPerM: 0,    completionPerM: 0,    perSecond: 0.13 },
+  'MiniMax-H3-Max':                    { promptPerM: 0,    completionPerM: 0,    perSecond: 0.08 },
+  'MiniMax-H3-Max:480p':               { promptPerM: 0,    completionPerM: 0,    perSecond: 0.05 },
+  'MiniMax-Hailuo-2.3':                { promptPerM: 0,    completionPerM: 0,    perSecond: 0.06 },
+  'MiniMax-H3-Image':                  { promptPerM: 0,    completionPerM: 0,    perCall: 0.035 },
+  'MiniMax-H3-Image-Highspeed':        { promptPerM: 0,    completionPerM: 0,    perCall: 0.04 },
+  'image-01':                          { promptPerM: 0,    completionPerM: 0,    perCall: 0.0035 },
+  'MiniMax-M3':                        { promptPerM: 0.30, completionPerM: 1.20 },
+  'MiniMax-M3.1-Flash':                { promptPerM: 0.15, completionPerM: 0.60 },
+  'MiniMax-M2.7':                      { promptPerM: 0.30, completionPerM: 1.20 },
+  'MiniMax-M2.7-highspeed':            { promptPerM: 0.30, completionPerM: 1.20 },
+
   // ─── DashScope (Alibaba Model Studio workspace) ─────────────────
   // APPROXIMATE intl per-M rates (verify vs the plan's unit billing — the
   // plan bills a fixed quota of "units", so these are for the cost meter
@@ -228,6 +279,7 @@ export const AI_PRICING: Record<string, PricePoint> = {
   // qwen3.8-flash (DASHSCOPE_TEXT_MODEL since 2026-10-10): $0.15 / $0.47 intl
   // (Model Studio pricing page, verified 2026-10-17). Was unpriced: 9 rows at $0.
   'qwen3.8-flash':                     { promptPerM: 0.113, completionPerM: 0.382 },
+  'qwen3.8-omni-flash':                { promptPerM: 0.113, completionPerM: 0.382 },
   'deepseek-v4-pro':                   { promptPerM: 0.55, completionPerM: 2.20 },
   'deepseek-v4-flash':                 { promptPerM: 0.14, completionPerM: 0.28 },
   'deepseek-v3.2':                     { promptPerM: 0.28, completionPerM: 0.42 },

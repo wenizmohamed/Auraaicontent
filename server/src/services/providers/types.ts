@@ -4,7 +4,7 @@
 // (402 "prepayment credits are depleted"). Vertex lives on the same Google
 // Cloud project but is fully funded. Sharing a name would let a Vertex
 // failure trip Gemini's circuit breaker and take out both.
-export type AiProviderName = 'xai' | 'gemini' | 'dashscope' | 'vertex'; // github removed 2026-10-13: GitHub Models shut down 2026-07-30
+export type AiProviderName = 'xai' | 'gemini' | 'dashscope' | 'vertex' | 'anthropic' | 'moonshot' | 'minimax'; // github removed 2026-10-13: GitHub Models shut down 2026-07-30
 export type AiTask = 'text' | 'image' | 'image_edit' | 'video' | 'analysis' | 'embedding';
 
 export interface TextRequest {

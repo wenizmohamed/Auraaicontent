@@ -68,7 +68,7 @@ describe('picker catalog and cost meter agree', () => {
     // to their own provider and never reach DashScope. Video entries carry no
     // provider at all — the server picks the provider from the id — so their
     // ids must be one the provider recognises.
-    const alibabaIds = ids.filter((id) => !/^(gemini|veo|omni|grok|nano-banana|imagen)/i.test(id));
+    const alibabaIds = ids.filter((id) => !/^(gemini|veo|omni|grok|nano-banana|imagen|MiniMax-|image-01)/i.test(id));
     const foreign = alibabaIds.filter(
       (id) => !/^(qwen-image|z-image|wan[\d.]+-image|wan[\d.]+-(video|t2v|i2v|r2v|videoedit)|happyhorse-[\d.]+-(t2v|i2v|r2v|video-edit)|vidu\/)/i.test(id),
     );

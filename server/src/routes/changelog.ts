@@ -1,4 +1,4 @@
-// "What's new on AURAAI" — product changelog surfaced on every user's
+// "What's new on AURA" — product changelog surfaced on every user's
 // Dashboard. Entries are maintained here in git (newest first) and shipped
 // with each deploy; no DB table needed. Keep entries user-facing: what THEY
 // can now do, never internal refactor talk. Add an entry with every big ship.
@@ -15,6 +15,72 @@ export interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    date: '2026-11-13',
+    tag: 'new',
+    title: 'Gemini 4 Argon Powers AURA Agent Mode & AURA Chat + 3 New Creative Tools',
+    body: 'AURA Chat and AURA Agent Mode now run on Google Gemini 4 Argon (backed by Vertex AI high-availability failover) for frontier multi-step reasoning and tool execution. Agent Mode gains three new creative tools: Image Edit & Retouching (edit saved Gallery assets with product and mascot consistency), Brand Memory Save (capture permanent character specs, hex palettes, and visual reference links into Client Memory), and Prompt Director (craft or explore 3 studio prompt directions on demand), plus slide-by-slide 4:5 Instagram and LinkedIn carousel generation.',
+  },
+  {
+    date: '2026-11-13',
+    tag: 'improved',
+    title: 'Gemini 4 Carbon Creative Director: Adaptive Master Prompts & Single-Slide Carousel Guard',
+    body: 'Creative Studio prompt rewriting and Suggest 3 Directions now run directly on Google Gemini 4 Carbon. Pasted chat wrappers are stripped automatically, explicit hex color palettes, 80px layout margins, and exact quoted copy are preserved without truncation, and pasting a multi-slide carousel brief into single-image generation cleanly renders Slide 1 as a full-bleed hero frame instead of drawing broken multi-slide grids.',
+  },
+  {
+    date: '2026-11-12',
+    tag: 'new',
+    title: 'MiniMax H3 (2K + Stereo Audio), H3-Image (4K) & 1-Click Studio Chaining',
+    body: 'MiniMax M Plan is now live across every Creative Studio mode. Generate native 4K stills and multi-reference edits with MiniMax H3-Image, H3-Image Highspeed, and Image-01, or render 2K cinema video with synchronized stereo sound, human micro-expressions, first/last frame bookends, and product reference consistency using MiniMax H3 and H3-Max. Every generated image now includes 1-click Edit Image and Animate buttons to chain stills straight into Image Edit or Image-to-Video, with permanent local gallery storage even when working outside a client workspace.',
+  },
+  {
+    date: '2026-11-12',
+    tag: 'new',
+    title: 'AURA Creative Director: Smart Engine Routing & Effortless Prompt Understanding',
+    body: 'AURA now controls every image, edit, and video workflow as your intelligent Creative Director. Powered by Anthropic Claude Sonnet 5.5 and Google Gemini 4 Carbon, AURA decodes shorthand, typos, bilingual Arabic and English ideas, and pop-culture concepts into cinema-grade prompts, then automatically routes Auto picks to the strongest engine for your exact scene.',
+  },
+  {
+    date: '2026-11-12',
+    tag: 'new',
+    title: 'Claude Sonnet 5.5, Gemini 4 Carbon & Gemini Omni 1.2 Video join AURAAI',
+    body: 'AURAAI now runs a five-provider flagship stack: Anthropic Claude Sonnet 5.5 and Opus 5.5 for reasoning, prompt understanding, and agent orchestration; Google Gemini 4 Carbon, Gemini 3 Pro Image (Generate and Edit), and Gemini Omni 1.2 and 1.1 Flash Video; Alibaba Qwen Image 3.0 Pro, Wan 2.7 Image Pro, and Wan 3.0 Prime; xAI Grok Imagine 2.0 (native 2K) and Grok Video 1.5 (1080p); and Moonshot Kimi K3.1 Pro.',
+  },
+  {
+    date: '2026-11-12',
+    tag: 'improved',
+    title: 'Native 2K Stills, Default 1080p HD Video & Opt-in Brand Kit Control',
+    body: 'Every studio image now renders in crisp 2K resolution by default (including Grok Imagine 2.0 and Gemini 3 Pro Image), and Video Studio now defaults to 1080p HD. A new Brand Kit toggle in Creative Studio keeps general creative prompts 100% pure by default, weaving in your active client palette and identity only when you switch it on.',
+  },
+  {
+    date: '2026-11-12',
+    tag: 'fixed',
+    title: 'Zero Brand-Prompt Bleed & Reliable Multi-Engine Edit Gallery Saves',
+    body: 'Fixed an issue where active client brand copy could leak into unrelated image or video prompts, fixed gallery saving for URL-returned image edits, and upgraded Vertex AI and Gemini 4 Carbon fallbacks for uninterrupted studio production.',
+  },
+  {
+    date: '2026-11-11',
+    tag: 'new',
+    title: 'Wan 2.7 Image Pro, Grok Imagine 2.0 & Grok Video 1.5 join the Creative Studio',
+    body: 'You now have six flagship image engines and five video engines in one picker. Alibaba Wan 2.7 Image Pro and Wan 2.7 Image join Qwen Image 3.0 Pro for photorealistic product, skin and material detail, alongside Google Gemini Nano Banana 2.1, Gemini 3 Pro Image and xAI Grok Imagine 2.0 across Generate, Edit and Upscale. For video, xAI Grok Imagine Video 1.5 and 1.5 Lite join Wan 3.0 Prime, Wan 3.0 Fast and HappyHorse 1.1.',
+  },
+  {
+    date: '2026-11-11',
+    tag: 'improved',
+    title: 'Model-aware Prompt Enhancer for Image, Edit & Video',
+    body: 'The Enhance Prompt button now writes in the exact visual dialect of the engine you select. Choosing Wan 2.7 Image Pro, Qwen Image 3.0, Gemini Nano Banana 2.1, Grok Imagine 2.0, Wan 3.0 or Grok Video 1.5 tailors camera optics, focal length, lighting ratios, surface micro-textures, temporal motion physics and bilingual Arabic/English typography to that specific model, with a live dialect badge showing which engine grammar is active.',
+  },
+  {
+    date: '2026-11-11',
+    tag: 'new',
+    title: 'Four-provider AI backbone: Alibaba, Google Gemini 4, xAI Grok & Kimi K3.1',
+    body: 'Every strategy, calendar, chat and creative workflow is now powered by four active flagship providers at once: Alibaba Qwen 3.8 Max & Qwen 4, Google Gemini 4 Argon & Carbon, xAI Grok 4.7, and Moonshot Kimi K3.1 Pro Highspeed for deep reasoning and long-form copywriting. Multi-model fallback ladders keep image, edit, video and text generations flowing smoothly even if a single model is busy.',
+  },
+  {
+    date: '2026-11-11',
+    tag: 'fixed',
+    title: 'Seamless small-logo Image Editing & full-quality Masterpiece Video',
+    body: 'Uploading small logos, icons or compact product cutouts into Image Edit no longer triggers a minimum-resolution error: small source images are automatically upscaled behind the scenes before editing. In Video Studio, choosing the Masterpiece tier now dispatches full flagship 1080p rendering instead of falling back to draft mode.',
+  },
   {
     date: '2026-11-07',
     tag: 'fixed',
@@ -126,7 +192,7 @@ const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-10-13',
     tag: 'new',
-    title: 'AURAAI learns from the edits you make',
+    title: 'AURA learns from the edits you make',
     body: 'Every change you make to a generated post is now remembered: rewrites become corrections, approvals become successes, and requests for changes become lessons. Those lessons are fed back into every prompt that follows, so the planner stops repeating the choices you keep fixing.',
   },
   {
@@ -138,8 +204,8 @@ const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-08-14',
     tag: 'new',
-    title: 'Radix is now AURAAI',
-    body: 'The product has a new name and logo: AURAAI. Nothing else changes. Same workspace, same login, same team. Everything you have built stays exactly where it was, your clients, calendars, briefs, galleries and history are all untouched. You may need to refresh once for the new name to show.',
+    title: 'Welcome to AURA',
+    body: 'The product has a new name and logo: AURA. Nothing else changes. Same workspace, same login, same team. Everything you have built stays exactly where it was, your clients, calendars, briefs, galleries and history are all untouched. You may need to refresh once for the new name to show.',
   },
   {
     date: '2026-08-14',
@@ -151,7 +217,7 @@ const CHANGELOG: ChangelogEntry[] = [
     date: '2026-08-02',
     tag: 'fixed',
     title: 'Client review links now open properly',
-    body: 'Share a month with a client and their link now opens the review page as intended. Previously it sent them to a sign-in screen, so they could not see the work. Your client browses the month, approves posts, requests changes and leaves comments per post, with no account needed. Feedback lands straight back in AURAAI.',
+    body: 'Share a month with a client and their link now opens the review page as intended. Previously it sent them to a sign-in screen, so they could not see the work. Your client browses the month, approves posts, requests changes and leaves comments per post, with no account needed. Feedback lands straight back in AURA.',
   },
   {
     date: '2026-08-02',
@@ -181,7 +247,7 @@ const CHANGELOG: ChangelogEntry[] = [
     date: '2026-07-21',
     tag: 'fixed',
     title: 'No more cut-off captions + the newest AI models',
-    body: 'Long generations (big calendars, detailed briefs) no longer come back truncated mid-sentence. Output limits were raised across engines. AURAAI also moved to the latest models across providers (Grok 4.5, Gemini 3.5 Flash, the newest image models), and when an engine wrongly blocks safe content, AURAAI now automatically retries on another engine instead of failing.',
+    body: 'Long generations (big calendars, detailed briefs) no longer come back truncated mid-sentence. Output limits were raised across engines. AURA also moved to the latest models across providers (Grok 4.5, Gemini 3.5 Flash, the newest image models), and when an engine wrongly blocks safe content, AURA now automatically retries on another engine instead of failing.',
   },
   {
     date: '2026-07-15',
@@ -217,7 +283,7 @@ const CHANGELOG: ChangelogEntry[] = [
     date: '2026-07-14',
     tag: 'new',
     title: 'Check compliance on any post',
-    body: 'On the Review page, hit Compliance on a post and AURAAI audits the caption against that client\'s brief rules, flagging risky claims, missing disclaimers and sensitive wording by severity, each with a suggested fix. Built for financial, fraud-awareness and other regulated content.',
+    body: 'On the Review page, hit Compliance on a post and AURA audits the caption against that client\'s brief rules, flagging risky claims, missing disclaimers and sensitive wording by severity, each with a suggested fix. Built for financial, fraud-awareness and other regulated content.',
   },
   {
     date: '2026-07-14',
@@ -229,7 +295,7 @@ const CHANGELOG: ChangelogEntry[] = [
     date: '2026-07-14',
     tag: 'new',
     title: 'Quick notes & teach-the-AI thumbs',
-    body: 'Leave a quick note on any post for your team, and thumbs-up / thumbs-down any generated image or video so AURAAI learns each client\'s taste and leans that way next time.',
+    body: 'Leave a quick note on any post for your team, and thumbs-up / thumbs-down any generated image or video so AURA learns each client\'s taste and leans that way next time.',
   },
   {
     date: '2026-07-14',
@@ -253,13 +319,13 @@ const CHANGELOG: ChangelogEntry[] = [
     date: '2026-07-06',
     tag: 'new',
     title: 'Competitor Intel. Read a competitor, find your opening',
-    body: 'New Strategy tool: drop in any competitor (brand, handle or website) and AURAAI reads their content strategy. Themes, tone, posting cadence, what they do well. Pick a client and it turns their playbook into concrete gaps that client can exploit. Grounds the read on the competitor\'s real site when you paste a URL.',
+    body: 'New Strategy tool: drop in any competitor (brand, handle or website) and AURA reads their content strategy. Themes, tone, posting cadence, what they do well. Pick a client and it turns their playbook into concrete gaps that client can exploit. Grounds the read on the competitor\'s real site when you paste a URL.',
   },
   {
     date: '2026-07-06',
     tag: 'new',
     title: 'Share client galleries with a public link',
-    body: 'From the Gallery, hit "Share with client" to get a clean, branded review page. No login needed. Your client browses the work, downloads finals, and leaves per-asset approve / request-changes feedback that lands straight back in AURAAI. Links are private-by-token and scoped to your org.',
+    body: 'From the Gallery, hit "Share with client" to get a clean, branded review page. No login needed. Your client browses the work, downloads finals, and leaves per-asset approve / request-changes feedback that lands straight back in AURA. Links are private-by-token and scoped to your org.',
   },
   {
     date: '2026-07-06',
@@ -301,7 +367,7 @@ const CHANGELOG: ChangelogEntry[] = [
     date: '2026-06-30',
     tag: 'improved',
     title: 'Copywriting learns from your feedback',
-    body: 'Thumbs-up a variant and AURAAI remembers your preference per client. Future copy leans toward what you approved. Variants are also more diverse, with a new length control.',
+    body: 'Thumbs-up a variant and AURA remembers your preference per client. Future copy leans toward what you approved. Variants are also more diverse, with a new length control.',
   },
 ];
 

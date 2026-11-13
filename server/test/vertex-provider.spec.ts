@@ -25,6 +25,8 @@ vi.hoisted(() => {
   process.env.VERTEX_API_KEY = 'test-vertex-key';
   process.env.VERTEX_PROJECT = 'hubz-510406';
   process.env.VERTEX_LOCATION = 'us';
+  delete process.env.VERTEX_TEXT_MODEL;
+  delete process.env.VERTEX_TEXT_LADDER;
 });
 
 import { vertexProvider } from '../src/services/providers/vertex.provider.js';

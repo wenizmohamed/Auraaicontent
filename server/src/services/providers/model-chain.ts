@@ -11,7 +11,7 @@
  * quota error in the last 60 seconds, skip M entirely on the next attempt
  * to save the user the latency + the 429 round-trip. Cleared automatically.
  */
-import { isRetryableAiError } from './errors.js';
+import { AiProviderError, isRetryableAiError, isProviderWideCredentialError } from './errors.js';
 
 interface SoftSkipEntry {
   until: number;     // unix ms
@@ -68,6 +68,7 @@ export async function runModelLadder<T>(
 ): Promise<ModelLadderResult<T>> {
   const attempted: string[] = [];
   let lastErr: unknown = null;
+  let lastSkipReason = '';
 
   for (let i = 0; i < ladder.length; i++) {
     const entry = ladder[i];
@@ -75,6 +76,7 @@ export async function runModelLadder<T>(
     if (skip.skip) {
       console.warn(`[ladder] ${providerName}/${task} SKIP ${entry.model} (recently failed: ${skip.reason})`);
       attempted.push(`${entry.model} (soft-skip)`);
+      lastSkipReason = skip.reason;
       continue;
     }
     attempted.push(entry.model);
@@ -94,10 +96,16 @@ export async function runModelLadder<T>(
         softSkipModel(entry.model, msg.slice(0, 80));
       }
       const retryable = isRetryableAiError(err);
+      const providerWide = isProviderWideCredentialError(msg);
       const isLast = i === ladder.length - 1;
       console.warn(
-        `[ladder] ${providerName}/${task} ${entry.model} failed (${retryable ? 'retryable' : 'fatal'}): ${msg.slice(0, 120)}${isLast || !retryable ? '' : ' — trying next model'}`,
+        `[ladder] ${providerName}/${task} ${entry.model} failed (${providerWide ? 'provider-wide' : retryable ? 'retryable' : 'fatal'}): ${msg.slice(0, 120)}${isLast || !retryable || providerWide ? '' : ' — trying next model'}`,
       );
+      if (providerWide) {
+        // Key/subscription/group-wide failure: do not burn calls on sibling models
+        // of the same provider; bubble straight out so ai-router hops to the next provider.
+        break;
+      }
       if (!retryable || isLast) {
         // Either fatal (don't waste calls on the rest of the ladder), or last model in ladder
         if (!retryable) {
@@ -107,7 +115,12 @@ export async function runModelLadder<T>(
       }
     }
   }
-  throw lastErr || new Error(`[ladder] ${providerName}/${task} all ${attempted.length} models failed without error`);
+  throw lastErr || new AiProviderError(
+    providerName,
+    task,
+    `all ${attempted.length} models soft-skipped (${lastSkipReason || 'temporarily unavailable'})`,
+    503,
+  );
 }
 
 /**

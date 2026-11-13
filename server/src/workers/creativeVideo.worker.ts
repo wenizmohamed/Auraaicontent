@@ -7,37 +7,54 @@ import { aiRouter } from '../services/providers/ai-router.js';
 import { historyService } from '../services/history.service.js';
 import { errMessage } from '../services/providers/errors.js';
 import { updateJob, type Job } from './queue.js';
-import { enhanceCreativePrompt, engineForModel, SAFE_ZONE_HINT } from '../services/prompt-enhancer.service.js';
+import { enhanceCreativePrompt, engineForModel, selectBestCreativeEngine, SAFE_ZONE_HINT } from '../services/prompt-enhancer.service.js';
 import { getStylePack } from '../services/style-packs.js';
 
 // Builds the prompt the engine will see. Runs here (not in the HTTP route)
 // since 2026-10-17 so the POST answers at once. Older queued jobs carry a
 // pre-enhanced prompt and no `enhance` flag; they pass through unchanged.
-async function prepareVideoPrompt(j: Job): Promise<{ genPrompt: string; negativePrompt?: string; enhancedPrompt: string | null }> {
+async function prepareVideoPrompt(j: Job): Promise<{
+  genPrompt: string;
+  negativePrompt?: string;
+  enhancedPrompt: string | null;
+  effectiveModel?: string;
+  effectiveProvider?: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax';
+}> {
   const d = j.data;
+  const videoMode = d.imageBase64 || d.startImageBase64 ? 'image-to-video' : 'text-to-video';
+  const hasRefs = Array.isArray(d.referenceImages) && d.referenceImages.length > 0;
+  const pinnedModel: string | undefined = d.model;
+  const pinnedProvider: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax' | undefined = d.provider;
+  const autoPick = (!pinnedModel && !pinnedProvider)
+    ? selectBestCreativeEngine(videoMode, d.originalPrompt || d.prompt || '', {
+        fast: d.tier === 'draft',
+        hasRefs,
+        hasEndFrame: Boolean(d.endImageBase64),
+      })
+    : null;
+  const effectiveModel = pinnedModel || autoPick?.model;
+  const effectiveProvider = pinnedProvider || (pinnedModel ? engineForModel(pinnedModel) : autoPick?.provider);
+
   if (d.enhance === undefined) {
-    return { genPrompt: d.prompt, negativePrompt: d.negativePrompt, enhancedPrompt: d.enhancedPrompt || null };
+    return {
+      genPrompt: d.prompt,
+      negativePrompt: d.negativePrompt,
+      enhancedPrompt: d.enhancedPrompt || null,
+      effectiveModel,
+      effectiveProvider,
+    };
   }
   const prompt: string = d.originalPrompt || d.prompt;
   const stylePack = getStylePack(d.stylePackId);
-  const videoMode = d.imageBase64 || d.startImageBase64 ? 'image-to-video' : 'text-to-video';
-  const hasRefs = Array.isArray(d.referenceImages) && d.referenceImages.length > 0;
-  const model: string | undefined = d.model;
-  // Enhancer dialect follows the router's dispatch. The mapping lives in one
-  // place (engineForModel) so the worker and the route can never disagree.
-  // NOTE the audio split (verified on the live workspaces 2026-11-07): Wan 3.0
-  // renders sound in the same pass and its dialect KEEPS the audio lines,
-  // while Wan 2.7 and HappyHorse 1.1 publish Video only and their dialect
-  // DELETES them. Getting that backwards silently drops the user's sound.
-  const engine = engineForModel(model);
   let enhancedPrompt: string | null = null;
   let autoNegative: string | undefined;
   if (d.enhance !== false) {
     updateJob(j.id, { progress: 5 });
     try {
       const e = await enhanceCreativePrompt({
-        prompt, mode: videoMode, engine, model, depth: d.depth,
+        prompt, mode: videoMode, engine: effectiveProvider, model: effectiveModel, depth: d.depth,
         clientId: d.clientId || undefined, orgId: d.orgId, userId: d.userId ?? undefined,
+        useBrandKit: Boolean(d.useBrandKit),
         safeZone: Boolean(d.safeZone), hasRefs,
         refImageBase64: d.imageBase64 || d.startImageBase64 || undefined,
         refImageMime: (d.imageBase64 ? d.mimeType : d.startMimeType) || 'image/png',
@@ -54,33 +71,31 @@ async function prepareVideoPrompt(j: Job): Promise<{ genPrompt: string; negative
   const genPrompt = (enhancedPrompt ?? (d.safeZone ? `${prompt}\n\n${SAFE_ZONE_HINT}` : prompt)) + packTail;
   const negativePrompt = [autoNegative, typeof d.userNegative === 'string' ? d.userNegative : '']
     .filter((sv) => sv && sv.trim()).join(', ').slice(0, 500) || undefined;
-  return { genPrompt, negativePrompt, enhancedPrompt };
+  return { genPrompt, negativePrompt, enhancedPrompt, effectiveModel, effectiveProvider };
 }
 
 export async function creativeVideoWorker(j: Job): Promise<any> {
-  // Pace the progress bar to the engine's REAL latency (measured live
-  // 2026-07-03): omni ~55s, veo ~80s, grok draft ~110s, wan ~170s. Creeps to
-  // 95% so there's always visible motion until real completion.
   const m: string = j.data.model || '';
-  // Auto (no model) now lands on wan3.0-video first, so it paces like Wan.
   const expectedSec = (!m || /wan|happyhorse|vidu/i.test(m)) ? 170
     : /omni/i.test(m) ? 55
+    : /minimax|hailuo/i.test(m) ? 95
     : /grok/i.test(m) ? 110
     : 80;
-  const stepPct = 85 / (expectedSec / 3); // 10% → 95% across expectedSec
+  const stepPct = 85 / (expectedSec / 3); // 10% -> 95% across expectedSec
   let p = 10;
   const ticker = setInterval(() => {
     p = Math.min(p + stepPct, 95);
     updateJob(j.id, { progress: Math.round(p * 10) / 10 });
   }, 3000);
   try {
-    const { genPrompt, negativePrompt, enhancedPrompt } = await prepareVideoPrompt(j);
+    const { genPrompt, negativePrompt, enhancedPrompt, effectiveModel, effectiveProvider } = await prepareVideoPrompt(j);
+    const effectiveRes = j.data.resolution || (j.data.tier === 'draft' ? '720p' : '1080p');
     const result = await aiRouter.video(
       {
         prompt: genPrompt,
         aspectRatio: j.data.aspectRatio,
         durationSeconds: j.data.durationSeconds,
-        resolution: j.data.resolution,
+        resolution: effectiveRes,
         imageBase64: j.data.imageBase64,
         mimeType: j.data.mimeType,
         startImageBase64: j.data.startImageBase64,
@@ -88,20 +103,15 @@ export async function creativeVideoWorker(j: Job): Promise<any> {
         endImageBase64: j.data.endImageBase64,
         endMimeType: j.data.endMimeType,
         tier: j.data.tier,
-        fast: true,
+        fast: j.data.tier === 'draft',
         negativePrompt,
         referenceImages: j.data.referenceImages,
-        model: j.data.model,
+        model: effectiveModel,
       },
-      // Engine pins: Omni lives on Gemini, Wan on DashScope.
       {
         orgId: j.data.orgId, userId: j.data.userId, jobId: j.id, clientId: j.data.clientId,
-        // Explicit engine → provider. Each picked video engine deterministically
-        // pins its provider (Veo/Omni→gemini, Grok→xai, Wan/HappyHorse/Vidu→
-        // dashscope) so the user's choice is honoured regardless of tier.
-        ...(j.data.model && /veo|omni|imagen|gemini/i.test(j.data.model) ? { preferredProvider: 'gemini' as const }
-          : j.data.model && /grok/i.test(j.data.model) ? { preferredProvider: 'xai' as const }
-          : j.data.model && /wan|qwen|happyhorse|vidu/i.test(j.data.model) ? { preferredProvider: 'dashscope' as const } : {}),
+        skipBrandKit: true,
+        ...(effectiveProvider ? { preferredProvider: effectiveProvider } : {}),
       },
     );
     const generationId = await historyService.record({

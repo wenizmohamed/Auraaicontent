@@ -2,6 +2,9 @@ import { xaiProvider } from './xai.provider.js';
 import { geminiProvider } from './gemini.provider.js';
 import { dashscopeProvider } from './dashscope.provider.js';
 import { vertexProvider } from './vertex.provider.js';
+import { anthropicProvider } from './anthropic.provider.js';
+import { moonshotProvider } from './moonshot.provider.js';
+import { minimaxProvider } from './minimax.provider.js';
 import { isRetryableAiError, isSafetyBlock, AllProvidersFailedError, AiCancelledError, abortReasonText, throwIfCancelled, type ProviderFailure } from './errors.js';
 import { filterAvailable, recordSuccess, recordFailure, getCircuitSnapshot } from './circuit-breaker.js';
 import type { AiProvider, AiProviderName, AiTask, AiTelemetryEntry, AnalysisRequest, ImageRequest, ProviderResult, TextRequest, VideoRequest } from './types.js';
@@ -99,12 +102,15 @@ function persistUsage(meta: { orgId?: string; userId?: string; clientId?: string
 // 3.0 Pro for stills, wan3.0-video for clips; Gemini then Grok stay on standby.
 // Embeddings are the one exception: the plan has no embedding model, so they
 // remain on Gemini (gemini.service). Kimi text fallback lives in llm/chat.ts.
-const PRIMARY: Record<string, AiProviderName> = {
-  text: (process.env.AI_TEXT_PRIMARY as AiProviderName) || 'dashscope',
-  image: (process.env.AI_IMAGE_PRIMARY as AiProviderName) || 'dashscope',
-  video: (process.env.AI_VIDEO_PRIMARY as AiProviderName) || 'dashscope',
-  analysis: (process.env.AI_ANALYSIS_PRIMARY as AiProviderName) || 'dashscope',
-};
+function getPrimary(task: string): AiProviderName {
+  switch (task) {
+    case 'text': return (process.env.AI_TEXT_PRIMARY as AiProviderName) || 'gemini';
+    case 'image': return (process.env.AI_IMAGE_PRIMARY as AiProviderName) || 'dashscope';
+    case 'video': return (process.env.AI_VIDEO_PRIMARY as AiProviderName) || 'dashscope';
+    case 'analysis': return (process.env.AI_ANALYSIS_PRIMARY as AiProviderName) || 'gemini';
+    default: return 'gemini';
+  }
+}
 
 const FALLBACK_ENABLED = process.env.AI_ENABLE_FALLBACK !== 'false';
 
@@ -113,34 +119,20 @@ const PROVIDERS: Record<AiProviderName, AiProvider> = {
   gemini: geminiProvider,
   dashscope: dashscopeProvider,
   vertex: vertexProvider,
+  anthropic: anthropicProvider,
+  moonshot: moonshotProvider,
+  minimax: minimaxProvider,
 };
 
-// Per-task fallback chain (order = preference). The PRIMARY map above picks
+// Per-task fallback chain (order = preference). getPrimary() above picks
 // the first hop; the rest of the list is the standby order ("rotation"): a
 // request only reaches hop 2 if hop 1 fails, and so on.
 const CHAIN: Record<string, AiProviderName[]> = {
-  // xai grok-4.20 is ALIVE again (billing restored — re-verified live 2026-07-21)
-  // and is cheaper than DashScope AND doesn't run Qwen's strict content filter
-  // that false-blocks benign marketing prompts. So xai is the 2nd hop; DashScope
-  // (strict filter, pricier) is the last resort. gemini stays primary.
-  // 2026-11-07: vertex inserted as the 2nd hop. The Gemini Developer API key
-  // is billing-dead (402 "prepayment credits are depleted" on EVERY model),
-  // so vertex — the same Google models on a funded Vertex entitlement — must
-  // come BEFORE gemini, or every call pays a doomed 402 round-trip first.
-  text: ['dashscope', 'vertex', 'gemini', 'xai'],  // qwen3.8-max first (2026-10-17); github-models lane removed 2026-10-13
-  // Stills: Qwen Image 3.0 Pro first (2026-10-17), vertex nano-banana second, Grok last.
-  image: ['dashscope', 'vertex', 'gemini', 'xai'],
-  // image_edit SKIPS xai: xAI's /images/edits returns 403 permission-denied for
-  // this team, and 403 is non-retryable → it used to HALT the ladder before
-  // the next hop, so edits failed whenever the first engine was capped/down.
-  // Qwen Image (unified gen+edit) → vertex nano-banana → gemini; all can edit.
-  image_edit: ['dashscope', 'vertex', 'gemini'],
-  analysis: ['dashscope', 'vertex', 'gemini', 'xai'],  // qwen3.8-max reads images natively (verified 2026-10-17)
-  // Clips: wan3.0-video first (all-in-one: text, first/last frame, references,
-  // up to 30s with audio), Veo second, Grok last. (2026-10-17)
-  // vertex is NOT in the video chain: Vertex serves no video model at all
-  // (every veo-* id 404s; omni is Developer-API only and that key is 402).
-  video: ['dashscope', 'gemini', 'xai'],
+  text: ['gemini', 'vertex', 'dashscope', 'xai', 'moonshot', 'minimax', 'anthropic'],
+  image: ['gemini', 'dashscope', 'minimax', 'vertex', 'xai'],
+  image_edit: ['gemini', 'dashscope', 'minimax', 'vertex', 'xai'],
+  analysis: ['gemini', 'vertex', 'dashscope', 'xai', 'anthropic'],
+  video: ['dashscope', 'minimax', 'gemini', 'xai'],
 };
 
 // A provider is usable only when its credential is configured — keeps a
@@ -148,10 +140,13 @@ const CHAIN: Record<string, AiProviderName[]> = {
 // non-retryable "key not set" and break the fallback.
 function providerAvailable(name: AiProviderName): boolean {
   switch (name) {
+    case 'anthropic': return !!(process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_API_KEY);
     case 'dashscope': return !!process.env.DASHSCOPE_API_KEY;
     case 'xai': return !!process.env.XAI_API_KEY;
     case 'gemini': return !!process.env.GEMINI_API_KEY;
     case 'vertex': return !!process.env.VERTEX_API_KEY;
+    case 'moonshot': return !!process.env.MOONSHOT_API_KEY;
+    case 'minimax': return !!process.env.MINIMAX_API_KEY;
     default: return false;
   }
 }
@@ -164,14 +159,14 @@ function orderedProviders(task: string, preferredPrimary?: AiProviderName): AiPr
   // Prefer a task-specific chain (image_edit has its own that skips xai);
   // fall back to the normalized-task chain for everything else.
   const base = CHAIN[task] || CHAIN[normalizedTask] || ['gemini', 'xai'];
-  let primary = preferredPrimary || PRIMARY[normalizedTask] || 'gemini';
+  let primary = preferredPrimary || getPrimary(normalizedTask);
   // A task-specific chain is an EXCLUSION list, not just an ordering: image_edit
   // omits xai because its /images/edits 403s for this team and 403 is
   // non-retryable, which halts the ladder. A user picking "Grok Imagine" in the
   // model picker must not re-insert an excluded provider as primary — that made
   // every Grok image-edit a deterministic 503 with gemini/dashscope untried.
   if (CHAIN[task] && preferredPrimary && !base.includes(preferredPrimary)) {
-    primary = PRIMARY[normalizedTask] || base[0];
+    primary = getPrimary(normalizedTask) || base[0];
   }
   // primary first, then the rest of the chain (deduped), filtered to available.
   const ordered = [primary, ...base.filter((p) => p !== primary)].filter(providerAvailable);
@@ -229,14 +224,12 @@ async function routeCall<T>(
   // prompt.  No-op when no clientId, skipBrandKit=true, or no BrandKit row
   // exists for the client.  Mutates req.prompt in place so the closure
   // captured by `fn` sees the enriched value.
-  if (req && meta?.clientId && req.prompt) {
-    // Retrieve Knowledge + Memory using the ORIGINAL prompt (captured before any
-    // block is prepended, which would skew the query embedding). Gated to
-    // text/analysis — neither helps image/video prompts. Both best-effort: no-op
-    // when the client has no knowledge / the org has no learnings / embeddings
-    // are absent. Memory (learned corrections) is prepended LAST so it sits at
-    // the top, closest to the model's attention.
-    if (meta?.orgId && (task === 'text' || task === 'analysis')) {
+  if (req && meta?.clientId && req.prompt && (task === 'text' || task === 'analysis')) {
+    // Retrieve Knowledge + Memory + BrandKit ONLY for text/analysis tasks.
+    // Injecting raw [BRAND KIT] blocks into diffusion/video models (Qwen Image,
+    // Gemini Image, Grok Imagine, Wan 3.0, Omni Video) causes literal rendering
+    // of hex codes, tone labels, or unrelated brand copy into the visual frame.
+    if (meta?.orgId) {
       const originalPrompt = req.prompt;
       req.prompt = await enrichWithKnowledge(req.prompt, meta.orgId, meta.clientId, originalPrompt, {
         skip: meta?.skipKnowledge,

@@ -174,20 +174,20 @@ const PROMPT_REWRITE_LEVELS = [
   {
     v: 'raw' as const,
     label: 'Raw',
-    plain: 'Your wording is kept. AURA only translates it to the engine language and adds technical negatives.',
+    plain: 'Your wording is kept. Gemini 4 Carbon only translates to English if needed and adds technical negatives.',
     hint: 'Keep your wording. Only translate for the engine (for example Arabic to English for video) and add technical negatives. Never reinterprets your idea.',
   },
   {
     v: 'medium' as const,
-    label: '✨ Pro',
-    plain: 'AURA rewrites your idea into a full production prompt for the engine you picked: framing, light, lens and sound.',
-    hint: 'Full rewrite into a production-grade prompt for the selected engine (composition, lighting, cinematography, audio).',
+    label: '✨ Carbon Pro',
+    plain: 'Gemini 4 Carbon Creative Director rewrites your idea for the selected engine while preserving exact copy, #HEX colors, and single-slide framing.',
+    hint: 'Full Gemini 4 Carbon rewrite into an engine-native studio prompt (composition, optics, lighting, audio, and exact copy/hex fidelity).',
   },
   {
     v: 'high' as const,
-    label: 'Max',
-    plain: 'AURA rewrites it hard. Every framing, light and colour decision is spelled out.',
-    hint: 'Pushes art direction to the limit. Most specific composition, lighting and palette.',
+    label: 'Carbon Max',
+    plain: 'Gemini 4 Carbon pushes art direction to maximum specificity: camera rig, Kelvin lighting, micro-textures, and color story.',
+    hint: 'Maximum Gemini 4 Carbon art-direction detail across composition, lighting ratios, surface textures, and palette.',
   },
 ];
 
@@ -291,15 +291,17 @@ export default function CreativeTools() {
   useEffect(() => { creativeApi.stylePacks().then(r => setStylePacks(r.packs || [])).catch(() => { /* picker stays hidden */ }); }, []);
   // Video resolution: 1080p is Veo-only and requires an 8s clip; selecting it
   // auto-bumps duration to 8 (server also degrades gracefully to 720p).
-  const [videoRes, setVideoRes] = useState<'720p' | '1080p'>('720p');
+  const [videoRes, setVideoRes] = useState<'720p' | '1080p'>('1080p');
   // Optional "avoid" terms — merged into Veo's negativePrompt server-side.
   const [negPrompt, setNegPrompt] = useState('');
-  // Video model pick (per-section catalog). 'auto' = AURA routes: Wan 3.0 first.
+  // Video model pick (per-section catalog). 'auto' = AURA Smart Pick.
   const [videoModel, setVideoModel] = useState('auto');
-  // Image model pick. 'auto' = AURA routes: Qwen Image 3.0 Pro first.
+  // Image model pick. 'auto' = AURA Smart Pick.
   const [imageModel, setImageModel] = useState<string>('auto');
   // B3: keep the platform-UI safe zones (top/bottom bands) clear of key elements.
   const [safeZone, setSafeZone] = useState(false);
+  // Opt-in client brand kit conditioning (off by default so unrelated creative prompts never suffer brand bleed).
+  const [useBrandKit, setUseBrandKit] = useState(false);
   const [sourceBase64, setSourceBase64] = useState('');
   const [sourceMime, setSourceMime] = useState('image/png');
   const [sourcePreview, setSourcePreview] = useState('');
@@ -499,6 +501,37 @@ export default function CreativeTools() {
     setEndPreview('');
   };
 
+  // 1-click studio chaining: send a generated/edited image directly into
+  // Image Edit or Image-to-Video (Start Frame), loading its bytes into
+  // sourceBase64 and clearing the static image prompt for edit/motion input.
+  const sendResultToMode = async (targetMode: 'image-edit' | 'image-to-video', url: string) => {
+    if (!url) return;
+    switchMode(targetMode);
+    setSourcePreview(url);
+    setExtraRefs([]);
+    setPrompt('');
+    setAcceptedDirection(false);
+    setOriginalBeforeImprove(null);
+    setOriginalNegBeforeImprove(null);
+    try {
+      const blob = await (await fetch(url)).blob();
+      const dataUrl: string = await new Promise((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result as string);
+        r.onerror = rej;
+        r.readAsDataURL(blob);
+      });
+      const m = dataUrl.match(/^data:([^;]+);base64,(.*)$/);
+      if (m) {
+        setSourceMime(m[1]);
+        setSourceBase64(m[2]);
+      }
+      requestAnimationFrame(() => promptRef.current?.focus());
+    } catch {
+      setError('Could not load generated image as source. Download and re-upload it.');
+    }
+  };
+
   const handleGenerate = async () => {
     // Dedicated Upscale mode — no prompt; scales the uploaded source up to 16K.
     if (mode === 'upscale') {
@@ -570,6 +603,7 @@ export default function CreativeTools() {
           aspectRatio,
           clientId: selectedClientId || undefined,
           safeZone,
+          useBrandKit,
           enhance: rewritePrompt,
           ...(rewritePrompt ? { depth: promptBoost } : {}),
           ...(stylePackId ? { stylePackId } : {}),
@@ -585,7 +619,7 @@ export default function CreativeTools() {
         generatedUrl = first.assetUrl || first.url || '';
         setResultUrl(generatedUrl);
         setSavedAssetId(first.assetId || null);
-        setProvider(first.provider || '');
+        setProvider(first.model ? `${first.provider}/${first.model}` : (first.provider || ''));
         setLastEnhanced(first.enhancedPrompt || '');
         setGenId(first.generationId || null);
         setExtraResults(ok.slice(1).map((o: any) => ({ url: o.assetUrl || o.url || '', assetId: o.assetId || null })));
@@ -597,6 +631,7 @@ export default function CreativeTools() {
           aspectRatio,
           clientId: selectedClientId || undefined,
           safeZone,
+          useBrandKit,
           enhance: rewritePrompt,
           ...(rewritePrompt ? { depth: promptBoost } : {}),
           ...(effectiveImageSize !== '1K' ? { imageSize: effectiveImageSize } : {}),
@@ -606,7 +641,7 @@ export default function CreativeTools() {
         generatedUrl = out.assetUrl || out.url || '';
         setResultUrl(generatedUrl);
         setSavedAssetId(out.assetId || null);
-        setProvider(out.provider || '');
+        setProvider(out.model ? `${out.provider}/${out.model}` : (out.provider || ''));
         setLastEnhanced(out.enhancedPrompt || '');
         setGenId(out.generationId || null);
       } else {
@@ -621,6 +656,7 @@ export default function CreativeTools() {
           tier: eng.tier,
           clientId: selectedClientId || undefined,
           safeZone,
+          useBrandKit,
           enhance: rewritePrompt,
           ...(rewritePrompt ? { depth: promptBoost } : {}),
           ...(stylePackId ? { stylePackId } : {}),
@@ -631,7 +667,7 @@ export default function CreativeTools() {
           ...(extraRefs.length ? { referenceImages: extraRefs.slice(0, 3).map(r => ({ base64: r.base64, mimeType: r.mimeType })) } : {}),
           // Explicit pick → send its model id; the server maps it to the provider
           // (wan/happyhorse→dashscope, veo/omni→gemini, grok→xai). Auto sends no
-          // model: the server primary (Wan 3.0) runs first, the chain follows.
+          // model: AURA selects the best engine per prompt.
           ...(eng.model ? { model: eng.model } : {}),
           // Only attach the image when in image-to-video mode
           ...(mode === 'image-to-video' ? {
@@ -678,7 +714,7 @@ export default function CreativeTools() {
           if (job.status === 'completed') {
             generatedUrl = job.result?.url || '';
             setResultUrl(generatedUrl);
-            setProvider(job.result?.provider || '');
+            setProvider(job.result?.model ? `${job.result.provider}/${job.result.model}` : (job.result?.provider || ''));
             setLastEnhanced(job.result?.enhancedPrompt || '');
             setGenId(job.result?.generationId || null);
             break;
@@ -742,6 +778,7 @@ export default function CreativeTools() {
       const out = await creativeApi.improvePrompt(prompt.trim(), mode, {
         clientId: selectedClientId || undefined,
         safeZone,
+        useBrandKit,
         hasRefs: extraRefs.length > 0 || !!sourceBase64,
         ...(stylePackId ? { stylePackId } : {}),
         ...engine,
@@ -1148,18 +1185,18 @@ export default function CreativeTools() {
               type="button"
               onClick={handleImprovePrompt}
               disabled={!prompt.trim() || improving || loading}
-              title="Three different takes on your idea, written for the engine you picked."
+              title="Gemini 4 Carbon writes three distinct studio directions for the engine you picked."
               className="flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider hover:bg-[color:var(--color-info-subtle)] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
               style={{ borderColor: 'var(--color-info)', background: 'var(--color-info-subtle)', color: 'var(--color-info)' }}
             >
               {improving
                 ? <Loader2 className="w-3 h-3 animate-spin" />
                 : <PenTool className="w-3 h-3" />}
-              {improving ? 'Thinking...' : 'Suggest 3 directions'}
+              {improving ? 'Carbon thinking...' : 'Suggest 3 directions · Carbon'}
             </button>
           </div>
           <p className="text-[10px] mb-2" style={{ color: 'var(--color-fg-muted)' }}>
-            Three different takes on your idea. Nothing is generated and your prompt stays untouched until you pick one.
+            Gemini 4 Carbon writes 3 engine-native takes preserving your exact copy and #HEX palette. Nothing renders until you pick one.
           </p>
           <div className="relative">
             <textarea
@@ -1576,6 +1613,27 @@ export default function CreativeTools() {
           </div>
           )}
 
+          {mode !== 'upscale' && currentClient && (
+          <div>
+            <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Brand kit</label>
+            <div className="mt-2">
+              <button
+                type="button"
+                onClick={() => setUseBrandKit(v => !v)}
+                title="Off by default so general creative prompts stay pure. Turn on to infuse this client's brand palette and look-and-feel."
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                  useBrandKit ? '' : 'bg-white/[0.03] text-zinc-500 border-white/[0.06] hover:border-white/[0.1]'
+                }`}
+                style={useBrandKit
+                  ? { background: 'var(--color-accent-subtle)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' }
+                  : undefined}
+              >
+                {useBrandKit ? `✓ Apply ${currentClient.name} brand kit` : `Apply ${currentClient.name} brand kit`}
+              </button>
+            </div>
+          </div>
+          )}
+
           {/* B2 — generate several at once (text-to-image) to compare */}
           {mode === 'text-to-image' && (
             <div>
@@ -1663,7 +1721,7 @@ export default function CreativeTools() {
                   price is just that engine's rate × duration. No hidden tier. */}
               {(() => {
                 const rate = perSecondRate(videoPick, videoRes);
-                const name = videoPick.value === 'auto' ? 'Auto (Wan 3.0 first)' : videoPick.label;
+                const name = videoPick.value === 'auto' ? 'Auto (AURA Smart Pick)' : videoPick.label;
                 // Cost line is owner/admin/accounting only; everyone else still
                 // sees which engine and how long the clip is, just no money.
                 return (
@@ -1744,7 +1802,7 @@ export default function CreativeTools() {
                   <button
                     type="button"
                     onClick={() => videoRefInputRef.current?.click()}
-                    title="Attach up to 3 images of the exact product/subject. Veo keeps them consistent (8s clips)"
+                    title="Attach up to 3 images of the exact product/subject. Wan 3.0 & HappyHorse keep them consistent across the clip"
                     className="w-9 h-9 rounded-lg border border-dashed border-white/[0.12] text-zinc-500 text-sm hover:border-white/[0.25] hover:text-zinc-300 transition-colors"
                   >+</button>
                 )}
@@ -1773,7 +1831,7 @@ export default function CreativeTools() {
                 />
               </div>
               {extraRefs.length > 0 && (
-                <p className="text-[10px] mt-1.5 text-zinc-600">Subject kept consistent · 8s clip · Veo</p>
+                <p className="text-[10px] mt-1.5 text-zinc-600">Subject kept consistent · Multi-reference conditioning (Wan 3.0 / HappyHorse)</p>
               )}
             </div>
           )}
@@ -1891,6 +1949,28 @@ export default function CreativeTools() {
                   </span>
                 )}
                 {provider && <span className="text-[10px] text-zinc-600">via {provider}</span>}
+                {modeDef.outputType === 'image' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => void sendResultToMode('image-edit', resultUrl)}
+                      title="Open this image in Image Edit to refine, retouch, or modify details"
+                      className="flex items-center gap-1 text-[10px] hover:opacity-80 border rounded-md px-2 py-0.5 transition-opacity"
+                      style={{ color: 'var(--color-accent)', background: 'var(--color-accent-subtle)', borderColor: 'var(--color-accent)' }}
+                    >
+                      <Edit3 className="w-3 h-3" /> Edit image
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void sendResultToMode('image-to-video', resultUrl)}
+                      title="Use this image as Start Frame in Image to Video"
+                      className="flex items-center gap-1 text-[10px] hover:opacity-80 border rounded-md px-2 py-0.5 transition-opacity"
+                      style={{ color: 'var(--color-info)', background: 'var(--color-info-subtle)', borderColor: 'var(--color-info)' }}
+                    >
+                      <Film className="w-3 h-3" /> Animate
+                    </button>
+                  </>
+                )}
                 <a
                   href={resultUrl}
                   download

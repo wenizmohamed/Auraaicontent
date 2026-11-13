@@ -18,15 +18,15 @@ import { chatText, type ProviderName } from '../services/llm/chat.js';
 import { enrichWithKnowledge } from '../lib/knowledge-enricher.js';
 import { enrichWithMemory } from '../lib/memory-enricher.js';
 import { enrichWithBrandKit } from '../lib/brand-kit-enricher.js';
+import { enhanceCreativePrompt } from '../services/prompt-enhancer.service.js';
 
 // A non-system chat turn passed to the LLM: plain text, or (user only) an
 // OpenAI multimodal parts array.
 type AssistantTurn = ChatCompletionUserMessageParam | ChatCompletionAssistantMessageParam;
 
 // ─── Assistant LLM ───────────────────────────────────────────────
-// 2026-04-23: Weni's directive — Gemini 3.1 Pro is PRIMARY (Radix
-// company-card key), Grok is fallback, Kimi K2 tertiary. The chain is
-// implemented in services/llm/chat.ts → chatText().
+// 2026-11-13: Weni's directive: Gemini 4 Argon is PRIMARY on AURA Chat,
+// Vertex AI (Gemini 4 Argon) is hop 2, xAI Grok / Alibaba Qwen / Kimi follow.
 async function callAssistantLLM(
   system: string,
   // content is string for plain turns, or an OpenAI multimodal parts array
@@ -34,12 +34,10 @@ async function callAssistantLLM(
   messages: AssistantTurn[],
   meta?: { orgId?: string; userId?: string; clientId?: string },
 ): Promise<{ text: string; provider: ProviderName; model: string; latencyMs: number; fallbackUsed: boolean }> {
-  // 4096 budget: Gemini 3 / Kimi K2 are thinking models that may burn
-  // 500-2K tokens on reasoning_content BEFORE emitting visible content.
-  // 2048 was getting truncated to empty on complex prompts; 4096 gives
-  // ~2K output headroom after reasoning overhead.
+  // 8192 budget: Gemini 4 Argon uses deep internal reasoning tokens before
+  // emitting visible content, so 8192 gives generous output headroom.
   const r = await chatText({
-    max_tokens: 4096,
+    max_tokens: 8192,
     messages: [{ role: 'system', content: system }, ...messages],
   }, { chainEnv: process.env.ASSISTANT_PROVIDER_CHAIN, meta });
   console.log(`[assistant] ${r.provider}/${r.model} ${r.latencyMs}ms${r.fallbackUsed ? ' (fallback)' : ''}, ${r.text.length} chars`);
@@ -90,6 +88,7 @@ interface ActionParams {
   query?: string;
   limit?: number;
   prompt?: string;
+  mode?: string;
   postId?: string;
   caption?: string;
   status?: string;
@@ -98,7 +97,7 @@ interface ActionParams {
 
 // ─── System Prompt ───────────────────────────────────────────────
 
-const RADIX_PERSONA = `You are **AURAAI**. The AI assistant inside AURAAI Content Planner, a premium content planning tool for agencies and brands.
+const RADIX_PERSONA = `You are **AURA**. The AI assistant inside AURA Content Planner, a premium content planning tool for agencies and brands.
 
 PERSONALITY:
 - Sharp, direct, and efficient. Like a senior content strategist at a top Dubai agency
@@ -269,12 +268,27 @@ async function executeAction(orgId: string, action: string, params: ActionParams
     case 'improve_prompt': {
       const prompt = params?.prompt || '';
       if (!prompt) return { error: 'prompt text is required' };
-      const improved = await callAssistantLLM(
-        'You are a creative director. Improve the given image/video generation prompt to be more vivid, specific, and visually compelling. Return ONLY the improved prompt, nothing else.',
-        [{ role: 'user', content: prompt }],
-        { orgId, userId, clientId: clientId || undefined },
-      );
-      return { original: prompt, improved: improved.text.trim() };
+      const mode = params?.mode === 'text-to-video' || params?.mode === 'image-to-video' || params?.mode === 'image-edit'
+        ? params.mode
+        : 'text-to-image';
+      try {
+        const res = await enhanceCreativePrompt({
+          prompt,
+          mode,
+          orgId,
+          userId,
+          clientId: clientId || undefined,
+          useBrandKit: Boolean(clientId),
+        });
+        return { original: prompt, improved: res.prompt, negativePrompt: res.negativePrompt || null, provider: res.provider, model: res.model };
+      } catch {
+        const improved = await callAssistantLLM(
+          'You are AURA Creative Director. Rewrite the given image or video prompt into one crisp, specific, production-grade studio prompt. Never use em-dashes or en-dashes. Return ONLY the improved prompt, nothing else.',
+          [{ role: 'user', content: prompt }],
+          { orgId, userId, clientId: clientId || undefined },
+        );
+        return { original: prompt, improved: improved.text.trim(), provider: improved.provider, model: improved.model };
+      }
     }
 
     case 'delete_calendar': {
@@ -498,6 +512,7 @@ export async function assistantRoutes(app: FastifyInstance) {
       let actionTaken: AgentAction | undefined;
       let totalLatency = Date.now() - start;
       let providerUsed = pass1.provider as string;
+      let modelUsed = pass1.model;
 
       // Check if the response is an action JSON.  Gemini frequently wraps
       // JSON in ```json ... ``` markdown fences; strip those defensively
@@ -539,6 +554,7 @@ export async function assistantRoutes(app: FastifyInstance) {
           responseText = pass2.text.trim();
           totalLatency = Date.now() - start;
           providerUsed = pass2.provider as string;
+          modelUsed = pass2.model;
         }
       } catch {
         // Not JSON — it's a plain text response, which is fine
@@ -548,6 +564,7 @@ export async function assistantRoutes(app: FastifyInstance) {
         message: { role: 'assistant' as const, content: responseText },
         action: actionTaken,
         provider: providerUsed,
+        model: modelUsed,
         latencyMs: totalLatency,
       };
       await saveTurn(orgId, request.user?.userId, turnId, payload);

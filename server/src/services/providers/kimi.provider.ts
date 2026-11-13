@@ -19,7 +19,7 @@
 import OpenAI from 'openai';
 
 const BASE_URL = process.env.MOONSHOT_BASE_URL || 'https://api.moonshot.ai/v1';
-const MODEL = process.env.MOONSHOT_MODEL || 'kimi-k2.6';
+const MODEL = process.env.MOONSHOT_MODEL || 'kimi-k3.1-pro-highspeed';
 
 let _client: OpenAI | null = null;
 
@@ -42,7 +42,8 @@ export async function callKimi(
   const start = Date.now();
   const r = await client.chat.completions.create({
     model: MODEL,
-    max_tokens: maxTokens,
+    max_tokens: Math.max(maxTokens, 2048),
+    temperature: 1,
     messages: [{ role: 'system', content: system }, ...messages],
     ...(json ? { response_format: { type: 'json_object' as const } } : {}),
   });
@@ -64,7 +65,7 @@ export async function callKimi(
 // base (the old moonshot-v1-128k id died with the api.moonshot.ai key).
 // Perfect for: full calendar history + brief + competitor scrape in one call,
 // or long KB documents that don't fit in Gemini 3's 1M with reasoning room.
-const LONG_MODEL = process.env.MOONSHOT_LONG_MODEL || 'k3';
+const LONG_MODEL = process.env.MOONSHOT_LONG_MODEL || 'kimi-k3.1-pro';
 
 export async function callKimiLong(
   system: string,
@@ -75,7 +76,8 @@ export async function callKimiLong(
   const start = Date.now();
   const r = await client.chat.completions.create({
     model: LONG_MODEL,
-    max_tokens: maxTokens,
+    max_tokens: Math.max(maxTokens, 4096),
+    temperature: 1,
     messages: [
       { role: 'system', content: system },
       { role: 'user', content: prompt },

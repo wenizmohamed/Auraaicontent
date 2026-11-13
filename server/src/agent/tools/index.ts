@@ -17,6 +17,9 @@ import { tool as webResearch } from './web_research.js';
 import { tool as postSchedule } from './post_schedule.js';
 import { tool as briefSave } from './brief_save.js';
 import { tool as videoGenerate } from './video_generate.js';
+import { tool as imageEdit } from './image_edit.js';
+import { tool as promptImprove } from './prompt_improve.js';
+import { tool as brandMemorySave } from './brand_memory_save.js';
 import type { Tool } from '../tool-types.js';
 
 // Cast each typed tool to the erased registry type. Runtime behavior is
@@ -37,6 +40,9 @@ export const TOOLS: AnyTool[] = [
   complianceCheck as unknown as AnyTool,
   clientSwitch as unknown as AnyTool,
   imageGenerate as unknown as AnyTool,
+  imageEdit as unknown as AnyTool,
+  promptImprove as unknown as AnyTool,
+  brandMemorySave as unknown as AnyTool,
   competitorScrape as unknown as AnyTool,
   visualSearch as unknown as AnyTool,
   calendarRead as unknown as AnyTool,

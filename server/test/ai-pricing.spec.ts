@@ -84,7 +84,17 @@ const REQUIRED_MODELS = [
   'happyhorse-1.0-video-edit', 'happyhorse-1.0-video-edit:1080p',
   // Vertex AI serves the same Gemini model ids on the same price card, so
   // those rows must already exist (they are listed above under Gemini).
-  'gemini-3.8-flash', 'gemini-nano-banana-2.1', 'gemini-3-pro-image',
+  'gemini-4-argon', 'gemini-4-carbon', 'gemini-4-hydrogen', 'gemini-3.8-flash', 'gemini-nano-banana-2.1', 'gemini-3-pro-image',
+  'gemini-omni-1.2-flash', 'gemini-omni-1.1-flash', 'gemini-omni-flash-preview',
+  // 2026-11-12: Anthropic Claude 5.5 + xAI Grok 2.0 tiered image resolution rows + Kimi K3.1
+  'claude-sonnet-5-5', 'claude-opus-5-5', 'claude-sonnet-4-6', 'claude-haiku-5-5',
+  'grok-imagine-image-2.0:1k', 'grok-imagine-image-2.0:2k',
+  'grok-imagine-video-1.5-lite', 'grok-imagine-video-1.5-lite:1080p',
+  'kimi-k3.1-pro-highspeed', 'kimi-k3.1-pro', 'kimi-k3',
+  // 2026-11-12: MiniMax M Plan (H3 2K video, H3-Image 4K, Image-01, M3 text)
+  'MiniMax-H3', 'MiniMax-H3:1080p', 'MiniMax-H3:2k', 'MiniMax-H3-Max', 'MiniMax-H3-Max:480p',
+  'MiniMax-H3-Image', 'MiniMax-H3-Image-Highspeed', 'image-01',
+  'MiniMax-M3', 'MiniMax-M3.1-Flash',
 ];
 
 describe('ai-pricing coverage', () => {

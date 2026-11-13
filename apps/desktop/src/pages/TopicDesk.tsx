@@ -974,7 +974,7 @@ export default function TopicDesk() {
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `radix_topics_${new Date().toISOString().slice(0, 10)}.json`;
+                a.download = `aura_topics_${new Date().toISOString().slice(0, 10)}.json`;
                 a.click();
                 URL.revokeObjectURL(url);
               }}
@@ -989,7 +989,7 @@ export default function TopicDesk() {
               {(['gemini', 'claude'] as AIProvider[]).map(p => (
                 <button key={p} onClick={() => setAIProvider(p)}
                   className={`px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider transition-all ${aiProvider === p ? 'bg-violet-500/20 text-violet-400' : 'text-zinc-600 hover:text-zinc-400'}`}>
-                  {p === 'gemini' ? '✦ Gemini' : '◆ Claude'}
+                  {p === 'gemini' ? '✦ Gemini 4 Argon' : '◆ Gemini 4 Carbon'}
                 </button>
               ))}
             </div>

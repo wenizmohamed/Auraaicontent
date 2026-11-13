@@ -76,7 +76,7 @@ export async function adminRoutes(app: FastifyInstance) {
   app.delete<{ Params: { orgId: string } }>('/orgs/:orgId', async (request, reply) => {
     const { orgId } = request.params;
     if (PROTECTED_ORG_IDS.has(orgId)) {
-      return reply.status(400).send({ error: 'This is the primary AURAAI workspace — it cannot be deleted.' });
+      return reply.status(400).send({ error: 'This is the primary AURA workspace — it cannot be deleted.' });
     }
     if (orgId === request.orgId) {
       return reply.status(400).send({ error: "You can't delete the workspace you're currently signed into. Switch workspaces first, then delete." });
@@ -650,6 +650,7 @@ export async function adminRoutes(app: FastifyInstance) {
         if (m.startsWith('gemini') || m.startsWith('imagen') || m.startsWith('veo')) return 'gemini';
         if (m.startsWith('grok') || m.startsWith('xai-') || m.startsWith('x-ai')) return 'xai';
         if (m.startsWith('kimi') || m.startsWith('moonshot')) return 'kimi';
+        if (m.startsWith('minimax') || m.startsWith('hailuo') || m === 'image-01') return 'minimax';
         if (m.startsWith('qwen') || m.startsWith('wan') || m.startsWith('happyhorse')) return 'dashscope';
         if (m.startsWith('gpt') || m.startsWith('o1') || m.startsWith('o3') || m.startsWith('openai')) return 'openai';
         if (m.startsWith('claude') || m.startsWith('anthropic')) return 'anthropic';

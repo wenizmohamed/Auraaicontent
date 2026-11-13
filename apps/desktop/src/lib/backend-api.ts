@@ -511,9 +511,9 @@ export const apiKeysApi = {
 // ─── Creative ────────────────────────────────────────────────────
 
 export const creativeApi = {
-  generateImage: (data: { prompt: string; aspectRatio?: string; clientId?: string; model?: string; provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex'; quality?: 'standard' | 'ultra'; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K'; enhance?: boolean; depth?: 'raw' | 'low' | 'medium' | 'high'; stylePackId?: string }) =>
+  generateImage: (data: { prompt: string; aspectRatio?: string; clientId?: string; model?: string; provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax'; quality?: 'standard' | 'ultra'; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K'; enhance?: boolean; depth?: 'raw' | 'low' | 'medium' | 'high'; stylePackId?: string; useBrandKit?: boolean }) =>
     request<any>('/api/creative/images/generate', { method: 'POST', body: JSON.stringify(data) }, { timeoutMs: 290000 }),  // under nginx's 300s /api/ budget; Qwen multi-reference 2K edits can pass 120s
-  editImage: (data: { prompt: string; imageBase64: string; mimeType?: string; aspectRatio?: string; clientId?: string; model?: string; provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex'; referenceImages?: { base64: string; mimeType: string; role?: 'content' | 'style' | 'character' }[]; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K'; enhance?: boolean; depth?: 'raw' | 'low' | 'medium' | 'high' }) =>
+  editImage: (data: { prompt: string; imageBase64: string; mimeType?: string; aspectRatio?: string; clientId?: string; model?: string; provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax'; referenceImages?: { base64: string; mimeType: string; role?: 'content' | 'style' | 'character' }[]; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K'; enhance?: boolean; depth?: 'raw' | 'low' | 'medium' | 'high'; useBrandKit?: boolean }) =>
     request<any>('/api/creative/images/edit', { method: 'POST', body: JSON.stringify(data) }, { timeoutMs: 290000 }),  // under nginx's 300s /api/ budget; Qwen multi-reference 2K edits can pass 120s
   // Teach-the-AI thumbs (2026-07-14): records a win/miss memory for the client
   // so future enhancements/generations lean toward or away from this style.
@@ -521,53 +521,45 @@ export const creativeApi = {
     request<{ ok: boolean; memoryId: string | null }>('/api/creative/feedback', { method: 'POST', body: JSON.stringify({ generationId, liked }) }),
   // Upscaler up to 16K (2026-07-14). Source = a saved result URL (assetUrl/url)
   // or base64. Fast (sharp Lanczos) by default; ai tier when funded.
-  upscale: (data: { sourceUrl?: string; imageBase64?: string; mimeType?: string; scale?: 2 | 4 | 8; targetLongEdge?: number; format?: 'png' | 'jpeg' | 'auto'; mode?: 'fast' | 'ai'; model?: string; provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex'; clientId?: string }) =>
+  upscale: (data: { sourceUrl?: string; imageBase64?: string; mimeType?: string; scale?: 2 | 4 | 8; targetLongEdge?: number; format?: 'png' | 'jpeg' | 'auto'; mode?: 'fast' | 'ai'; model?: string; provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax'; clientId?: string }) =>
     request<{ assetUrl: string; fileUrl: string; width: number; height: number; scale: number; provider: string; format: string; bytes: number; assetId: string | null }>('/api/creative/images/upscale', { method: 'POST', body: JSON.stringify(data) }, { timeoutMs: 150000 }),
   generateVideo: (data: {
     prompt: string;
     aspectRatio?: string;
     durationSeconds?: number;
     resolution?: string;
-    // Video cost tiering (design 2026-06-03): draft → Grok ($0.03/s),
-    // hd → veo-3.1-fast ($0.20/s). Default 'draft' on the server.
     tier?: 'draft' | 'hd';
     clientId?: string;
     imageBase64?: string;
     mimeType?: string;
-    // Workshop 2026-05-06 #3 (Haneen): explicit start + end frame controls
     startImageBase64?: string;
     startMimeType?: string;
     endImageBase64?: string;
     endMimeType?: string;
     safeZone?: boolean;
-    // Merged with Veo's default stability negatives server-side.
     negativePrompt?: string;
-    // Veo asset refs ("ingredients to video") — product/subject stays
-    // consistent. Max 3; forces an 8s clip.
     referenceImages?: { base64: string; mimeType: string }[];
-    // Video engine override (e.g. 'gemini-omni-flash-preview').
     model?: string;
-    // Auto pro-prompt (server-side enhancer). Default true; false opts out.
+    provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax';
     enhance?: boolean;
-    // Enhancer depth dial: raw = translate-only (never reinterprets wording).
     depth?: 'raw' | 'low' | 'medium' | 'high';
-    // Curated Style Pack id (server-side design contracts).
     stylePackId?: string;
+    useBrandKit?: boolean;
   }) =>
     request<{ jobId: string }>('/api/creative/videos/generate', { method: 'POST', body: JSON.stringify(data) }, { timeoutMs: 120000 }),  // route answers in ~1s now; headroom for a slow DB
   stylePacks: () =>
     request<{ packs: { id: string; name: string; tagline: string; category: string; palette: string[] }[] }>('/api/creative/style-packs'),
   getJob: (jobId: string) =>
     request<{ id: string; status: string; progress: number; result?: any; error?: string }>(`/api/creative/jobs/${jobId}`),
-  improvePrompt: (prompt: string, mode?: string, opts?: { clientId?: string; safeZone?: boolean; hasRefs?: boolean; stylePackId?: string; provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex'; model?: string; depth?: 'raw' | 'low' | 'medium' | 'high' }) =>
-    request<{ original: string; improved: string; negativePrompt: string | null; variants?: { label: string; prompt: string; negativePrompt?: string }[]; mode: string | null; provider: string; latencyMs: number }>(
+  improvePrompt: (prompt: string, mode?: string, opts?: { clientId?: string; safeZone?: boolean; hasRefs?: boolean; stylePackId?: string; provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax'; model?: string; depth?: 'raw' | 'low' | 'medium' | 'high'; useBrandKit?: boolean }) =>
+    request<{ original: string; improved: string; negativePrompt: string | null; variants?: { label: string; prompt: string; negativePrompt?: string }[]; mode: string | null; provider: string; model?: string; latencyMs: number }>(
       '/api/creative/prompt/improve',
       { method: 'POST', body: JSON.stringify({ prompt, mode, ...(opts || {}) }) },
       { timeoutMs: 60000 },
     ),
 };
 
-// ─── Changelog (What's new on Radix AI) ─────────────────────────
+// ─── Changelog (What's new on AURAAI) ───────────────────────────
 
 export interface ChangelogEntry { date: string; tag: 'new' | 'improved' | 'fixed'; title: string; body: string }
 export const changelogApi = {
@@ -659,7 +651,7 @@ export const assistantApi = {
   // `signal` lets the caller abort an in-flight agent run (Stop button).
   // `attachments` = files on the latest user turn (images → vision model).
   chat: (messages: ChatMessage[], clientId?: string, signal?: AbortSignal, attachments?: { dataUrl: string; mimeType: string; name?: string; kind?: 'image' | 'video' | 'doc' }[], turnId?: string) =>
-    request<{ message: ChatMessage; action?: { type: string; params: Record<string, any>; result: any }; provider: string; latencyMs: number }>(
+    request<{ message: ChatMessage; action?: { type: string; params: Record<string, any>; result: any }; provider: string; model?: string; latencyMs: number }>(
       '/api/assistant/chat', { method: 'POST', body: JSON.stringify({ messages, clientId, attachments, turnId }), signal }, { timeoutMs: 120000 }
     ),
   // The widget transcript, saved per user so it follows them across devices.
@@ -671,7 +663,7 @@ export const assistantApi = {
     ),
   // Collect a chat reply by turn id (it is kept server-side when a turnId was sent).
   getTurn: (turnId: string) =>
-    request<{ ready: boolean; turn?: { turnId: string; message?: ChatMessage; action?: { type: string; params: Record<string, any>; result: any }; provider?: string; latencyMs?: number; error?: string } }>(
+    request<{ ready: boolean; turn?: { turnId: string; message?: ChatMessage; action?: { type: string; params: Record<string, any>; result: any }; provider?: string; model?: string; latencyMs?: number; error?: string } }>(
       `/api/assistant/turns/${encodeURIComponent(turnId)}`,
     ),
 };

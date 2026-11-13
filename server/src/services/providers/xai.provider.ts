@@ -158,7 +158,9 @@ export const xaiProvider: AiProvider = {
   },
 
   async image(req: ImageRequest): Promise<ProviderResult<{ url?: string; base64?: string }>> {
-    const model = process.env.XAI_IMAGE_MODEL || 'grok-imagine-image-2.0';
+    const model = (req.model && /^grok-imagine-image/i.test(req.model))
+      ? req.model
+      : (process.env.XAI_IMAGE_MODEL || 'grok-imagine-image-2.0');
     const start = Date.now();
     // aspect_ratio: xAI enum verified live 2026-07-02 —
     // 1:1, 3:4, 4:3, 9:16, 16:9, 2:3, 3:2, 9:19.5, 19.5:9. Map the nano-only
@@ -168,36 +170,43 @@ export const xaiProvider: AiProvider = {
     const ar = req.aspectRatio
       ? (GROK_ASPECTS.has(req.aspectRatio) ? req.aspectRatio : GROK_NEAREST[req.aspectRatio])
       : undefined;
-    // b64_json (verified live): xAI's hosted image URLs are ephemeral — base64
-    // goes straight into our own storage like the Gemini path, so gallery
-    // images can't rot when xAI's link expires.
+    const isV2 = /2\.0/.test(model);
+    const resTier: '1k' | '2k' = req.imageSize === '1K' ? '1k' : '2k';
+    // b64_json + resolution: "2k" (verified live 2026-11-12: returns crisp 2K PNG
+    // in ~14s without `quality`, whereas `quality: "medium"` times out >60s).
     const data = await xaiFetch('/images/generations', {
       model, prompt: req.prompt, n: req.n ?? 1,
       response_format: 'b64_json',
+      ...(isV2 ? { resolution: resTier } : {}),
       ...(ar ? { aspect_ratio: ar } : {}),
-    });
+    }, { signal: req.signal });
     const b64 = data.data?.[0]?.b64_json;
     const url = data.data?.[0]?.url;
     if (!b64 && !url) throw new AiProviderError('xai', 'image', 'empty image response', 503);
+    const billedModel = isV2 ? `${model}:${resTier}` : model;
     return {
-      provider: 'xai', model, latencyMs: Date.now() - start, fallbackUsed: false,
+      provider: 'xai', model: billedModel, latencyMs: Date.now() - start, fallbackUsed: false,
       output: b64 ? { base64: b64 } : { url },
       ...xaiUsage(data),
     };
   },
 
   async imageEdit(req: ImageRequest): Promise<ProviderResult<{ url?: string; base64?: string }>> {
-    const model = process.env.XAI_IMAGE_MODEL || 'grok-imagine-image-2.0';
+    const model = (req.model && /^grok-imagine-image/i.test(req.model))
+      ? req.model
+      : (process.env.XAI_IMAGE_MODEL || 'grok-imagine-image-2.0');
     const start = Date.now();
     const data = await xaiFetch('/images/edits', {
       model, prompt: req.prompt,
+      response_format: 'b64_json',
       image: { url: `data:${req.mimeType};base64,${req.imageBase64}`, type: 'image_url' },
     });
+    const b64 = data.data?.[0]?.b64_json;
     const url = data.data?.[0]?.url ?? data.url;
-    if (!url) throw new AiProviderError('xai', 'imageEdit', 'empty image-edit response', 503);
+    if (!b64 && !url) throw new AiProviderError('xai', 'imageEdit', 'empty image-edit response', 503);
     return {
       provider: 'xai', model, latencyMs: Date.now() - start, fallbackUsed: false,
-      output: { url },
+      output: b64 ? { base64: b64 } : { url },
       ...xaiUsage(data),
     };
   },
@@ -210,23 +219,17 @@ export const xaiProvider: AiProvider = {
     // 2026-08-14): only base + 1.5 exist; '-fast' and '-2' stay removed.
     const ladder = readLadder('XAI_VIDEO_LADDER', [
       process.env.XAI_VIDEO_MODEL || 'grok-imagine-video-1.5',
+      'grok-imagine-video-1.5-lite',
       'grok-imagine-video',
     ]);
-    // Honor req.fast (drafts): pull grok-imagine-video-fast ($0.03/s) ahead of
-    // the standard model so the cheap/fast variant runs first. Keeps the rest of
-    // the ladder order intact as fallbacks. Default (fast falsy) is unchanged.
-    if (req.fast) {
-      ladder.sort((a, b) => {
-        const fa = a.model.includes('-fast') ? 0 : 1;
-        const fb = b.model.includes('-fast') ? 0 : 1;
-        return fa - fb;
-      });
-    }
-    // Image-to-video: grok-imagine-video-1.5 is the i2v-capable model (the base
-    // grok-imagine-video is text-to-video only, 400s on a start frame). Run 1.5
-    // first whenever a source/start frame is present.
     if (req.startImageBase64 || req.imageBase64) {
       ladder.sort((a, b) => (a.model.includes('1.5') ? 0 : 1) - (b.model.includes('1.5') ? 0 : 1));
+    }
+    if (req.model && /^grok-imagine-video/i.test(req.model)) {
+      const pinned = req.model;
+      const rest = ladder.filter(e => e.model !== pinned);
+      ladder.length = 0;
+      ladder.push({ model: pinned }, ...rest);
     }
     const start = Date.now();
     // Frame conditioning (2026-06-04 fix): a SOURCE/START frame must go in xAI's
@@ -249,12 +252,23 @@ export const xaiProvider: AiProvider = {
         ? { reference_images: req.referenceImageUrls.map(url => ({ url })) }
         : {};
 
+    const cleanedPrompt = req.prompt
+      .replace(/^\s*(?:\d+:\d+\s+(?:square|vertical|portrait|widescreen|landscape|cinematic)\s+aspect\s+ratio\.?\s*)/i, '')
+      .trim() || req.prompt;
+
+    let usedRes = '1080p';
     const ladderResult = await runModelLadder('xai', 'video', ladder, async (entry) => {
+      const isLite = entry.model.includes('lite');
+      const rawRes = req.resolution === '4k' ? '1080p' : req.resolution;
+      const effectiveRes = rawRes
+        ? (rawRes === '1080p' && isLite ? '720p' : rawRes)
+        : (isLite ? '720p' : '1080p');
+      usedRes = effectiveRes;
       const data = await xaiFetch('/videos/generations', {
-        model: entry.model, prompt: req.prompt,
+        model: entry.model, prompt: cleanedPrompt,
         duration: req.durationSeconds ?? 8,
         aspect_ratio: req.aspectRatio ?? '16:9',
-        resolution: req.resolution ?? '720p',
+        resolution: effectiveRes,
         ...imageField,
       });
       return await pollVideo(data.request_id);
@@ -278,8 +292,7 @@ export const xaiProvider: AiProvider = {
     }
     // Billing id carries the resolution tier (720p = bare id) so the meter
     // prices the clip at the rate xAI actually charges (see ai-pricing.ts).
-    const res = req.resolution ?? '720p';
-    const billedModel = res === '720p' ? ladderResult.modelUsed : `${ladderResult.modelUsed}:${res}`;
+    const billedModel = usedRes === '720p' ? ladderResult.modelUsed : `${ladderResult.modelUsed}:${usedRes}`;
     return { provider: 'xai', model: billedModel, latencyMs: Date.now() - start, fallbackUsed: false, output: { url } };
   },
 

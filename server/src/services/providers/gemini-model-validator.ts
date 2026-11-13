@@ -119,16 +119,21 @@ export async function runValidation(): Promise<{ ok: string[]; dead: string[]; s
     }
   }
 
-  // 2) Video: Omni lives on the Interactions API, the Veo-style endpoint does
-  //    not serve it. Probe Omni on its own path, any other id on the Veo path.
+  // 2) Video: check ListModels first ($0 cost — stops burning real Omni video
+  //    render credits on every server restart). Only hit the live endpoint if
+  //    Google hid the id from ListModels.
   for (const varName of TRACKED_VIDEO_VARS) {
     const value = process.env[varName];
     if (!value) { skipped.push(varName); continue; }
     if (!seen.has(value)) {
-      const alive = /omni/i.test(value)
-        ? await pingOmniModel(apiKey, value)
-        : await pingVideoModel(apiKey, value);
-      seen.set(value, { alive, status: alive ? 200 : 404 });
+      if (liveSet.has(value)) {
+        seen.set(value, { alive: true, status: 200 });
+      } else {
+        const alive = /omni/i.test(value)
+          ? await pingOmniModel(apiKey, value)
+          : await pingVideoModel(apiKey, value);
+        seen.set(value, { alive, status: alive ? 200 : 404 });
+      }
     }
     if (seen.get(value)!.alive) {
       ok.push(`${varName}=${value}`);
@@ -223,13 +228,13 @@ async function pingModel(apiKey: string, model: string): Promise<{ alive: boolea
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${apiKey}`;
   try {
     const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 5000);
+    const t = setTimeout(() => ctrl.abort(), 8000);
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ parts: [{ text: 'ok' }] }],
-        generationConfig: { maxOutputTokens: 1 },
+        generationConfig: { maxOutputTokens: 64 },
       }),
       signal: ctrl.signal,
     });

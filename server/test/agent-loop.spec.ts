@@ -224,8 +224,18 @@ describe('tool registry', () => {
     }
   });
 
-  it('registers the four new tools by their fixed names', () => {
-    for (const name of ['calendar_read', 'asset_search', 'web_research', 'post_schedule']) {
+  it('registers the core and creative/memory tools by their fixed names', () => {
+    for (const name of [
+      'calendar_read',
+      'asset_search',
+      'web_research',
+      'post_schedule',
+      'image_generate',
+      'image_edit',
+      'prompt_improve',
+      'brand_memory_save',
+      'video_generate',
+    ]) {
       expect(TOOL_BY_NAME[name], `missing tool: ${name}`).toBeDefined();
     }
   });

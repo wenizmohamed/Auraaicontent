@@ -1,6 +1,8 @@
 import { defineTool } from '../tool-types.js';
 import { aiRouter } from '../../services/providers/ai-router.js';
 import { storageService } from '../../services/storage.service.js';
+import { historyService } from '../../services/history.service.js';
+import { enhanceCreativePrompt, engineForModel, selectBestCreativeEngine } from '../../services/prompt-enhancer.service.js';
 
 type AspectRatio = '1:1' | '4:5' | '9:16' | '16:9';
 
@@ -9,6 +11,10 @@ interface Args {
   platform?: string;
   aspectRatio?: AspectRatio;
   quality?: 'standard' | 'ultra';
+  model?: string;
+  name?: string;
+  tags?: string[];
+  useBrandKit?: boolean;
   clientId?: string;
 }
 
@@ -51,26 +57,44 @@ function sniffMime(buf: Buffer): 'image/png' | 'image/jpeg' {
 export const tool = defineTool<Args, Result>({
   name: 'image_generate',
   description:
-    'Generate an image via the AURAAI router (xAI / Gemini). ' +
-    'Saves to uploads/, creates an Asset row tied to the active client, ' +
-    'and emits an agent:artifact event so the UI previews it inline.',
+    'Generate ONE standalone studio-grade image frame via AURA Creative Router (Gemini 3 Pro Image, Nano Banana 2.1, MiniMax H3-Image 4K, Qwen Image 3.0 Pro, Wan 2.7 Image Pro, Grok Imagine 2.0). ' +
+    'Automatically enhances the prompt via Gemini 4 Carbon and selects the optimal engine unless model is specified. ' +
+    'For multi-slide carousels, call image_generate ONCE PER SLIDE (e.g. aspectRatio="4:5", name="Slide 01 - Cover") describing only that single slide. ' +
+    'Saves to /uploads/, creates an Asset row when a client is active, and emits an agent:artifact preview.',
   input_schema: {
     type: 'object',
     properties: {
-      prompt: { type: 'string', description: 'Image description' },
+      prompt: { type: 'string', description: 'Single-frame image description or creative brief (include exact copy in double quotes and #HEX palette if needed)' },
       platform: {
         type: 'string',
-        description: 'Target platform (instagram, tiktok, linkedin, ...) — used for tagging',
+        description: 'Target platform (instagram, tiktok, linkedin, ...) - used for tagging',
       },
       aspectRatio: {
         type: 'string',
         enum: ['1:1', '4:5', '9:16', '16:9'],
-        description: 'Defaults to 1:1',
+        description: 'Defaults to 1:1 (use 4:5 for Instagram feed/carousel slides, 9:16 for Stories/Reels)',
       },
       quality: {
         type: 'string',
         enum: ['standard', 'ultra'],
-        description: 'Ultra routes to imagen-4.0-ultra on Gemini',
+        description: 'Ultra renders high-resolution 2K/4K output',
+      },
+      model: {
+        type: 'string',
+        description: 'Optional engine override (gemini-3-pro-image, gemini-nano-banana-2.1, MiniMax-H3-Image, qwen-image-3.0-pro, wan2.7-image-pro, grok-imagine-image-2.0)',
+      },
+      name: {
+        type: 'string',
+        description: 'Optional clear asset name in the Gallery (e.g. "Carousel Slide 01 - Cover")',
+      },
+      tags: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Optional Gallery tags (e.g. ["carousel", "slide-01"])',
+      },
+      useBrandKit: {
+        type: 'boolean',
+        description: 'Weave active client Brand Kit palette and tone into prompt enhancement',
       },
       clientId: {
         type: 'string',
@@ -84,29 +108,54 @@ export const tool = defineTool<Args, Result>({
   async handler(args, ctx) {
     checkAbort(ctx.signal);
 
-    const clientId = args.clientId || ctx.clientId;
-    if (!clientId) {
-      throw new Error(
-        'image_generate requires clientId (none on session — call client_switch first).',
-      );
-    }
-
+    const clientId = args.clientId || ctx.clientId || undefined;
     const aspectRatio: AspectRatio = args.aspectRatio || '1:1';
     const { width, height } = DIMENSIONS[aspectRatio];
 
+    const pinnedModel = typeof args.model === 'string' && args.model.trim() ? args.model.trim() : undefined;
+    const autoPick = !pinnedModel ? selectBestCreativeEngine('text-to-image', args.prompt, { quality: args.quality }) : null;
+    const effectiveModel = pinnedModel || autoPick!.model;
+    const effectiveProvider = pinnedModel ? engineForModel(pinnedModel) : autoPick!.provider;
+
+    let genPrompt = args.prompt;
+    try {
+      const e = await enhanceCreativePrompt({
+        prompt: args.prompt,
+        mode: 'text-to-image',
+        engine: effectiveProvider,
+        model: effectiveModel,
+        orgId: ctx.orgId,
+        userId: ctx.userId ?? undefined,
+        clientId,
+        useBrandKit: Boolean(args.useBrandKit),
+      });
+      if (e.prompt && e.prompt.trim()) genPrompt = e.prompt.trim();
+    } catch {
+      // Fall back to raw prompt if enhancement fails.
+    }
+
     await ctx.emit('agent:thought', {
-      text: `Generating image… (${aspectRatio}, ${args.quality || 'standard'}) — ${args.prompt.slice(0, 120)}`,
+      text: `AURA Image Director -> ${effectiveProvider}/${effectiveModel} (${aspectRatio}, 2K): ${args.prompt.slice(0, 110)}`,
       at: new Date().toISOString(),
     });
 
     const result = await aiRouter.image(
       {
-        prompt: args.prompt,
+        prompt: genPrompt,
         aspectRatio,
         quality: args.quality,
+        model: effectiveModel,
+        imageSize: '2K',
         n: 1,
       },
-      { orgId: ctx.orgId, userId: ctx.userId ?? undefined, clientId, jobId: ctx.sessionId },
+      {
+        orgId: ctx.orgId,
+        userId: ctx.userId ?? undefined,
+        clientId,
+        jobId: ctx.sessionId,
+        preferredProvider: effectiveProvider,
+        skipBrandKit: true,
+      },
     );
     checkAbort(ctx.signal);
 
@@ -142,40 +191,62 @@ export const tool = defineTool<Args, Result>({
       // keep aspect-ratio-derived defaults
     }
 
-    const asset = await ctx.prisma.asset.create({
-      data: {
-        orgId: ctx.orgId,
-        clientId,
-        name: args.prompt.slice(0, 60),
-        fileUrl,
-        thumbUrl,
-        mimeType,
-        width: actualWidth,
-        height: actualHeight,
-        safeForClient: true,
-        analysis: {
-          provider: result.provider,
-          model: result.model,
-          latencyMs: result.latencyMs,
-          fallbackUsed: result.fallbackUsed,
-          platform: args.platform || null,
-          aspectRatio,
-          quality: args.quality || 'standard',
-        },
-        tags: args.platform ? [args.platform] : [],
-      },
+    const mergedTags = Array.from(new Set([
+      ...(args.platform ? [args.platform] : []),
+      ...(Array.isArray(args.tags) ? args.tags : []),
+    ]));
+
+    const asset = clientId
+      ? await ctx.prisma.asset.create({
+          data: {
+            orgId: ctx.orgId,
+            clientId,
+            name: (args.name || args.prompt).slice(0, 60),
+            fileUrl,
+            thumbUrl,
+            mimeType,
+            width: actualWidth,
+            height: actualHeight,
+            safeForClient: true,
+            analysis: {
+              provider: result.provider,
+              model: result.model,
+              latencyMs: result.latencyMs,
+              fallbackUsed: result.fallbackUsed,
+              platform: args.platform || null,
+              aspectRatio,
+              quality: args.quality || 'standard',
+            },
+            tags: mergedTags,
+          },
+        })
+      : null;
+
+    await historyService.record({
+      orgId: ctx.orgId,
+      userId: ctx.userId ?? undefined,
+      clientId,
+      type: 'image',
+      surface: 'agent',
+      prompt: args.prompt,
+      outputUrl: fileUrl,
+      thumbnailUrl: thumbUrl || fileUrl,
+      provider: result.provider,
+      model: result.model,
+      latencyMs: result.latencyMs,
+      metadata: { aspectRatio, quality: args.quality || 'standard', mode: 'text-to-image', assetId: asset?.id || null, enhancedPrompt: genPrompt, sessionUid: ctx.sessionUid },
     });
 
     await ctx.emit('agent:artifact', {
       path: fileUrl,
       mimeType,
       bytes: actualWidth * actualHeight * 3,
-      preview: `${result.provider}/${result.model} ${actualWidth}×${actualHeight} (asset ${asset.id})`,
+      preview: `${result.provider}/${result.model} ${actualWidth}x${actualHeight}${asset ? ` (asset ${asset.id})` : ''}`,
       at: new Date().toISOString(),
     });
 
     return {
-      assetId: asset.id,
+      assetId: asset?.id ?? 'standalone',
       url: fileUrl,
       width: actualWidth,
       height: actualHeight,

@@ -40,6 +40,21 @@ function qwenImageSize(aspectRatio: string | undefined, imageSize: string | unde
   return w >= h ? `${long}*${r16(long * h / w)}` : `${r16(long * w / h)}*${long}`;
 }
 // Edits keep the source frame's aspect: read its dimensions (cheap header parse).
+async function ensureMinImageB64(b64: string, mime: string): Promise<{ b64: string; mime: string }> {
+  try {
+    const buf = Buffer.from(b64, 'base64');
+    const meta = await sharp(buf).metadata();
+    if (meta.width && meta.height && (meta.width < 384 || meta.height < 384)) {
+      const scale = Math.max(384 / meta.width, 384 / meta.height);
+      const nw = Math.max(384, Math.round(meta.width * scale));
+      const nh = Math.max(384, Math.round(meta.height * scale));
+      const resized = await sharp(buf).resize(nw, nh, { fit: 'fill' }).png().toBuffer();
+      return { b64: resized.toString('base64'), mime: 'image/png' };
+    }
+  } catch { /* pass through */ }
+  return { b64, mime };
+}
+
 async function sourceAspect(b64: string): Promise<string | undefined> {
   try {
     const meta = await sharp(Buffer.from(b64, 'base64')).metadata();
@@ -47,19 +62,27 @@ async function sourceAspect(b64: string): Promise<string | undefined> {
   } catch { return undefined; }
 }
 
-const BASE_URL = process.env.DASHSCOPE_BASE_URL
-  || 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1';
+function getBaseUrl(): string {
+  return process.env.DASHSCOPE_BASE_URL || 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1';
+}
 // Native (DashScope) host for image synthesis — derive from the compatible base.
-const NATIVE_URL = process.env.DASHSCOPE_NATIVE_URL
-  || `${BASE_URL.replace(/\/compatible-mode\/v1\/?$/, '')}/api/v1/services/aigc/multimodal-generation/generation`;
+function getNativeUrl(): string {
+  const b = getBaseUrl();
+  return process.env.DASHSCOPE_NATIVE_URL
+    || `${b.replace(/\/compatible-mode\/v1\/?$/, '')}/api/v1/services/aigc/multimodal-generation/generation`;
+}
 
-const TEXT_MODEL = process.env.DASHSCOPE_TEXT_MODEL || 'qwen3.8-max';
-const IMAGE_MODEL = process.env.DASHSCOPE_IMAGE_MODEL || 'qwen-image-3.0-pro';
+function getTextModel(): string {
+  return process.env.DASHSCOPE_TEXT_MODEL || 'qwen3.8-max';
+}
+function getImageModel(): string {
+  return process.env.DASHSCOPE_IMAGE_MODEL || 'qwen-image-3.0-pro';
+}
 // Only a DashScope-shaped id is honoured as an override. When a Gemini/Grok pick
 // falls through the chain to us, its model id must NOT be forwarded (404
 // "Model not exist" would turn a recoverable fallback into a dead end).
 function dashscopeImageModel(requested?: string): string {
-  return requested && /^(qwen-image|wan[\d.]+-image|z-image)/i.test(requested) ? requested : IMAGE_MODEL;
+  return requested && /^(qwen-image|wan[\d.]+-image|z-image)/i.test(requested) ? requested : getImageModel();
 }
 const TIMEOUT_MS = parseInt(process.env.DASHSCOPE_TIMEOUT_MS || '120000', 10);
 const THINKING = process.env.DASHSCOPE_THINKING === 'true';
@@ -70,11 +93,15 @@ const THINKING = process.env.DASHSCOPE_THINKING === 'true';
 const IMAGE_TIMEOUT_MS = parseInt(process.env.DASHSCOPE_IMAGE_TIMEOUT_MS || '240000', 10);
 
 let _client: OpenAI | null = null;
+let _clientSig = '';
 function getClient(): OpenAI {
-  if (!_client) {
-    const key = process.env.DASHSCOPE_API_KEY;
-    if (!key) throw new Error('DASHSCOPE_API_KEY is not set — DashScope provider unavailable');
-    _client = new OpenAI({ apiKey: key, baseURL: BASE_URL, timeout: TIMEOUT_MS });
+  const key = process.env.DASHSCOPE_API_KEY;
+  if (!key) throw new Error('DASHSCOPE_API_KEY is not set — DashScope provider unavailable');
+  const bUrl = getBaseUrl();
+  const sig = `${key}@${bUrl}`;
+  if (!_client || _clientSig !== sig) {
+    _client = new OpenAI({ apiKey: key, baseURL: bUrl, timeout: TIMEOUT_MS });
+    _clientSig = sig;
   }
   return _client;
 }
@@ -86,7 +113,7 @@ async function chat(req: TextRequest | AnalysisRequest, json: boolean): Promise<
   // (402 credits depleted, 2026-10-17) and the call falls through to us, that
   // id must not be forwarded or every enhance dies on 404 "Model not exist".
   const requested = (req as any).model as string | undefined;
-  const model = requested && /^(qwen|deepseek|glm|MiniMax|kimi)/i.test(requested) ? requested : TEXT_MODEL;
+  const model = requested && /^(qwen|deepseek|glm|MiniMax|kimi)/i.test(requested) ? requested : getTextModel();
   const start = Date.now();
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
   if ((req as TextRequest).system) messages.push({ role: 'system', content: (req as TextRequest).system! });
@@ -186,14 +213,16 @@ async function generateImage(req: ImageRequest, model: string): Promise<Provider
   const anyRole = (req.referenceImages || []).some(r => r.role);
   let n = 0;
   if (req.imageBase64 && req.mimeType) {
-    content.push({ image: `data:${req.mimeType};base64,${req.imageBase64}` });
+    const norm = await ensureMinImageB64(req.imageBase64, req.mimeType);
+    content.push({ image: `data:${norm.mime};base64,${norm.b64}` });
     n++;
     if (anyRole) labels.push(`Image ${n} is the BASE IMAGE to edit.`);
   }
   // Multi-image edit: include every additional reference frame too (B1: role-labeled).
   for (const ref of req.referenceImages || []) {
     if (ref?.base64 && ref?.mimeType) {
-      content.push({ image: `data:${ref.mimeType};base64,${ref.base64}` });
+      const norm = await ensureMinImageB64(ref.base64, ref.mimeType);
+      content.push({ image: `data:${norm.mime};base64,${norm.b64}` });
       n++;
       if (ref.role) labels.push(`Image ${n}: ${refRoleLabel(ref.role)}`);
     }
@@ -206,7 +235,7 @@ async function generateImage(req: ImageRequest, model: string): Promise<Provider
     prompt_extend: false,   // our enhancer already wrote the prompt; Alibaba's rewrite only adds latency
     watermark: false,
   };
-  const res = await fetch(NATIVE_URL, {
+  const res = await fetch(getNativeUrl(), {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ model, input: { messages: [{ role: 'user', content }] }, parameters }),
@@ -354,9 +383,9 @@ const VIDEO_FALLBACKS: Record<VideoMode, string[]> = {
   // wan2.6-r2v wants `reference_video_urls` — a different payload contract
   // this provider does not speak. A rung there would submit a malformed
   // request and then bill $0 on the pricing table.
-  t2v: ['wan3.0-video', 'wan2.7-t2v', 'happyhorse-1.1-t2v', 'happyhorse-1.0-t2v'],
-  i2v: ['wan3.0-video', 'wan2.7-i2v', 'happyhorse-1.1-i2v', 'happyhorse-1.0-i2v'],
-  r2v: ['wan3.0-video', 'wan2.7-r2v', 'happyhorse-1.1-r2v', 'happyhorse-1.0-r2v'],
+  t2v: ['wan3.0-video-prime', 'wan3.0-video', 'happyhorse-1.1-t2v'],
+  i2v: ['wan3.0-video-prime', 'wan3.0-video', 'happyhorse-1.1-i2v'],
+  r2v: ['wan3.0-video-prime', 'wan3.0-video', 'happyhorse-1.1-r2v'],
 };
 
 /** The models to try, in order, for this call. */
@@ -371,7 +400,7 @@ function videoLadder(requested: string | undefined, mode: VideoMode): string[] {
  *  filter, not a bad request) — those are worth retrying on another model. */
 function isQuotaError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err);
-  return /AllocationQuota\.FreeTierOnly|free quota has been exhausted|AllocationQuota\./i.test(msg);
+  return /AllocationQuota\.FreeTierOnly|free quota has been exhausted|AllocationQuota\.|Model not exist/i.test(msg);
 }
 
 // Billing tier suffix: Alibaba prices video per second BY RESOLUTION, and the
@@ -389,7 +418,7 @@ async function generateVideo(req: VideoRequest): Promise<ProviderResult<{ url: s
 
   const key = process.env.DASHSCOPE_VIDEO_API_KEY || process.env.DASHSCOPE_API_KEY;
   if (!key) throw new AiProviderError('dashscope', 'video', 'DASHSCOPE_API_KEY not set', 401);
-  const host = (process.env.DASHSCOPE_VIDEO_BASE_URL || BASE_URL)
+  const host = (process.env.DASHSCOPE_VIDEO_BASE_URL || getBaseUrl())
     .replace(/\/compatible-mode\/v1\/?$/, '');
 
   // Try the requested engine first, then the rest of the ladder. Only an
@@ -445,7 +474,16 @@ async function generateVideoOnModel(
         ...(req.endImageBase64 ? [{ type: 'last_frame', url: `data:${req.endMimeType || 'image/jpeg'};base64,${req.endImageBase64}` }] : []),
       ]
     : [];
-  const input: Record<string, unknown> = { prompt: req.prompt };
+  let videoPrompt = req.prompt
+    .replace(/^\s*(?:\d+:\d+\s+(?:square|vertical|portrait|widescreen|landscape|cinematic)\s+aspect\s+ratio\.?\s*)/i, '')
+    .trim() || req.prompt;
+  if (!isWan3 && !isVidu) {
+    videoPrompt = videoPrompt
+      .replace(/\[\d{2}:\d{2}(?:\s*-\s*\d{2}:\d{2})?\]\s*/g, '')
+      .replace(/\s*(?:SFX|Sound\s*effects?|Ambient(?:\s*noise|\s*sound|\s*audio)?|Audio\s*cue)\s*:[^.\n]*(?:\.|$)/gi, '')
+      .trim() || videoPrompt;
+  }
+  const input: Record<string, unknown> = { prompt: videoPrompt };
   if (mode === 'r2v') input.media = refMedia;
   else if (mode === 'i2v') input.media = frameMedia;
   // The native endpoint accepts a real negative_prompt field on the input
@@ -542,11 +580,31 @@ async function generateVideoOnModel(
   };
 }
 
+const IMAGE_FALLBACKS = ['qwen-image-3.0-pro', 'wan2.7-image-pro', 'wan2.7-image'];
+
+async function generateImageWithLadder(req: ImageRequest): Promise<ProviderResult<{ url?: string; base64?: string }>> {
+  const first = dashscopeImageModel(req.model);
+  const ladder = [first, ...IMAGE_FALLBACKS.filter(m => m !== first)];
+  let lastErr: unknown;
+  for (let i = 0; i < ladder.length; i++) {
+    try {
+      return await generateImage(req, ladder[i]);
+    } catch (err) {
+      lastErr = err;
+      const msg = err instanceof Error ? err.message : String(err);
+      const retryableOnSibling = isQuotaError(err) || /Model not exist|404|502|503/i.test(msg);
+      if (!retryableOnSibling || i === ladder.length - 1) throw err;
+      console.warn(`[dashscope/image] ${ladder[i]} failed (${msg.slice(0, 80)}) — falling through to ${ladder[i + 1]}`);
+    }
+  }
+  throw lastErr;
+}
+
 export const dashscopeProvider: AiProvider = {
   name: 'dashscope',
   text: (req) => chat(req, !!req.json),
   analysis: (req) => analyze(req),
-  image: (req) => generateImage(req, dashscopeImageModel(req.model)),
-  imageEdit: (req) => generateImage(req, dashscopeImageModel(req.model)),
+  image: (req) => generateImageWithLadder(req),
+  imageEdit: (req) => generateImageWithLadder(req),
   video: (req: VideoRequest) => generateVideo(req),
 };

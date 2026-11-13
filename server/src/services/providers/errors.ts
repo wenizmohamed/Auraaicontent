@@ -91,7 +91,21 @@ const RETRYABLE_PATTERNS = [
  * falls through; a 403/400 that describes the REQUEST does not.
  */
 export const PROVIDER_CREDENTIAL_PROBLEM =
-  /access to model denied|access denied, please make sure your account is in good standing|accessdenied\.unpurchased|arrearage|not eligible|eligibility|has either used all available credits|has reached its monthly spending limit|invalid authentication|invalid.?api.?key/i;
+  /subscription_not_found|no active subscription|subscription.{0,30}(not found|expired|inactive|unavailable)|no available (account|channel|subscription|upstream)|group.{0,20}unavailable|account.{0,20}unavailable|access to model denied|access denied, please make sure your account is in good standing|accessdenied\.unpurchased|arrearage|not eligible|eligibility|has either used all available credits|has reached its monthly spending limit|invalid authentication|invalid.?api.?key|incorrect.?api.?key|api_key_invalid|permission_denied|does not have access|api keys are not supported|expected oauth|当前不在此\s*Key\s*的可用目录中|not in.{0,20}available.{0,20}catalog/i;
+
+/**
+ * Subset of credential/subscription/billing failures that apply to the ENTIRE
+ * provider key or upstream subscription group (not a single model rung).
+ * Inner model ladders check this so they bail out after 1 attempt instead of
+ * burning 3-4 doomed calls on sibling models of the same key before ai-router
+ * fails over to the next provider.
+ */
+export const PROVIDER_WIDE_CREDENTIAL_ERROR =
+  /subscription_not_found|no active subscription|subscription.{0,30}(not found|expired|inactive|unavailable)|no available (account|channel|subscription|upstream)|group.{0,20}unavailable|account.{0,20}unavailable|invalid authentication|invalid.?api.?key|incorrect.?api.?key|api_key_invalid|arrearage|prepayment credits are depleted|insufficient.?(credit|balance|funds)|payment.?required|top ?up your balance|user is locked|used all (available )?credits|reached its monthly spending limit|exhausted balance/i;
+
+export function isProviderWideCredentialError(msg: string): boolean {
+  return PROVIDER_WIDE_CREDENTIAL_ERROR.test(msg);
+}
 
 const NON_RETRYABLE_PATTERNS = [
   /400/,
@@ -251,6 +265,7 @@ export class AllProvidersFailedError extends Error {
       gemini: 'https://aistudio.google.com/usage',
       xai: 'https://console.x.ai/',
       moonshot: 'https://platform.moonshot.cn/console',
+      minimax: 'https://platform.minimax.io/console/home',
     };
 
     let msg: string;

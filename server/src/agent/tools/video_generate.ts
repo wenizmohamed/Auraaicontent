@@ -1,16 +1,14 @@
 import { defineTool } from '../tool-types.js';
 import { aiRouter } from '../../services/providers/ai-router.js';
 import { historyService } from '../../services/history.service.js';
-
-// Text-to-video for the agent. Until this tool existed the agent had no way to
-// make a video at all, so a video request ended in a still image or a written
-// description presented as the deliverable.
+import { enhanceCreativePrompt, engineForModel, selectBestCreativeEngine } from '../../services/prompt-enhancer.service.js';
 
 interface Args {
   prompt: string;
   aspectRatio?: '16:9' | '9:16';
   durationSeconds?: number;
   tier?: 'draft' | 'hd';
+  model?: string;
   clientId?: string;
 }
 
@@ -27,16 +25,17 @@ interface Result {
 export const tool = defineTool<Args, Result>({
   name: 'video_generate',
   description:
-    'Generate a short video clip from a text prompt (Veo / Grok / Wan through the AURAAI router). ' +
-    'Takes one to three minutes and is the most expensive tool, so call it ONLY when the user explicitly ' +
-    'asked for a video, reel or clip, and only once per requested clip. Saves the clip and records it on /history.',
+    'Generate a cinema-grade video clip via AURA Creative Router (Wan 3.0 Prime with native audio, MiniMax H3 2K cinema with stereo audio, Gemini Omni 1.2 Flash Video, Grok Imagine Video 1.5, HappyHorse 1.1). ' +
+    'Automatically enhances cinematography via Gemini 4 Carbon and selects the best engine unless model is specified. ' +
+    'Call ONLY when the user explicitly asked for a video, reel, or clip.',
   input_schema: {
     type: 'object',
     properties: {
-      prompt: { type: 'string', description: 'What happens in the clip: subject, action, setting, camera, mood' },
-      aspectRatio: { type: 'string', enum: ['16:9', '9:16'], description: '9:16 for reels, stories and TikTok. Defaults to 9:16' },
-      durationSeconds: { type: 'integer', description: 'Clip length in seconds, 4 to 8. Defaults to 6' },
-      tier: { type: 'string', enum: ['draft', 'hd'], description: 'draft is cheaper and the default; hd only when the user asks for final quality' },
+      prompt: { type: 'string', description: 'What happens in the clip: subject, action, setting, camera, mood, audio' },
+      aspectRatio: { type: 'string', enum: ['16:9', '9:16'], description: '9:16 for reels, stories and TikTok; 16:9 for landscape. Defaults to 9:16' },
+      durationSeconds: { type: 'integer', description: 'Clip length in seconds, 4 to 15. Defaults to 6' },
+      tier: { type: 'string', enum: ['draft', 'hd'], description: 'Defaults to hd (1080p/2K flagship); use draft only when the user asks for a fast preview' },
+      model: { type: 'string', description: 'Optional engine override (wan3.0-video-prime, MiniMax-H3, MiniMax-H3-Max, gemini-omni-1.2-flash, grok-imagine-video-1.5, happyhorse-1.1-t2v)' },
       clientId: { type: 'string', description: 'Override active client; falls back to session clientId' },
     },
     required: ['prompt'],
@@ -49,18 +48,57 @@ export const tool = defineTool<Args, Result>({
     const clientId = args.clientId || ctx.clientId || undefined;
     const aspectRatio = args.aspectRatio === '16:9' ? '16:9' : '9:16';
     const requested = typeof args.durationSeconds === 'number' ? Math.round(args.durationSeconds) : 6;
-    const durationSeconds = Math.min(Math.max(requested, 4), 8);
-    const tier = args.tier === 'hd' ? 'hd' : 'draft';
+    const durationSeconds = Math.min(Math.max(requested, 4), 15);
+    const tier = args.tier === 'draft' ? 'draft' : 'hd';
+    const pinnedModel = typeof args.model === 'string' && args.model.trim() ? args.model.trim() : undefined;
+    const autoPick = !pinnedModel ? selectBestCreativeEngine('text-to-video', args.prompt, { fast: tier === 'draft' }) : null;
+    const effectiveModel = pinnedModel || autoPick!.model;
+    const effectiveProvider = pinnedModel ? engineForModel(pinnedModel) : autoPick!.provider;
+
+    let genPrompt = args.prompt;
+    let negativePrompt: string | undefined;
+    try {
+      const e = await enhanceCreativePrompt({
+        prompt: args.prompt,
+        mode: 'text-to-video',
+        engine: effectiveProvider,
+        model: effectiveModel,
+        orgId: ctx.orgId,
+        userId: ctx.userId ?? undefined,
+        clientId,
+        useBrandKit: false,
+      });
+      if (e.prompt && e.prompt.trim()) genPrompt = e.prompt.trim();
+      negativePrompt = e.negativePrompt;
+    } catch {
+      // Fall back to raw prompt if enhancement fails.
+    }
 
     await ctx.emit('agent:thought', {
-      text: `Generating a ${durationSeconds}s ${aspectRatio} video (${tier}). This takes one to three minutes…`,
+      text: `AURA Video Director -> ${effectiveProvider}/${effectiveModel} (${durationSeconds}s ${aspectRatio}, ${tier === 'hd' ? '1080p' : '720p'})...`,
       at: new Date().toISOString(),
     });
 
     try {
       const result = await aiRouter.video(
-        { prompt: args.prompt, aspectRatio, durationSeconds, tier, fast: true },
-        { orgId: ctx.orgId, userId: ctx.userId ?? undefined, clientId, jobId: ctx.sessionId },
+        {
+          prompt: genPrompt,
+          aspectRatio,
+          durationSeconds,
+          resolution: tier === 'hd' ? '1080p' : '720p',
+          tier,
+          fast: tier === 'draft',
+          model: effectiveModel,
+          negativePrompt,
+        },
+        {
+          orgId: ctx.orgId,
+          userId: ctx.userId ?? undefined,
+          clientId,
+          jobId: ctx.sessionId,
+          preferredProvider: effectiveProvider,
+          skipBrandKit: true,
+        },
       );
       const url = result.output?.url;
       if (!url) throw new Error('the video provider returned no file');

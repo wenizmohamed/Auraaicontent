@@ -270,15 +270,26 @@ async function withRetry<T>(label: string, fn: () => Promise<T>): Promise<T> {
 async function omniVideo(req: VideoRequest): Promise<ProviderResult<{ url: string }>> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new AiProviderError('gemini', 'video', 'GEMINI_API_KEY not set', 401);
-  const model = 'gemini-omni-flash-preview';
+  const candidates = [...new Set([
+    ...(req.model && /omni/i.test(req.model) ? [req.model] : []),
+    ...(req.fast ? [process.env.GEMINI_VIDEO_FAST_MODEL || 'gemini-omni-1.1-flash'] : []),
+    process.env.GEMINI_VIDEO_MODEL || 'gemini-omni-1.2-flash',
+    'gemini-omni-1.1-flash',
+    'gemini-omni-flash-preview',
+  ])].map(m => ({ model: m }));
   const start = Date.now();
   const budget = Number(process.env.GEMINI_VIDEO_TOTAL_BUDGET_MS ?? 8 * 60 * 1000);
 
-  // Omni has no duration param — timing is steered in natural language.
-  const dur = req.durationSeconds ? Math.min(Math.max(Math.round(req.durationSeconds), 2), 12) : undefined;
+  // Strip still-photo ratio prefixes before video generation.
+  const basePrompt = req.prompt
+    .replace(/^\s*(?:\d+:\d+\s+(?:square|vertical|portrait|widescreen|landscape|cinematic)\s+aspect\s+ratio\.?\s*)/i, '')
+    .trim() || req.prompt;
+
+  // Omni has no duration param — timing is steered in natural language (2..15s).
+  const dur = req.durationSeconds ? Math.min(Math.max(Math.round(req.durationSeconds), 2), 15) : undefined;
   const prompt = dur
-    ? `${enrichBodyPrompt(req.prompt)} The clip should be approximately ${dur} seconds long.`
-    : enrichBodyPrompt(req.prompt);
+    ? `${enrichBodyPrompt(basePrompt)} The clip should be approximately ${dur} seconds long.`
+    : enrichBodyPrompt(basePrompt);
   // image_to_video (verified live 2026-07-03): start frame goes in the input
   // array as an image content item ahead of the text.
   const startB64 = req.startImageBase64 || req.imageBase64;
@@ -287,23 +298,6 @@ async function omniVideo(req: VideoRequest): Promise<ProviderResult<{ url: strin
     ? [{ type: 'image', data: startB64, mime_type: startMime }, { type: 'text', text: prompt }]
     : prompt;
 
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/interactions?key=${key}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model,
-      input,
-      response_format: { type: 'video', aspect_ratio: req.aspectRatio || '16:9', delivery: 'uri' },
-      generation_config: { video_config: { task: startB64 ? 'image_to_video' : 'text_to_video' } },
-    }),
-    signal: AbortSignal.timeout(budget),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new AiProviderError('gemini', 'video', `omni interactions ${res.status}: ${text.slice(0, 200)}`, res.status);
-  }
-  let inter: any = await res.json();
-
   const videoOut = (x: any) => {
     for (const s of x?.steps || []) {
       if (s.type !== 'model_output') continue;
@@ -311,18 +305,38 @@ async function omniVideo(req: VideoRequest): Promise<ProviderResult<{ url: strin
     }
     return null;
   };
-  let video = videoOut(inter);
-  // Usually completed synchronously; poll defensively if not.
-  while (!video && inter?.id && !/failed|cancel/i.test(inter.status || '') && Date.now() - start < budget) {
-    await new Promise(r => setTimeout(r, 6000));
-    const g = await fetch(`https://generativelanguage.googleapis.com/v1beta/interactions/${inter.id}?key=${key}`);
-    inter = await g.json();
-    video = videoOut(inter);
-  }
-  if (!video) {
-    throw new AiProviderError('gemini', 'video', `omni: no video output (status ${inter?.status}) ${JSON.stringify(inter?.error || '').slice(0, 150)}`);
-  }
 
+  const ladderResult = await runModelLadder('gemini', 'video', candidates, async (entry) => {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/interactions?key=${key}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: entry.model,
+        input,
+        response_format: { type: 'video', aspect_ratio: req.aspectRatio || '16:9', delivery: 'uri' },
+        generation_config: { video_config: { task: startB64 ? 'image_to_video' : 'text_to_video' } },
+      }),
+      signal: AbortSignal.timeout(budget),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new AiProviderError('gemini', 'video', `omni interactions (${entry.model}) ${res.status}: ${text.slice(0, 200)}`, res.status);
+    }
+    let inter: any = await res.json();
+    let video = videoOut(inter);
+    while (!video && inter?.id && !/failed|cancel/i.test(inter.status || '') && Date.now() - start < budget) {
+      await new Promise(r => setTimeout(r, 6000));
+      const g = await fetch(`https://generativelanguage.googleapis.com/v1beta/interactions/${inter.id}?key=${key}`);
+      inter = await g.json();
+      video = videoOut(inter);
+    }
+    if (!video) {
+      throw new AiProviderError('gemini', 'video', `omni (${entry.model}): no video output (status ${inter?.status}) ${JSON.stringify(inter?.error || '').slice(0, 150)}`, 503);
+    }
+    return video;
+  });
+
+  const video = ladderResult.result;
   let buf: Buffer;
   if (video.data) {
     buf = Buffer.from(video.data, 'base64');
@@ -337,7 +351,7 @@ async function omniVideo(req: VideoRequest): Promise<ProviderResult<{ url: strin
   }
   const { fileUrl } = await storageService.saveFile(buf, `omni-${Date.now()}.mp4`, 'video/mp4');
   return {
-    provider: 'gemini', model, latencyMs: Date.now() - start, fallbackUsed: false,
+    provider: 'gemini', model: ladderResult.modelUsed, latencyMs: Date.now() - start, fallbackUsed: false,
     output: { url: fileUrl },
   };
 }
@@ -370,22 +384,15 @@ export const geminiProvider: AiProvider = {
     // ladder auto-tries Flash on the same provider before crossing to xAI.
     // Override via GEMINI_TEXT_LADDER (colon-sep). Single-model env still works.
     const ladder = readLadder('GEMINI_TEXT_LADDER', [
-      // Per-call override first (e.g. the prompt enhancer requests flash for
-      // snappy rewrites instead of the pro reasoning model).
       ...(req.model && /gemini/i.test(req.model) ? [req.model] : []),
-      // Current flagship first (Gemini 4 generation, live 2026-11-05), then
-      // the 3.x flash family as the cheap standbys.
-      process.env.GEMINI_TEXT_MODEL || 'gemini-4-argon',
+      process.env.GEMINI_TEXT_MODEL || 'gemini-4-carbon',
+      'gemini-4-argon',
+      'gemini-4-hydrogen',
       process.env.GEMINI_FLASH_TEXT_MODEL || 'gemini-3.8-flash',
-      'gemini-3.7-flash',  // older flash kept as an explicit rung
+      'gemini-3.7-flash',
       'gemini-3.6-flash',
       'gemini-3.5-flash',
       'gemini-3.1-flash-lite',
-      // gemini-2.5-flash removed 2026-11-05: retired by Google (404 "no longer
-      // available" — verified against the live catalog), so as the last rung
-      // its 404 masked the real upstream error.
-      // gemini-2.0-flash removed 2026-10-10: retired by Google (404 "no longer
-      // available"), and as the last rung its 404 masked the real upstream error.
     ]);
     const start = Date.now();
     const temperature = clampTemperature(req.temperature);
@@ -404,7 +411,7 @@ export const geminiProvider: AiProvider = {
           config: {
             ...(req.json
               ? { responseMimeType: 'application/json', maxOutputTokens: jsonMax }
-              : { maxOutputTokens: 8192 }),
+              : { maxOutputTokens: Math.max(req.maxTokens || 8192, 8192) }),
             ...(temperature !== undefined ? { temperature } : {}),
             abortSignal,
           },
@@ -448,11 +455,13 @@ export const geminiProvider: AiProvider = {
     const defaultLadder = req.quality === 'ultra'
       ? readLadder('GEMINI_IMAGE_ULTRA_LADDER', [
           process.env.GEMINI_IMAGE_ULTRA_MODEL || 'gemini-3-pro-image',
+          'gemini-nano-banana-2.1',
           'gemini-3-pro-image-preview',
           'gemini-3.1-flash-image-preview',
         ])
       : readLadder('GEMINI_IMAGE_LADDER', [
-          process.env.GEMINI_IMAGE_MODEL || 'gemini-nano-banana-2.1',
+          process.env.GEMINI_IMAGE_MODEL || 'gemini-3-pro-image',
+          'gemini-nano-banana-2.1',
           'gemini-3.1-flash-image',
           'gemini-3.1-flash-image-preview',
           'gemini-3.1-flash-lite-image',
@@ -567,11 +576,10 @@ export const geminiProvider: AiProvider = {
     // breaker opened, and the user's edit died.  With a ladder the same
     // refusal simply falls to the next image model and the edit succeeds.
     const editLadder = readLadder('GEMINI_IMAGE_EDIT_LADDER', [
-      process.env.GEMINI_IMAGE_EDIT_MODEL || 'gemini-nano-banana-2.1',
+      process.env.GEMINI_IMAGE_EDIT_MODEL || 'gemini-3-pro-image',
+      'gemini-nano-banana-2.1',
       'gemini-3.1-flash-image',
       'gemini-3.1-flash-image-preview',
-      'gemini-3-pro-image',
-      'gemini-2.5-flash-image',
     ]);
     // Same rule as the generate path: a pinned model wins over the ladder head.
     if (req.model && /banana|image/i.test(req.model)) {
@@ -831,7 +839,7 @@ export const geminiProvider: AiProvider = {
     const ai = getAI();
     // Vision analysis needs 3.1-pro quality — uses its own env so flipping
     // GEMINI_TEXT_MODEL to flash doesn't downgrade image analysis.
-    const model = process.env.GEMINI_ANALYSIS_MODEL || 'gemini-3.1-pro-preview';
+    const model = process.env.GEMINI_ANALYSIS_MODEL || 'gemini-4-carbon';
     const start = Date.now();
     const response = await withRetry('analysis', () => withTimeout(
       ai.models.generateContent({

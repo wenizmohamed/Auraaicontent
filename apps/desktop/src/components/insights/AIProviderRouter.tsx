@@ -18,14 +18,15 @@ interface Props {
 }
 
 const PROVIDER_LABELS: Record<string, { label: string; tier: 'primary' | 'fallback' | 'tertiary' }> = {
-  gemini:    { label: 'Gemini',  tier: 'primary' },
-  google:    { label: 'Gemini',  tier: 'primary' },
-  vertex:    { label: 'Vertex',  tier: 'primary' },
-  dashscope: { label: 'Alibaba', tier: 'primary' },
-  grok:      { label: 'Grok',    tier: 'fallback' },
-  xai:       { label: 'Grok',    tier: 'fallback' },
-  kimi:      { label: 'Kimi',    tier: 'tertiary' },
-  moonshot:  { label: 'Kimi',    tier: 'tertiary' },
+  gemini:    { label: 'Gemini 4', tier: 'primary' },
+  google:    { label: 'Gemini 4', tier: 'primary' },
+  vertex:    { label: 'Vertex',   tier: 'primary' },
+  dashscope: { label: 'Alibaba',  tier: 'primary' },
+  minimax:   { label: 'MiniMax',  tier: 'primary' },
+  grok:      { label: 'Grok',     tier: 'fallback' },
+  xai:       { label: 'Grok',     tier: 'fallback' },
+  kimi:      { label: 'Kimi',     tier: 'tertiary' },
+  moonshot:  { label: 'Kimi',     tier: 'tertiary' },
 };
 
 export function AIProviderRouter({ providers, size = 280 }: Props) {
@@ -49,7 +50,7 @@ export function AIProviderRouter({ providers, size = 280 }: Props) {
         fallbacks: 0,
         tasks: {},
       });
-      return [placeholder('gemini'), placeholder('grok'), placeholder('kimi')];
+      return [placeholder('gemini'), placeholder('dashscope'), placeholder('minimax')];
     }
     return sorted;
   }, [providers]);
