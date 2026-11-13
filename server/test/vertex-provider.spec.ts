@@ -25,8 +25,11 @@ vi.hoisted(() => {
   process.env.VERTEX_API_KEY = 'test-vertex-key';
   process.env.VERTEX_PROJECT = 'hubz-510406';
   process.env.VERTEX_LOCATION = 'us';
-  delete process.env.VERTEX_TEXT_MODEL;
-  delete process.env.VERTEX_TEXT_LADDER;
+  // Pin, don't delete: dotenv (loaded via the import chain) re-adds anything
+  // absent from process.env, so deleting let a developer .env with
+  // VERTEX_TEXT_MODEL=gemini-4-argon decide what these tests asserted.
+  process.env.VERTEX_TEXT_MODEL = 'gemini-3.8-flash';
+  process.env.VERTEX_TEXT_LADDER = '';
 });
 
 import { vertexProvider } from '../src/services/providers/vertex.provider.js';
@@ -105,6 +108,18 @@ describe('vertex provider: request shape', () => {
 
     const body = JSON.parse(captured[0].init.body);
     expect(body.generationConfig.thinkingConfig).toEqual({ thinkingBudget: 0 });
+  });
+
+  // Verified live 2026-11-13: Vertex answers HTTP 400 when thinkingBudget is
+  // sent to gemini-4-argon or gemini-4-carbon (the Developer API accepts it).
+  // Prod pins VERTEX_TEXT_MODEL=gemini-4-argon, so this is the common path.
+  it.each(['gemini-4-argon', 'gemini-4-carbon'])('omits thinkingConfig for %s (Vertex rejects it)', async (model) => {
+    stubFetch(() => ({ json: textResponse('ok') }));
+    await vertexProvider.text({ prompt: 'hello', model });
+
+    expect(captured[0].url).toContain(`/models/${model}:generateContent`);
+    const body = JSON.parse(captured[0].init.body);
+    expect(body.generationConfig.thinkingConfig).toBeUndefined();
   });
 
   it('asks for JSON when the caller wants JSON', async () => {

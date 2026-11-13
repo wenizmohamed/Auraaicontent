@@ -380,20 +380,25 @@ export const geminiProvider: AiProvider = {
 
   async text(req: TextRequest): Promise<ProviderResult<string | object>> {
     const ai = getAI();
-    // Model ladder: Pro → Flash-Lite → 2.5-Flash. When Pro 429s on quota the
-    // ladder auto-tries Flash on the same provider before crossing to xAI.
+    // Model ladder: the text model (Carbon in prod), then the FAST model, then
+    // the rest. When an attempt times out the next rung must be the fast one:
+    // Carbon is the slowest model, and retrying a timed-out Carbon call on
+    // Argon (also slow on deep prompts) just times out again. Pinned by
+    // test/ai-text-deadline.spec.ts. Duplicates are dropped, so prod's
+    // GEMINI_FLASH_TEXT_MODEL=gemini-4-hydrogen is tried once, second.
     // Override via GEMINI_TEXT_LADDER (colon-sep). Single-model env still works.
-    const ladder = readLadder('GEMINI_TEXT_LADDER', [
+    const ladder = readLadder('GEMINI_TEXT_LADDER', [...new Set([
       ...(req.model && /gemini/i.test(req.model) ? [req.model] : []),
       process.env.GEMINI_TEXT_MODEL || 'gemini-4-carbon',
+      process.env.GEMINI_FLASH_TEXT_MODEL || 'gemini-4-hydrogen',
       'gemini-4-argon',
       'gemini-4-hydrogen',
-      process.env.GEMINI_FLASH_TEXT_MODEL || 'gemini-3.8-flash',
+      'gemini-3.8-flash',
       'gemini-3.7-flash',
       'gemini-3.6-flash',
       'gemini-3.5-flash',
       'gemini-3.1-flash-lite',
-    ]);
+    ])]);
     const start = Date.now();
     const temperature = clampTemperature(req.temperature);
 
