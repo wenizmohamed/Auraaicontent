@@ -16,6 +16,12 @@ export interface ChangelogEntry {
 
 const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-11-14',
+    tag: 'new',
+    title: 'ByteDance Seedance 2.5 & 2.0 Cinema Video + Dola Seedream 5.5 RGBA & 5.0 4K Join Creative Studio',
+    body: 'BytePlus ModelArk is now integrated end to end across Creative Studio and AURA Agent Mode. Direct up-to-30s cinema video with synchronized native audio, multi-shot cuts, first and last frame bookends, and omni multimodal references on Dreamina Seedance 2.5, Seedance 2.0 (up to 4K), Seedance 2.0 Fast, Seedance 2.0 Mini, and Seedance 1.0 Pro Fast, with automatic browser-ready H.264 MP4 delivery. Generate studio stills, multi-reference edits (up to 10 images), native RGBA transparent PNG cutouts, and true 4K visuals with Dola Seedream 5.5, Seedream 5.0 Pro, Seedream 5.0 4K, and Seedream 5.0 Flash, all prompt-directed by Gemini 4 Carbon.',
+  },
+  {
     date: '2026-11-13',
     tag: 'new',
     title: 'Gemini 4 Argon Powers AURA Agent Mode & AURA Chat + 3 New Creative Tools',

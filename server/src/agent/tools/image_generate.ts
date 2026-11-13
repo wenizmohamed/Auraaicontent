@@ -57,7 +57,7 @@ function sniffMime(buf: Buffer): 'image/png' | 'image/jpeg' {
 export const tool = defineTool<Args, Result>({
   name: 'image_generate',
   description:
-    'Generate ONE standalone studio-grade image frame via AURA Creative Router (Gemini 3 Pro Image, Nano Banana 2.1, MiniMax H3-Image 4K, Qwen Image 3.0 Pro, Wan 2.7 Image Pro, Grok Imagine 2.0). ' +
+    'Generate ONE standalone studio-grade image frame via AURA Creative Router (Gemini 3 Pro Image, Nano Banana 2.1, ByteDance Dola Seedream 5.5 & Seedream 5.0 4K, MiniMax H3-Image 4K, Qwen Image 3.0 Pro, Wan 2.7 Image Pro, Grok Imagine 2.0). ' +
     'Automatically enhances the prompt via Gemini 4 Carbon and selects the optimal engine unless model is specified. ' +
     'For multi-slide carousels, call image_generate ONCE PER SLIDE (e.g. aspectRatio="4:5", name="Slide 01 - Cover") describing only that single slide. ' +
     'Saves to /uploads/, creates an Asset row when a client is active, and emits an agent:artifact preview.',
@@ -81,7 +81,7 @@ export const tool = defineTool<Args, Result>({
       },
       model: {
         type: 'string',
-        description: 'Optional engine override (gemini-3-pro-image, gemini-nano-banana-2.1, MiniMax-H3-Image, qwen-image-3.0-pro, wan2.7-image-pro, grok-imagine-image-2.0)',
+        description: 'Optional engine override (gemini-3-pro-image, gemini-nano-banana-2.1, dola-seedream-5-5-261028, seedream-5-0-260128, MiniMax-H3-Image, qwen-image-3.0-pro, wan2.7-image-pro, grok-imagine-image-2.0)',
       },
       name: {
         type: 'string',

@@ -28,7 +28,7 @@ export async function creativeRoutes(app: FastifyInstance) {
 
   // POST /api/creative/images/generate
   app.post('/creative/images/generate', { preHandler: capGuard('ai.image', 'image.generate') }, async (request, reply) => {
-    const { prompt: rawPrompt, aspectRatio, clientId, quality, model, provider, safeZone, imageSize, enhance, depth, stylePackId, useBrandKit } = request.body as { prompt: string; aspectRatio?: string; clientId?: string; quality?: 'standard' | 'ultra'; model?: string; provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax'; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K'; enhance?: boolean; depth?: 'raw' | 'low' | 'medium' | 'high'; stylePackId?: string; useBrandKit?: boolean };
+    const { prompt: rawPrompt, aspectRatio, clientId, quality, model, provider, safeZone, imageSize, enhance, depth, stylePackId, useBrandKit } = request.body as { prompt: string; aspectRatio?: string; clientId?: string; quality?: 'standard' | 'ultra'; model?: string; provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax' | 'byteplus'; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K'; enhance?: boolean; depth?: 'raw' | 'low' | 'medium' | 'high'; stylePackId?: string; useBrandKit?: boolean };
     const v = validatePrompt(rawPrompt);
     if (!v.valid) return reply.status(400).send({ error: v.error });
     const prompt = sanitizePrompt(rawPrompt);
@@ -122,7 +122,7 @@ export async function creativeRoutes(app: FastifyInstance) {
 
   // POST /api/creative/images/edit
   app.post('/creative/images/edit', { preHandler: capGuard('ai.image', 'image.edit') }, async (request, reply) => {
-    const { prompt: rawEditPrompt, imageBase64, mimeType, aspectRatio, clientId, model, provider, referenceImages, safeZone, imageSize, enhance, depth, useBrandKit } = request.body as { prompt?: string; imageBase64?: string; mimeType?: string; aspectRatio?: string; clientId?: string; model?: string; provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax'; referenceImages?: { base64: string; mimeType: string; role?: 'content' | 'style' | 'character' }[]; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K'; enhance?: boolean; depth?: 'raw' | 'low' | 'medium' | 'high'; useBrandKit?: boolean };
+    const { prompt: rawEditPrompt, imageBase64, mimeType, aspectRatio, clientId, model, provider, referenceImages, safeZone, imageSize, enhance, depth, useBrandKit } = request.body as { prompt?: string; imageBase64?: string; mimeType?: string; aspectRatio?: string; clientId?: string; model?: string; provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax' | 'byteplus'; referenceImages?: { base64: string; mimeType: string; role?: 'content' | 'style' | 'character' }[]; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K'; enhance?: boolean; depth?: 'raw' | 'low' | 'medium' | 'high'; useBrandKit?: boolean };
     if (!rawEditPrompt || !imageBase64) return reply.status(400).send({ error: 'prompt and imageBase64 are required' });
     const ev = validatePrompt(rawEditPrompt);
     if (!ev.valid) return reply.status(400).send({ error: ev.error });
@@ -228,7 +228,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         format: format === 'png' || format === 'jpeg' ? format : 'auto',
         mode: mode === 'ai' ? 'ai' : 'fast',
         model: typeof model === 'string' ? model : undefined,
-        provider: provider === 'gemini' || provider === 'xai' || provider === 'dashscope' || provider === 'vertex' || provider === 'minimax' ? provider : undefined,
+        provider: provider === 'gemini' || provider === 'xai' || provider === 'dashscope' || provider === 'vertex' || provider === 'minimax' || provider === 'byteplus' ? provider : undefined,
         orgId: request.orgId, userId: request.user?.userId, clientId: clientId || undefined,
       });
       // Persist to the client's assets so it lands in the gallery.
@@ -309,7 +309,7 @@ export async function creativeRoutes(app: FastifyInstance) {
       startImageBase64?: string; startMimeType?: string; endImageBase64?: string; endMimeType?: string;
       tier?: string; safeZone?: boolean; negativePrompt?: unknown;
       referenceImages?: { base64: string; mimeType: string }[];
-      model?: string; provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax'; enhance?: boolean; depth?: 'raw' | 'low' | 'medium' | 'high'; stylePackId?: string; useBrandKit?: boolean;
+      model?: string; provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax' | 'byteplus'; enhance?: boolean; depth?: 'raw' | 'low' | 'medium' | 'high'; stylePackId?: string; useBrandKit?: boolean;
     };
     if (!prompt) return reply.status(400).send({ error: 'prompt is required' });
     {
@@ -430,7 +430,7 @@ export async function creativeRoutes(app: FastifyInstance) {
   app.post('/creative/prompt/improve', async (request, reply) => {
     const { prompt: rawImp, mode, clientId, safeZone, hasRefs, stylePackId, provider, model, depth, useBrandKit } = (request.body as {
       prompt?: string; mode?: string; clientId?: string; safeZone?: boolean; hasRefs?: boolean; stylePackId?: string;
-      provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax'; model?: string; depth?: EnhanceDepth; useBrandKit?: boolean;
+      provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax' | 'byteplus'; model?: string; depth?: EnhanceDepth; useBrandKit?: boolean;
     }) || {};
     if (!rawImp || typeof rawImp !== 'string' || !rawImp.trim()) {
       return reply.status(400).send({ error: 'prompt is required' });
