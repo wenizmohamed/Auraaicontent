@@ -1,6 +1,6 @@
-# RADIX AI Content Planner v2
+# AURACONTENT AI Content Planner v2
 
-Production-grade AI content-planning workspace for Radix Media. A single-tenant SaaS dashboard the agency uses to brief, generate, review, schedule, and export 18 platform-optimized content pieces per client per month.
+Production-grade AI content-planning workspace for AuraContent. A single-tenant SaaS dashboard the agency uses to brief, generate, review, schedule, and export 18 platform-optimized content pieces per client per month.
 
 **Live**: `https://srv1494206.hstgr.cloud` · **Branch**: `main` · **Hardening branch**: `million-dollar-hardening`
 
@@ -13,7 +13,7 @@ Production-grade AI content-planning workspace for Radix Media. A single-tenant 
 | Auth | JWT (Bearer in `Authorization` header) + 30-day refresh-token rotation + revocation |
 | AI providers | Gemini 3.1 Pro / Flash / Image (primary) → xAI Grok (fallback) → Kimi K2 (tertiary) |
 | Desktop | Electron 41 (optional shell, web works standalone) |
-| Deploy | Hostinger VPS · pm2 (`radix-api`) · nginx · Postgres `radix_planner` · Redis 6379 |
+| Deploy | Hostinger VPS · pm2 (`auracontent-api`) · nginx · Postgres `auracontent_planner` · Redis 6379 |
 | Test | Vitest (smoke contract tests against live VPS) · `tsc --noEmit` (typecheck) |
 
 ## Quick Start (local)
@@ -36,8 +36,8 @@ npm run dev                            # starts on :3200, proxies /api/* to :878
 ```
 
 Demo credentials after seeding:
-- `demo-admin@radix.local` / `demoAdmin2026!`
-- `demo-member@radix.local` / `demoMember2026!`
+- `demo-admin@auracontent.local` / `demoAdmin2026!`
+- `demo-member@auracontent.local` / `demoMember2026!`
 
 ## Test
 
@@ -62,14 +62,14 @@ Hostinger VPS, pm2-managed, nginx-fronted. The deploy is two tar-pipes + a pm2 r
 # From repo root
 cd server && npm run build && cd ..
 tar -czf - -C server dist | ssh -i ~/.ssh/radix_vps root@srv1494206.hstgr.cloud \
-  "cd /opt/radix-v2/server && rm -rf dist && tar -xzf - && pm2 reload radix-api"
+  "cd /opt/auracontent-v2/server && rm -rf dist && tar -xzf - && pm2 reload auracontent-api"
 
 cd apps/desktop && npm run build && cd ../..
 tar -czf - -C apps/desktop dist | ssh -i ~/.ssh/radix_vps root@srv1494206.hstgr.cloud \
-  "cd /opt/radix-v2/frontend && rm -rf dist && tar -xzf -"
+  "cd /opt/auracontent-v2/frontend && rm -rf dist && tar -xzf -"
 
 # After schema changes
-ssh root@srv1494206.hstgr.cloud "cd /opt/radix-v2/server && npx prisma migrate deploy"
+ssh root@srv1494206.hstgr.cloud "cd /opt/auracontent-v2/server && npx prisma migrate deploy"
 ```
 
 After deploy: hard-refresh browser (Ctrl+Shift+R) so the new bundle hash loads.
@@ -79,7 +79,7 @@ After deploy: hard-refresh browser (Ctrl+Shift+R) so the new bundle hash loads.
 ```
 apps/desktop/        React 19 frontend (Vite, electron-optional)
   src/pages/          17 routes: Dashboard, NewBrief, Calendar, Knowledge, Profile, etc.
-  src/components/     MobileMenu, RadixAssistant widget, etc.
+  src/components/     MobileMenu, AuraContentAssistant widget, etc.
   src/lib/            backend-api.ts (fetch wrapper + token rotation),
                       client-context.tsx (auth + selected client state),
                       theme-context.tsx (light/dark)
@@ -109,7 +109,7 @@ server/              Fastify 5 backend
 | Password storage | bcrypt cost 12. |
 | CORS | Env-allowlisted (`HTTP_CORS_ORIGINS`), fails closed in prod. |
 | CSP | Strict via `@fastify/helmet` (no `'unsafe-inline'` script), HSTS in prod. |
-| Multi-tenancy | **Single-tenant by design.** Every authed user sees every Client. Auth gates entry; inside the wall the workspace is shared (matches Radix Media's one-agency model). Adding a second agency requires an `Organization` model + `orgId` on Client + scoping every query handler — not done. |
+| Multi-tenancy | **Single-tenant by design.** Every authed user sees every Client. Auth gates entry; inside the wall the workspace is shared (matches AuraContent's one-agency model). Adding a second agency requires an `Organization` model + `orgId` on Client + scoping every query handler — not done. |
 | File uploads | 25MB limit via `@fastify/multipart`. |
 | Audit log | Append-only `AuditLog` table with `userId` + `clientId` + `action` + `entityType`. |
 
@@ -119,11 +119,11 @@ PostgreSQL 16. Schema declares unique constraints + FK indexes for hot joins (Kn
 
 ## Background jobs
 
-BullMQ queue `radix-jobs` backed by Redis. One Worker, concurrency 4. On boot, `reconcileStaleJobs()` reclaims any active-but-orphaned jobs from a prior crash. SIGTERM/SIGINT trigger graceful queue drain via `shutdownQueue()`.
+BullMQ queue `auracontent-jobs` backed by Redis. One Worker, concurrency 4. On boot, `reconcileStaleJobs()` reclaims any active-but-orphaned jobs from a prior crash. SIGTERM/SIGINT trigger graceful queue drain via `shutdownQueue()`.
 
 ## License
 
-Private — Radix Media internal tool.
+Private — AuraContent internal tool.
 
 ---
 

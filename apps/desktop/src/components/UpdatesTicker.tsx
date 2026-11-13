@@ -44,7 +44,7 @@ export default function UpdatesTicker() {
 
   return (
     <div
-      className="radix-ticker-viewport relative flex items-stretch overflow-hidden rounded-xl border"
+      className="auracontent-ticker-viewport relative flex items-stretch overflow-hidden rounded-xl border"
       style={{ background: 'var(--color-bg-subtle)', borderColor: 'var(--color-border-subtle)' }}
       role="marquee"
       aria-label="Latest product updates"
@@ -61,7 +61,7 @@ export default function UpdatesTicker() {
       </div>
       {/* Scrolling viewport with a soft fade on both edges */}
       <div className="relative flex-1 overflow-hidden py-2">
-        <div className="radix-ticker-track">
+        <div className="auracontent-ticker-track">
           <span className="inline-flex shrink-0">{run}</span>
           <span className="inline-flex shrink-0" aria-hidden="true">{entries.map((e, i) => <Item key={`dup-${i}`} e={e} i={i + entries.length} />)}</span>
         </div>

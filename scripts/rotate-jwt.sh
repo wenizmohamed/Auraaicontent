@@ -11,7 +11,7 @@ set -euo pipefail
 
 SSH_KEY="${SSH_KEY:-$HOME/.ssh/radix_vps}"
 HOST="${HOST:-root@srv1494206.hstgr.cloud}"
-ENV_PATH="/opt/radix-v2/server/.env"
+ENV_PATH="/opt/auracontent-v2/server/.env"
 
 # Generate a 64+ char base64 secret. -base64 48 yields 64 chars.
 NEW=$(openssl rand -base64 48 | tr -d '\n')
@@ -32,9 +32,9 @@ ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$HOST" "
   fi
   DB_PASS=\$(awk -F= '/^DB_PASSWORD=/{print \$2}' '$ENV_PATH' | tr -d '\"' || true)
   if [[ -n \"\$DB_PASS\" ]]; then
-    PGPASSWORD=\"\$DB_PASS\" psql -h 127.0.0.1 -U radix -d radix_planner -c 'UPDATE \"RefreshToken\" SET \"revokedAt\" = NOW() WHERE \"revokedAt\" IS NULL' || echo 'WARN: refresh-token revoke failed (non-fatal)'
+    PGPASSWORD=\"\$DB_PASS\" psql -h 127.0.0.1 -U auracontent -d auracontent_planner -c 'UPDATE \"RefreshToken\" SET \"revokedAt\" = NOW() WHERE \"revokedAt\" IS NULL' || echo 'WARN: refresh-token revoke failed (non-fatal)'
   fi
-  pm2 reload radix-api --update-env
+  pm2 reload auracontent-api --update-env
   echo \"  new_length: \$POST_LEN\"
 "
 

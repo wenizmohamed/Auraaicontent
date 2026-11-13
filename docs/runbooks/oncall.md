@@ -6,9 +6,9 @@ Single-tenant production today; multi-tenant production after Phase 1 deploy. Th
 
 | Symptom | First check | Most likely cause |
 |---|---|---|
-| Site returns 502 | `pm2 list` | radix-api crashed |
-| Site returns 504 | `pm2 logs radix-api` for AI provider timeouts | Gemini/xAI hard-down |
-| Login fails for everyone | `pm2 logs radix-api` for Prisma errors | Postgres down or migration drift |
+| Site returns 502 | `pm2 list` | auracontent-api crashed |
+| Site returns 504 | `pm2 logs auracontent-api` for AI provider timeouts | Gemini/xAI hard-down |
+| Login fails for everyone | `pm2 logs auracontent-api` for Prisma errors | Postgres down or migration drift |
 | Login fails for one user | Check `/api/auth/me` 401 vs 403 | Org membership missing |
 | `npm test` red | `npm test -- tenancy.spec.ts` | Cross-tenant leak — STOP and investigate |
 | Stripe webhook silent | Stripe Dashboard → Webhooks → recent attempts | `STRIPE_WEBHOOK_SECRET` mismatch or 502 from `/api/billing/webhook` |
@@ -18,7 +18,7 @@ Single-tenant production today; multi-tenant production after Phase 1 deploy. Th
 
 | Service | Manager | Port | Logs |
 |---|---|---|---|
-| radix-api | PM2 | 8080 | `pm2 logs radix-api` |
+| auracontent-api | PM2 | 8080 | `pm2 logs auracontent-api` |
 | ask-api | PM2 | 4001 | `pm2 logs ask-api` |
 | PostgreSQL | systemd | 5432 | `journalctl -u postgresql` |
 | Redis | systemd | 6379 | `journalctl -u redis-server` |
@@ -28,25 +28,25 @@ Single-tenant production today; multi-tenant production after Phase 1 deploy. Th
 
 **Soft restart (preferred):**
 ```bash
-pm2 restart radix-api
-pm2 logs radix-api --lines 30
+pm2 restart auracontent-api
+pm2 logs auracontent-api --lines 30
 ```
 
 **Hard restart (config / env changed):**
 ```bash
-pm2 restart radix-api --update-env
+pm2 restart auracontent-api --update-env
 ```
 
 **Full deploy:**
 ```bash
-cd /opt/radix-v2/server && npm run build && pm2 restart radix-api --update-env
+cd /opt/auracontent-v2/server && npm run build && pm2 restart auracontent-api --update-env
 ```
 
 **Frontend deploy:**
 ```bash
-cp -r /opt/radix-v2/frontend/dist /opt/radix-v2/frontend/dist.bak-$(date +%s)
-cd /opt/radixcontent/apps/desktop && ELECTRON=true npx vite build
-rm -rf /opt/radix-v2/frontend/dist && cp -r /opt/radixcontent/apps/desktop/dist /opt/radix-v2/frontend/dist
+cp -r /opt/auracontent-v2/frontend/dist /opt/auracontent-v2/frontend/dist.bak-$(date +%s)
+cd /opt/auracontent/apps/desktop && ELECTRON=true npx vite build
+rm -rf /opt/auracontent-v2/frontend/dist && cp -r /opt/auracontent/apps/desktop/dist /opt/auracontent-v2/frontend/dist
 ```
 
 ## Diagnostic commands
@@ -60,7 +60,7 @@ curl -s https://radix.synapseai-labs.com/api/providers/status | jq
 node -e "console.log(require('jsonwebtoken').sign({userId:'X',email:'Y',role:'member',orgId:'Z',orgRole:'OWNER'}, process.env.JWT_SECRET, {expiresIn:'1h'}))"
 
 # DB row counts (sanity check)
-PGPASSWORD=... psql -U radix -h localhost -d radix_planner -c '
+PGPASSWORD=... psql -U auracontent -h localhost -d auracontent_planner -c '
   SELECT (SELECT COUNT(*) FROM "Organization") orgs,
          (SELECT COUNT(*) FROM "User") users,
          (SELECT COUNT(*) FROM "Client") clients,
@@ -81,15 +81,15 @@ curl -H "Authorization: Bearer $TOK" https://radix.synapseai-labs.com/api/dashbo
 **Suspected cross-tenant data leak:**
 1. Switch tenant guard to throw mode immediately:
    ```bash
-   sed -i 's/^RADIX_TENANT_GUARD=.*/RADIX_TENANT_GUARD=throw/' /opt/radix-v2/server/.env
-   pm2 restart radix-api --update-env
+   sed -i 's/^AURACONTENT_TENANT_GUARD=.*/AURACONTENT_TENANT_GUARD=throw/' /opt/auracontent-v2/server/.env
+   pm2 restart auracontent-api --update-env
    ```
-2. Watch `pm2 logs radix-api` for `[tenant-guard]` errors — each one is an unscoped query that needs fixing.
+2. Watch `pm2 logs auracontent-api` for `[tenant-guard]` errors — each one is an unscoped query that needs fixing.
 3. If the leak is confirmed in the audit log, page Weni and freeze the affected org's data with `UPDATE "Organization" SET "status" = 'frozen' WHERE "id" = '...';`.
 
 **Stuck migration:**
 ```bash
-cd /opt/radix-v2/server
+cd /opt/auracontent-v2/server
 npx prisma migrate status              # what's pending vs applied
 npx prisma migrate resolve --applied 20260429140000_multi_tenancy_orgid  # last resort: mark as applied without running
 ```

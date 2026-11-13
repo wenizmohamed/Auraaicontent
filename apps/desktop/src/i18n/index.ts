@@ -23,7 +23,7 @@ export function setLocale(locale: 'en' | 'ar') {
     document.documentElement.lang = locale;
     document.documentElement.dir = locale === 'ar' ? 'rtl' : 'ltr';
   }
-  try { localStorage.setItem('radix.locale', locale); } catch { /* ssr */ }
+  try { localStorage.setItem('auracontent.locale', locale); } catch { /* ssr */ }
 }
 
 export function getLocale(): 'en' | 'ar' {
@@ -37,7 +37,7 @@ export function t(key: string): string {
 // Initialize from localStorage on module load (client-side only).
 if (typeof window !== 'undefined') {
   try {
-    const saved = localStorage.getItem('radix.locale') as 'en' | 'ar' | null;
+    const saved = localStorage.getItem('auracontent.locale') as 'en' | 'ar' | null;
     if (saved === 'ar' || saved === 'en') setLocale(saved);
   } catch { /* localStorage unavailable */ }
 }

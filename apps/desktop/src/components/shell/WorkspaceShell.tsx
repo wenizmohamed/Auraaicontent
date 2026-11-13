@@ -153,7 +153,7 @@ export function WorkspaceShell({ surfaces, activeSurface, activeItemId }: Worksp
         ))}
       </nav>
 
-      <PanelGroup direction="horizontal" autoSaveId="radix.workspace.panels" className="flex-1">
+      <PanelGroup direction="horizontal" autoSaveId="auracontent.workspace.panels" className="flex-1">
         {/* Middle list pane — hairline border on the right edge handled by the
             resize handle itself so we don't draw a competing 1px line. */}
         <Panel defaultSize={32} minSize={15} maxSize={60} className="overflow-hidden">

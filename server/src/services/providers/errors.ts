@@ -38,7 +38,7 @@ const RETRYABLE_PATTERNS = [
   // Veo wording — Google's video model returns these prose errors instead
   // of HTTP-style codes. Without these, every "high demand" or "internal
   // issue" hit was bailing the chain before fallback could fire (incident
-  // 2026-05-05, jobs 7f02fdc2 + 2a893571 on radix-api PID 141449).
+  // 2026-05-05, jobs 7f02fdc2 + 2a893571 on auracontent-api PID 141449).
   /high demand/i,
   /internal server issue/i,
   /try again later/i,

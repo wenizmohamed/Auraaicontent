@@ -1,6 +1,6 @@
 // GuideWidget — persistent Jasper-style activation guide.
 //
-// A floating companion (bottom-left, clear of the RadixAssistant chat widget
+// A floating companion (bottom-left, clear of the AuraContentAssistant chat widget
 // at bottom-right) that opens a "Get started" checklist. Steps are driven by
 // real app state where we have a cheap signal (brand count) and by per-org
 // localStorage for the rest, with a manual check-off. Includes a one-click
@@ -46,7 +46,7 @@ const STEPS: Step[] = [
 
 function decodeOrgId(): string {
   try {
-    const tok = localStorage.getItem('radix_auth_token');
+    const tok = localStorage.getItem('auracontent_auth_token');
     if (!tok) return 'default';
     return JSON.parse(atob(tok.split('.')[1])).orgId ?? 'default';
   } catch { return 'default'; }
@@ -56,7 +56,7 @@ interface GuideState { dismissed: boolean; done: Partial<Record<StepId, boolean>
 
 function loadState(orgId: string): GuideState {
   try {
-    const raw = localStorage.getItem(`radix.guide.v1.${orgId}`);
+    const raw = localStorage.getItem(`auracontent.guide.v1.${orgId}`);
     if (raw) return JSON.parse(raw);
   } catch { /* ignore */ }
   return { dismissed: false, done: {} };
@@ -74,7 +74,7 @@ export default function GuideWidget() {
 
   const persist = useCallback((next: GuideState) => {
     setState(next);
-    try { localStorage.setItem(`radix.guide.v1.${orgId}`, JSON.stringify(next)); } catch { /* ignore */ }
+    try { localStorage.setItem(`auracontent.guide.v1.${orgId}`, JSON.stringify(next)); } catch { /* ignore */ }
   }, [orgId]);
 
   // Real signal: a brand exists → step 1 is genuinely complete. Everything

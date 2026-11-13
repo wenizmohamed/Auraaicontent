@@ -7,7 +7,7 @@ set -euo pipefail
 DRY_RUN="${DRY_RUN:-}"
 SSH_KEY="${SSH_KEY:-$HOME/.ssh/radix_vps}"
 HOST="${HOST:-root@srv1494206.hstgr.cloud}"
-ROOT="${ROOT:-/opt/radix-v2}"
+ROOT="${ROOT:-/opt/auracontent-v2}"
 SMOKE_URL="${SMOKE_URL:-https://srv1494206.hstgr.cloud}"
 
 run() {
@@ -60,15 +60,15 @@ sshrun "cd $ROOT/server && npx prisma migrate deploy"
 
 echo ""
 echo "=== pm2 reload (zero-downtime) ==="
-sshrun "pm2 reload radix-api --update-env"
+sshrun "pm2 reload auracontent-api --update-env"
 
 echo ""
 echo "=== Smoke against $SMOKE_URL ==="
 if [[ -z "$DRY_RUN" ]]; then
   sleep 3
   cd "$PROJECT_ROOT/server"
-  if SMOKE_BASE_URL="$SMOKE_URL" npx vitest run | tee /tmp/radix-smoke-output.txt; then
-    if grep -qE "Tests +[0-9]+ passed" /tmp/radix-smoke-output.txt; then
+  if SMOKE_BASE_URL="$SMOKE_URL" npx vitest run | tee /tmp/auracontent-smoke-output.txt; then
+    if grep -qE "Tests +[0-9]+ passed" /tmp/auracontent-smoke-output.txt; then
       echo "✓ Deploy complete + smoke green"
     else
       echo "✗ smoke parse failed (no 'Tests N passed' line)" >&2

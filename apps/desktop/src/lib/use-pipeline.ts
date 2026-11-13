@@ -1,7 +1,7 @@
 // use-pipeline.ts — real-data backing for the Studio page.
 //
 // Studio's Pipeline/Approvals/Analytics tabs were previously driven by the mock
-// `useStore()` pipeline, which persisted only to localStorage['radix_mock_db'] —
+// `useStore()` pipeline, which persisted only to localStorage['auracontent_mock_db'] —
 // so anything created or moved there was silently lost across devices/logout and
 // never reached the real content calendar (frontend-review CRIT-1, 2026-07-05).
 //

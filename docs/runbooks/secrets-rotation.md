@@ -22,7 +22,7 @@ The script is atomic + idempotent + forward-only:
 3. Atomic `sed -i.tmp` replace of the `JWT_SECRET=` line.
 4. Verifies post-rotation length ≥ 64; aborts if not.
 5. `UPDATE RefreshToken SET revokedAt = NOW()` to invalidate all refresh flows.
-6. `pm2 reload radix-api --update-env` so the new env is hot-loaded with no downtime.
+6. `pm2 reload auracontent-api --update-env` so the new env is hot-loaded with no downtime.
 
 **Never**
 - Restore a prior JWT_SECRET. Forward-rotate to a third secret on failure.
@@ -32,11 +32,11 @@ The script is atomic + idempotent + forward-only:
 
 ```bash
 curl -s -o /dev/null -w "%{http_code}\n" -X POST -H "Content-Type: application/json" \
-  -d '{"email":"demo-admin@radix.local","password":"demoAdmin2026!"}' \
+  -d '{"email":"demo-admin@auracontent.local","password":"demoAdmin2026!"}' \
   https://srv1494206.hstgr.cloud/api/auth/login
 ```
 
-Expected: `200`. If `500`, the new secret didn't propagate — check `pm2 logs radix-api --err --lines 50`.
+Expected: `200`. If `500`, the new secret didn't propagate — check `pm2 logs auracontent-api --err --lines 50`.
 
 ---
 
@@ -51,10 +51,10 @@ Expected: `200`. If `500`, the new secret didn't propagate — check `pm2 logs r
 
    ```bash
    ssh -i ~/.ssh/radix_vps root@srv1494206.hstgr.cloud "
-     sudo -u postgres psql -c \"ALTER USER radix WITH PASSWORD '<new>';\"
-     sed -i 's|^DB_PASSWORD=.*|DB_PASSWORD=<new>|' /opt/radix-v2/server/.env
-     sed -i 's|^DATABASE_URL=postgres://radix:[^@]*@|DATABASE_URL=postgres://radix:<new>@|' /opt/radix-v2/server/.env
-     pm2 reload radix-api --update-env
+     sudo -u postgres psql -c \"ALTER USER auracontent WITH PASSWORD '<new>';\"
+     sed -i 's|^DB_PASSWORD=.*|DB_PASSWORD=<new>|' /opt/auracontent-v2/server/.env
+     sed -i 's|^DATABASE_URL=postgres://auracontent:[^@]*@|DATABASE_URL=postgres://auracontent:<new>@|' /opt/auracontent-v2/server/.env
+     pm2 reload auracontent-api --update-env
    "
    ```
 
@@ -69,21 +69,21 @@ Expected: `200`. If `500`, the new secret didn't propagate — check `pm2 logs r
 **Procedure**
 
 1. Rotate via the provider dashboard (console.cloud.google.com / x.ai / platform.moonshot.cn).
-2. Replace in `/opt/radix-v2/server/.env` via `sed -i`.
-3. `pm2 reload radix-api --update-env`.
+2. Replace in `/opt/auracontent-v2/server/.env` via `sed -i`.
+3. `pm2 reload auracontent-api --update-env`.
 4. Smoke: hit `/api/providers/status` → returns `configured: true` for the rotated provider.
 
 ---
 
 ## .env file mode + ownership
 
-The `.env` file should be readable only by the radix process owner:
+The `.env` file should be readable only by the auracontent process owner:
 
 ```bash
 ssh -i ~/.ssh/radix_vps root@srv1494206.hstgr.cloud '
-  chown radix:radix /opt/radix-v2/server/.env || chown root:root /opt/radix-v2/server/.env
-  chmod 600 /opt/radix-v2/server/.env
-  ls -la /opt/radix-v2/server/.env
+  chown auracontent:auracontent /opt/auracontent-v2/server/.env || chown root:root /opt/auracontent-v2/server/.env
+  chmod 600 /opt/auracontent-v2/server/.env
+  ls -la /opt/auracontent-v2/server/.env
 '
 ```
 

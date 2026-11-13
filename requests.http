@@ -1,4 +1,4 @@
-### Radix V2 REST collection
+### AuraContent V2 REST collection
 ### Open in VSCode with the "REST Client" (humao.rest-client) extension.
 ### Switch env via Ctrl+Alt+E ("local" vs "vps").
 ### Vars come from .vscode/settings.json rest-client.environmentVariables.
@@ -96,7 +96,7 @@ DELETE {{baseUrl}}/api/content-pieces/{{pieceId}}
 Authorization: Bearer {{authToken}}
 
 
-### 14. ASSISTANT chat — Radix Assistant (Claude Sonnet 4)
+### 14. ASSISTANT chat — AuraContent Assistant (Claude Sonnet 4)
 POST {{baseUrl}}/api/assistant/chat
 Authorization: Bearer {{authToken}}
 Content-Type: application/json

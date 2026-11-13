@@ -199,7 +199,7 @@ function AnimatedNumber({ value }: { value: number }) {
 
 // ─── Walkthrough Section ────────────────────────────────────────
 
-const WALKTHROUGH_KEY = 'radix_walkthrough_open';
+const WALKTHROUGH_KEY = 'auracontent_walkthrough_open';
 
 const WALKTHROUGH_STEPS: Array<{
   icon: any; title: string; description: string; href: string; cta: string;
@@ -307,7 +307,7 @@ function WalkthroughSection({ isDark, glass, glassStatic, textPrimary, textSecon
               <BookOpen className="w-4 h-4 text-amber-500" />
             </div>
             <div>
-              <h3 className={`text-sm font-semibold ${textPrimary}`}>{t('page.dashboard.how_radix_works')}</h3>
+              <h3 className={`text-sm font-semibold ${textPrimary}`}>{t('page.dashboard.how_auracontent_works')}</h3>
               <p className={`text-[11px] ${textMuted}`}>A step-by-step guide to every section</p>
             </div>
           </div>
@@ -389,9 +389,9 @@ export default function Dashboard() {
       setChangelog(entries);
       const newest = entries[0]?.date || '';
       try {
-        const seen = localStorage.getItem('radix_changelog_seen') || '';
+        const seen = localStorage.getItem('auracontent_changelog_seen') || '';
         setChangelogUnseen(newest > seen);
-        if (newest) localStorage.setItem('radix_changelog_seen', newest);
+        if (newest) localStorage.setItem('auracontent_changelog_seen', newest);
       } catch { /* private mode */ }
     }).catch(() => { /* card just stays hidden */ });
   }, []);

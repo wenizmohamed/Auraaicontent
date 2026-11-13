@@ -31,16 +31,16 @@
  *
  * Run on the server (it mints tokens with the local JWT secret):
  *   node scripts/agent-smoke.mjs
- *   BASE=http://127.0.0.1:8080 PROD_DIR=/opt/radix-v2/server node scripts/agent-smoke.mjs
+ *   BASE=http://127.0.0.1:8080 PROD_DIR=/opt/auracontent-v2/server node scripts/agent-smoke.mjs
  *
  * Exits 0 when every assertion passes, 1 on any failure.
  */
 
 import { execFileSync } from 'node:child_process';
 
-const PROD_DIR = process.env.PROD_DIR || '/opt/radix-v2/server';
+const PROD_DIR = process.env.PROD_DIR || '/opt/auracontent-v2/server';
 const BASE = process.env.BASE || 'http://127.0.0.1:8080';
-const ORG = process.env.E2E_ORG_ID || 'org_radix_media';
+const ORG = process.env.E2E_ORG_ID || 'org_auracontent';
 const RUN_TIMEOUT_MS = parseInt(process.env.RUN_TIMEOUT_MS || '180000', 10);
 const POLL_MS = 2500;
 

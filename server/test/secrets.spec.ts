@@ -9,16 +9,16 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomBytes } from 'node:crypto';
 
-const ORIG_KEY = process.env.RADIX_INTEGRATION_KEY;
+const ORIG_KEY = process.env.AURACONTENT_INTEGRATION_KEY;
 
 beforeAll(() => {
   // Deterministic 32-byte key for the test run. Base64 of 32 bytes = 44 chars.
-  process.env.RADIX_INTEGRATION_KEY = randomBytes(32).toString('base64');
+  process.env.AURACONTENT_INTEGRATION_KEY = randomBytes(32).toString('base64');
 });
 
 afterAll(() => {
-  if (ORIG_KEY === undefined) delete process.env.RADIX_INTEGRATION_KEY;
-  else process.env.RADIX_INTEGRATION_KEY = ORIG_KEY;
+  if (ORIG_KEY === undefined) delete process.env.AURACONTENT_INTEGRATION_KEY;
+  else process.env.AURACONTENT_INTEGRATION_KEY = ORIG_KEY;
 });
 
 describe('secrets — AES-256-GCM token encryption', () => {
@@ -75,23 +75,23 @@ describe('secrets — AES-256-GCM token encryption', () => {
 
   it('throws clearly when the key env var is missing', async () => {
     const { encrypt } = await import('../src/lib/secrets.js');
-    const saved = process.env.RADIX_INTEGRATION_KEY;
-    delete process.env.RADIX_INTEGRATION_KEY;
+    const saved = process.env.AURACONTENT_INTEGRATION_KEY;
+    delete process.env.AURACONTENT_INTEGRATION_KEY;
     try {
-      expect(() => encrypt('x')).toThrow(/RADIX_INTEGRATION_KEY missing/);
+      expect(() => encrypt('x')).toThrow(/AURACONTENT_INTEGRATION_KEY missing/);
     } finally {
-      process.env.RADIX_INTEGRATION_KEY = saved;
+      process.env.AURACONTENT_INTEGRATION_KEY = saved;
     }
   });
 
   it('throws clearly when the key is the wrong length', async () => {
     const { encrypt } = await import('../src/lib/secrets.js');
-    const saved = process.env.RADIX_INTEGRATION_KEY;
-    process.env.RADIX_INTEGRATION_KEY = randomBytes(16).toString('base64'); // only 16 bytes
+    const saved = process.env.AURACONTENT_INTEGRATION_KEY;
+    process.env.AURACONTENT_INTEGRATION_KEY = randomBytes(16).toString('base64'); // only 16 bytes
     try {
       expect(() => encrypt('x')).toThrow(/32 bytes/);
     } finally {
-      process.env.RADIX_INTEGRATION_KEY = saved;
+      process.env.AURACONTENT_INTEGRATION_KEY = saved;
     }
   });
 

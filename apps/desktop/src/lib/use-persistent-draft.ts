@@ -17,7 +17,7 @@
 
 import { useState, useEffect, useRef, useCallback, type Dispatch, type SetStateAction } from 'react';
 
-const PREFIX = 'radix.draft.';
+const PREFIX = 'auracontent.draft.';
 
 function isEmpty(v: unknown): boolean {
   return v == null || (typeof v === 'string' && v.trim() === '');

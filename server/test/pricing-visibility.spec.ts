@@ -46,11 +46,11 @@ describe('canSeePricing', () => {
     });
 
     it('denies EDITOR when email is not allowlisted', () => {
-      expect(canSeePricing('editor@radix.com', 'EDITOR')).toBe(false);
+      expect(canSeePricing('editor@auracontent.com', 'EDITOR')).toBe(false);
     });
 
     it('denies VIEWER when email is not allowlisted', () => {
-      expect(canSeePricing('viewer@radix.com', 'VIEWER')).toBe(false);
+      expect(canSeePricing('viewer@auracontent.com', 'VIEWER')).toBe(false);
     });
 
     it('denies unknown or lowercase non-privileged roles', () => {
@@ -62,32 +62,32 @@ describe('canSeePricing', () => {
 
   describe('ACCOUNTING_EMAILS allowlist', () => {
     it('allows any role when email is in ACCOUNTING_EMAILS', () => {
-      process.env.ACCOUNTING_EMAILS = 'money@radix.com,books@radix.com';
-      expect(canSeePricing('money@radix.com', 'EDITOR')).toBe(true);
-      expect(canSeePricing('books@radix.com', 'VIEWER')).toBe(true);
-      expect(canSeePricing('money@radix.com', undefined)).toBe(true);
+      process.env.ACCOUNTING_EMAILS = 'money@auracontent.com,books@auracontent.com';
+      expect(canSeePricing('money@auracontent.com', 'EDITOR')).toBe(true);
+      expect(canSeePricing('books@auracontent.com', 'VIEWER')).toBe(true);
+      expect(canSeePricing('money@auracontent.com', undefined)).toBe(true);
     });
 
     it('still denies emails not on the list', () => {
-      process.env.ACCOUNTING_EMAILS = 'money@radix.com';
-      expect(canSeePricing('other@radix.com', 'EDITOR')).toBe(false);
+      process.env.ACCOUNTING_EMAILS = 'money@auracontent.com';
+      expect(canSeePricing('other@auracontent.com', 'EDITOR')).toBe(false);
     });
   });
 
   describe('STAFF_EMAILS allowlist', () => {
     it('allows any role when email is in STAFF_EMAILS', () => {
-      process.env.STAFF_EMAILS = 'weni@radix.com,dev@radix.com';
-      expect(canSeePricing('weni@radix.com', 'EDITOR')).toBe(true);
-      expect(canSeePricing('dev@radix.com', 'VIEWER')).toBe(true);
-      expect(canSeePricing('dev@radix.com', null)).toBe(true);
+      process.env.STAFF_EMAILS = 'weni@auracontent.com,dev@auracontent.com';
+      expect(canSeePricing('weni@auracontent.com', 'EDITOR')).toBe(true);
+      expect(canSeePricing('dev@auracontent.com', 'VIEWER')).toBe(true);
+      expect(canSeePricing('dev@auracontent.com', null)).toBe(true);
     });
 
     it('checks both lists (either grants access)', () => {
-      process.env.ACCOUNTING_EMAILS = 'acct@radix.com';
-      process.env.STAFF_EMAILS = 'staff@radix.com';
-      expect(canSeePricing('acct@radix.com', 'VIEWER')).toBe(true);
-      expect(canSeePricing('staff@radix.com', 'VIEWER')).toBe(true);
-      expect(canSeePricing('neither@radix.com', 'VIEWER')).toBe(false);
+      process.env.ACCOUNTING_EMAILS = 'acct@auracontent.com';
+      process.env.STAFF_EMAILS = 'staff@auracontent.com';
+      expect(canSeePricing('acct@auracontent.com', 'VIEWER')).toBe(true);
+      expect(canSeePricing('staff@auracontent.com', 'VIEWER')).toBe(true);
+      expect(canSeePricing('neither@auracontent.com', 'VIEWER')).toBe(false);
     });
   });
 
@@ -107,7 +107,7 @@ describe('canSeePricing', () => {
 
   describe('missing email', () => {
     it('denies undefined, null and empty email for EDITOR', () => {
-      process.env.ACCOUNTING_EMAILS = 'money@radix.com';
+      process.env.ACCOUNTING_EMAILS = 'money@auracontent.com';
       process.env.STAFF_EMAILS = 'weni@x.com';
       expect(canSeePricing(undefined, 'EDITOR')).toBe(false);
       expect(canSeePricing(null, 'EDITOR')).toBe(false);

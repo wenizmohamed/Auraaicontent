@@ -6,9 +6,9 @@
 
 ---
 
-**Project:** Radix AI Content Planner
-**Generated:** 2026-05-12 00:01:49
-**Category:** Notes & Writing App
+**Project:** AuraContent Content OS
+**Generated:** 2026-06-04 21:11:46
+**Category:** Marketing Agency
 
 ---
 
@@ -18,29 +18,24 @@
 
 | Role | Hex | CSS Variable |
 |------|-----|--------------|
-| Primary | `#DC2626` | `--color-primary` |
-| On Primary | `#FFFFFF` | `--color-on-primary` |
-| Secondary | `#EF4444` | `--color-secondary` |
-| Accent/CTA | `#2563EB` | `--color-accent` |
-| Background | `#FFFFFF` | `--color-background` |
-| Foreground | `#0F172A` | `--color-foreground` |
-| Muted | `#FCF1F1` | `--color-muted` |
-| Border | `#FAE4E4` | `--color-border` |
-| Destructive | `#DC2626` | `--color-destructive` |
-| Ring | `#DC2626` | `--color-ring` |
+| Primary | `#2563EB` | `--color-primary` |
+| Secondary | `#3B82F6` | `--color-secondary` |
+| CTA/Accent | `#F97316` | `--color-cta` |
+| Background | `#F8FAFC` | `--color-background` |
+| Text | `#1E293B` | `--color-text` |
 
-**Color Notes:** Recording red + waveform blue
+**Color Notes:** Bold pink + creative cyan
 
 ### Typography
 
-- **Heading Font:** Inter
-- **Body Font:** Playfair Display
-- **Mood:** bold typography, editorial, poster, near-black, vermillion, luxury, type-as-hero, manifesto, high-contrast
-- **Google Fonts:** [Inter + Playfair Display](https://fonts.google.com/share?selection.family=Inter:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400|JetBrains+Mono:wght@400|Playfair+Display:ital@1)
+- **Heading Font:** Noto Naskh Arabic
+- **Body Font:** Noto Sans Arabic
+- **Mood:** arabic, elegant, traditional, cultural, RTL, readable
+- **Google Fonts:** [Noto Naskh Arabic + Noto Sans Arabic](https://fonts.google.com/share?selection.family=Noto+Naskh+Arabic:wght@400;500;600;700|Noto+Sans+Arabic:wght@300;400;500;700)
 
 **CSS Import:**
 ```css
-@import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=JetBrains+Mono:wght@400&family=Playfair+Display:ital@1&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;500;600;700&family=Noto+Sans+Arabic:wght@300;400;500;700&display=swap');
 ```
 
 ### Spacing Variables
@@ -73,7 +68,7 @@
 ```css
 /* Primary Button */
 .btn-primary {
-  background: #2563EB;
+  background: #F97316;
   color: white;
   padding: 12px 24px;
   border-radius: 8px;
@@ -90,8 +85,8 @@
 /* Secondary Button */
 .btn-secondary {
   background: transparent;
-  color: #DC2626;
-  border: 2px solid #DC2626;
+  color: #2563EB;
+  border: 2px solid #2563EB;
   padding: 12px 24px;
   border-radius: 8px;
   font-weight: 600;
@@ -104,7 +99,7 @@
 
 ```css
 .card {
-  background: #FFFFFF;
+  background: #F8FAFC;
   border-radius: 12px;
   padding: 24px;
   box-shadow: var(--shadow-md);
@@ -130,9 +125,9 @@
 }
 
 .input:focus {
-  border-color: #DC2626;
+  border-color: #2563EB;
   outline: none;
-  box-shadow: 0 0 0 3px #DC262620;
+  box-shadow: 0 0 0 3px #2563EB20;
 }
 ```
 
@@ -158,29 +153,28 @@
 
 ## Style Guidelines
 
-**Style:** Exaggerated Minimalism
+**Style:** Editorial Grid / Magazine
 
-**Keywords:** Bold minimalism, oversized typography, high contrast, negative space, loud minimal, statement design
+**Keywords:** Magazine layout, asymmetric grid, editorial typography, pull quotes, drop caps, column layout, print-inspired
 
-**Best For:** Fashion, architecture, portfolios, agency landing pages, luxury brands, editorial
+**Best For:** News sites, blogs, magazines, editorial content, long-form articles, journalism, publishing
 
-**Key Effects:** font-size: clamp(3rem 10vw 12rem), font-weight: 900, letter-spacing: -0.05em, massive whitespace
+**Key Effects:** Smooth scroll, reveal on scroll, parallax images, text animations, page-flip transitions
 
 ### Page Pattern
 
-**Pattern Name:** Minimal Single Column
+**Pattern Name:** Newsletter / Content First
 
-- **Conversion Strategy:** Single CTA focus. Large typography. Lots of whitespace. No nav clutter. Mobile-first.
-- **CTA Placement:** Center, large CTA button
-- **Section Order:** 1. Hero headline, 2. Short description, 3. Benefit bullets (3 max), 4. CTA, 5. Footer
+- **Conversion Strategy:**  typewriter effect,  subtle fade-in, Single field form (Email only). Show 'Join X, 000 readers'. Read sample link.
+- **CTA Placement:** Hero inline form + Sticky header form
+- **Section Order:** 1. Hero (Value Prop + Form), 2. Recent Issues/Archives, 3. Social Proof (Subscriber count), 4. About Author
 
 ---
 
 ## Anti-Patterns (Do NOT Use)
 
-- ❌ Excessive decoration
-- ❌ Complex shadows
-- ❌ 3D effects
+- ❌ Boring design
+- ❌ Hidden work
 
 ### Additional Forbidden Patterns
 

@@ -1023,7 +1023,7 @@
             "entity": "hstgr.cloud"
           },
           {
-            "url": "https://srv1494206.hstgr.cloud/radix-logo.jpg",
+            "url": "https://srv1494206.hstgr.cloud/auracontent-logo.jpg",
             "sessionTargetType": "page",
             "protocol": "http/1.1",
             "rendererStartTime": 1017.0450000017881,
@@ -2288,7 +2288,7 @@
                       "height": 823
                     },
                     "snippet": "<div class=\"min-h-screen flex items-center justify-center p-6 bg-zinc-950\">",
-                    "nodeLabel": "Radix\n\nAI Content Planner\n\nSign in\nCreate account\nEMAIL\nPASSWORD\nRemember me on…"
+                    "nodeLabel": "AuraContent\n\nAI Content Planner\n\nSign in\nCreate account\nEMAIL\nPASSWORD\nRemember me on…"
                   }
                 }
               ]
@@ -2456,7 +2456,7 @@
                       "height": 823
                     },
                     "snippet": "<div class=\"min-h-screen flex items-center justify-center p-6 bg-zinc-950\">",
-                    "nodeLabel": "Radix\n\nAI Content Planner\n\nSign in\nCreate account\nEMAIL\nPASSWORD\nRemember me on…"
+                    "nodeLabel": "AuraContent\n\nAI Content Planner\n\nSign in\nCreate account\nEMAIL\nPASSWORD\nRemember me on…"
                   }
                 }
               ]
@@ -3050,7 +3050,7 @@
             "totalBytes": 9284
           },
           {
-            "url": "https://srv1494206.hstgr.cloud/radix-logo.jpg",
+            "url": "https://srv1494206.hstgr.cloud/auracontent-logo.jpg",
             "totalBytes": 4457
           },
           {
@@ -3839,7 +3839,7 @@
           },
           {
             "protocol": "http/1.1",
-            "url": "https://srv1494206.hstgr.cloud/radix-logo.jpg"
+            "url": "https://srv1494206.hstgr.cloud/auracontent-logo.jpg"
           }
         ],
         "overallSavingsMs": 180
@@ -4521,7 +4521,7 @@
             "protocol": "http/1.1"
           },
           {
-            "url": "https://srv1494206.hstgr.cloud/radix-logo.jpg",
+            "url": "https://srv1494206.hstgr.cloud/auracontent-logo.jpg",
             "protocol": "http/1.1"
           }
         ]

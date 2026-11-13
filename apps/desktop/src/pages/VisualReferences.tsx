@@ -28,10 +28,10 @@ const SEED_REFS: VisualRef[] = [
 ];
 
 function getRefs(): VisualRef[] {
-  const stored = localStorage.getItem('radix_visual_refs');
+  const stored = localStorage.getItem('auracontent_visual_refs');
   return stored ? JSON.parse(stored) : SEED_REFS;
 }
-function saveRefs(r: VisualRef[]) { localStorage.setItem('radix_visual_refs', JSON.stringify(r)); }
+function saveRefs(r: VisualRef[]) { localStorage.setItem('auracontent_visual_refs', JSON.stringify(r)); }
 
 export default function VisualReferences() {
   const [refs, setRefs] = useState<VisualRef[]>(getRefs);

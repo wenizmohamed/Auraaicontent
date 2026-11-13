@@ -291,7 +291,7 @@ export const tool = defineTool<Args, Result>({
 
     await ctx.emit('agent:artifact', {
       path: `calendar/${args.month}`,
-      mimeType: 'application/x-radix-calendar-month',
+      mimeType: 'application/x-auracontent-calendar-month',
       preview: `${pieces.length} posts drafted for ${args.month}`,
       at: now(),
     });

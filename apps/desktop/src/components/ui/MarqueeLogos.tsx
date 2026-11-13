@@ -50,7 +50,7 @@ export function MarqueeLogos({
       ) : null}
 
       <div
-        className="radix-marquee-frame"
+        className="auracontent-marquee-frame"
         style={{
           // Hard masks fade the edges into the surrounding bg so the strip
           // doesn't end in a visible cut. Same gradient on both sides.
@@ -68,7 +68,7 @@ export function MarqueeLogos({
           </div>
         ) : (
           <div
-            className="radix-marquee-track"
+            className="auracontent-marquee-track"
             style={{
               animationDuration: `${durationSec}s`,
               animationDirection: direction === 'left' ? 'normal' : 'reverse',

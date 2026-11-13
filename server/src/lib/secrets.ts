@@ -1,7 +1,7 @@
 /**
  * AES-256-GCM symmetric encryption for at-rest OAuth tokens.
  *
- * Key source: env var RADIX_INTEGRATION_KEY — 32 raw bytes, base64-encoded.
+ * Key source: env var AURACONTENT_INTEGRATION_KEY — 32 raw bytes, base64-encoded.
  * Generate with: openssl rand -base64 32
  *
  * Storage format: <iv-base64>:<ciphertext-base64>:<authTag-base64>
@@ -19,16 +19,16 @@ const IV_BYTES = 12;
 const KEY_BYTES = 32;
 
 function getKey(): Buffer {
-  const raw = process.env.RADIX_INTEGRATION_KEY;
+  const raw = process.env.AURACONTENT_INTEGRATION_KEY;
   if (!raw) {
     throw new Error(
-      'RADIX_INTEGRATION_KEY missing. Generate one with `openssl rand -base64 32` and add to server/.env'
+      'AURACONTENT_INTEGRATION_KEY missing. Generate one with `openssl rand -base64 32` and add to server/.env'
     );
   }
   const buf = Buffer.from(raw, 'base64');
   if (buf.length !== KEY_BYTES) {
     throw new Error(
-      `RADIX_INTEGRATION_KEY must decode to exactly ${KEY_BYTES} bytes; got ${buf.length}. ` +
+      `AURACONTENT_INTEGRATION_KEY must decode to exactly ${KEY_BYTES} bytes; got ${buf.length}. ` +
       `Regenerate with: openssl rand -base64 32`
     );
   }

@@ -6,10 +6,10 @@
 // To activate real delivery:
 //   1. Sign up at https://resend.com (free tier ≥ 100/day, no card)
 //   2. Verify a sender domain (e.g. radixmedia.ae)
-//   3. Add to /opt/radix-v2/server/.env:
+//   3. Add to /opt/auracontent-v2/server/.env:
 //        RESEND_API_KEY=re_xxx
 //        EMAIL_FROM="AURA <invites@radixmedia.ae>"
-//   4. pm2 restart radix-api
+//   4. pm2 restart auracontent-api
 
 export interface SendEmailArgs {
   to: string;

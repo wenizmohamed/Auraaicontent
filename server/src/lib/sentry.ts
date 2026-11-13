@@ -25,7 +25,7 @@ export async function initSentry(app: FastifyInstance): Promise<void> {
     Sentry.init({
       dsn,
       environment: process.env.NODE_ENV || 'production',
-      release: process.env.RADIX_RELEASE || 'unknown',
+      release: process.env.AURACONTENT_RELEASE || 'unknown',
       tracesSampleRate: 0.1,
     });
 

@@ -1,6 +1,6 @@
 // Tool-calling loop using OpenAI-compatible Chat Completions across the
 // Gemini → Grok → Kimi fallback chain (Weni 2026-04-23: Gemini 3.1 Pro is
-// PRIMARY because the API key is billed to the Radix company card).
+// PRIMARY because the API key is billed to the AuraContent company card).
 // Streams assistant text deltas as `agent:message` events, executes
 // tool_calls against the registry, feeds tool results back as role:'tool'
 // messages.  Max 20 iterations (safety cap).  Aborts on ctx.signal.

@@ -1,27 +1,27 @@
 #!/usr/bin/env bash
-# Backend deploy: build /opt/radixcontent/server, sync dist + node_modules to
-# the live target /opt/radix-v2/server, pm2 restart with --update-env.
+# Backend deploy: build /opt/auracontent/server, sync dist + node_modules to
+# the live target /opt/auracontent-v2/server, pm2 restart with --update-env.
 #
-# /opt/radixcontent is the git checkout (single source of truth).
-# /opt/radix-v2 is the live target — pm2 runs from there.
+# /opt/auracontent is the git checkout (single source of truth).
+# /opt/auracontent-v2 is the live target — pm2 runs from there.
 #
 # Run on the VPS as root (or via SSH):
-#   ssh -i ~/.ssh/radix_vps root@187.77.158.177 'bash /opt/radixcontent/scripts/deploy-backend.sh'
+#   ssh -i ~/.ssh/radix_vps root@187.77.158.177 'bash /opt/auracontent/scripts/deploy-backend.sh'
 #
 # Flags:
 #   --skip-pull      Don't run git pull (use this when you've already pulled)
 #   --skip-install   Don't reinstall node_modules (use when package-lock unchanged)
 #   --skip-build     Don't run tsc (use when re-syncing an existing dist)
-#   --sync-env       Also copy .env from radixcontent to radix-v2 (DANGEROUS —
+#   --sync-env       Also copy .env from auracontent to auracontent-v2 (DANGEROUS —
 #                    will OVERWRITE the live env including site-specific vars
 #                    like FIRECRAWL_API_KEY, STAFF_EMAILS, TEAM_ADMIN_EMAILS).
 #                    Default off — env is managed manually on the live target.
 
 set -euo pipefail
 
-SOURCE=/opt/radixcontent
-TARGET=/opt/radix-v2
-PM2_NAME=radix-api
+SOURCE=/opt/auracontent
+TARGET=/opt/auracontent-v2
+PM2_NAME=auracontent-api
 
 DO_PULL=1
 DO_INSTALL=1
@@ -38,7 +38,7 @@ for arg in "$@"; do
   esac
 done
 
-echo "=== Radix backend deploy — $(date) ==="
+echo "=== AuraContent backend deploy — $(date) ==="
 
 if [ "$DO_PULL" = "1" ]; then
   echo "--- git pull ---"

@@ -25,7 +25,7 @@ const Research          = lazy(() => import('./pages/Research'));
 const CompetitorIntel    = lazy(() => import('./pages/CompetitorIntel'));
 const Profile           = lazy(() => import('./pages/Profile'));
 const Studio            = lazy(() => import('./pages/Studio'));
-const RadixAssistant    = lazy(() => import('./pages/RadixAssistant'));
+const AuraContentAssistant    = lazy(() => import('./pages/AuraContentAssistant'));
 const TopicDesk         = lazy(() => import('./pages/TopicDesk'));
 const DesignTextures    = lazy(() => import('./pages/DesignTextures'));
 const ContentPieces     = lazy(() => import('./pages/ContentPieces'));
@@ -100,10 +100,10 @@ function getCallerEmail(): string | null {
   // tokens issued before the email claim (or with base64url payloads that
   // atob can't decode) made these gates silently fail, hiding Team/Admin
   // nav from allowlisted users (lockout incident 2026-07-04).
-  const verified = localStorage.getItem('radix_verified_email');
+  const verified = localStorage.getItem('auracontent_verified_email');
   if (verified) return verified;
   try {
-    const tok = localStorage.getItem('radix_auth_token');
+    const tok = localStorage.getItem('auracontent_auth_token');
     if (!tok) return null;
     // JWT payload segments are base64URL — swap '-'/'_' before atob.
     const b64 = tok.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
@@ -134,7 +134,7 @@ function EmailGate({ allow, children }: { allow: string[]; children: React.React
     authApi.me()
       .then((u) => {
         if (!alive) return;
-        try { localStorage.setItem('radix_verified_email', u.email); } catch { /* private mode */ }
+        try { localStorage.setItem('auracontent_verified_email', u.email); } catch { /* private mode */ }
         setEmail(u.email);
         setSettled(true);
       })
@@ -189,7 +189,7 @@ function Layout({ children }: { children: React.ReactNode }) {
       // Cache the verified email BEFORE setMe so the re-render's
       // isTeamAdmin()/isStaff() calls see it (fixes gates for sessions
       // whose JWT lacks/garbles the email claim).
-      try { localStorage.setItem('radix_verified_email', u.email); } catch { /* private mode */ }
+      try { localStorage.setItem('auracontent_verified_email', u.email); } catch { /* private mode */ }
       setMe(u);
     }).catch(() => { /* unauth → AuthGate handles */ });
     return () => { alive = false; };
@@ -200,7 +200,7 @@ function Layout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     function decodeOrg(): string | null {
       try {
-        const token = localStorage.getItem('radix_auth_token');
+        const token = localStorage.getItem('auracontent_auth_token');
         if (!token) return null;
         const payload = JSON.parse(atob(token.split('.')[1]));
         return payload.orgId ?? null;
@@ -224,10 +224,10 @@ function Layout({ children }: { children: React.ReactNode }) {
   // the stash so it can't loop and surface a toast.
   useEffect(() => {
     let token: string | null = null;
-    try { token = localStorage.getItem('radix.pendingInvite'); } catch { /* ignore */ }
+    try { token = localStorage.getItem('auracontent.pendingInvite'); } catch { /* ignore */ }
     if (!token) return;
     let cancelled = false;
-    const clear = () => { try { localStorage.removeItem('radix.pendingInvite'); localStorage.removeItem('radix.inviteEmail'); } catch { /* ignore */ } };
+    const clear = () => { try { localStorage.removeItem('auracontent.pendingInvite'); localStorage.removeItem('auracontent.inviteEmail'); } catch { /* ignore */ } };
     (async () => {
       try {
         const { invitationsApi, orgsApi } = await import('./lib/backend-api');
@@ -271,7 +271,7 @@ function Layout({ children }: { children: React.ReactNode }) {
   type NavGroup = { id: string; label: string; items: NavItem[] };
 
   // IA redesign: 5 user-journey groups expose all 33 surfaces (was 15 flat).
-  // Group ids must match localStorage keys (radix.nav.group.<id>).
+  // Group ids must match localStorage keys (auracontent.nav.group.<id>).
   const navGroups: NavGroup[] = [
     {
       id: 'today',
@@ -350,13 +350,13 @@ function Layout({ children }: { children: React.ReactNode }) {
   // Per-group expand/collapse, persisted. Default all open.
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
     try {
-      const raw = localStorage.getItem('radix.nav.groups.v1');
+      const raw = localStorage.getItem('auracontent.nav.groups.v1');
       if (raw) return JSON.parse(raw);
     } catch { /* ignore */ }
     return { today: true, strategy: true, create: true, distribute: true, settings: true };
   });
   useEffect(() => {
-    try { localStorage.setItem('radix.nav.groups.v1', JSON.stringify(openGroups)); } catch { /* ignore */ }
+    try { localStorage.setItem('auracontent.nav.groups.v1', JSON.stringify(openGroups)); } catch { /* ignore */ }
   }, [openGroups]);
   const toggleGroup = (id: string) => setOpenGroups(prev => ({ ...prev, [id]: !prev[id] }));
 
@@ -407,10 +407,10 @@ function Layout({ children }: { children: React.ReactNode }) {
         {/* Logo */}
         <div className={`h-[72px] flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-5'} border-b ${isDark ? 'border-white/[0.06]' : 'border-slate-200/60'}`}>
           {isCollapsed ? (
-            <img src="/radix-logo.jpg?v=2" alt="AURA" className="w-9 h-9 rounded-xl object-cover ring-1 ring-white/10" />
+            <img src="/auracontent-logo.jpg?v=2" alt="AURA" className="w-9 h-9 rounded-xl object-cover ring-1 ring-white/10" />
           ) : (
             <div className="flex items-center gap-3">
-              <img src="/radix-logo.jpg?v=2" alt="AURA" className="w-10 h-10 rounded-xl object-cover ring-1 ring-white/10" />
+              <img src="/auracontent-logo.jpg?v=2" alt="AURA" className="w-10 h-10 rounded-xl object-cover ring-1 ring-white/10" />
               <div>
                 <span className={`text-lg font-black tracking-[0.3em] uppercase ${isDark ? 'text-white' : 'text-slate-900'}`}>
                   AURA
@@ -629,7 +629,7 @@ function Layout({ children }: { children: React.ReactNode }) {
         
         {/* Global Floating Chat Widget — lazy + null fallback so it never blocks */}
         <Suspense fallback={null}>
-          <RadixAssistant />
+          <AuraContentAssistant />
         </Suspense>
 
         {/* Get-started guidance companion (bottom-left, clear of the chat widget) */}
@@ -673,7 +673,7 @@ const IS_ELECTRON = !!window.electron?.isDesktop;
 
 function DevBanner() {
   const { serverOnline, authenticated, selectedClientId, authError } = useClients();
-  const lastCrash = readJson<any>('radix_last_crash', null);
+  const lastCrash = readJson<any>('auracontent_last_crash', null);
   const isDev = import.meta.env.DEV;
   const lane = IS_ELECTRON ? 'desktop' : (window.location.hostname === 'localhost' ? 'local_web' : 'vps');
   if (!isDev) return null;

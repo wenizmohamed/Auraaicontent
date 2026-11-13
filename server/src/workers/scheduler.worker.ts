@@ -2,7 +2,7 @@
  * F2 Post scheduler — BullMQ repeating worker that auto-publishes
  * CalendarPost rows when their scheduledAt deadline arrives.
  *
- * Spec: docs/radix-v2-ultimate-spec.md §2.
+ * Spec: docs/auracontent-v2-ultimate-spec.md §2.
  *
  * How it works:
  *   1. Single repeating job 'scheduler-tick' fires every 60s.
@@ -38,7 +38,7 @@ import { auditService } from '../services/audit.service.js';
 
 type Redis = InstanceType<typeof IORedis>;
 
-const QUEUE_NAME = 'radix-scheduler';
+const QUEUE_NAME = 'auracontent-scheduler';
 const TICK_JOB_NAME = 'scheduler-tick';
 const TICK_EVERY_MS = 60_000;
 const LOCK_TTL_SEC = 3600; // 1 hour

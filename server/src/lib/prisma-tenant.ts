@@ -4,7 +4,7 @@
 // surfaces as a loud error in dev/test instead of a silent cross-tenant
 // data leak in production.
 //
-// Set RADIX_TENANT_GUARD=warn to log instead of throw (for migrations or
+// Set AURACONTENT_TENANT_GUARD=warn to log instead of throw (for migrations or
 // jobs that need temporary unscoped access). Default = throw.
 //
 // Models exempted from scoping (no per-tenant data):
@@ -88,7 +88,7 @@ export const tenantGuardExtension = Prisma.defineExtension({
       async $allOperations({ model, operation, args, query }) {
         if (!model || !TENANT_MODELS.has(model)) return query(args);
 
-        const mode = process.env.RADIX_TENANT_GUARD ?? 'throw';
+        const mode = process.env.AURACONTENT_TENANT_GUARD ?? 'throw';
         if (mode === 'off') return query(args);
 
         let violation: string | null = null;

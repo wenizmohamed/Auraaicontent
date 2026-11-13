@@ -1,7 +1,7 @@
-# RadixContent — Positioning
+# AuraContent — Positioning
 
 ## One-line position
-**RadixContent is the bilingual AR/EN content calendar OS for Gulf-region marketing agencies.**
+**AuraContent is the bilingual AR/EN content calendar OS for Gulf-region marketing agencies.**
 
 ## Why this wedge
 1. **Existing demo data is Gulf-themed.** The Al Fardan Exchange seed (UAE remittance, Ramadan/Eid moments, Emirati Women's Day) maps directly to the buyer.

@@ -11,8 +11,8 @@ function createWindow() {
     height: 900,
     minWidth: 1024,
     minHeight: 700,
-    title: 'RADIX — AI Content Planner',
-    icon: path.join(__dirname, '..', 'public', 'radix-icon.png'),
+    title: 'AURACONTENT — AI Content Planner',
+    icon: path.join(__dirname, '..', 'public', 'auracontent-icon.png'),
     backgroundColor: '#0a0a0a',
     titleBarStyle: 'hidden',
     titleBarOverlay: {
@@ -67,11 +67,11 @@ function createWindow() {
 }
 
 function createTray() {
-  const iconPath = path.join(__dirname, '..', 'public', 'radix-icon.png');
+  const iconPath = path.join(__dirname, '..', 'public', 'auracontent-icon.png');
   tray = new Tray(nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 }));
 
   const contextMenu = Menu.buildFromTemplate([
-    { label: 'Open RADIX', click: () => { mainWindow?.show(); mainWindow?.focus(); } },
+    { label: 'Open AURACONTENT', click: () => { mainWindow?.show(); mainWindow?.focus(); } },
     { type: 'separator' },
     { label: 'New Brief', click: () => { mainWindow?.show(); mainWindow?.webContents.executeJavaScript("window.location.hash = '/brief'"); } },
     { label: 'Review Content', click: () => { mainWindow?.show(); mainWindow?.webContents.executeJavaScript("window.location.hash = '/content-review'"); } },
@@ -79,7 +79,7 @@ function createTray() {
     { label: 'Quit', click: () => { app.isQuitting = true; app.quit(); } },
   ]);
 
-  tray.setToolTip('RADIX AI Content Planner');
+  tray.setToolTip('AURACONTENT AI Content Planner');
   tray.setContextMenu(contextMenu);
   tray.on('click', () => { mainWindow?.show(); mainWindow?.focus(); });
 }

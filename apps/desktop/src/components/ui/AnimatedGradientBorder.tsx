@@ -41,7 +41,7 @@ export function AnimatedGradientBorder({
 }: AnimatedGradientBorderProps) {
   return (
     <div
-      className={`radix-agb ${className}`}
+      className={`auracontent-agb ${className}`}
       style={{
         ['--agb-radius' as any]: `${radius}px`,
         ['--agb-thickness' as any]: `${thickness}px`,
@@ -50,7 +50,7 @@ export function AnimatedGradientBorder({
         ...style,
       }}
     >
-      <div className="radix-agb-inner">{children}</div>
+      <div className="auracontent-agb-inner">{children}</div>
     </div>
   );
 }

@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AURA — AI Content Planner</title>
-    <link rel="icon" href="/radix-logo.jpg?v=2" />
+    <link rel="icon" href="/auracontent-logo.jpg?v=2" />
     <script>
       // Self-heal: unregister any stale service worker from a prior PWA build,
       // clear its caches, then reload ONCE. The current build registers no SW.
@@ -12,14 +12,14 @@
       // cleanup succeeds (a failed attempt simply retries next load), and every
       // cache delete is awaited before the reload so nothing is orphaned. Fully
       // try/caught so a rejection can never reach window.onunhandledrejection
-      // (which would overwrite the radix_last_crash diagnostic slot). nginx's
+      // (which would overwrite the auracontent_last_crash diagnostic slot). nginx's
       // 410 + Clear-Site-Data kill-switch on /sw.js stays the authoritative
       // layer — this only helps clients that receive a fresh index.html while
       // still carrying an old registration.
       (async function () {
         try {
           if (!('serviceWorker' in navigator)) return;
-          if (sessionStorage.getItem('__radix_sw_cleared')) return;
+          if (sessionStorage.getItem('__auracontent_sw_cleared')) return;
           var rs = await navigator.serviceWorker.getRegistrations();
           if (!rs || !rs.length) return;
           await Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -27,17 +27,37 @@
             var ks = await caches.keys();
             await Promise.all(ks.map(function (k) { return caches.delete(k); }));
           }
-          sessionStorage.setItem('__radix_sw_cleared', '1');
+          sessionStorage.setItem('__auracontent_sw_cleared', '1');
           location.reload();
         } catch (e) { /* retry on next load; never surface */ }
       })();
     </script>
     <script>
+      // One-time move of saved settings to the new key names (rename of
+      // 2026-11-14). Runs first so nobody is logged out and drafts, theme,
+      // language, prompt history and layout all carry over. A key that
+      // already exists under the new name wins. Delete after 2026-12-31.
+      try {
+        var pairs = [['radix_', 'auracontent_'], ['radix.', 'auracontent.'], ['radix:', 'auracontent:'], ['__radix_', '__auracontent_']];
+        [localStorage, sessionStorage].forEach(function (s) {
+          var keys = [];
+          for (var i = 0; i < s.length; i++) keys.push(s.key(i));
+          keys.forEach(function (k) {
+            for (var j = 0; k && j < pairs.length; j++) {
+              if (k.indexOf(pairs[j][0]) !== 0) continue;
+              var nk = pairs[j][1] + k.slice(pairs[j][0].length);
+              if (s.getItem(nk) === null) s.setItem(nk, s.getItem(k));
+              s.removeItem(k);
+              break;
+            }
+          });
+        });
+      } catch (e) {}
       // Pre-React lang/dir sync (A11Y WCAG 3.1.1). Runs before main.tsx so
       // first paint already reflects the user's chosen locale instead of
       // briefly flashing English LTR for Arabic users.
       try {
-        var l = localStorage.getItem('radix.locale');
+        var l = localStorage.getItem('auracontent.locale');
         if (l === 'ar' || l === 'en') {
           document.documentElement.lang = l;
           document.documentElement.dir = l === 'ar' ? 'rtl' : 'ltr';
@@ -47,7 +67,7 @@
       // the right class on <html> BEFORE the React app mounts. Mirrors the
       // resolution logic in lib/theme-context.tsx (must stay in sync).
       try {
-        var t = localStorage.getItem('radix_theme') || 'auto';
+        var t = localStorage.getItem('auracontent_theme') || 'auto';
         var resolved = t;
         if (t === 'auto') {
           if (window.matchMedia) {

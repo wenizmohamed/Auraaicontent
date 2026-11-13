@@ -1,6 +1,6 @@
 # Agent Page Overrides
 
-> **PROJECT:** Radix AI Content Planner
+> **PROJECT:** AuraContent AI Content Planner
 > **Generated:** 2026-05-12 00:01:48
 > **Page Type:** Dashboard / Data View
 

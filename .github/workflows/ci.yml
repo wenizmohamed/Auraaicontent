@@ -112,26 +112,26 @@ jobs:
           cache: 'npm'
           cache-dependency-path: server/package-lock.json
 
-      - name: Spin up ephemeral stack (postgres + redis + radix-api)
+      - name: Spin up ephemeral stack (postgres + redis + auracontent-api)
         run: docker compose -f docker-compose.ci.yml up --build -d
 
-      - name: Wait for radix-api to become healthy
+      - name: Wait for auracontent-api to become healthy
         run: |
           for i in $(seq 1 60); do
             if curl -fs http://localhost:8080/api/health; then
-              echo " radix-api ready after ${i}s"
+              echo " auracontent-api ready after ${i}s"
               exit 0
             fi
             sleep 2
           done
-          echo "radix-api never became healthy"
+          echo "auracontent-api never became healthy"
           docker compose -f docker-compose.ci.yml logs --tail=200
           exit 1
 
       - name: Install + run smoke
         env:
           # Same throwaway values as docker-compose.ci.yml — not secrets.
-          DATABASE_URL: postgres://radix:ci_only_not_secret@localhost:5432/radix_planner
+          DATABASE_URL: postgres://auracontent:ci_only_not_secret@localhost:5432/auracontent_planner
           JWT_SECRET: ci_only_64char_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
         run: |
           cd server && npm ci

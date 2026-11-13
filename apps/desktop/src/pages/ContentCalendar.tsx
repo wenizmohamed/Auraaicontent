@@ -107,17 +107,17 @@ export default function ContentCalendar() {
   const [platformFilter, setPlatformFilter] = useState('All');
   const [monthOffset, setMonthOffset] = useState(0);
   const [showHijri, setShowHijri] = useState<boolean>(() => {
-    try { return localStorage.getItem('radix.calendar.hijri') === '1'; } catch { return false; }
+    try { return localStorage.getItem('auracontent.calendar.hijri') === '1'; } catch { return false; }
   });
   type Density = 'compact' | 'comfortable' | 'spacious';
   const [density, setDensity] = useState<Density>(() => {
     try {
-      const saved = localStorage.getItem('radix.calendar.density') as Density | null;
+      const saved = localStorage.getItem('auracontent.calendar.density') as Density | null;
       return saved === 'compact' || saved === 'spacious' ? saved : 'comfortable';
     } catch { return 'comfortable'; }
   });
   useEffect(() => {
-    try { localStorage.setItem('radix.calendar.density', density); } catch { /* ssr */ }
+    try { localStorage.setItem('auracontent.calendar.density', density); } catch { /* ssr */ }
   }, [density]);
   const densityClasses = {
     compact:     { gap: 'gap-1', padding: 'p-1.5', dayText: 'text-[11px]', subText: 'text-[8px]' },
@@ -708,7 +708,7 @@ export default function ContentCalendar() {
                 onClick={() => {
                   const next = !showHijri;
                   setShowHijri(next);
-                  try { localStorage.setItem('radix.calendar.hijri', next ? '1' : '0'); } catch {}
+                  try { localStorage.setItem('auracontent.calendar.hijri', next ? '1' : '0'); } catch {}
                 }}
                 title="Toggle Hijri / Gregorian dual display"
                 aria-pressed={showHijri}
@@ -752,7 +752,7 @@ export default function ContentCalendar() {
           </motion.div>
 
           {/* Calendar Grid + Inbox Rail (Tier 2 #5 + Tier 3 #9) */}
-          <CalendarDndProvider onDrop={() => { try { (window as any).dispatchEvent(new CustomEvent('radix:calendar-refetch')); } catch {} }}>
+          <CalendarDndProvider onDrop={() => { try { (window as any).dispatchEvent(new CustomEvent('auracontent:calendar-refetch')); } catch {} }}>
           <div className="flex gap-3">
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ ...motionBase, delay: 0.1 }}
             className="relative overflow-hidden flex-1 min-w-0 rounded-3xl border p-5"

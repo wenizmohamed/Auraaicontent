@@ -5,7 +5,7 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: radix_planner
+      POSTGRES_DB: auracontent_planner
     ports:
       - '5432:5432'
     volumes:

@@ -13,7 +13,7 @@
  * Only document and media types are imported (PDF, Office, text, images,
  * audio, video). Source code, archives and other files are skipped unless
  * --all is passed.
- *   PROD_DIR=/opt/radix-v2/server node scripts/knowledge-import-folder.mjs ./docs cmv...
+ *   PROD_DIR=/opt/auracontent-v2/server node scripts/knowledge-import-folder.mjs ./docs cmv...
  *
  * Exits 0 when every file was imported or skipped, 1 if any failed.
  */
@@ -28,7 +28,7 @@ if (!folderArg || !clientId) {
 }
 const DRY = flags.includes('--dry');
 const ALL = flags.includes('--all');
-const PROD_DIR = process.env.PROD_DIR || '/opt/radix-v2/server';
+const PROD_DIR = process.env.PROD_DIR || '/opt/auracontent-v2/server';
 const folder = path.resolve(folderArg);
 const MAX_BYTES = 50 * 1024 * 1024;
 const SKIP_DIRS = new Set(['node_modules', '.git', '__pycache__', '.venv', 'dist', 'build']);

@@ -2,16 +2,16 @@ import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 
 // Reuse the resolved API URL from backend-api.ts. The user's stored override
-// (radix_api_url) is the authoritative target after the boot health-cascade,
+// (auracontent_api_url) is the authoritative target after the boot health-cascade,
 // so socket connects there too.
 function resolveSocketUrl(): string {
   if (typeof window === 'undefined') return '';
-  return localStorage.getItem('radix_api_url') || window.location.origin;
+  return localStorage.getItem('auracontent_api_url') || window.location.origin;
 }
 
 function getAuthToken(): string | null {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem('radix_auth_token');
+  return localStorage.getItem('auracontent_auth_token');
 }
 
 export interface JobUpdate {

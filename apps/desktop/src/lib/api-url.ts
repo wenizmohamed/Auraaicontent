@@ -8,7 +8,7 @@
 // Resolution order:
 //   1. VITE_API_URL at build time (if set, wins — Electron bundles override here)
 //   2. window.electron.apiBaseUrl (Electron runtime hint)
-//   3. localStorage 'radix_api_url' (cascade-fallback winner, persisted)
+//   3. localStorage 'auracontent_api_url' (cascade-fallback winner, persisted)
 //   4. Same-origin when running in a browser served from a real host
 //      (e.g. https://srv1494206.hstgr.cloud → '' → /api resolves against
 //      the current origin, which nginx then proxies to :8080)
@@ -39,7 +39,7 @@ export function resolveApiUrl(): string {
     if (electronUrl) return electronUrl;
 
     try {
-      const stored = window.localStorage.getItem('radix_api_url');
+      const stored = window.localStorage.getItem('auracontent_api_url');
       if (stored) return stored;
     } catch { /* ignore */ }
 

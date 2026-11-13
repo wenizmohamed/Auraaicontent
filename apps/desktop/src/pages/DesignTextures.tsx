@@ -49,15 +49,15 @@ const SEED_SOURCES: DesignSource[] = [
 ];
 
 function getTextures(): Texture[] {
-  const stored = localStorage.getItem('radix_textures');
+  const stored = localStorage.getItem('auracontent_textures');
   return stored ? JSON.parse(stored) : SEED_TEXTURES;
 }
-function saveTextures(t: Texture[]) { localStorage.setItem('radix_textures', JSON.stringify(t)); }
+function saveTextures(t: Texture[]) { localStorage.setItem('auracontent_textures', JSON.stringify(t)); }
 function getSources(): DesignSource[] {
-  const stored = localStorage.getItem('radix_design_sources');
+  const stored = localStorage.getItem('auracontent_design_sources');
   return stored ? JSON.parse(stored) : SEED_SOURCES;
 }
-function saveSources(s: DesignSource[]) { localStorage.setItem('radix_design_sources', JSON.stringify(s)); }
+function saveSources(s: DesignSource[]) { localStorage.setItem('auracontent_design_sources', JSON.stringify(s)); }
 
 export default function DesignTextures() {
   const [textures, setTextures] = useState<Texture[]>(getTextures);

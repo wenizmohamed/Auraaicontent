@@ -31,7 +31,7 @@ import { usePricingVisibility } from '../lib/use-pricing-visibility';
 
 // ─── Prompt History ─────────────────────────────────────────────
 
-const HISTORY_KEY = 'radix_prompt_history';
+const HISTORY_KEY = 'auracontent_prompt_history';
 const MAX_HISTORY = 20;
 
 interface PromptHistoryEntry {
@@ -58,7 +58,7 @@ function pushHistory(entry: PromptHistoryEntry) {
 // ─── Recent Assets (inline thumbnail strip — workshop ask 2026-05-06) ─────────
 // Keeps the last N generated assets so users see them without tab-switching to History.
 
-const RECENT_ASSETS_KEY = 'radix_recent_assets';
+const RECENT_ASSETS_KEY = 'auracontent_recent_assets';
 const MAX_RECENT_ASSETS = 8;
 
 interface RecentAsset {

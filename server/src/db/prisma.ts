@@ -2,7 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { tenantGuardExtension } from '../lib/prisma-tenant.js';
 
 // Singleton — reuse across requests, avoid connection pool exhaustion.
-// Tenant-guard extension throws (or warns, depending on RADIX_TENANT_GUARD)
+// Tenant-guard extension throws (or warns, depending on AURACONTENT_TENANT_GUARD)
 // when a tenant-scoped model is queried without orgId. Defense in depth on
 // top of explicit scoping at the route layer.
 const globalForPrisma = globalThis as unknown as {

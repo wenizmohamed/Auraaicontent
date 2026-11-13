@@ -249,7 +249,7 @@ export default function Admin() {
                 <td className="px-3 py-3 text-right tabular-nums">{o.calendars}</td>
                 <td className={`px-5 py-3 text-[12px] ${sub}`}>{new Date(o.createdAt).toLocaleDateString()}</td>
                 <td className="px-5 py-3 text-right">
-                  {o.slug === 'radix-media' ? (
+                  {o.slug === 'auracontent' ? (
                     <span className={`text-[11px] ${sub}`}>primary</span>
                   ) : (
                     <button

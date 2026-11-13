@@ -3,7 +3,7 @@
  *
  * Adapted from 21st.dev's "Agent Plan" community component
  * (apps/desktop/src/components/agent/AgentPlanView.raw.tsx is the verbatim source).
- * Rebuilt props-driven for the radixcontent /api/agent/sessions flow + restyled
+ * Rebuilt props-driven for the auracontent /api/agent/sessions flow + restyled
  * against the project's semantic tokens (bg-bg, text-fg-muted, color-accent…).
  *
  * Use: render the plan returned by the assistant, let the user Approve/Cancel

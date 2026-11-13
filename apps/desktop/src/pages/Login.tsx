@@ -38,8 +38,8 @@ export default function Login() {
   // invited email are stashed in localStorage. Arriving here we open the right
   // tab (?mode=signup) and lock the email to the invited address — the backend
   // rejects acceptance unless the logged-in email matches the invite.
-  const pendingInvite = readLS('radix.pendingInvite');
-  const inviteEmail = readLS('radix.inviteEmail');
+  const pendingInvite = readLS('auracontent.pendingInvite');
+  const inviteEmail = readLS('auracontent.inviteEmail');
   const lockEmail = !!(pendingInvite && inviteEmail);
 
   const [mode, setMode] = useState<'signin' | 'signup' | 'forgot'>(() => {
@@ -49,10 +49,10 @@ export default function Login() {
     } catch { /* ignore */ }
     return 'signin';
   });
-  const [email, setEmail] = useState(() => (lockEmail ? inviteEmail! : (localStorage.getItem('radix_last_email') ?? '')));
+  const [email, setEmail] = useState(() => (lockEmail ? inviteEmail! : (localStorage.getItem('auracontent_last_email') ?? '')));
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [rememberMe, setRememberMe] = useState(() => localStorage.getItem('radix_remember_me') === '1');
+  const [rememberMe, setRememberMe] = useState(() => localStorage.getItem('auracontent_remember_me') === '1');
   const [submitting, setSubmitting] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [resetSent, setResetSent] = useState(false);
@@ -74,9 +74,9 @@ export default function Login() {
         return;
       }
       if (rememberMe) {
-        try { localStorage.setItem('radix_last_email', email.trim()); } catch {}
+        try { localStorage.setItem('auracontent_last_email', email.trim()); } catch {}
       } else {
-        try { localStorage.removeItem('radix_last_email'); } catch {}
+        try { localStorage.removeItem('auracontent_last_email'); } catch {}
       }
       if (mode === 'signin') {
         await login(email.trim(), password, rememberMe);

@@ -49,7 +49,7 @@ function resolveAuto(): EffectiveTheme {
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(() => {
     try {
-      const saved = localStorage.getItem('radix_theme');
+      const saved = localStorage.getItem('auracontent_theme');
       if (saved && (VALID as string[]).includes(saved)) return saved as Theme;
     } catch { /* ssr / locked storage */ }
     // New users start in auto so the app matches their OS out of the box.
@@ -82,7 +82,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const firstThemeRun = useRef(true);
   useEffect(() => {
-    try { localStorage.setItem('radix_theme', theme); } catch { /* ignore */ }
+    try { localStorage.setItem('auracontent_theme', theme); } catch { /* ignore */ }
     const root = document.documentElement;
     // Smooth cross-fade on theme change; skip the initial mount so first paint is instant.
     let clear: number | undefined;

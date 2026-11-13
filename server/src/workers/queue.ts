@@ -11,15 +11,15 @@
 //    died is marked FAILED, never silently re-run → no duplicate calendars). The
 //    win is durable STATE (the FE always gets a real status instead of polling a
 //    ghost) + graceful drain, not blind auto-resume.
-//  - Worker concurrency = RADIX_JOB_CONCURRENCY (default 3): at most N heavy jobs
+//  - Worker concurrency = AURACONTENT_JOB_CONCURRENCY (default 3): at most N heavy jobs
 //    run at once; the rest wait in Redis and drain as slots free.
 import { Queue, Worker, type Job as BmqJob } from 'bullmq';
 import IORedis from 'ioredis';
 import crypto from 'crypto';
 import { env } from '../config/env.js';
 
-const QUEUE_NAME = 'radix-jobs';
-const MAX_CONCURRENT = Math.max(1, parseInt(process.env.RADIX_JOB_CONCURRENCY || '3', 10));
+const QUEUE_NAME = 'auracontent-jobs';
+const MAX_CONCURRENT = Math.max(1, parseInt(process.env.AURACONTENT_JOB_CONCURRENCY || '3', 10));
 const KEEP_TERMINAL_S = 60 * 60; // keep completed/failed jobs 1h (FE poll window)
 
 // BullMQ requires maxRetriesPerRequest:null on its connections. Give the Worker
@@ -169,7 +169,7 @@ export function updateJob(id: string, updates: Partial<Job>): void {
 // "Stop Generation" only stopped the page polling — the job kept running and
 // the next Generate click was deduped straight back onto it (looked like a
 // loop: same stuck 40%, timer restarting).
-const cancelKey = (id: string) => `radix:job-cancel:${id}`;
+const cancelKey = (id: string) => `auracontent:job-cancel:${id}`;
 
 export async function requestJobCancel(id: string): Promise<'removed' | 'flagged' | 'finished' | 'missing'> {
   const bmqJob = await queue.getJob(id);

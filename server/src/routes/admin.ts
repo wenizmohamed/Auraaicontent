@@ -1,5 +1,5 @@
 // Cross-org admin dashboard. Gated on STAFF_EMAILS (comma-separated env list)
-// — only Radix internal staff can see other orgs' data. Used to monitor MRR,
+// — only AuraContent internal staff can see other orgs' data. Used to monitor MRR,
 // active orgs, AI cost per org, and gross margin per org.
 //
 // Returns aggregate-only data (no per-row PII like calendar contents).
@@ -40,7 +40,7 @@ const PLAN_PRICES: Record<string, number> = {
 };
 
 // Workspaces that can NEVER be deleted via the admin panel (the primary org).
-const PROTECTED_ORG_IDS = new Set<string>(['org_radix_media']);
+const PROTECTED_ORG_IDS = new Set<string>(['org_auracontent']);
 
 export async function adminRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authGuard);
@@ -156,7 +156,7 @@ export async function adminRoutes(app: FastifyInstance) {
     const path = await import('node:path');
 
     const PM2_LOG_DIR = process.env.PM2_LOG_DIR || '/root/.pm2/logs';
-    const SERVICE = 'radix-api';
+    const SERVICE = 'auracontent-api';
     const SINCE_MS = Date.now() - 24 * 60 * 60 * 1000;
 
     type PatternKey =

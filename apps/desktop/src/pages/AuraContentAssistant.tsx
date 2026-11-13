@@ -287,7 +287,7 @@ interface StoredConversation {
   rev?: number;
 }
 
-const CONVERSATION_PREFIX = 'radix.assistant.conversation.v1.';
+const CONVERSATION_PREFIX = 'auracontent.assistant.conversation.v1.';
 const MAX_STORED_MESSAGES = 80;
 const MAX_STORED_CHARS = 600_000; // well inside the ~5 MB localStorage quota
 const RESUME_WINDOW_MS = 30 * 60 * 1000; // a run older than this is not resumed
@@ -301,7 +301,7 @@ function newTurnId(): string {
 /** Storage key scoped to the signed-in user and org, read from the auth token. */
 function conversationKey(): string | null {
   try {
-    const token = localStorage.getItem('radix_auth_token');
+    const token = localStorage.getItem('auracontent_auth_token');
     const part = token?.split('.')[1];
     if (!part) return null;
     const payload = JSON.parse(atob(part.replace(/-/g, '+').replace(/_/g, '/'))) as { userId?: string; orgId?: string };
@@ -364,15 +364,15 @@ function saveConversation(packed: StoredConversation): void {
   }
 }
 
-export default function RadixAssistant() {
+export default function AuraContentAssistant() {
   const navigate = useNavigate();
   const { selectedClientId, currentClient, fetchClients, setSelectedClientId } = useClients();
   // Reopen after a refresh if it was open, so the restored conversation is in view.
   const [open, setOpen] = useState(() => {
-    try { return sessionStorage.getItem('radix.assistant.open') === '1'; } catch { return false; }
+    try { return sessionStorage.getItem('auracontent.assistant.open') === '1'; } catch { return false; }
   });
   useEffect(() => {
-    try { sessionStorage.setItem('radix.assistant.open', open ? '1' : '0'); } catch { /* storage blocked */ }
+    try { sessionStorage.setItem('auracontent.assistant.open', open ? '1' : '0'); } catch { /* storage blocked */ }
   }, [open]);
   const [expanded, setExpanded] = useState(false); // focus mode. Larger panel for agent runs
   // Restored once, on first render, from the last saved conversation.
@@ -710,7 +710,7 @@ export default function RadixAssistant() {
    * dropped because agentRunRef is null between runs. */
   const getAgentSocket = (): Socket | null => {
     if (agentSocketRef.current) return agentSocketRef.current;
-    const token = localStorage.getItem('radix_auth_token');
+    const token = localStorage.getItem('auracontent_auth_token');
     if (!token) return null;
     const base = getApiUrl() || window.location.origin;
     const s = io(`${base}/agent`, {
@@ -1090,7 +1090,7 @@ export default function RadixAssistant() {
             {/* Header */}
             <div className="px-4 py-3 border-b border-white/[0.06] flex items-center gap-3">
               <div className="relative w-8 h-8 rounded-lg overflow-hidden border border-accent/30 shrink-0">
-                <img src="./radix-dna.jpg" alt="AURA" className="w-full h-full object-cover" />
+                <img src="./auracontent-dna.jpg" alt="AURA" className="w-full h-full object-cover" />
                 {/* Live status dot — pulses while a run is in flight. */}
                 <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2"
                   style={{ background: loading ? 'var(--color-warning)' : 'var(--color-success)', borderColor: '#0c0c0c' }} />
@@ -1151,7 +1151,7 @@ export default function RadixAssistant() {
               {messages.length === 0 && !loading && (
                 <div className="h-full flex flex-col items-center justify-center text-center px-4">
                   <div className="w-14 h-14 rounded-2xl overflow-hidden border border-accent/20 mb-3 shadow-[0_0_30px_-8px_rgba(245,158,11,0.3)]">
-                    <img src="./radix-dna.jpg" alt="AURA" className="w-full h-full object-cover" />
+                    <img src="./auracontent-dna.jpg" alt="AURA" className="w-full h-full object-cover" />
                   </div>
                   <p className="text-sm text-fg-muted mb-1 font-medium">I'm AURA on Gemini 4 Argon.</p>
                   <p className="text-xs text-fg-subtle mb-4">Your autonomous Creative Director: carousels, 4K stills, cinema reels, brand memory, and full calendars.</p>
@@ -1395,7 +1395,7 @@ export default function RadixAssistant() {
 // Multi-line auto-resizing textarea with the send button INSIDE the box,
 // keyboard hint (Enter ↵, Shift+Enter for newline), live char counter,
 // disabled while loading. Adapted from the 21st.dev "AI Prompt Box"
-// pattern and restyled against radixcontent semantic tokens.
+// pattern and restyled against auracontent semantic tokens.
 
 interface PromptBoxProps {
   value: string;
@@ -1480,7 +1480,7 @@ function PromptBox({ value, onChange, onSend, loading, maxChars, textareaRef, pl
 }
 
 // ─── Message bubble + hover actions ──────────────────────────────────
-// Polished message lane (V0 AI Chat aesthetic adapted for radixcontent
+// Polished message lane (V0 AI Chat aesthetic adapted for auracontent
 // tokens): hairline-bordered bubbles, monospace model chip, hover-revealed
 // copy/retry on assistant messages. Action cards render unchanged below
 // the bubble via the existing renderActionCard prop.

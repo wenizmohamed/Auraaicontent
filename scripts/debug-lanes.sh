@@ -13,7 +13,7 @@ LOCAL_BE="http://localhost:8080"
 LOCAL_FE="http://localhost:3000"
 VPS="https://srv1494206.hstgr.cloud"
 EMAIL="mohamed@radixmedia.ae"
-PASS="Radix2026"
+PASS="AuraContent2026"
 
 get_health_details() {
   local url=$1

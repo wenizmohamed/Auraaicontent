@@ -88,13 +88,13 @@ export const env = {
 
   // Public base URL — used to build OAuth redirect URIs that match what's
   // registered in each platform's developer console.
-  RADIX_APP_BASE_URL: optional('RADIX_APP_BASE_URL', 'https://srv1494206.hstgr.cloud'),
+  AURACONTENT_APP_BASE_URL: optional('AURACONTENT_APP_BASE_URL', 'https://srv1494206.hstgr.cloud'),
 
   // AES-256-GCM key for encrypting OAuth tokens at rest. Generate with
   // `openssl rand -base64 32`. Required for any platform connection to work;
   // we don't `required()` it so the server still boots in dev without it
   // — the secrets.ts helpers throw with a clear message when actually used.
-  RADIX_INTEGRATION_KEY: optional('RADIX_INTEGRATION_KEY', ''),
+  AURACONTENT_INTEGRATION_KEY: optional('AURACONTENT_INTEGRATION_KEY', ''),
 
   // Platform OAuth client credentials. Empty defaults so the build doesn't
   // crash before the user provisions developer apps; the OAuth routes throw

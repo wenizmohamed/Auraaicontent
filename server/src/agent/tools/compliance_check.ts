@@ -212,7 +212,7 @@ export const tool = defineTool<Args, Result>({
           persistedPostId = row.id;
           await ctx.emit('agent:artifact', {
             path: `post/${row.id}`,
-            mimeType: 'application/x-radix-post',
+            mimeType: 'application/x-auracontent-post',
             preview: `Compliance: ${passed ? 'PASSED' : 'FAILED'} (${issues.length} issues)`,
             at: new Date().toISOString(),
           });

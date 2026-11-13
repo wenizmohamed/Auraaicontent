@@ -31,7 +31,7 @@ const dbFake = {
 
 vi.mock('../src/db/prisma.js', () => ({ db: dbFake, systemDb: dbFake }));
 
-const ORG = 'org_radix_media';
+const ORG = 'org_auracontent';
 
 let warnSpy: { mock: { calls: unknown[][] }; mockRestore: () => void };
 

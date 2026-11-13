@@ -21,16 +21,16 @@ The Prisma cascade triggers on the final `DELETE FROM "User"` statement, but the
 ./scripts/delete-user.sh <userId>
 ```
 
-The script SSH's to the VPS, parses `DATABASE_URL` from `/opt/radix-v2/server/.env`, runs the cascade in a single `BEGIN; … COMMIT;` block.
+The script SSH's to the VPS, parses `DATABASE_URL` from `/opt/auracontent-v2/server/.env`, runs the cascade in a single `BEGIN; … COMMIT;` block.
 
 ## Discovering the userId
 
 ```bash
 ssh -i ~/.ssh/radix_vps root@srv1494206.hstgr.cloud "
-  ENV_FILE=/opt/radix-v2/server/.env
+  ENV_FILE=/opt/auracontent-v2/server/.env
   DB_URL=\$(awk -F= '/^DATABASE_URL=/{ sub(/^DATABASE_URL=/, \"\"); print }' \"\$ENV_FILE\" | tr -d '\"')
   DB_PASS=\$(printf '%s' \"\$DB_URL\" | sed -E 's|^postgres(ql)?://[^:]+:([^@]+)@.*$|\\2|')
-  PGPASSWORD=\"\$DB_PASS\" psql -h 127.0.0.1 -U radix -d radix_planner -tAc \"SELECT id, email FROM \\\"User\\\" WHERE email='<their-email>'\"
+  PGPASSWORD=\"\$DB_PASS\" psql -h 127.0.0.1 -U auracontent -d auracontent_planner -tAc \"SELECT id, email FROM \\\"User\\\" WHERE email='<their-email>'\"
 "
 ```
 
@@ -51,4 +51,4 @@ YYYY-MM-DD  <userId>  <operator>  <reason>
 
 ## Tested
 
-Demo-deletion of `demo-member@radix.local` → reseed via `node dist/prisma/seed.js` recreated cleanly. Pending live verification before declaring O8 GREEN.
+Demo-deletion of `demo-member@auracontent.local` → reseed via `node dist/prisma/seed.js` recreated cleanly. Pending live verification before declaring O8 GREEN.

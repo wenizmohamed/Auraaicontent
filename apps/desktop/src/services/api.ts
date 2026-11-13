@@ -4,7 +4,7 @@ import { readJson } from '../lib/safe-storage';
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const getDb = () => {
-  const db = readJson('radix_mock_db', null);
+  const db = readJson('auracontent_mock_db', null);
   if (db) return db;
   
   // Default seed data
@@ -34,7 +34,7 @@ const getDb = () => {
 };
 
 const saveDb = (db: any) => {
-  localStorage.setItem('radix_mock_db', JSON.stringify(db));
+  localStorage.setItem('auracontent_mock_db', JSON.stringify(db));
 };
 
 export const mockApi = {

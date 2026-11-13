@@ -1,4 +1,4 @@
-# Radix AI Content Planner — Debug Log
+# AuraContent AI Content Planner — Debug Log
 
 Auto-maintained by `scripts/smoke-meeting.sh` and `scripts/debug-lanes.sh`.
 Each entry below is a machine-written smoke/debug run.

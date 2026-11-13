@@ -42,7 +42,7 @@ describe('validateToolInput', () => {
       platform: 'instagram',
       count: 12,
       strict: true,
-      handles: ['@radix', 'competitor'],
+      handles: ['@auracontent', 'competitor'],
       brief: { objective: 'Q3 awareness push', pieceCount: 18 },
     });
     expect(res.ok).toBe(true);
@@ -138,7 +138,7 @@ describe('validateToolInput', () => {
   });
 
   it('rejects a non-array where an array is expected', () => {
-    const res = validateToolInput(schema, { pieceId: 'p1', platform: 'instagram', handles: '@radix' });
+    const res = validateToolInput(schema, { pieceId: 'p1', platform: 'instagram', handles: '@auracontent' });
     const issue = res.issues.find((i) => i.field === 'handles');
     expect(issue?.expected).toBe('array');
   });

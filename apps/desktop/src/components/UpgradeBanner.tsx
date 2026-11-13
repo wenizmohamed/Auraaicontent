@@ -17,11 +17,11 @@ import { orgsApi } from '../lib/backend-api';
 import { AnimatedGradientBorder } from './ui/AnimatedGradientBorder';
 
 const FREE_PLAN_VALUES = new Set(['', 'free', 'trial', 'FREE', 'TRIAL', 'starter', 'STARTER']);
-const SESSION_DISMISS_KEY = 'radix:upgrade-banner:dismissed';
+const SESSION_DISMISS_KEY = 'auracontent:upgrade-banner:dismissed';
 
 function getActiveOrgId(): string | null {
   if (typeof window === 'undefined') return null;
-  const token = localStorage.getItem('radix_auth_token');
+  const token = localStorage.getItem('auracontent_auth_token');
   if (!token) return null;
   try {
     const payload = JSON.parse(atob(token.split('.')[1] || ''));

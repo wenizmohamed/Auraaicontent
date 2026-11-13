@@ -11,8 +11,18 @@ export interface JwtPayload {
   orgRole?: string;     // OWNER | ADMIN | EDITOR | VIEWER for the active org
 }
 
+// The primary org's id was renamed on 2026-11-14 (it carried the old brand
+// name). Access tokens live up to 7 days with "remember me" and carry the org
+// id, so until the last pre-rename token expires the old id is mapped onto
+// the new one; otherwise those sessions would see an empty workspace and hit
+// foreign-key errors on every write. Refresh already re-reads the org from
+// the database. DELETE this map after 2026-11-21.
+const RENAMED_ORG_IDS: Record<string, string> = { org_radix_media: 'org_auracontent' };
+
 export function verifyToken(token: string): JwtPayload {
-  return jwt.verify(token, env.JWT_SECRET) as JwtPayload;
+  const payload = jwt.verify(token, env.JWT_SECRET) as JwtPayload;
+  const renamed = payload.orgId ? RENAMED_ORG_IDS[payload.orgId] : undefined;
+  return renamed ? { ...payload, orgId: renamed } : payload;
 }
 
 // Access token (short-lived).  Frontend holds this in memory + calls

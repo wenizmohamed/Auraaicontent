@@ -3,17 +3,17 @@
 # finish retiring the old remote branches. Safe to re-run.
 #
 # Never deploys and never loses work:
-#   - all local edits are first saved to ~/radix-wip-backup-<timestamp>.patch
+#   - all local edits are first saved to ~/auracontent-wip-backup-<timestamp>.patch
 #   - a locally edited file that main also changed is only reset when the local
 #     copy already matches main; anything else stops the script untouched
 #   - branches holding work that isn't on main are tagged archive/* before deletion
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
-REPO=wenizmohamed/radixcontent
+REPO=wenizmohamed/auracontent
 git fetch origin --prune
 
 if [ "$(git branch --show-current)" != "main" ]; then
-  backup="$HOME/radix-wip-backup-$(date +%Y%m%d-%H%M%S).patch"
+  backup="$HOME/auracontent-wip-backup-$(date +%Y%m%d-%H%M%S).patch"
   git diff HEAD > "$backup"
   echo "== local edits backed up to $backup"
 
@@ -60,7 +60,7 @@ for pair in million-dollar-hardening:archive/million-dollar-hardening \
 done
 
 for b in million-dollar-hardening copilot/explain-repository-structure copilot/integrate-github-mcp-server \
-         claude/compassionate-galileo-gz6f6l copilot/improve-radixcontent-interface \
+         claude/compassionate-galileo-gz6f6l copilot/improve-auracontent-interface \
          copilot/gh-auth-login copilot/gh-auth-login-again copilot/gh-auth-login-process; do
   if remote_has "$b"; then
     git push origin --delete "$b"
