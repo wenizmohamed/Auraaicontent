@@ -5,6 +5,7 @@ import type { AiProvider, AnalysisRequest, ImageRequest, ProviderResult, TextReq
 import { AiProviderError, AiCancelledError, abortReasonText, throwIfCancelled } from './errors.js';
 import { storageService } from '../storage.service.js';
 import { runModelLadder, readLadder } from './model-chain.js';
+import { imageOutputTokensOf } from './usage.js';
 
 const TIMEOUT = parseInt(process.env.GEMINI_TIMEOUT_MS || '60000', 10);
 // Separate budget for image paths.  Google's nano-banana edit model
@@ -362,16 +363,20 @@ async function omniVideo(req: VideoRequest): Promise<ProviderResult<{ url: strin
 // analysis already captured it; image/video did not, so every image and video
 // UsageEvent recorded ZERO tokens. Complete token capture is the point of the
 // meter, so pull it from whatever shape the response carries.
-function usageOf(response: any): { promptTokens?: number; completionTokens?: number; totalTokens?: number } {
+function usageOf(response: any): { promptTokens?: number; completionTokens?: number; totalTokens?: number; imageOutputTokens?: number } {
   const u = response?.usageMetadata || response?.response?.usageMetadata;
   if (!u) return {};
   const p = u.promptTokenCount ?? u.promptTokens;
   const c = u.candidatesTokenCount ?? u.completionTokenCount ?? u.candidateTokenCount;
+  // totalTokenCount includes thoughtsTokenCount, which candidatesTokenCount
+  // does not; the meter bills total - prompt (billableOutputTokens).
   const t = u.totalTokenCount ?? (((p ?? 0) + (c ?? 0)) || undefined);
+  const img = imageOutputTokensOf(u);
   return {
     ...(typeof p === 'number' ? { promptTokens: p } : {}),
     ...(typeof c === 'number' ? { completionTokens: c } : {}),
     ...(typeof t === 'number' ? { totalTokens: t } : {}),
+    ...(typeof img === 'number' ? { imageOutputTokens: img } : {}),
   };
 }
 

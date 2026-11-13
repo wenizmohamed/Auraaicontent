@@ -32,7 +32,7 @@ import type {
   ChatCompletionChunk,
 } from 'openai/resources/chat/completions';
 import { db } from '../../db/prisma.js';
-import { computeCostUsd, isPriced, normalizeModelKey } from '../../lib/ai-pricing.js';
+import { computeCostUsd, isPriced, normalizeModelKey, billableOutputTokens } from '../../lib/ai-pricing.js';
 import { assertOrgBudget } from '../../lib/budget.js';
 import { enrichWithKnowledge } from '../../lib/knowledge-enricher.js';
 import { enrichWithMemory } from '../../lib/memory-enricher.js';
@@ -92,7 +92,12 @@ export interface UsageMeta {
   clientId?: string;
   jobId?: string;
 }
-function persistChatUsage(meta: UsageMeta | undefined, model: string, provider: ProviderName, p?: number, c?: number, t?: number) {
+function persistChatUsage(meta: UsageMeta | undefined, model: string, provider: ProviderName, p?: number, reportedC?: number, t?: number) {
+  // Gemini's OpenAI-compatible completion_tokens leaves out the thinking
+  // tokens Google bills as output; only total_tokens carries them. The agent
+  // (Argon) and chat run through here, so without this every thinking turn
+  // was billed as its visible reply only.
+  const c = billableOutputTokens(p, reportedC, t);
   if (!meta?.orgId) {
     // Surface it: a silent skip is how token tracking develops blind spots.
     // Mirrors the same warning in ai-router.persistUsage.

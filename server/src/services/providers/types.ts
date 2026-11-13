@@ -102,6 +102,14 @@ export interface ProviderResult<T = unknown> {
   promptTokens?: number;
   completionTokens?: number;
   totalTokens?: number;
+  /** Of the output tokens, how many were IMAGE tokens (Gemini reports it in
+   *  candidatesTokensDetails). Lets the meter bill text and thinking output at
+   *  the image model's much lower text rate. */
+  imageOutputTokens?: number;
+  /** Video: the clip length the provider ACTUALLY rendered, when it differs
+   *  from what was asked (MiniMax clamps to 4-15s and defaults to 6s). Billed
+   *  in preference to the requested length. */
+  durationSeconds?: number;
   raw?: unknown;
 }
 

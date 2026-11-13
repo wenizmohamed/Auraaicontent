@@ -536,6 +536,10 @@ export const minimaxProvider: AiProvider = {
       latencyMs: Date.now() - start,
       fallbackUsed: false,
       output: { url: finalUrl },
+      // The clip MiniMax actually rendered: the request is clamped to 4-15s
+      // and defaults to 6s, while the router would otherwise bill the asked
+      // length (or 8s when none was given: 33% over on every default clip).
+      durationSeconds: duration,
       ...extractUsage(taskUsage),
     };
   },

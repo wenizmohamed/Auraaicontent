@@ -26,16 +26,40 @@ export interface PricePoint {
   completionPerM: number;   // USD per 1M completion tokens
   perCall?: number;         // USD per generated artifact (one image)
   perSecond?: number;       // USD per second of generated video
+  /** Image models only: USD per 1M TEXT + THINKING output tokens. Google
+   *  bills an image model's text and thinking output far below its image
+   *  tokens ($12 vs $120 per 1M on gemini-3-pro-image). When the provider
+   *  reports how many output tokens were IMAGE tokens, the rest bill here. */
+  completionTextPerM?: number;
+  /** Scheduled card changes. From `from` (an ISO instant) on, the given
+   *  fields replace the row's. Google publishes these weeks ahead (Argon and
+   *  Carbon double on 2026-12-01), and a "bump it on the day" comment is how
+   *  a meter silently under-bills for a month. */
+  changes?: Array<{ from: string } & Partial<Pick<PricePoint, 'promptPerM' | 'completionPerM' | 'completionTextPerM'>>>;
+}
+
+/**
+ * The output tokens to bill. Google and xAI bill thinking/reasoning tokens
+ * as output, but several APIs leave them OUT of completion_tokens: Gemini's
+ * usageMetadata.candidatesTokenCount and its OpenAI-compatible
+ * completion_tokens both do, and only the total includes them. Gemini 4
+ * Carbon answered a 5-token reply with 82 thinking tokens (measured
+ * 2026-11-13), so billing completion_tokens alone under-billed it ~17x.
+ * Whatever the total carries beyond the prompt is output.
+ */
+export function billableOutputTokens(p?: number, c?: number, t?: number): number {
+  return Math.max(c ?? 0, (t ?? 0) - (p ?? 0));
 }
 
 export const AI_PRICING: Record<string, PricePoint> = {
   // ─── Gemini ─────────────────────────────────────────────────────
-  // gemini-4-argon: the current flagship generation. $2.00 in / $10.00 out per
-  // 1M THROUGH 2026-11-30, then $4.00 / $20.00 from 2026-12-01. Verified live
-  // 2026-11-05 (it is in the live catalog and answers generateContent).
-  // Bump these two numbers on 2026-12-01.
-  'gemini-4-argon':                    { promptPerM: 2.00, completionPerM: 10.00 },
-  'gemini-4-carbon':                   { promptPerM: 1.50, completionPerM: 7.50 },
+  // Gemini 4 (Google pricing page, re-read 2026-11-13). Argon AND Carbon are
+  // $2.00 in / $10.00 out per 1M (output includes thinking) through
+  // 2026-11-30, then $4.00 / $20.00 from 2026-12-01. Carbon was recorded at
+  // Hydrogen's $1.50/$7.50 until 2026-11-13, under-billing it by 25%.
+  // Hydrogen is $1.50 / $7.50 with no scheduled change.
+  'gemini-4-argon':                    { promptPerM: 2.00, completionPerM: 10.00, changes: [{ from: '2026-12-01T00:00:00Z', promptPerM: 4.00, completionPerM: 20.00 }] },
+  'gemini-4-carbon':                   { promptPerM: 2.00, completionPerM: 10.00, changes: [{ from: '2026-12-01T00:00:00Z', promptPerM: 4.00, completionPerM: 20.00 }] },
   'gemini-4-hydrogen':                 { promptPerM: 1.50, completionPerM: 7.50 },
   'gemini-embedding-2':                { promptPerM: 0.20, completionPerM: 0 },
   'qwen4-max-preview':                 { promptPerM: 2.00, completionPerM: 6.00 },
@@ -59,24 +83,29 @@ export const AI_PRICING: Record<string, PricePoint> = {
   // gemini-3.1-flash-image-preview: $0.50 input / $60 output (output is
   // priced per IMAGE not per-token in disguise). Per image: $0.045 at 0.5K,
   // $0.067 at 1K, $0.101 at 2K, $0.151 at 4K (Google card 2026-11-05).
-  'gemini-3.1-flash-image-preview':    { promptPerM: 0.50, completionPerM: 60.00, perCall: 0.067 },
+  // Gemini IMAGE models: completionPerM is the IMAGE-token rate and
+  // completionTextPerM the text+thinking rate (Google card re-read
+  // 2026-11-13). One gemini-3-pro-image 1K call measured live returned 1,120
+  // image tokens + 96 text + 170 thinking; billed all at $120/M that is
+  // $0.166, at the real split $0.138 (Google's $0.134 card + text). The
+  // historical rows ran 2,500-3,300 output tokens per image, 1.4-2.5x over.
+  'gemini-3.1-flash-image-preview':    { promptPerM: 0.50, completionPerM: 60.00, completionTextPerM: 3.00, perCall: 0.067 },
   // gemini-3.1-flash-image: GA of the preview above, same card. Verified live
   // 2026-08-14, repriced per-image 2026-11-05.
-  'gemini-3.1-flash-image':            { promptPerM: 0.50, completionPerM: 60.00, perCall: 0.067 },
+  'gemini-3.1-flash-image':            { promptPerM: 0.50, completionPerM: 60.00, completionTextPerM: 3.00, perCall: 0.067 },
   // gemini-nano-banana-2.1: the CURRENT nano-banana (newer than 3.1-flash-
-  // image). $1.50 in / $30 per 1M image-out. Per image: $0.0336 at 1K,
-  // $0.0504 at 2K, $0.113 at 4K. Verified live 2026-11-05.
-  'gemini-nano-banana-2.1':            { promptPerM: 1.50, completionPerM: 30.00, perCall: 0.034 },
+  // image). $1.50 in / $30 per 1M image-out, $7.50 text+thinking. Per image:
+  // $0.0336 at 1K, $0.0504 at 2K, $0.113 at 4K. Verified live 2026-11-13.
+  'gemini-nano-banana-2.1':            { promptPerM: 1.50, completionPerM: 30.00, completionTextPerM: 7.50, perCall: 0.034 },
   // nano-banana-pro = gemini-3-pro-image family: $2.00 in / $120 image-out
-  // per M ≈ $0.134 per 1K/2K image, $0.24 at 4K (Google card 2026-08-14).
-  'nano-banana-pro-preview':           { promptPerM: 2.00, completionPerM: 120.00, perCall: 0.15 },
-  'gemini-3-pro-image':                { promptPerM: 2.00, completionPerM: 120.00, perCall: 0.134 },  // GA premium image (ultra tier)
-  // gemini-3-pro-image-preview: same card as the GA id ($2 in / $120 image-out
-  // per M ≈ $0.134 per 1K/2K image). Live 2026-11-05.
-  'gemini-3-pro-image-preview':        { promptPerM: 2.00, completionPerM: 120.00, perCall: 0.134 },
+  // ($12 text+thinking) per M ≈ $0.134 per 1K/2K image, $0.24 at 4K.
+  'nano-banana-pro-preview':           { promptPerM: 2.00, completionPerM: 120.00, completionTextPerM: 12.00, perCall: 0.15 },
+  'gemini-3-pro-image':                { promptPerM: 2.00, completionPerM: 120.00, completionTextPerM: 12.00, perCall: 0.134 },  // GA premium image (ultra tier)
+  // gemini-3-pro-image-preview: same card as the GA id. Live 2026-11-05.
+  'gemini-3-pro-image-preview':        { promptPerM: 2.00, completionPerM: 120.00, completionTextPerM: 12.00, perCall: 0.134 },
   // gemini-3.1-flash-lite-image (Nano Banana 2 Lite): $0.25 in / $30 image-out
-  // per M = $0.0336 per 1K image. Live 2026-11-05.
-  'gemini-3.1-flash-lite-image':       { promptPerM: 0.25, completionPerM: 30.00, perCall: 0.034 },
+  // ($1.50 text+thinking) per M = $0.0336 per 1K image. Live 2026-11-13.
+  'gemini-3.1-flash-lite-image':       { promptPerM: 0.25, completionPerM: 30.00, completionTextPerM: 1.50, perCall: 0.034 },
   // gemini-2.5-flash-image (Nano Banana): $0.30 in, $0.039 per image output.
   // Google marks it deprecated (shutdown 2027-03-15) but it still renders.
   'gemini-2.5-flash-image':            { promptPerM: 0.30, completionPerM: 0.00, perCall: 0.039 },
@@ -165,19 +194,18 @@ export const AI_PRICING: Record<string, PricePoint> = {
   // These are the rolling pointers Google exposes; without them every text/
   // analysis/chat call was costed at $0. Mapped to their versioned price.
   'gemini-pro-latest':                 { promptPerM: 2.00, completionPerM: 12.00 }, // = 3.1 Pro
-  // gemini-3.7-flash: $0.75/$3.75 promo through 2026-12-31, then $1.50/$7.50
-  // (Google pricing page, verified 2026-08-14). Bump these two on 2027-01-01.
-  'gemini-3.7-flash':                  { promptPerM: 0.75, completionPerM: 3.75 },
-  // gemini-3.8-flash: same card and same promo window as 3.7 (Google pricing
-  // page, verified 2026-10-10). gemini-flash-latest now resolves to it.
-  'gemini-3.8-flash':                  { promptPerM: 0.75, completionPerM: 3.75 },
-  'gemini-flash-latest':               { promptPerM: 0.75, completionPerM: 3.75 },  // rolling alias = newest stable flash (3.8)
+  // gemini-3.6/3.7/3.8-flash: $0.75/$3.75 through 2026-12-31, then
+  // $1.50/$7.50 from 2027-01-01 (Google pricing page re-read 2026-11-13 for
+  // 3.6 and 3.8; 3.7 no longer listed, same family card kept).
+  'gemini-3.7-flash':                  { promptPerM: 0.75, completionPerM: 3.75, changes: [{ from: '2027-01-01T00:00:00Z', promptPerM: 1.50, completionPerM: 7.50 }] },
+  // gemini-flash-latest resolves to 3.8.
+  'gemini-3.8-flash':                  { promptPerM: 0.75, completionPerM: 3.75, changes: [{ from: '2027-01-01T00:00:00Z', promptPerM: 1.50, completionPerM: 7.50 }] },
+  'gemini-flash-latest':               { promptPerM: 0.75, completionPerM: 3.75, changes: [{ from: '2027-01-01T00:00:00Z', promptPerM: 1.50, completionPerM: 7.50 }] },
   // gemini-3.5-flash: real card is $1.50/$9.00 — the $0.30/$2.50 recorded
   // here until 2026-08-14 was the OLD 2.5-flash tier (under-recorded ~5x).
   'gemini-3.5-flash':                  { promptPerM: 1.50, completionPerM: 9.00 },
-  // gemini-3.6-flash: $0.75/$3.75 promo through 2026-12-31, then $1.50/$7.50
-  // (Google pricing page, verified 2026-11-05). Same window as 3.7/3.8.
-  'gemini-3.6-flash':                  { promptPerM: 0.75, completionPerM: 3.75 },
+  // gemini-3.6-flash: same card and window as 3.7/3.8 above.
+  'gemini-3.6-flash':                  { promptPerM: 0.75, completionPerM: 3.75, changes: [{ from: '2027-01-01T00:00:00Z', promptPerM: 1.50, completionPerM: 7.50 }] },
   // gemini-3.5-flash-lite: $0.30/$2.50 standard (Google card 2026-11-05).
   'gemini-3.5-flash-lite':             { promptPerM: 0.30, completionPerM: 2.50 },
   // gemini-3.1-flash-lite (GA): $0.25/$1.50 standard (Google card 2026-11-05).
@@ -465,7 +493,7 @@ export function auditConfiguredModelPricing(env: NodeJS.ProcessEnv = process.env
 // Models we've already warned about, so the log isn't spammed once per call.
 const warnedUnpriced = new Set<string>();
 
-export function priceFor(model: string): PricePoint {
+export function priceFor(model: string, at: Date = new Date()): PricePoint {
   const key = normalizeModelKey(model);
   const p = AI_PRICING[key];
   if (!p) {
@@ -479,7 +507,13 @@ export function priceFor(model: string): PricePoint {
     }
     return { promptPerM: 0, completionPerM: 0 };
   }
-  return p;
+  if (!p.changes?.length) return p;
+  // Apply every scheduled change that has taken effect, oldest first.
+  let current: PricePoint = p;
+  for (const { from, ...fields } of [...p.changes].sort((a, b) => Date.parse(a.from) - Date.parse(b.from))) {
+    if (at.getTime() >= Date.parse(from)) current = { ...current, ...fields };
+  }
+  return current;
 }
 
 // Default assumed duration for video calls when the caller doesn't pass
@@ -493,10 +527,25 @@ export function computeCostUsd(
   completionTokens?: number,
   calls = 1,
   durationSeconds?: number,
+  opts?: {
+    /** How many of completionTokens were IMAGE tokens (image models only).
+     *  When the provider reports it, the rest bill at completionTextPerM.
+     *  When it does not, every output token bills at the image rate (the
+     *  conservative pre-2026-11-13 behaviour). */
+    imageOutputTokens?: number;
+    /** When the call happened. Defaults to now; tests pin it to check the
+     *  scheduled card changes. */
+    at?: Date;
+  },
 ): number {
-  const p = priceFor(model);
+  const p = priceFor(model, opts?.at);
   const promptCost = ((promptTokens ?? 0) / 1_000_000) * p.promptPerM;
-  const completionCost = ((completionTokens ?? 0) / 1_000_000) * p.completionPerM;
+  const out = completionTokens ?? 0;
+  const imageTokens = opts?.imageOutputTokens;
+  const completionCost = p.completionTextPerM != null && typeof imageTokens === 'number' && imageTokens >= 0
+    ? (Math.min(imageTokens, out) / 1_000_000) * p.completionPerM
+      + ((out - Math.min(imageTokens, out)) / 1_000_000) * p.completionTextPerM
+    : (out / 1_000_000) * p.completionPerM;
   // perCall on an image model is a STAND-IN for the per-image output-token cost
   // (an image is ~1.3k output tokens). From 2026-08-02 the providers' real token
   // counts are captured, so when we have measured tokens AND token pricing, the

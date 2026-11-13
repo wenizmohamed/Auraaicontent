@@ -45,6 +45,7 @@ import type {
 } from './types.js';
 import { AiProviderError, AiCancelledError, abortReasonText, throwIfCancelled } from './errors.js';
 import { runModelLadder, readLadder } from './model-chain.js';
+import { imageOutputTokensOf } from './usage.js';
 
 const API_KEY = process.env.VERTEX_API_KEY || '';
 const PROJECT = process.env.VERTEX_PROJECT || 'hubz-510406';
@@ -200,16 +201,19 @@ function textOf(response: any): string {
 }
 
 // Usage metadata. Vertex reports candidatesTokenCount + thoughtsTokenCount.
-function usageOf(response: any): { promptTokens?: number; completionTokens?: number; totalTokens?: number } {
+function usageOf(response: any): { promptTokens?: number; completionTokens?: number; totalTokens?: number; imageOutputTokens?: number } {
   const u = response?.usageMetadata;
   if (!u) return {};
   const p = u.promptTokenCount;
   const c = u.candidatesTokenCount;
+  // totalTokenCount includes the thoughts; the meter bills total - prompt.
   const t = u.totalTokenCount ?? (((p ?? 0) + (c ?? 0)) || undefined);
+  const img = imageOutputTokensOf(u);
   return {
     ...(typeof p === 'number' ? { promptTokens: p } : {}),
     ...(typeof c === 'number' ? { completionTokens: c } : {}),
     ...(typeof t === 'number' ? { totalTokens: t } : {}),
+    ...(typeof img === 'number' ? { imageOutputTokens: img } : {}),
   };
 }
 

@@ -8,8 +8,10 @@ import {
   AI_PRICING,
   computeCostUsd,
   isPriced,
+  billableOutputTokens,
   DEFAULT_VIDEO_DURATION_S,
 } from '../src/lib/ai-pricing';
+import { imageOutputTokensOf } from '../src/services/providers/usage';
 
 describe('metering: text models (token math)', () => {
   it('gemini-flash-latest: 200k prompt + 400k completion = $1.65', () => {
@@ -381,9 +383,12 @@ describe('metering: Gemini ladder rungs (2026-11-05 live catalog)', () => {
     expect(computeCostUsd('gemini-3.1-flash-lite-image', 0, 0)).toBeCloseTo(0.034, 6);
   });
 
-  it('gemini-4-argon bills the pre-2026-12-01 promo card', () => {
+  it('gemini-4-argon bills the pre-2026-12-01 card before Dec 1 and doubles from it', () => {
     // $2.00 in / $10.00 out per 1M through 2026-11-30, then $4/$20.
-    expect(computeCostUsd('gemini-4-argon', 1_000_000, 1_000_000)).toBeCloseTo(12.00, 6);
+    const before = { at: new Date('2026-11-30T23:59:59Z') };
+    const after = { at: new Date('2026-12-01T00:00:00Z') };
+    expect(computeCostUsd('gemini-4-argon', 1_000_000, 1_000_000, 1, undefined, before)).toBeCloseTo(12.00, 6);
+    expect(computeCostUsd('gemini-4-argon', 1_000_000, 1_000_000, 1, undefined, after)).toBeCloseTo(24.00, 6);
   });
 
   it('gemini-nano-banana-2.1 is priced at the Google card rate', () => {
@@ -429,5 +434,72 @@ describe('metering: the Auto image quote (picker showed a stale rate)', () => {
 
   it('nano-banana-2.1 bills $0.034 at 1K', () => {
     expect(computeCostUsd('gemini-nano-banana-2.1', 0, 0)).toBeCloseTo(0.034, 6);
+  });
+});
+
+// ─── 2026-11-13 cross-check of the Gemini 4 rollout ─────────────────────
+// Every number below is from a LIVE call or the Google pricing page read on
+// 2026-11-13, so a regression shows up as a dollar figure, not a vibe.
+describe('Gemini 4 card, thinking tokens and image-token split (2026-11-13)', () => {
+  const nov = { at: new Date('2026-11-20T12:00:00Z') };
+  const dec = { at: new Date('2026-12-02T12:00:00Z') };
+  const jan = { at: new Date('2027-01-02T12:00:00Z') };
+
+  it('gemini-4-carbon is $2/$10 (it was recorded at Hydrogen rates) and doubles on Dec 1', () => {
+    expect(computeCostUsd('gemini-4-carbon', 1_000_000, 1_000_000, 1, undefined, nov)).toBeCloseTo(12.00, 6);
+    expect(computeCostUsd('gemini-4-carbon', 1_000_000, 1_000_000, 1, undefined, dec)).toBeCloseTo(24.00, 6);
+  });
+
+  it('gemini-4-hydrogen stays $1.50/$7.50 across Dec 1', () => {
+    expect(computeCostUsd('gemini-4-hydrogen', 1_000_000, 1_000_000, 1, undefined, nov)).toBeCloseTo(9.00, 6);
+    expect(computeCostUsd('gemini-4-hydrogen', 1_000_000, 1_000_000, 1, undefined, dec)).toBeCloseTo(9.00, 6);
+  });
+
+  it('the 3.x flash promo ends 2027-01-01', () => {
+    for (const m of ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-flash-latest']) {
+      expect(computeCostUsd(m, 1_000_000, 1_000_000, 1, undefined, dec)).toBeCloseTo(4.50, 6);
+      expect(computeCostUsd(m, 1_000_000, 1_000_000, 1, undefined, jan)).toBeCloseTo(9.00, 6);
+    }
+  });
+
+  it('billableOutputTokens bills the thinking that completion counts leave out', () => {
+    // Gemini OpenAI-compatible, Carbon: prompt 45, completion 5, total 132.
+    expect(billableOutputTokens(45, 5, 132)).toBe(87);
+    // Gemini native, gemini-3-pro-image 1K: prompt 14, candidates 1216, total 1400 (170 thoughts).
+    expect(billableOutputTokens(14, 1216, 1400)).toBe(1386);
+    // Moonshot already counts reasoning inside completion: no double count.
+    expect(billableOutputTokens(87, 10, 97)).toBe(10);
+    // No total reported: the completion count stands.
+    expect(billableOutputTokens(100, 20, undefined)).toBe(20);
+  });
+
+  it('GOLDEN: a live gemini-3-pro-image 1K call bills the image and text tokens at their own rates', () => {
+    // 14 prompt + 1,120 IMAGE + 96 text + 170 thinking (measured 2026-11-13).
+    // 14 x $2 + 1,120 x $120 + 266 x $12 per 1M = $0.13762 (Google card $0.134 + text).
+    expect(computeCostUsd('gemini-3-pro-image', 14, 1386, 1, undefined, { imageOutputTokens: 1120 })).toBeCloseTo(0.13762, 6);
+  });
+
+  it('an image model with NO token split stays on the conservative image rate', () => {
+    // Same call, provider did not say which tokens were image: all at $120/M.
+    expect(computeCostUsd('gemini-3-pro-image', 14, 1386)).toBeCloseTo(0.166348, 6);
+  });
+
+  it('a text-only reply from an image model bills at the text rate', () => {
+    expect(computeCostUsd('gemini-nano-banana-2.1', 100, 200, 1, undefined, { imageOutputTokens: 0 })).toBeCloseTo(0.00165, 6);
+  });
+
+  it('perCall is still not added on top of measured tokens', () => {
+    const tokensOnly = (1120 / 1e6) * 120;
+    expect(computeCostUsd('gemini-3-pro-image', 0, 1120, 1, undefined, { imageOutputTokens: 1120 })).toBeCloseTo(tokensOnly, 6);
+  });
+});
+
+describe('imageOutputTokensOf', () => {
+  it('sums IMAGE-modality candidate tokens', () => {
+    expect(imageOutputTokensOf({ candidatesTokensDetails: [{ modality: 'IMAGE', tokenCount: 1120 }, { modality: 'TEXT', tokenCount: 96 }] })).toBe(1120);
+  });
+  it('is undefined when the response does not itemise output', () => {
+    expect(imageOutputTokensOf({ candidatesTokenCount: 5 })).toBeUndefined();
+    expect(imageOutputTokensOf({ candidatesTokensDetails: [{ modality: 'TEXT', tokenCount: 5 }] })).toBeUndefined();
   });
 });
