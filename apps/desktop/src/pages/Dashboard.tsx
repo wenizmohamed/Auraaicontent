@@ -103,6 +103,7 @@ const PROVIDER_COST_PER_M: Record<string, number> = {
   gemini: 5.0,      // Gemini 4 Argon / Carbon blended ~$5/M
   vertex: 5.0,      // Vertex AI serves Gemini 4 Argon / Carbon
   dashscope: 1.65,  // Qwen 3.8 Max input ~$1.65/M on the Alibaba catalog
+  byteplus: 1.5,    // BytePlus ModelArk Dola Seed / Seedream / Seedance
   minimax: 1.5,     // MiniMax M3 / H3 blended
   xai: 3.0,         // Grok 4.7 ~$3/M
   moonshot: 1.0,    // Kimi K3.1 Pro Highspeed ~$1/M
@@ -164,6 +165,7 @@ const PROVIDER_META: Record<string, { label: string; color: (d: boolean) => stri
   // its own teal so the dashboard shows WHICH Google endpoint ran.
   vertex: { label: 'Vertex AI', color: (d) => d ? 'text-teal-400' : 'text-teal-600', bg: (d) => d ? 'bg-teal-500/10' : 'bg-teal-50' },
   dashscope: { label: 'Alibaba', color: (d) => d ? 'text-amber-400' : 'text-amber-600', bg: (d) => d ? 'bg-amber-500/10' : 'bg-amber-50' },
+  byteplus: { label: 'ByteDance', color: (d) => d ? 'text-emerald-400' : 'text-emerald-600', bg: (d) => d ? 'bg-emerald-500/10' : 'bg-emerald-50' },
   minimax: { label: 'MiniMax', color: (d) => d ? 'text-cyan-400' : 'text-cyan-600', bg: (d) => d ? 'bg-cyan-500/10' : 'bg-cyan-50' },
   xai: { label: 'Grok', color: (d) => d ? 'text-orange-400' : 'text-orange-600', bg: (d) => d ? 'bg-orange-500/10' : 'bg-orange-50' },
   moonshot: { label: 'Kimi', color: (d) => d ? 'text-purple-400' : 'text-purple-600', bg: (d) => d ? 'bg-purple-500/10' : 'bg-purple-50' },
@@ -1084,11 +1086,11 @@ export default function Dashboard() {
               </li>
               <li className="flex items-start gap-2">
                 <span className="mt-1.5 h-1 w-1 rounded-full flex-shrink-0" style={{ background: 'var(--color-accent)' }} />
-                <span><span className="font-semibold">Creative Studio:</span> Gemini 4 Carbon rewrites each prompt for the engine that runs it: Gemini 3 Pro Image, MiniMax H3, Wan 3.0 Prime, Qwen Image 3.0 Pro or Grok Imagine 2.0.</span>
+                <span><span className="font-semibold">Creative Studio:</span> Gemini 4 Carbon rewrites each prompt for the engine that runs it: Dreamina Seedance 2.5, Dola Seedream 5.5, Gemini 3 Pro Image, MiniMax H3, Wan 3.0 Prime, Qwen Image 3.0 Pro or Grok Imagine 2.0.</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="mt-1.5 h-1 w-1 rounded-full flex-shrink-0" style={{ background: 'var(--color-accent)' }} />
-                <span><span className="font-semibold">Multi-Engine Chain:</span> Automatic failover across Gemini 4, Vertex AI, Alibaba, MiniMax, Grok 4.7, and Kimi K3.1 Pro.</span>
+                <span><span className="font-semibold">Multi-Engine Chain:</span> Automatic failover across Gemini 4, Vertex AI, ByteDance ModelArk, Alibaba, MiniMax, Grok 4.7, and Kimi K3.1 Pro.</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="mt-1.5 h-1 w-1 rounded-full flex-shrink-0" style={{ background: 'var(--color-accent)' }} />

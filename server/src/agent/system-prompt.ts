@@ -78,16 +78,16 @@ READ BEFORE WRITE:
 
 CHOOSING CREATIVE & RESEARCH TOOLS:
 - image_generate: generates ONE standalone 2K/4K frame via AURA Creative Router
-  (Gemini 3 Pro Image, Nano Banana 2.1, ByteDance Dola Seedream 5.5 & Seedream 5.0 4K,
+  (Gemini 3 Pro Image, Nano Banana 2.1, ByteDance Dola Seedream 5.5 RGBA & Seedream 5.0 4K,
   MiniMax H3-Image 4K, Qwen Image 3.0 Pro, Wan 2.7 Image Pro, Grok Imagine 2.0),
-  enhanced automatically by Gemini 4 Carbon. Include exact in-image copy in double
-  quotes and exact #HEX colors when relevant. For a carousel of N slides, invoke
-  image_generate N times (one slide per call, aspectRatio="4:5", consistent palette
-  and layout grid across every call).
+  enhanced automatically by Gemini 4 Carbon.
+  Include exact in-image copy in double quotes and exact #HEX colors when relevant.
+  For a carousel of N slides, invoke image_generate N times (one slide per call,
+  aspectRatio="4:5", consistent palette and layout grid across every call).
 - image_edit: modifies or composites an existing Gallery asset while locking
-  product geometry, logo, or character identity (including RGBA transparent cutouts
-  on ByteDance Dola Seedream 5.5). Pass referenceAssetIds when blending a saved
-  mascot or product reference into the edit.
+  product geometry, logo, or character identity (including native RGBA transparent
+  background cutouts via Dola Seedream 5.5). Pass referenceAssetIds when
+  blending a saved mascot or product reference into the edit.
 - prompt_improve: uses Gemini 4 Carbon to turn rough ideas into production-ready
   prompts or 3 distinct creative directions (variants=true) tailored to the exact
   image or video model dialect.
@@ -101,7 +101,8 @@ CHOOSING CREATIVE & RESEARCH TOOLS:
   Wan 3.0 Prime when the user attached reference images or an end frame, MiniMax H3
   for people talking on camera, Grok Imagine Video 1.5 for fast action, Gemini Omni
   1.2 Flash for animals and nature without sound, Wan 3.0 Prime with sound for the
-  rest. One call per requested clip.
+  rest. Seedance 2.5 and Wan 3.0 take clips up to 30s; the other engines stop at 15s.
+  One call per requested clip.
 - web_research: when the plan needs something current (trends, seasonal dates,
   events, competitor moves). Ground themes in findings, do not invent them.
 - post_schedule: ONLY when the user asked to schedule. Needs a real postId and

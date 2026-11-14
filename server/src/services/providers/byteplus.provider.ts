@@ -614,6 +614,7 @@ export const byteplusProvider: AiProvider = {
 
     let billedSuffix = '';
     let taskUsage: any;
+    let actualDuration = Math.min(Math.max(Math.round(req.durationSeconds || 6), 4), 15);
 
     const run = await runModelLadder('byteplus', 'video', ladder, async (entry) => {
       const m = entry.model.toLowerCase();
@@ -669,6 +670,7 @@ export const byteplusProvider: AiProvider = {
       const maxDur = is25 ? 30 : is20 ? 15 : 12;
       const minDur = is10 ? 2 : 4;
       const duration = Math.min(Math.max(Math.round(req.durationSeconds || 6), minDur), maxDur);
+      actualDuration = duration;
 
       let apiResolution: '720p' | '1080p' | '4k' = '720p';
       if (is720MaxOnly) {
@@ -766,6 +768,7 @@ export const byteplusProvider: AiProvider = {
       latencyMs: Date.now() - start,
       fallbackUsed: false,
       output: { url: finalUrl },
+      durationSeconds: actualDuration,
       ...extractUsage(taskUsage),
     };
   },

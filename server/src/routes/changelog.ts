@@ -19,7 +19,7 @@ const CHANGELOG: ChangelogEntry[] = [
     date: '2026-11-14',
     tag: 'new',
     title: 'ByteDance Seedream and Seedance join AURAAI',
-    body: 'AURA now works with ByteDance models. On Auto, an image prompt that asks for a transparent background, a sticker or a die-cut goes to Seedream 5.5, which returns a real transparent PNG. A video prompt that asks for a multi-shot cut, a storyboard or a montage goes to Seedance 2.5. In Agent Mode you can ask for Seedream 5.0 or Seedance 2.0 by name.',
+    body: 'AURA now works with ByteDance models. On Auto, an image prompt that asks for a transparent background, a sticker or a die-cut goes to Seedream 5.5, which returns a real transparent PNG. A video prompt that asks for a multi-shot cut, a storyboard or a montage goes to Seedance 2.5. Seedance 2.5 and 2.0 clips come with sound, and Seedance 2.5 runs up to 30 seconds. You can also pick them yourself: the Creative Studio model lists now include Seedream 5.5, Seedream 5.0 (with Pro and Flash) and Seedance 2.5, 2.0, 2.0 Fast, 2.0 Mini and 1.0 Pro Fast, and Agent Mode takes any of them by name.',
   },
   {
     date: '2026-11-13',

@@ -242,6 +242,7 @@ const PROVIDER_TIERS: Record<string, { label: string; tint: string; ring: string
   google:    { label: 'Gemini 4 Argon', tint: 'color-mix(in srgb, var(--color-accent) 15%, transparent)', ring: 'var(--color-accent)' },
   vertex:    { label: 'Vertex · Gemini 4', tint: 'color-mix(in srgb, var(--color-accent) 14%, transparent)', ring: 'var(--color-accent)' },
   dashscope: { label: 'Alibaba', tint: 'color-mix(in srgb, var(--color-accent) 14%, transparent)', ring: 'var(--color-accent)' },
+  byteplus:  { label: 'ByteDance', tint: 'color-mix(in srgb, var(--color-success) 14%, transparent)', ring: 'var(--color-success)' },
   minimax:   { label: 'MiniMax', tint: 'color-mix(in srgb, var(--color-accent) 14%, transparent)', ring: 'var(--color-accent)' },
   grok:      { label: 'Grok',    tint: 'color-mix(in srgb, var(--color-fg) 8%, transparent)',     ring: 'var(--color-fg-muted)' },
   xai:       { label: 'Grok',    tint: 'color-mix(in srgb, var(--color-fg) 8%, transparent)',     ring: 'var(--color-fg-muted)' },

@@ -95,6 +95,18 @@ const REQUIRED_MODELS = [
   'MiniMax-H3', 'MiniMax-H3:1080p', 'MiniMax-H3:2k', 'MiniMax-H3-Max', 'MiniMax-H3-Max:480p',
   'MiniMax-H3-Image', 'MiniMax-H3-Image-Highspeed', 'image-01',
   'MiniMax-M3', 'MiniMax-M3.1-Flash',
+  // 2026-11-14: BytePlus ModelArk (Dreamina Seedance 2.5/2.0/1.0, Dola Seedream 5.5/5.0, Dola Seed 2.1, DeepSeek V4.1, GLM 5.3, Hyper3D, Skylark Embedding)
+  'dreamina-seedance-2-5-260628', 'dreamina-seedance-2-5-260628:480p', 'dreamina-seedance-2-5-260628:1080p',
+  'dreamina-seedance-2-5-flash-261115', 'dreamina-seedance-2-5-flash-261115:480p',
+  'dreamina-seedance-2-0-260128', 'dreamina-seedance-2-0-260128:480p', 'dreamina-seedance-2-0-260128:1080p', 'dreamina-seedance-2-0-260128:4k',
+  'dreamina-seedance-2-0-fast-260128', 'dreamina-seedance-2-0-mini-260615',
+  'seedance-1-0-pro-250528', 'seedance-1-0-pro-250528:1080p', 'seedance-1-0-pro-fast-251015', 'seedance-1-0-pro-fast-251015:1080p',
+  'dola-seedream-5-5-261028', 'dola-seedream-5-5-261028:1k', 'dola-seedream-5-5-261028:2k',
+  'dola-seedream-5-0-pro-260628', 'dola-seedream-5-0-pro-260628:1k', 'dola-seedream-5-0-pro-260628:2k',
+  'dola-seedream-5-0-flash-260915', 'seedream-5-0-260128', 'seedream-4-5-251128', 'seedream-4-0-250828',
+  'dola-seed-2-1-turbo-260628', 'seed-2-0-pro-260328', 'seed-2-0-lite-260428', 'seed-2-0-mini-260428',
+  'deepseek-v4-1-flash-261017', 'glm-5-3-flash-260828', 'seed-translation-250915',
+  'hyper3d-gen2-260112', 'hitem3d-2-0-251223', 'skylark-embedding-vision-251215',
 ];
 
 describe('ai-pricing coverage', () => {

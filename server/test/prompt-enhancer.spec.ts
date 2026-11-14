@@ -80,6 +80,10 @@ describe('engine resolution', () => {
     expect(engineForModel('MiniMax-H3-Max')).toBe('minimax');
     expect(engineForModel('MiniMax-H3-Image')).toBe('minimax');
     expect(engineForModel('image-01')).toBe('minimax');
+    expect(engineForModel('dreamina-seedance-2-5-260628')).toBe('byteplus');
+    expect(engineForModel('seedance-1-0-pro-fast-251015')).toBe('byteplus');
+    expect(engineForModel('dola-seedream-5-5-261028')).toBe('byteplus');
+    expect(engineForModel('seedream-5-0-260128')).toBe('byteplus');
     // Absent model = Auto = the Alibaba primary.
     expect(engineForModel(undefined)).toBe('dashscope');
     expect(engineForModel('')).toBe('dashscope');
@@ -318,6 +322,24 @@ describe('AURA selectBestCreativeEngine smart routing', () => {
     expect(serverDialectKeyFor('text-to-image', 'minimax', 'MiniMax-H3-Image')).toBe('minimax-image');
     expect(serverDialectKeyFor('image-edit', 'minimax', 'image-01')).toBe('minimax-image');
     expect(engineDialect('text-to-image', 'minimax', 'MiniMax-H3-Image')).toContain('MiniMax H3-Image');
+  });
+
+  it('maps ByteDance Seedance 2.5/2.0 (audio), Seedance 1.0 (visual-only), and Dola Seedream 5.5 (RGBA) accurately', () => {
+    expect(serverDialectKeyFor('text-to-video', 'byteplus', 'dreamina-seedance-2-5-260628')).toBe('seedance');
+    expect(engineDialect('text-to-video', 'byteplus', 'dreamina-seedance-2-5-260628')).toMatch(/KEEP the audio/i);
+    expect(serverDialectKeyFor('text-to-video', 'byteplus', 'seedance-1-0-pro-fast-251015')).toBe('seedance-v1');
+    expect(engineDialect('text-to-video', 'byteplus', 'seedance-1-0-pro-fast-251015')).toMatch(/Omit the SFX/i);
+    expect(serverDialectKeyFor('text-to-image', 'byteplus', 'dola-seedream-5-5-261028')).toBe('seedream');
+    expect(engineDialect('text-to-image', 'byteplus', 'dola-seedream-5-5-261028')).toContain('Dola Seedream 5.5');
+
+    expect(selectBestCreativeEngine('text-to-image', 'Gold luxury emblem isolated PNG on transparent background')).toMatchObject({
+      provider: 'byteplus',
+      model: 'dola-seedream-5-5-261028',
+    });
+    expect(selectBestCreativeEngine('text-to-video', 'Multi-shot storyboard commercial for an espresso machine')).toMatchObject({
+      provider: 'byteplus',
+      model: 'dreamina-seedance-2-5-260628',
+    });
   });
 
   it('strips pasted chat meta-instructions while keeping hexes, slides, and quoted copy intact', () => {

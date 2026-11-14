@@ -130,7 +130,7 @@ export function isSafetyBlock(msg: string): boolean {
   // FALSE POSITIVES on benign marketing prompts (they clear on a plain re-run),
   // but they arrive wrapped in a 400 so they must be recognised as safety (not
   // a hard bad-request) to be retried across providers + re-attempted.
-  return /safety|blocked|content.?filter|sensitive.?content|real.?human.?face|policy|prohibited|child|photorealistic|inappropriate|input\s+blocked|declined this content|could not be processed/i.test(msg);
+  return /safety|blocked|content.?filter|policy|prohibited|child|photorealistic|inappropriate|input\s+blocked|declined this content|could not be processed|sensitive.?content|real.?human.?face/i.test(msg);
 }
 
 // Provider billing exhaustion (credits gone / monthly spend cap hit) is a
