@@ -10,18 +10,20 @@ mkdir -p "$DEST"
 DATE=$(date +%F)
 ENV_FILE=/opt/auracontent-v2/server/.env
 
-# Extract DB password from DATABASE_URL in .env (format
-# postgres://auracontent:PASSWORD@127.0.0.1:5432/auracontent_planner) without sourcing
-# the whole file — keeps blast radius tight.
+# Read user, password and database name from DATABASE_URL in .env (format
+# postgres://USER:PASSWORD@HOST:5432/DBNAME) without sourcing the whole file, which
+# keeps blast radius tight. Nothing is hardcoded, so a database rename needs no edit here.
 DB_URL=$(awk -F= '/^DATABASE_URL=/{ sub(/^DATABASE_URL=/, ""); print }' "$ENV_FILE" | tr -d '"')
 DB_PASS=$(printf '%s' "$DB_URL" | sed -E 's|^postgres(ql)?://[^:]+:([^@]+)@.*$|\2|')
+DB_USER=$(printf '%s' "$DB_URL" | sed -E 's|^postgres(ql)?://([^:]+):.*$|\2|')
+DB_NAME=$(printf '%s' "${DB_URL%%\?*}" | sed -E 's|^.*/([^/]+)$|\1|')
 
 if [[ -z "$DB_PASS" || "$DB_PASS" == "$DB_URL" ]]; then
   echo "ERR: could not parse password from DATABASE_URL in $ENV_FILE" >&2
   exit 1
 fi
 
-PGPASSWORD="$DB_PASS" pg_dump -h 127.0.0.1 -U auracontent auracontent_planner | gzip > "$DEST/${DATE}.sql.gz"
+PGPASSWORD="$DB_PASS" pg_dump -h 127.0.0.1 -U "$DB_USER" "$DB_NAME" | gzip > "$DEST/${DATE}.sql.gz"
 
 # Retention: 14 days
 find "$DEST" -name '*.sql.gz' -mtime +14 -delete

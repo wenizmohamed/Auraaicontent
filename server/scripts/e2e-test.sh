@@ -19,7 +19,9 @@ fail() { echo "  ✗ $1  $2"; FAIL=$((FAIL+1)); ERRS+=("$1: $2"); }
 
 step() { echo ""; echo "──── $1 ────"; }
 
-DBQ() { sudo -u postgres psql auracontent_planner -tAc "$1"; }
+# Database name comes from the server .env, so it follows any rename.
+DB_NAME=$(grep '^DATABASE_URL=' "${ENV_FILE:-/opt/auracontent-v2/server/.env}" | tr -d '"' | sed -E 's|\?.*$||; s|^.*/([^/]+)$|\1|')
+DBQ() { sudo -u postgres psql "$DB_NAME" -tAc "$1"; }
 
 # ─── 1. Pick a test client ────────────────────────────────────────
 step "Setup: pick test client"

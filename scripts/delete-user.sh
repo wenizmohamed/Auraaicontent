@@ -20,7 +20,9 @@ ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$HOST" "
   ENV_FILE=/opt/auracontent-v2/server/.env
   DB_URL=\$(awk -F= '/^DATABASE_URL=/{ sub(/^DATABASE_URL=/, \"\"); print }' \"\$ENV_FILE\" | tr -d '\"')
   DB_PASS=\$(printf '%s' \"\$DB_URL\" | sed -E 's|^postgres(ql)?://[^:]+:([^@]+)@.*$|\\2|')
-  PGPASSWORD=\"\$DB_PASS\" psql -h 127.0.0.1 -U auracontent -d auracontent_planner <<EOF
+  DB_USER=\$(printf '%s' \"\$DB_URL\" | sed -E 's|^postgres(ql)?://([^:]+):.*$|\\2|')
+  DB_NAME=\$(printf '%s' \"\${DB_URL%%\\?*}\" | sed -E 's|^.*/([^/]+)$|\\1|')
+  PGPASSWORD=\"\$DB_PASS\" psql -h 127.0.0.1 -U \"\$DB_USER\" -d \"\$DB_NAME\" <<EOF
 BEGIN;
 DELETE FROM \"RefreshToken\" WHERE \"userId\" = '$USER_ID';
 DELETE FROM \"AuditLog\" WHERE \"userId\" = '$USER_ID';

@@ -30,9 +30,12 @@ ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$HOST" "
     echo \"ERR: post-rotation length \$POST_LEN < 64\" >&2
     exit 1
   fi
-  DB_PASS=\$(awk -F= '/^DB_PASSWORD=/{print \$2}' '$ENV_PATH' | tr -d '\"' || true)
+  DB_URL=\$(awk -F= '/^DATABASE_URL=/{ sub(/^DATABASE_URL=/, \"\"); print }' '$ENV_PATH' | tr -d '\"')
+  DB_PASS=\$(printf '%s' \"\$DB_URL\" | sed -E 's|^postgres(ql)?://[^:]+:([^@]+)@.*$|\\2|')
+  DB_USER=\$(printf '%s' \"\$DB_URL\" | sed -E 's|^postgres(ql)?://([^:]+):.*$|\\2|')
+  DB_NAME=\$(printf '%s' \"\${DB_URL%%\\?*}\" | sed -E 's|^.*/([^/]+)$|\\1|')
   if [[ -n \"\$DB_PASS\" ]]; then
-    PGPASSWORD=\"\$DB_PASS\" psql -h 127.0.0.1 -U auracontent -d auracontent_planner -c 'UPDATE \"RefreshToken\" SET \"revokedAt\" = NOW() WHERE \"revokedAt\" IS NULL' || echo 'WARN: refresh-token revoke failed (non-fatal)'
+    PGPASSWORD=\"\$DB_PASS\" psql -h 127.0.0.1 -U \"\$DB_USER\" -d \"\$DB_NAME\" -c 'UPDATE \"RefreshToken\" SET \"revokedAt\" = NOW() WHERE \"revokedAt\" IS NULL' || echo 'WARN: refresh-token revoke failed (non-fatal)'
   fi
   pm2 reload auracontent-api --update-env
   echo \"  new_length: \$POST_LEN\"
