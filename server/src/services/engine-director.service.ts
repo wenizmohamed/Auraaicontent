@@ -158,8 +158,8 @@ How to decide:
 3. Then weigh cost: for a simple job pick a cheaper engine that does it well; pay for the strongest engine only when the job needs what it does best.
 4. Only choose from the list. Every engine on it can run this job right now.
 
-Reply with JSON only: {"engine": "<id from the list>", "complexity": "simple" | "standard" | "complex", "reason": "<one plain sentence, at most 20 words, saying why this engine fits this prompt>"}
-The reason must not contain dashes.`;
+Reply with JSON only: {"engine": "<id from the list>", "complexity": "simple" | "standard" | "complex", "reason": "<one plain sentence, at most 16 words>"}
+The reason names what in THIS prompt decided (for example "four timed shots with sound", "Arabic text on a menu", "one subject and no text, so the cheaper engine"). Do not start it with the engine name, do not praise the engine, no dashes.`;
 
 function buildUserMessage(input: DirectEngineInput, candidates: EngineSpec[]): string {
   const video = VIDEO_MODES.includes(input.mode);
@@ -211,6 +211,13 @@ function rulesPick(input: DirectEngineInput, candidates: EngineSpec[]): EnginePi
   return { provider: first.provider, model: first.id, name: first.name, reason: `${first.name} fits the length, size and references you asked for.`, decidedBy: 'rules' };
 }
 
+/** Shown after "AURA picked <name>:", so a reason that opens with the name drops it. */
+function withoutLeadingName(reason: string, name: string): string {
+  if (!reason.toLowerCase().startsWith(name.toLowerCase())) return reason;
+  const rest = reason.slice(name.length).replace(/^[\s,:]*(is|was|fits|suits|handles|excels at|specializes in)?\s*/i, '');
+  return rest ? rest.charAt(0).toUpperCase() + rest.slice(1) : reason;
+}
+
 function cleanReason(s: unknown): string {
   return String(s || '').replace(/[‒-―]/g, ',').replace(/\s+/g, ' ').trim().slice(0, 200);
 }
@@ -240,7 +247,8 @@ export async function directEngine(input: DirectEngineInput): Promise<EnginePick
         temperature: 0.1,
         // The text model reasons before it answers; a small budget truncates it.
         maxTokens: 2048,
-        model: process.env.ENGINE_DIRECTOR_MODEL || process.env.PROMPT_ENHANCER_MODEL || 'gemini-4-carbon',
+        // Hydrogen: the same picks as Carbon in live tests, about 4s instead of 9s (2026-11-14).
+        model: process.env.ENGINE_DIRECTOR_MODEL || 'gemini-4-hydrogen',
         timeoutMs: Number(process.env.ENGINE_DIRECTOR_TIMEOUT_MS) || 15000,
         signal: input.signal,
       },
@@ -261,7 +269,7 @@ export async function directEngine(input: DirectEngineInput): Promise<EnginePick
       provider: chosen.provider,
       model: chosen.id,
       name: chosen.name,
-      reason: cleanReason(out?.reason) || `${chosen.name} fits this prompt.`,
+      reason: withoutLeadingName(cleanReason(out?.reason), chosen.name) || 'It fits this prompt best.',
       ...(complexity ? { complexity } : {}),
       decidedBy: 'aura',
     };
