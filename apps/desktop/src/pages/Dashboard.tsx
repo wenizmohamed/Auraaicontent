@@ -916,7 +916,9 @@ export default function Dashboard() {
       )}
 
       {/* ─── ROW 2b: AI Engine (Bento layout — Tier 1 #1) ─── */}
-      {aiStats && aiStats.totalCalls > 0 && (
+      {/* The meter-based cost tile must not vanish after every restart (the call
+          counters come from an in-memory buffer that resets). */}
+      {aiStats && (aiStats.totalCalls > 0 || (canSeePricing && monthCost !== null)) && (
         <motion.div {...fadeUp(0.25)}>
           <BentoGrid columns={12} gap="base">
 
