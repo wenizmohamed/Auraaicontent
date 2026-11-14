@@ -193,7 +193,7 @@ export async function buildApp() {
           imageModel: process.env.GEMINI_IMAGE_MODEL || 'gemini-3-pro-image',
           videoModel: process.env.GEMINI_VIDEO_MODEL || 'gemini-omni-1.2-flash',
           baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
-          role: 'PRIMARY (AURA Agent + Chat, Creative Prompt Director + Vision, AURA Image Pro & AURA Image, AURA Omni 1.2 Video)',
+          role: 'PRIMARY (text brain for AURA Agent + Chat, prompt writing + vision, Nano Banana Pro & Nano Banana 2.1, Omni 1.2 Video)',
           rank: 1,
         },
         vertex: {
@@ -204,7 +204,7 @@ export async function buildApp() {
           project: process.env.VERTEX_PROJECT || 'hubz-510406',
           location: process.env.VERTEX_LOCATION || 'us',
           baseURL: process.env.VERTEX_HOST || 'https://aiplatform.googleapis.com',
-          role: 'high-availability failover (AURA text/agent/analysis + AURA Image Pro & AURA Image)',
+          role: 'high-availability failover (Google text/agent/analysis for AURA + Nano Banana Pro & Nano Banana 2.1)',
           rank: 2,
         },
         dashscope: {

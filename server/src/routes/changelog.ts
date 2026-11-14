@@ -19,7 +19,7 @@ const CHANGELOG: ChangelogEntry[] = [
     date: '2026-11-14',
     tag: 'improved',
     title: 'On Auto, AURA reads your whole prompt and picks the engine',
-    body: 'Leave the picker on Auto and AURA reads the whole prompt, judges how complex the job is and picks the engine for it. Simple images and clips go to a cheaper engine. Exact text, transparent backgrounds, portraits, product close-ups, several shots or people talking go to the engine built for them. A single word no longer decides: a timed four-beat sequence now goes to Seedance 2.5 instead of Grok. The engine AURA picked, and why, shows under each result. Grok stays in the model list when you want it.',
+    body: 'Leave the picker on Auto and AURA reads the whole prompt, works out what it needs and how complex it is, and assigns the right model from every model in that list. Simple images and clips go to a cheaper engine. Exact text, transparent backgrounds, portraits, product close-ups, several shots or people talking go to the engine built for them. A single word no longer decides: a timed four-beat sequence now goes to Seedance 2.5 instead of Grok. The engine AURA picked, and why, shows under each result. Grok stays in the model list when you want it.',
   },
   {
     date: '2026-11-14',
@@ -49,13 +49,13 @@ const CHANGELOG: ChangelogEntry[] = [
     date: '2026-11-12',
     tag: 'new',
     title: 'On Auto, AURA picks the engine for your prompt',
-    body: 'Leave the picker on Auto and AURA reads your prompt and picks the engine: Qwen Image 3.0 Pro for Arabic and posters, MiniMax H3-Image for portraits, Wan 2.7 Image Pro for luxury product close-ups and AURA Image Pro for the rest. For video it uses Wan 3.0 Prime with sound unless the scene calls for another engine. It then turns shorthand, typos and mixed Arabic and English into a full prompt for that engine.',
+    body: 'Leave the picker on Auto and AURA reads your prompt and picks the engine: Qwen Image 3.0 Pro for Arabic and posters, MiniMax H3-Image for portraits, Wan 2.7 Image Pro for luxury product close-ups and Nano Banana Pro for the rest. For video it uses Wan 3.0 Prime with sound unless the scene calls for another engine. It then turns shorthand, typos and mixed Arabic and English into a full prompt for that engine.',
   },
   {
     date: '2026-11-12',
     tag: 'new',
-    title: 'AURA Image Pro and AURA Omni video join AURAAI',
-    body: 'AURA runs the orchestration and picks the model for each job. New underneath it: a newer engine for prompt writing and image analysis, AURA Image Pro for generating and editing images, and AURA Omni 1.2 and 1.1 Flash for video. They sit next to Alibaba (Qwen Image 3.0 Pro, Wan 2.7 Image Pro, Wan 3.0 Prime), xAI (Grok Imagine 2.0 and Grok Imagine Video 1.5) and Moonshot Kimi K3.1 Pro.',
+    title: 'Nano Banana Pro and Omni video join AURAAI',
+    body: 'AURA runs the orchestration and picks the model for each job. New underneath it: a newer engine for prompt writing and image analysis, Nano Banana Pro for generating and editing images, and Omni 1.2 and 1.1 Flash for video. They sit next to Alibaba (Qwen Image 3.0 Pro, Wan 2.7 Image Pro, Wan 3.0 Prime), xAI (Grok Imagine 2.0 and Grok Imagine Video 1.5) and Moonshot Kimi K3.1 Pro.',
   },
   {
     date: '2026-11-12',
@@ -79,13 +79,13 @@ const CHANGELOG: ChangelogEntry[] = [
     date: '2026-11-11',
     tag: 'improved',
     title: 'Prompts written for the engine you pick',
-    body: 'Prompt rewriting and Suggest 3 directions now write for the engine in the picker: the layout and exact in-image text for Qwen, one flowing paragraph for AURA Image, short punchy lines for Grok, motion and sound for Wan 3.0. A line under the picker shows which style is in use.',
+    body: 'Prompt rewriting and Suggest 3 directions now write for the engine in the picker: the layout and exact in-image text for Qwen, one flowing paragraph for Nano Banana, short punchy lines for Grok, motion and sound for Wan 3.0. A line under the picker shows which style is in use.',
   },
   {
     date: '2026-11-11',
     tag: 'new',
     title: 'Grok 4.7 and Kimi K3.1 join the text chain',
-    body: 'AURA runs every strategy, calendar, chat and creative task and picks the model behind it. The AURA text engine runs first. If a provider is busy or down the next one takes over (Alibaba Qwen 3.8 Max, xAI Grok 4.7, Moonshot Kimi K3.1 Pro), so one outage does not stop the work.',
+    body: 'AURA runs every strategy, calendar, chat and creative task and picks the model behind it. The newest Google text model runs first. If a provider is busy or down the next one takes over (Alibaba Qwen 3.8 Max, xAI Grok 4.7, Moonshot Kimi K3.1 Pro), so one outage does not stop the work.',
   },
   {
     date: '2026-11-11',
@@ -121,7 +121,7 @@ const CHANGELOG: ChangelogEntry[] = [
     date: '2026-11-07',
     tag: 'fixed',
     title: 'Only engines that actually work are offered',
-    body: 'The picker used to list engines that had been withdrawn by their provider, so choosing one meant waiting for a request that could never succeed. Every remaining engine was tested with a real generation before it was kept, and the ones that failed are gone. The video list is now Wan 3.0, Wan 2.7 and HappyHorse, and the image list is Qwen Image and AURA Image.',
+    body: 'The picker used to list engines that had been withdrawn by their provider, so choosing one meant waiting for a request that could never succeed. Every remaining engine was tested with a real generation before it was kept, and the ones that failed are gone. The video list is now Wan 3.0, Wan 2.7 and HappyHorse, and the image list is Qwen Image and Nano Banana.',
   },
   {
     date: '2026-11-07',
@@ -223,7 +223,7 @@ const CHANGELOG: ChangelogEntry[] = [
     date: '2026-08-14',
     tag: 'improved',
     title: 'The newest AI engines across the board',
-    body: 'Every engine now runs its latest version. Text, images and video moved to the newest AURA, Grok and Qwen releases, so results come back sharper and hold your brief more closely. Long documents and big calendars also get a wider fallback engine when the main one is busy, so generations are less likely to stall. Usage is priced per model behind the scenes, so your finance reports stay accurate.',
+    body: 'Every engine now runs its latest version. Text, images and video moved to the newest Google, Grok and Qwen releases, so results come back sharper and hold your brief more closely. Long documents and big calendars also get a wider fallback engine when the main one is busy, so generations are less likely to stall. Usage is priced per model behind the scenes, so your finance reports stay accurate.',
   },
   {
     date: '2026-08-02',
@@ -259,7 +259,7 @@ const CHANGELOG: ChangelogEntry[] = [
     date: '2026-07-21',
     tag: 'fixed',
     title: 'No more cut-off captions + the newest AI models',
-    body: 'Long generations (big calendars, detailed briefs) no longer come back truncated mid-sentence. Output limits were raised across engines. AURA also moved to the latest models across providers (Grok 4.5, AURA Fast, the newest image models), and when an engine wrongly blocks safe content, AURA now automatically retries on another engine instead of failing.',
+    body: 'Long generations (big calendars, detailed briefs) no longer come back truncated mid-sentence. Output limits were raised across engines. AURA also moved to the latest models across providers (Grok 4.5, Google Flash 3.5, the newest image models), and when an engine wrongly blocks safe content, AURA now automatically retries on another engine instead of failing.',
   },
   {
     date: '2026-07-15',

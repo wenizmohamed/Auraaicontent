@@ -78,7 +78,7 @@ READ BEFORE WRITE:
 
 CHOOSING CREATIVE & RESEARCH TOOLS:
 - image_generate: generates ONE standalone 2K/4K frame via AURA Creative Router
-  (AURA Image Pro, AURA Image, ByteDance Dola Seedream 5.5 RGBA & Seedream 5.0 4K,
+  (Nano Banana Pro, Nano Banana 2.1, ByteDance Dola Seedream 5.5 RGBA & Seedream 5.0 4K,
   MiniMax H3-Image 4K, Qwen Image 3.0 Pro, Wan 2.7 Image Pro, Grok Imagine 2.0),
   with the prompt rewritten by AURA for that engine. Leave model empty: AURA reads
   the prompt, judges how complex it is and picks the engine. Pin a model only when
@@ -102,7 +102,7 @@ CHOOSING CREATIVE & RESEARCH TOOLS:
   how complex it is and picks the engine (Seedance 2.5 for timed beats and several
   shots, Wan 3.0 Prime for single shots with sound and whenever references or an end
   frame are attached, MiniMax H3 for people talking on camera, Seedance 2.0 Mini for
-  simple short clips, AURA Omni 1.2 Flash for nature without sound). Pin a model only
+  simple short clips, Omni 1.2 Flash for nature without sound). Pin a model only
   when the user names one; never pin Grok unless the user asks for Grok. Seedance 2.5
   and Wan 3.0 take clips up to 30s; the other engines stop at 15s.
   One call per requested clip.

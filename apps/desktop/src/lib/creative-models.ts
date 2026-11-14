@@ -61,7 +61,7 @@ const TIERED_IMAGE_RATES: Record<string, { '1K': number; '2K': number; '4K': num
   'wan2.7-image': { '1K': 0.027504, '2K': 0.027504, '4K': 0.027504 },
   'dola-seedream-5-5-261028': { '1K': 0.02, '2K': 0.035, '4K': 0.035 },
   'dola-seedream-5-0-pro-260628': { '1K': 0.045, '2K': 0.09, '4K': 0.09 },
-  // Auto quotes the engine it lands on most: AURA Image Pro is the
+  // Auto quotes the engine it lands on most: Nano Banana Pro is the
   // fall-through pick for generate and edit, and the first hop for the
   // upscale detail pass. Quoting Qwen's $0.034 here showed a quarter of the
   // real price for most Auto images.
@@ -103,12 +103,12 @@ const WAN27_IMAGE: ModelOption = {
   provider: 'dashscope', model: 'wan2.7-image', perImage: 0.027504, maxSize: '2K',
 };
 const GEMINI_IMAGE: ModelOption = {
-  value: 'gemini-flash-image', label: 'AURA Image', vendor: 'Google',
+  value: 'gemini-flash-image', label: 'Nano Banana 2.1', vendor: 'Google',
   hint: 'Newest Google image model. Native 1K to 4K output, every aspect ratio, precise multi-image edits.',
   provider: 'gemini', model: 'gemini-nano-banana-2.1',
 };
 const GEMINI_IMAGE_ULTRA: ModelOption = {
-  value: 'gemini-pro-image', label: 'AURA Image Pro', vendor: 'Google',
+  value: 'gemini-pro-image', label: 'Nano Banana Pro', vendor: 'Google',
   hint: 'Flagship Google 2K/4K campaign art, editorial carousels, world knowledge, and identity-locked edits.',
   provider: 'gemini', model: 'gemini-3-pro-image', quality: 'ultra',
 };
@@ -157,7 +157,7 @@ export const TEXT_TO_IMAGE_MODELS: ModelOption[] = [
   // The Auto hints describe selectBestCreativeEngine (server/src/services/
   // prompt-enhancer.service.ts) word for word: a keyword match on the prompt,
   // NOT a model call. Change one, change the other.
-  { value: 'auto', label: 'Auto', hint: 'AURA reads your whole prompt, judges how complex it is and picks the engine: Qwen Image 3.0 Pro for exact text and Arabic, Seedream 5.5 for transparent backgrounds, Wan 2.7 Image Pro for product close-ups, MiniMax H3-Image for portraits, AURA Image Pro for crowded scenes and carousels, a cheaper engine for simple images.' },
+  { value: 'auto', label: 'Auto', hint: 'AURA reads your prompt, works out what it needs (text in the image, people, product, style, how complex it is) and assigns the right model from this list. Pick a model yourself to override. Grok only runs when you pick it.' },
   GEMINI_IMAGE_ULTRA, GEMINI_IMAGE,
   SEEDREAM_55, SEEDREAM_50_4K, SEEDREAM_50_PRO, SEEDREAM_50_FLASH,
   MINIMAX_H3_IMAGE, MINIMAX_H3_IMAGE_FAST, MINIMAX_IMAGE_01,
@@ -166,7 +166,7 @@ export const TEXT_TO_IMAGE_MODELS: ModelOption[] = [
 ];
 
 export const IMAGE_EDIT_MODELS: ModelOption[] = [
-  { value: 'auto', label: 'Auto', hint: 'AURA reads your instruction, judges how complex it is and picks the engine: Qwen Image 3.0 Pro when text in the image changes, Seedream 5.5 for transparent cutouts, AURA Image Pro when a face, logo or product must stay identical, a cheaper engine for simple edits.' },
+  { value: 'auto', label: 'Auto', hint: 'AURA reads your instruction, works out what must change and what must stay identical, and assigns the right model from this list. Pick a model yourself to override. Grok only runs when you pick it.' },
   GEMINI_IMAGE_ULTRA, GEMINI_IMAGE,
   SEEDREAM_55, SEEDREAM_50_4K, SEEDREAM_50_PRO, SEEDREAM_50_FLASH,
   MINIMAX_H3_IMAGE, MINIMAX_H3_IMAGE_FAST, MINIMAX_IMAGE_01,
@@ -175,7 +175,7 @@ export const IMAGE_EDIT_MODELS: ModelOption[] = [
 ];
 
 export const UPSCALE_MODELS: ModelOption[] = [
-  { value: 'auto', label: 'Auto', hint: 'The detail pass runs on AURA Image Pro first, with Seedream 5.0 (4K), Qwen Image 3.0 Pro and MiniMax H3-Image on standby.' },
+  { value: 'auto', label: 'Auto', hint: 'The detail pass runs on Nano Banana Pro first, with Seedream 5.0 (4K), Qwen Image 3.0 Pro and MiniMax H3-Image on standby.' },
   SEEDREAM_50_4K, SEEDREAM_55, QWEN_IMAGE, MINIMAX_H3_IMAGE, MINIMAX_H3_IMAGE_FAST, WAN27_IMAGE_PRO, WAN27_IMAGE,
   GEMINI_IMAGE, GEMINI_IMAGE_ULTRA, GROK_IMAGE_2, SEEDREAM_50_FLASH, MINIMAX_IMAGE_01,
 ];
@@ -236,12 +236,12 @@ const HH_I2V: ModelOption = { ...HH_T2V, value: 'happyhorse-1.1-i2v', model: 'ha
 const HH_R2V: ModelOption = { ...HH_T2V, value: 'happyhorse-1.1-r2v', model: 'happyhorse-1.1-r2v', hint: 'Keeps your exact product from the reference images. 3 to 15s.' };
 
 const OMNI_12_FLASH: ModelOption = {
-  value: 'gemini-omni-1.2-flash', label: 'AURA Omni 1.2 Flash', vendor: 'Google',
+  value: 'gemini-omni-1.2-flash', label: 'Omni 1.2 Flash', vendor: 'Google',
   hint: 'Google native multimodal video engine. Natural physics, wildlife, organic motion, and camera depth. 4 to 15s.',
   model: 'gemini-omni-1.2-flash', perSec: 0.08, perSec1080: 0.08, minSeconds: 4, maxSeconds: 15, supports1080: false, tier: 'hd',
 };
 const OMNI_11_FLASH: ModelOption = {
-  value: 'gemini-omni-1.1-flash', label: 'AURA Omni 1.1 Flash', vendor: 'Google',
+  value: 'gemini-omni-1.1-flash', label: 'Omni 1.1 Flash', vendor: 'Google',
   hint: 'Fast Google multimodal video drafts with smooth camera motion. 4 to 15s.',
   model: 'gemini-omni-1.1-flash', perSec: 0.06, perSec1080: 0.06, minSeconds: 4, maxSeconds: 15, supports1080: false, tier: 'draft',
 };
@@ -258,17 +258,17 @@ const GROK_VIDEO_15_LITE: ModelOption = {
 };
 
 export const TEXT_TO_VIDEO_MODELS: ModelOption[] = [
-  { value: 'auto', label: 'Auto', hint: 'AURA reads your whole prompt, judges how complex it is and picks the engine: Seedance 2.5 for timed beats and several shots, MiniMax H3 for people talking on camera, Wan 3.0 Prime for single shots with sound, Seedance 2.0 Mini for simple short clips, AURA Omni 1.2 Flash for nature without sound.', perSec: 0.127199, perSec1080: 0.254399, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
+  { value: 'auto', label: 'Auto', hint: 'AURA reads your prompt, works out what it needs (shots, people speaking, sound, length, how complex it is) and assigns the right model from this list. Pick a model yourself to override. Grok only runs when you pick it.', perSec: 0.127199, perSec1080: 0.254399, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
   SEEDANCE_25, SEEDANCE_20, SEEDANCE_20_FAST, SEEDANCE_20_MINI, WAN3_PRIME, WAN3, MINIMAX_H3_VIDEO, MINIMAX_H3_MAX_VIDEO, OMNI_12_FLASH, OMNI_11_FLASH, GROK_VIDEO_15, GROK_VIDEO_15_LITE, HH_T2V, SEEDANCE_10_FAST,
 ];
 
 export const IMAGE_TO_VIDEO_MODELS: ModelOption[] = [
-  { value: 'auto', label: 'Auto', hint: 'AURA reads your prompt and picks the engine: Seedance 2.5 for several shots, MiniMax H3 for people talking on camera, Wan 3.0 Prime with sound for the rest and whenever you add an end frame.', perSec: 0.127199, perSec1080: 0.254399, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
+  { value: 'auto', label: 'Auto', hint: 'AURA reads your prompt and your image, works out what must stay identical and what should move, and assigns the right model from this list. Pick a model yourself to override. Grok only runs when you pick it.', perSec: 0.127199, perSec1080: 0.254399, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
   SEEDANCE_25, SEEDANCE_20, SEEDANCE_20_FAST, SEEDANCE_20_MINI, WAN3_PRIME, WAN3, MINIMAX_H3_VIDEO, MINIMAX_H3_MAX_VIDEO, OMNI_12_FLASH, OMNI_11_FLASH, GROK_VIDEO_15, GROK_VIDEO_15_LITE, HH_I2V, SEEDANCE_10_FAST,
 ];
 
 export const REFERENCE_VIDEO_MODELS: ModelOption[] = [
-  { value: 'auto', label: 'Auto', hint: 'AURA keeps your exact product across the clip: Wan 3.0 Prime for a single shot, Seedance 2.5 or 2.0 when the clip has several shots.', perSec: 0.127199, perSec1080: 0.254399, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
+  { value: 'auto', label: 'Auto', hint: 'AURA reads your prompt and assigns the model from this list that keeps your references most faithfully. Pick a model yourself to override.', perSec: 0.127199, perSec1080: 0.254399, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
   SEEDANCE_25, SEEDANCE_20, SEEDANCE_20_FAST, SEEDANCE_20_MINI, WAN3_PRIME, WAN3, MINIMAX_H3_VIDEO, HH_R2V,
 ];
 
@@ -314,7 +314,7 @@ export const DIALECT_HINTS: Record<DialectKey, string> = {
   'qwen-image': 'Prompt written for Qwen Image. The layout is spelled out and any text in the picture is quoted exactly.',
   'wan-image': 'Prompt written for Wan 2.7 Image. Rich optical lighting, physical surface texture, and camera depth.',
   'qwen-image-21': 'Prompt written for Qwen Image 2.1. It names what changes and says plainly that the rest stays the same.',
-  'nano-banana': 'Prompt written for AURA Image. One flowing paragraph, with the camera and lens named.',
+  'nano-banana': 'Prompt written for Nano Banana. One flowing paragraph, with the camera and lens named.',
   'grok-image': 'Prompt written for Grok. Short and punchy, with the subject first.',
   'minimax-image': 'Prompt written for MiniMax H3-Image. Native up-to-4K photorealism, studio lighting, and character fidelity.',
   seedream: 'Prompt written for ByteDance Seedream. Studio lighting and lens, any copy quoted exactly, and a transparent background when you ask for one.',
@@ -323,7 +323,7 @@ export const DIALECT_HINTS: Record<DialectKey, string> = {
   wan: 'Prompt written for Wan 2.7. This engine makes no sound, so the prompt covers motion only.',
   happyhorse: 'Prompt written for HappyHorse. This engine makes no sound, so the prompt spends its words on weight and momentum.',
   'grok-video': 'Prompt written for Grok video. Short, high energy beats.',
-  'omni-video': 'Prompt written for AURA Omni Video. Flowing cinematic motion, camera optics, and physical realism.',
+  'omni-video': 'Prompt written for Omni Video. Flowing cinematic motion, camera optics, and physical realism.',
   'hailuo-h3': 'Prompt written for MiniMax H3. Native 2K cinema motion, human micro-expressions, and synchronized stereo sound.',
   seedance: 'Prompt written for ByteDance Seedance 2.5 and 2.0. Shot-by-shot camera moves and cuts, with the sound described.',
   'seedance-v1': 'Prompt written for ByteDance Seedance 1.0. This engine makes no sound, so the prompt covers motion and camera only.',

@@ -34,7 +34,7 @@ export const tool = defineTool<Args, Result>({
   name: 'prompt_improve',
   description:
     'Rewrite or expand a creative idea into a studio-grade image, edit, or video prompt using AURA Creative Director. ' +
-    'Automatically matches the dialect of the target engine (AURA Image Pro, AURA Image, MiniMax H3-Image 4K, Qwen Image 3.0 Pro, Wan 2.7 Image Pro, Wan 3.0 Prime, MiniMax H3 2K, AURA Omni 1.2, Grok). ' +
+    'Automatically matches the dialect of the target engine (Nano Banana Pro, Nano Banana 2.1, MiniMax H3-Image 4K, Qwen Image 3.0 Pro, Wan 2.7 Image Pro, Wan 3.0 Prime, MiniMax H3 2K, Omni 1.2, Grok). ' +
     'Set variants=true when the user asks for 3 creative prompt options without generating media yet.',
   input_schema: {
     type: 'object',

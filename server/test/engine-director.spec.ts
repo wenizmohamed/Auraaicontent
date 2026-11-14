@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// AURA's engine director (Weni 2026-11-14): on Auto, AURA reads the whole prompt,
-// judges its complexity and picks the engine; Grok is never offered on Auto.
+// AURA is the brain (Weni 2026-11-14): on Auto it understands the prompt and
+// assigns the right model from EVERY model the user could pick for that feature.
 
 const router = vi.hoisted(() => ({
   text: vi.fn(),
@@ -13,10 +13,13 @@ vi.mock('../src/services/providers/ai-router.js', () => ({
   canRoute: (p: string) => router.available.has(p),
 }));
 
-const { directEngine, candidatesFor, clearEngineDirectorCache, AUTO_ENGINES } = await import('../src/services/engine-director.service.js');
+const { directEngine, candidatesFor, clearEngineDirectorCache } = await import('../src/services/engine-director.service.js');
+const { CREATIVE_CATALOG } = await import('../src/services/creative-catalog.generated.js');
 
 const all = () => true;
 const ids = (list: { id: string }[]) => list.map((e) => e.id);
+// Every model the user can pick, except Grok (manual only, Weni 2026-11-14).
+const catalogIds = (section: keyof typeof CREATIVE_CATALOG) => [...new Set(CREATIVE_CATALOG[section].map((e) => e.model!))].filter((id) => !/grok/i.test(id));
 
 beforeEach(() => {
   router.text.mockReset();
@@ -24,36 +27,39 @@ beforeEach(() => {
   clearEngineDirectorCache();
 });
 
-describe('engine limits (decided in code, before AURA is asked)', () => {
-  it('never offers Grok on Auto, for any task', () => {
+describe('AURA chooses from every model the user can pick', () => {
+  it('offers the whole catalog for each feature when nothing limits it', () => {
+    expect(ids(candidatesFor({ mode: 'text-to-image', prompt: 'x' }, all)).sort()).toEqual(catalogIds('text-to-image').sort());
+    expect(ids(candidatesFor({ mode: 'image-edit', prompt: 'x' }, all)).sort()).toEqual(catalogIds('image-edit').sort());
+    expect(ids(candidatesFor({ mode: 'text-to-video', prompt: 'x' }, all)).sort()).toEqual(catalogIds('text-to-video').sort());
+    expect(ids(candidatesFor({ mode: 'image-to-video', prompt: 'x' }, all)).sort()).toEqual(catalogIds('image-to-video').sort());
+    expect(catalogIds('text-to-image').length).toBeGreaterThanOrEqual(12);
+    expect(catalogIds('text-to-video').length).toBeGreaterThanOrEqual(12);
+  });
+
+  it('never offers Grok on Auto; it stays a manual pick', () => {
     for (const mode of ['text-to-image', 'image-edit', 'text-to-video', 'image-to-video'] as const) {
       expect(ids(candidatesFor({ mode, prompt: 'x' }, all)).some((id) => /grok/i.test(id))).toBe(false);
     }
-    expect(AUTO_ENGINES.some((e) => e.provider === 'xai')).toBe(false);
+    expect(Object.values(CREATIVE_CATALOG).flat().some((e) => /grok/i.test(e.model || ''))).toBe(true);
   });
 
-  it('reference images and an end frame leave only engines that honour them', () => {
-    const refs = ids(candidatesFor({ mode: 'image-to-video', prompt: 'x', hasRefs: true }, all));
-    expect(refs).toEqual(expect.arrayContaining(['wan3.0-video-prime', 'dreamina-seedance-2-5-260628']));
-    expect(refs).not.toContain('dreamina-seedance-2-0-mini-260615');
-    expect(refs).not.toContain('MiniMax-H3');
+  it('attached references switch to the reference-video list', () => {
+    expect(ids(candidatesFor({ mode: 'image-to-video', prompt: 'x', hasRefs: true }, all)).sort()).toEqual(catalogIds('reference-video').sort());
+  });
+
+  it('an end frame keeps only Wan 3.0 and the Seedance 2.x family', () => {
     const end = ids(candidatesFor({ mode: 'image-to-video', prompt: 'x', hasEndFrame: true }, all));
-    expect(end).not.toContain('MiniMax-H3');
-    expect(end).not.toContain('gemini-omni-1.2-flash');
+    expect(end.length).toBeGreaterThan(0);
+    expect(end.every((id) => /^(wan3\.0-video|dreamina-seedance-2-)/.test(id))).toBe(true);
   });
 
-  it('clips over 15s leave only the 30s engines, and 1080p drops the 720p-only ones', () => {
-    expect(ids(candidatesFor({ mode: 'text-to-video', prompt: 'x', durationSeconds: 20 }, all)).sort())
-      .toEqual(['dreamina-seedance-2-5-260628', 'wan3.0-video-prime']);
-    const hd = ids(candidatesFor({ mode: 'text-to-video', prompt: 'x', resolution: '1080p' }, all));
-    expect(hd).not.toContain('dreamina-seedance-2-0-mini-260615');
-    expect(hd).not.toContain('gemini-omni-1.2-flash');
-  });
-
-  it('4K stills only go to engines that render 4K; the 4K-only engine stays out otherwise', () => {
-    const k4 = ids(candidatesFor({ mode: 'text-to-image', prompt: 'x', imageSize: '4K' }, all));
-    expect(k4.sort()).toEqual(['gemini-3-pro-image', 'gemini-nano-banana-2.1', 'seedream-5-0-260128']);
-    expect(ids(candidatesFor({ mode: 'text-to-image', prompt: 'x', imageSize: '2K' }, all))).not.toContain('seedream-5-0-260128');
+  it('clip length, 1080p and 4K drop the models that cannot render them', () => {
+    const long = candidatesFor({ mode: 'text-to-video', prompt: 'x', durationSeconds: 20 }, all);
+    expect(long.length).toBeGreaterThan(0);
+    expect(long.every((c) => (c.entry.maxSeconds ?? 0) >= 20)).toBe(true);
+    expect(candidatesFor({ mode: 'text-to-video', prompt: 'x', resolution: '1080p' }, all).every((c) => c.entry.supports1080 !== false)).toBe(true);
+    expect(candidatesFor({ mode: 'text-to-image', prompt: 'x', imageSize: '4K' }, all).every((c) => !c.entry.maxSize || c.entry.maxSize === '4K')).toBe(true);
   });
 
   it('skips providers that cannot take a call right now', () => {
@@ -64,39 +70,44 @@ describe('engine limits (decided in code, before AURA is asked)', () => {
 });
 
 describe('directEngine', () => {
-  it("uses AURA's pick when it is on the list, with complexity and a clean reason", async () => {
-    router.text.mockResolvedValue({ output: { engine: 'dreamina-seedance-2-5-260628', complexity: 'complex', reason: 'Four timed beats — several shots with sound.' } });
-    const pick = await directEngine({ mode: 'text-to-video', prompt: '[00:00] a [00:03] b [00:06] c' });
-    expect(pick).toMatchObject({ provider: 'byteplus', model: 'dreamina-seedance-2-5-260628', name: 'Seedance 2.5', complexity: 'complex', decidedBy: 'aura' });
+  it("uses AURA's pick from the list, keeps its brief, and cleans the reason", async () => {
+    router.text.mockResolvedValue({ output: {
+      brief: { subject: 'padel match', shots: 4, sound: 'needed' }, complexity: 'complex',
+      engine: 'dreamina-seedance-2-5-260628', reason: 'Four timed shots — with sound.',
+    } });
+    const pick = await directEngine({ mode: 'text-to-video', prompt: '[00:00] a [00:03] b [00:06] c [00:09] d' });
+    expect(pick).toMatchObject({ provider: 'byteplus', model: 'dreamina-seedance-2-5-260628', complexity: 'complex', decidedBy: 'aura' });
+    expect(pick.brief).toMatchObject({ shots: 4 });
     expect(pick.reason).not.toMatch(/[‒-―]/);
-    // The director is told the price of every engine it may choose.
+    // AURA sees every model for the feature, each with its price.
     const sent = router.text.mock.calls[0][0].prompt as string;
-    expect(sent).toMatch(/\$0\.231 per second/);
-    expect(sent).not.toMatch(/grok/i);
+    for (const id of catalogIds('text-to-video')) expect(sent).toContain(`id: ${id}`);
+    expect(sent).toMatch(/cost: \$0\.231\/s/);
   });
 
-  it('a pick that is not on the list (Grok, or an invented id) falls back to the rules, never Grok', async () => {
-    router.text.mockResolvedValue({ output: { engine: 'grok-imagine-video-1.5', complexity: 'simple', reason: 'fast' } });
+  it('an answer that is not on the list falls back to the rules', async () => {
+    router.text.mockResolvedValue({ output: { engine: 'made-up-model', complexity: 'simple', reason: 'x' } });
     const pick = await directEngine({ mode: 'text-to-video', prompt: 'FPV drone dive chasing a drift car' });
     expect(pick.decidedBy).toBe('rules');
     expect(pick.provider).not.toBe('xai');
   });
 
-  it('a director error or timeout falls back to the rules within the same limits', async () => {
+  it('an error or timeout falls back to the rules within the same limits', async () => {
     router.text.mockRejectedValue(new Error('timeout'));
     const pick = await directEngine({ mode: 'text-to-video', prompt: 'a calm lake at dawn', durationSeconds: 25 });
     expect(pick.decidedBy).toBe('rules');
-    expect(['wan3.0-video-prime', 'dreamina-seedance-2-5-260628']).toContain(pick.model);
+    const fit = candidatesFor({ mode: 'text-to-video', prompt: 'x', durationSeconds: 25 }, all).map((c) => c.id);
+    expect(fit).toContain(pick.model);
   });
 
-  it('when only one engine fits, it is used without asking', async () => {
-    router.available = new Set(['dashscope']);
+  it('when only one model fits, it is used without asking', async () => {
+    router.available = new Set(['minimax']);
     const pick = await directEngine({ mode: 'image-to-video', prompt: 'x', hasRefs: true });
-    expect(pick).toMatchObject({ model: 'wan3.0-video-prime', decidedBy: 'only' });
+    expect(pick.decidedBy).toBe('only');
     expect(router.text).not.toHaveBeenCalled();
   });
 
-  it('the same prompt and limits reuse the decision, so a regenerate keeps its engine', async () => {
+  it('the same prompt and limits reuse the decision, so a regenerate keeps its model', async () => {
     router.text.mockResolvedValue({ output: { engine: 'qwen-image-3.0-pro', complexity: 'standard', reason: 'Exact menu text.' } });
     const a = await directEngine({ mode: 'text-to-image', prompt: 'Menu board with "Latte 18 AED"' });
     const b = await directEngine({ mode: 'text-to-image', prompt: 'Menu board with "Latte 18 AED"' });

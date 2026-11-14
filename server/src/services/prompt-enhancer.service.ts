@@ -231,7 +231,7 @@ export const DIALECT_HINTS: Record<DialectKey, string> = {
   'qwen-image': 'Prompt written for Qwen Image. The layout is spelled out and any text in the picture is quoted exactly.',
   'wan-image': 'Prompt written for Wan 2.7 Image. Rich optical lighting, physical surface texture, and camera depth.',
   'qwen-image-21': 'Prompt written for Qwen Image 2.1. It names what changes and says plainly that the rest stays the same.',
-  'nano-banana': 'Prompt written for AURA Image. One flowing paragraph, with the camera and lens named.',
+  'nano-banana': 'Prompt written for Nano Banana. One flowing paragraph, with the camera and lens named.',
   'grok-image': 'Prompt written for Grok. Short and punchy, with the subject first.',
   'minimax-image': 'Prompt written for MiniMax H3-Image. Native up-to-4K photorealism, studio lighting, and character fidelity.',
   seedream: 'Prompt written for ByteDance Seedream. Studio lighting and lens, any copy quoted exactly, and a transparent background when you ask for one.',
@@ -240,7 +240,7 @@ export const DIALECT_HINTS: Record<DialectKey, string> = {
   wan: 'Prompt written for Wan 2.7. This engine makes no sound, so the prompt covers motion only.',
   happyhorse: 'Prompt written for HappyHorse. This engine makes no sound, so the prompt spends its words on weight and momentum.',
   'grok-video': 'Prompt written for Grok video. Short, high energy beats.',
-  'omni-video': 'Prompt written for AURA Omni Video. Flowing cinematic motion, camera optics, and physical realism.',
+  'omni-video': 'Prompt written for Omni Video. Flowing cinematic motion, camera optics, and physical realism.',
   'hailuo-h3': 'Prompt written for MiniMax H3. Native 2K cinema motion, human micro-expressions, and synchronized stereo sound.',
   seedance: 'Prompt written for ByteDance Seedance 2.5 and 2.0. Shot-by-shot camera moves and cuts, with the sound described.',
   'seedance-v1': 'Prompt written for ByteDance Seedance 1.0. This engine makes no sound, so the prompt covers motion and camera only.',
@@ -404,7 +404,7 @@ export function selectBestCreativeEngine(
       return { provider: 'byteplus', model: 'dola-seedream-5-5-261028', reason: 'Native RGBA transparent PNG and graphic design synthesis' };
     }
     if (opts.fast) {
-      return { provider: 'gemini', model: 'gemini-nano-banana-2.1', reason: 'Fast AURA Image synthesis' };
+      return { provider: 'gemini', model: 'gemini-nano-banana-2.1', reason: 'Fast Nano Banana image' };
     }
     if (
       /\b(perfume|oud|serum|skincare|cosmetic|macro\s+shot|condensation\s+droplets|luxury\s+bottle|watch\s+dial)\b/i.test(p)

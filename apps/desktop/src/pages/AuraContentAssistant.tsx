@@ -239,9 +239,9 @@ function newSessionUid(): string {
 const PROVIDER_TIERS: Record<string, { label: string; tint: string; ring: string }> = {
   anthropic: { label: 'Claude',  tint: 'color-mix(in srgb, var(--color-accent) 16%, transparent)', ring: 'var(--color-accent)' },
   claude:    { label: 'Claude',  tint: 'color-mix(in srgb, var(--color-accent) 16%, transparent)', ring: 'var(--color-accent)' },
-  gemini:    { label: 'AURA', tint: 'color-mix(in srgb, var(--color-accent) 15%, transparent)', ring: 'var(--color-accent)' },
-  google:    { label: 'AURA', tint: 'color-mix(in srgb, var(--color-accent) 15%, transparent)', ring: 'var(--color-accent)' },
-  vertex:    { label: 'AURA (Vertex)', tint: 'color-mix(in srgb, var(--color-accent) 14%, transparent)', ring: 'var(--color-accent)' },
+  gemini:    { label: 'Google', tint: 'color-mix(in srgb, var(--color-accent) 15%, transparent)', ring: 'var(--color-accent)' },
+  google:    { label: 'Google', tint: 'color-mix(in srgb, var(--color-accent) 15%, transparent)', ring: 'var(--color-accent)' },
+  vertex:    { label: 'Google (Vertex)', tint: 'color-mix(in srgb, var(--color-accent) 14%, transparent)', ring: 'var(--color-accent)' },
   dashscope: { label: 'Alibaba',   tint: 'color-mix(in srgb, var(--color-accent) 14%, transparent)', ring: 'var(--color-accent)' },
   minimax:   { label: 'MiniMax',   tint: 'color-mix(in srgb, var(--color-accent) 14%, transparent)', ring: 'var(--color-accent)' },
   byteplus:  { label: 'ByteDance', tint: 'color-mix(in srgb, var(--color-accent) 14%, transparent)', ring: 'var(--color-accent)' },

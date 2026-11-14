@@ -1,21 +1,26 @@
 // What the platform calls each engine on screen.
 //
-// Google's models carry AURA names everywhere a user can see them (Weni,
-// 2026-11-14: "change anything that says gemini on the platform to aura").
-// The vendor chip in the model picker still says Google, so nothing false is
-// claimed. Internal ids never change: provider "gemini" and model strings such
-// as "gemini-4-carbon" drive routing and the cost meter.
+// AURA is the orchestrator: it plans the work, picks the engine, writes the
+// prompt and checks the result. It is never the name of an engine. Engines
+// carry their makers' product names, and the word "Gemini" is not shown
+// (Weni, 2026-11-14): Google's models appear as Nano Banana, Omni, Veo or
+// Google <variant>. Internal ids never change: provider "gemini" and model
+// strings such as "gemini-4-carbon" drive routing and the cost meter.
 
 const MODEL_NAMES: Array<[RegExp, string]> = [
-  [/gemini-4-(argon|carbon)/, 'AURA'],
-  [/gemini-4-hydrogen|gemini-\d+(\.\d+)?-flash(-lite)?(?!-image)/, 'AURA Fast'],
-  [/gemini-3-pro-image/, 'AURA Image Pro'],
-  [/nano-banana|gemini-[\d.]+-flash(-lite)?-image/, 'AURA Image'],
-  [/omni-1\.2/, 'AURA Omni 1.2 Flash'],
-  [/omni-1\.1/, 'AURA Omni 1.1 Flash'],
-  [/omni/, 'AURA Omni'],
-  [/veo/, 'AURA Video'],
-  [/^gemini/, 'AURA'],
+  [/gemini-4-argon/, 'Google Argon'],
+  [/gemini-4-carbon/, 'Google Carbon'],
+  [/gemini-4-hydrogen/, 'Google Hydrogen'],
+  [/gemini-3-pro-image/, 'Nano Banana Pro'],
+  [/nano-banana-2\.1/, 'Nano Banana 2.1'],
+  [/nano-banana|gemini-[\d.]+-flash(-lite)?-image/, 'Nano Banana'],
+  [/gemini-\d+(\.\d+)?-flash(-lite)?/, 'Google Flash'],
+  [/omni-1\.2/, 'Omni 1.2 Flash'],
+  [/omni-1\.1/, 'Omni 1.1 Flash'],
+  [/omni/, 'Omni'],
+  [/veo/, 'Veo'],
+  [/embedding/, 'Google embeddings'],
+  [/^gemini/, 'Google'],
 ];
 
 /** Display name for a model id. Non-Google ids come back unchanged. */
@@ -26,15 +31,15 @@ export function brandModel(model?: string | null): string {
   return raw;
 }
 
-/** Display name for a provider id ("gemini" and "google" are AURA). */
+/** Display name for a provider id: Google's endpoints show as Google. */
 export function brandProvider(provider?: string | null): string {
   const p = (provider || '').trim().toLowerCase();
-  if (p === 'gemini' || p === 'google') return 'AURA';
-  if (p === 'vertex') return 'AURA (Vertex)';
+  if (p === 'gemini' || p === 'google') return 'Google';
+  if (p === 'vertex') return 'Google (Vertex)';
   return provider || '';
 }
 
-/** "provider/model" line for result captions, with Google engines branded. */
+/** "provider/model" line for result captions, with Google's engines named. */
 export function brandEngine(provider?: string | null, model?: string | null): string {
   const p = (provider || '').toLowerCase();
   if (p === 'gemini' || p === 'google' || p === 'vertex' || /^gemini|nano-banana|omni|veo/i.test(model || '')) {

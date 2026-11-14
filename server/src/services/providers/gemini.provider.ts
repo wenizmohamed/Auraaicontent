@@ -558,7 +558,7 @@ export const geminiProvider: AiProvider = {
       throw new AiProviderError(
         'gemini', 'image',
         safety
-          ? `generation declined by AURA Image (${finish}) — content policy refused this prompt`
+          ? `generation declined by the Google image engine (${finish}) — content policy refused this prompt`
           : `empty image response (finishReason=${finish})`,
         safety ? 400 : 503,
       );
@@ -644,7 +644,7 @@ export const geminiProvider: AiProvider = {
         throw new AiProviderError(
           'gemini', 'imageEdit',
           safety
-            ? `edit declined by AURA Image (${finish}) — content/reference policy refused this edit`
+            ? `edit declined by the Google image engine (${finish}) — content/reference policy refused this edit`
             : `empty image-edit response (finishReason=${finish})`,
           safety ? 400 : 503,
         );

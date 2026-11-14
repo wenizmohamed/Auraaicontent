@@ -68,7 +68,7 @@ export async function generateText(
   const client = getClient();
   const response = await client.models.generateContent({ model, contents: prompt });
   const text = response.text;
-  if (!text) throw new Error(`AURA returned an empty response`);
+  if (!text) throw new Error(`The Google text model returned an empty response`);
   return text;
 }
 
@@ -91,7 +91,7 @@ export async function generateJson<T>(
   } catch {
     const match = text.match(/[\[{][\s\S]*[\]}]/);
     if (match) return JSON.parse(match[0]) as T;
-    throw new Error(`AURA returned text that is not valid JSON. Raw: ${text.slice(0, 200)}`);
+    throw new Error(`The Google text model returned text that is not valid JSON. Raw: ${text.slice(0, 200)}`);
   }
 }
 
