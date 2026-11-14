@@ -670,7 +670,7 @@ export const assistantApi = {
 
 // ─── Generic AI text (Topic Desk / visual-ref keywords via the router) ──
 export const aiApi = {
-  text: (data: { prompt: string; system?: string; json?: boolean; temperature?: number; clientId?: string }) =>
+  text: (data: { prompt: string; system?: string; json?: boolean; temperature?: number; clientId?: string; surface?: string }) =>
     request<{ text: string; provider: string; model: string }>(
       '/api/ai/text', { method: 'POST', body: JSON.stringify(data) }, { timeoutMs: 120000 },
     ),

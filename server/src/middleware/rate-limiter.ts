@@ -71,9 +71,16 @@ export function registerRateLimiter(app: FastifyInstance) {
     let max: number;
     let keyPrefix: string;
 
+    // Reads never spend money: polling a video job or an agent session must not
+    // use up the paid-call buckets (a 3s session poll alone filled the agent
+    // bucket and produced false "run did not start" errors).
+    const isRead = request.method === 'GET' || request.method === 'HEAD';
     if (AUTH_PREFIXES.some((p) => url.startsWith(p))) {
       max = AUTH_MAX_REQUESTS;
       keyPrefix = 'auth';
+    } else if (isRead) {
+      max = MAX_REQUESTS;
+      keyPrefix = 'std';
     } else if (AGENT_PREFIXES.some((p) => url.startsWith(p))) {
       max = AGENT_MAX_REQUESTS;
       keyPrefix = 'agent';

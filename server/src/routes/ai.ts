@@ -10,6 +10,7 @@ import { authGuard } from '../middleware/auth.js';
 import { aiRouter } from '../services/providers/ai-router.js';
 import { sendAiError, errStatus, errMessage } from '../services/providers/errors.js';
 import { assertClientInOrg } from '../lib/tenant.js';
+import { historyService } from '../services/history.service.js';
 
 interface AiTextBody {
   prompt?: string;
@@ -17,6 +18,8 @@ interface AiTextBody {
   json?: boolean;
   temperature?: number;
   clientId?: string;
+  /** The screen that asked (e.g. 'topics'); recorded in History when set. */
+  surface?: string;
 }
 
 export async function aiRoutes(app: FastifyInstance) {
@@ -24,7 +27,7 @@ export async function aiRoutes(app: FastifyInstance) {
 
   // POST /api/ai/text — single text/JSON generation through the router.
   app.post('/ai/text', async (request, reply) => {
-    const { prompt, system, json, temperature, clientId } = (request.body || {}) as AiTextBody;
+    const { prompt, system, json, temperature, clientId, surface } = (request.body || {}) as AiTextBody;
     if (!prompt?.trim()) return reply.status(400).send({ error: 'prompt is required' });
     // clientId arrives from the request body — it must be proven to belong to
     // the caller's org before it reaches the router's enrichers (brand voice,
@@ -39,8 +42,23 @@ export async function aiRoutes(app: FastifyInstance) {
         { orgId: request.orgId, userId: request.user?.userId, clientId },
       );
       const out = result.output;
+      const text = typeof out === 'string' ? out : JSON.stringify(out);
+      if (surface && /^[a-z_]{2,32}$/.test(surface)) {
+        historyService.record({
+          orgId: request.orgId!,
+          userId: request.user?.userId,
+          clientId: clientId || undefined,
+          type: 'text',
+          surface,
+          prompt: prompt.slice(0, 4000),
+          outputText: text.slice(0, 20000),
+          provider: result.provider,
+          model: result.model,
+          latencyMs: result.latencyMs,
+        });
+      }
       return {
-        text: typeof out === 'string' ? out : JSON.stringify(out),
+        text,
         provider: result.provider,
         model: result.model,
       };

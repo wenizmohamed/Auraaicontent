@@ -124,20 +124,23 @@ export async function integrationsRoutes(app: FastifyInstance) {
   app.get('/integrations/oauth/:platform/callback', async (request, reply) => {
     const { platform } = request.params as { platform: string };
     const { code, state, error: oauthError } = (request.query as { code?: string; state?: string; error?: string }) || {};
-    if (oauthError) {
-      return reply.status(400).send({ error: `OAuth provider returned: ${oauthError}` });
-    }
-    if (!code || !state) return reply.status(400).send({ error: 'code and state required' });
-
-    const ctx = await consumeState(state);
-    if (!ctx) return reply.status(400).send({ error: 'state invalid or expired (5-min TTL)' });
-    if (ctx.platform !== platform) return reply.status(400).send({ error: 'state platform mismatch' });
+    // The browser landed here from the provider, so errors go back to the
+    // integrations screen as a message, never as raw JSON.
+    const back = (returnUrl: string | undefined, message: string) => {
+      const base = returnUrl || '/workspace/settings/integrations';
+      return reply.redirect(`${base}${base.includes('?') ? '&' : '?'}integrationError=${encodeURIComponent(message.slice(0, 200))}`);
+    };
+    const ctx = state ? await consumeState(state) : null;
+    if (oauthError) return back(ctx?.returnUrl, `The ${platform} sign-in was cancelled or refused (${oauthError}).`);
+    if (!code || !state) return back(ctx?.returnUrl, 'The sign-in did not finish. Try connecting again.');
+    if (!ctx) return back(undefined, 'The sign-in took too long. Try connecting again.');
+    if (ctx.platform !== platform) return back(ctx.returnUrl, 'The sign-in came back for a different platform. Try again.');
 
     let mod;
     try {
       mod = getPlatformModule(platform);
     } catch (err) {
-      return reply.status(400).send({ error: errMessage(err) });
+      return back(ctx.returnUrl, errMessage(err));
     }
 
     try {
@@ -193,7 +196,7 @@ export async function integrationsRoutes(app: FastifyInstance) {
       // Sanitized log — no full error spread (could capture provider tokens
       // if a future code path holds one in scope when throwing).
       console.error('[integrations callback] error', { platform, message: errMessage(err) });
-      return reply.status(500).send({ error: `Connect failed: ${errMessage(err)}` });
+      return back(ctx.returnUrl, `Connect failed: ${errMessage(err)}`);
     }
   });
 

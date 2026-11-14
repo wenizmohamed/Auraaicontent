@@ -117,7 +117,7 @@ export async function calendarRoutes(app: FastifyInstance) {
     } catch (err) {
       return reply.status(errStatus(err)).send({ error: errMessage(err) });
     }
-    const decodedMonth = decodeURIComponent(month);
+    const decodedMonth = month; // Fastify already decoded the path param
 
     const calendarMonth = await exactThenVariants(decodedMonth, (m) => db.calendarMonth.findFirst({
       where: { orgId, clientId, month: m },
@@ -147,7 +147,7 @@ export async function calendarRoutes(app: FastifyInstance) {
       return reply.status(errStatus(err)).send({ error: errMessage(err) });
     }
     const { hard } = (request.query as { hard?: string }) || {};
-    const decodedMonth = decodeURIComponent(month);
+    const decodedMonth = month; // Fastify already decoded the path param
     const isHard = hard === 'true' || hard === '1';
 
     const all = await exactThenVariants(decodedMonth, (m) => db.calendarMonth.findMany({ where: { orgId, clientId, month: m } }));
@@ -188,7 +188,7 @@ export async function calendarRoutes(app: FastifyInstance) {
     } catch (err) {
       return reply.status(errStatus(err)).send({ error: errMessage(err) });
     }
-    const decodedMonth = decodeURIComponent(month);
+    const decodedMonth = month; // Fastify already decoded the path param
     const all = await exactThenVariants(decodedMonth, (m) => db.calendarMonth.findMany({ where: { orgId, clientId, month: m, isArchived: true } }));
     if (all.length === 0) return reply.status(404).send({ error: 'No archived months to restore' });
     for (const m of all) {
@@ -341,7 +341,7 @@ export async function calendarRoutes(app: FastifyInstance) {
     } catch (err) {
       return reply.status(errStatus(err)).send({ error: errMessage(err) });
     }
-    const decodedMonth = decodeURIComponent(month);
+    const decodedMonth = month; // Fastify already decoded the path param
     const cm = await exactThenVariants(decodedMonth, (m) => db.calendarMonth.findFirst({ where: { orgId, clientId, month: m }, select: { id: true } }));
     if (!cm) return reply.status(404).send({ error: `No calendar exists for "${decodedMonth}". Generate it first, then add custom posts.` });
     const b = (request.body as {
@@ -469,7 +469,7 @@ export async function calendarRoutes(app: FastifyInstance) {
     } catch (err) {
       return reply.status(errStatus(err)).send({ error: errMessage(err) });
     }
-    const decodedMonth = decodeURIComponent(month);
+    const decodedMonth = month; // Fastify already decoded the path param
     const { count } = (request.body as { count?: number }) || {};
     const perPost = Math.max(1, Math.min(12, count || 6));
 

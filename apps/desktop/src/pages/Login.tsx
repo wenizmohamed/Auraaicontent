@@ -14,18 +14,7 @@ import { useClients } from '../lib/client-context';
 import { authApi } from '../lib/backend-api';
 import { motionUI, motionBase } from '../lib/motion';
 import { AnimatedHeading } from '../components/ui/AnimatedHeading';
-import { MarqueeLogos } from '../components/ui/MarqueeLogos';
 
-const TRUSTED_AGENCIES = [
-  'Al Fardan Studio',
-  'Hadid Creative',
-  'Madinat Atelier',
-  'Karam Communications',
-  'Northbound Brand Co.',
-  'Riyadh Field Notes',
-  'Bait al-Sard',
-  'Studio Levant',
-];
 
 function readLS(key: string): string | null {
   try { return localStorage.getItem(key); } catch { return null; }
@@ -387,19 +376,6 @@ export default function Login() {
                 </div>
               </div>
             ))}
-          </motion.div>
-
-          <motion.div
-            className="mt-12"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ ...motionBase, delay: 0.9 }}
-          >
-            <MarqueeLogos
-              label="Trusted by agencies across MENA"
-              items={TRUSTED_AGENCIES}
-              durationSec={42}
-            />
           </motion.div>
         </div>
       </aside>

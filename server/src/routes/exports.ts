@@ -16,7 +16,7 @@ export async function exportRoutes(app: FastifyInstance) {
   app.post('/clients/:clientId/calendar/:month/export', { preHandler: [authGuard] }, async (request, reply) => {
     const { clientId, month } = request.params as { clientId: string; month: string };
     const { type = 'pptx' } = (request.body as { type?: string }) || {};
-    const decodedMonth = decodeURIComponent(month);
+    const decodedMonth = month; // Fastify already decoded the path param
 
     if (!['pptx'].includes(type)) {
       return reply.status(400).send({ error: `Unsupported export type: ${type}. Supported: pptx` });

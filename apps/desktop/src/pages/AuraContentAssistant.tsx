@@ -1092,7 +1092,7 @@ export default function AuraContentAssistant() {
             {/* Header */}
             <div className="px-4 py-3 border-b border-white/[0.06] flex items-center gap-3">
               <div className="relative w-8 h-8 rounded-lg overflow-hidden border border-accent/30 shrink-0">
-                <img src="./auracontent-dna.jpg" alt="AURA" className="w-full h-full object-cover" />
+                <img src="/auracontent-dna.jpg" alt="AURA" className="w-full h-full object-cover" />
                 {/* Live status dot — pulses while a run is in flight. */}
                 <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2"
                   style={{ background: loading ? 'var(--color-warning)' : 'var(--color-success)', borderColor: '#0c0c0c' }} />
@@ -1153,7 +1153,7 @@ export default function AuraContentAssistant() {
               {messages.length === 0 && !loading && (
                 <div className="h-full flex flex-col items-center justify-center text-center px-4">
                   <div className="w-14 h-14 rounded-2xl overflow-hidden border border-accent/20 mb-3 shadow-[0_0_30px_-8px_rgba(245,158,11,0.3)]">
-                    <img src="./auracontent-dna.jpg" alt="AURA" className="w-full h-full object-cover" />
+                    <img src="/auracontent-dna.jpg" alt="AURA" className="w-full h-full object-cover" />
                   </div>
                   <p className="text-sm text-fg-muted mb-1 font-medium">I'm AURA.</p>
                   <p className="text-xs text-fg-subtle mb-4">Your autonomous Creative Director: carousels, 4K stills, cinema reels, brand memory, and full calendars.</p>

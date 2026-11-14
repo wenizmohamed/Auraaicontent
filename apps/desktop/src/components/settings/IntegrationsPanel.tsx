@@ -41,10 +41,13 @@ export function IntegrationsPanel() {
   // Surface the OAuth callback toast if we just landed back from a provider.
   useEffect(() => {
     const connected = params.get('connected');
-    if (connected) {
-      toast.success(`${connected.replace('_', ' ')} connected`);
+    const failed = params.get('integrationError');
+    if (connected) toast.success(`${connected.replace('_', ' ')} connected`);
+    if (failed) toast.error(failed);
+    if (connected || failed) {
       const next = new URLSearchParams(params);
       next.delete('connected');
+      next.delete('integrationError');
       setParams(next, { replace: true });
     }
   }, [params, setParams]);

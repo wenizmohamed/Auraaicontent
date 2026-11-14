@@ -144,7 +144,7 @@ function ApiKeysPanel({ onOpen }: { onOpen: () => void }) {
     <div className="mx-auto max-w-3xl space-y-4 p-6">
       <PanelHeader title="API keys" subtitle="Per-workspace keys for external integrations." onOpen={onOpen} />
       <p className="text-[13px]" style={{ color: 'var(--color-fg-muted)' }}>
-        API key creation and revocation live in the legacy Profile page. Tap the button above to manage.
+        API keys are not available yet. Connect your social accounts under Integrations.
       </p>
     </div>
   );

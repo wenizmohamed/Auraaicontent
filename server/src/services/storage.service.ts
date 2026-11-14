@@ -37,7 +37,8 @@ function safeExt(originalName: string, mimeType: string): string {
 export const storageService = {
   async saveFile(buffer: Buffer, originalName: string, mimeType: string): Promise<{ fileUrl: string; thumbUrl: string | null }> {
     const ext = safeExt(originalName, mimeType);
-    const hash = crypto.randomBytes(8).toString('hex');
+    // The URL is the only key to an upload, so it must not be guessable.
+    const hash = crypto.randomBytes(16).toString('hex');
     const filename = `${hash}${ext}`;
     const filePath = path.join(UPLOAD_DIR, filename);
 

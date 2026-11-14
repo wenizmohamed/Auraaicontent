@@ -10,14 +10,14 @@ import { aiApi } from './backend-api';
 export type AIProvider = 'gemini' | 'claude';
 
 export async function generateContent(prompt: string, _provider: AIProvider = 'gemini'): Promise<string> {
-  const r = await aiApi.text({ prompt });
+  const r = await aiApi.text({ prompt, surface: 'topics' });
   return r.text || '';
 }
 
 // ─── JSON helper ─────────────────────────────────────────────────
 
 async function generateJSON(prompt: string, _provider: AIProvider = 'gemini'): Promise<any> {
-  const r = await aiApi.text({ prompt, json: true });
+  const r = await aiApi.text({ prompt, json: true, surface: 'topics' });
   try { return JSON.parse(r.text); } catch { /* fall through to lenient extraction */ }
   const match = r.text.match(/[\[{][\s\S]*[\]}]/);
   if (match) return JSON.parse(match[0]);

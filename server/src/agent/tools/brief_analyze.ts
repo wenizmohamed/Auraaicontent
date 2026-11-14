@@ -69,7 +69,7 @@ export const tool = defineTool<Args, Result>({
     // 3 of 5 runs on 2026-10-17). Snippets are cut to 400 chars in the DB.
     const client = await ctx.prisma.client.findUnique({
       where: { id: args.clientId, orgId: ctx.orgId },
-      include: { briefs: { orderBy: { month: 'asc' }, take: 1 }, _count: { select: { knowledgeItems: true } } },
+      include: { briefs: { orderBy: { updatedAt: 'desc' }, take: 1 }, _count: { select: { knowledgeItems: true } } },
     });
 
     if (!client) {

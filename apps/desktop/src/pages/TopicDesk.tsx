@@ -110,9 +110,25 @@ const EMPTY_FORM: Omit<Topic, 'id' | 'createdAt'> = {
 // Helpers
 // ---------------------------------------------------------------------------
 
+// Topics are kept per user and workspace, read from the session token.
+function topicsKey(): string {
+  try {
+    const t = localStorage.getItem('auracontent_auth_token');
+    const p = t ? JSON.parse(atob(t.split('.')[1])) : null;
+    if (p?.orgId && p?.userId) return `${STORAGE_KEY}:${p.orgId}:${p.userId}`;
+  } catch { /* fall through */ }
+  return STORAGE_KEY;
+}
+
 function loadTopics(): Topic[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const key = topicsKey();
+    let raw = localStorage.getItem(key);
+    // One-time move of the old shared list into the current user's own list.
+    if (!raw && key !== STORAGE_KEY) {
+      raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) { localStorage.setItem(key, raw); localStorage.removeItem(STORAGE_KEY); }
+    }
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
@@ -120,7 +136,7 @@ function loadTopics(): Topic[] {
 }
 
 function saveTopics(topics: Topic[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(topics));
+  try { localStorage.setItem(topicsKey(), JSON.stringify(topics)); } catch { /* storage full: keep working */ }
 }
 
 function relativeDate(iso: string) {

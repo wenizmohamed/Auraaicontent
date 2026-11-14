@@ -20,6 +20,7 @@ import { enrichWithMemory } from '../lib/memory-enricher.js';
 import { enrichWithBrandKit } from '../lib/brand-kit-enricher.js';
 import { enhanceCreativePrompt } from '../services/prompt-enhancer.service.js';
 import { exactThenVariants, monthVariants } from '../lib/month.js';
+import { historyService } from '../services/history.service.js';
 
 // A non-system chat turn passed to the LLM: plain text, or (user only) an
 // OpenAI multimodal parts array.
@@ -432,7 +433,7 @@ export async function assistantRoutes(app: FastifyInstance) {
     let clientContext = '';
     if (clientId) {
       try {
-        const client = await db.client.findUnique({ where: { id: clientId, orgId }, include: { briefs: { orderBy: { month: 'asc' }, take: 1 } } });
+        const client = await db.client.findUnique({ where: { id: clientId, orgId }, include: { briefs: { orderBy: { updatedAt: 'desc' }, take: 1 } } });
         if (client) {
           const cb = client.briefs?.[0] ?? null;
           clientContext = `\n\nCURRENT CLIENT: ${client.name}`;
@@ -574,6 +575,19 @@ export async function assistantRoutes(app: FastifyInstance) {
         latencyMs: totalLatency,
       };
       await saveTurn(orgId, request.user?.userId, turnId, payload);
+      historyService.record({
+        orgId,
+        userId: request.user?.userId,
+        clientId: clientId || undefined,
+        type: 'text',
+        surface: 'assistant',
+        prompt: lastUserText.slice(0, 4000),
+        outputText: String(responseText || '').slice(0, 20000),
+        provider: providerUsed,
+        model: modelUsed,
+        latencyMs: totalLatency,
+        metadata: actionTaken ? { action: (actionTaken as { type?: string }).type } : undefined,
+      });
       return payload;
     } catch (err) {
       await saveTurn(orgId, request.user?.userId, turnId, { error: err instanceof Error ? err.message.slice(0, 300) : 'Assistant call failed' });

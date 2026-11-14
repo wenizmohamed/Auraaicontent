@@ -36,7 +36,7 @@ export async function designRoutes(app: FastifyInstance) {
     let scopedClientId: string | undefined;
     if (clientId) {
       try {
-        const client = await db.client.findUnique({ where: { id: clientId, orgId: request.orgId }, include: { briefs: { orderBy: { month: 'asc' }, take: 1 } } });
+        const client = await db.client.findUnique({ where: { id: clientId, orgId: request.orgId }, include: { briefs: { orderBy: { updatedAt: 'desc' }, take: 1 } } });
         if (client) {
           scopedClientId = client.id;
           const brief = client.briefs?.[0];

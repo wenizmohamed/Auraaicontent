@@ -619,7 +619,7 @@ export default function Studio() {
                   <div className="bg-black/40 rounded-xl p-4 border border-white/5">
                     <p className="text-sm text-zinc-400">
                       Reviewer comments are collected on the shareable client review link.
-                      Create one from the <button onClick={() => navigate('/review')} className="text-fuchsia-400 hover:text-fuchsia-300 underline underline-offset-2">Review</button> page to gather feedback on this post.
+                      Create one from the <button onClick={() => navigate('/content-review')} className="text-fuchsia-400 hover:text-fuchsia-300 underline underline-offset-2">Review</button> page to gather feedback on this post.
                     </p>
                   </div>
                 </div>

@@ -122,6 +122,14 @@ function clientCountry(client: any): string | undefined {
 // campaign distinctly, or [] when there are 0–1 structured campaigns (caller
 // then uses the legacy scalar objective/audience). Fixes the bug where every
 // post inherited campaign #1's audience/objective/key-message.
+// The one structured campaign of a single-campaign brief, or null.
+function singleCampaign(brief: any): { objective?: string; targetAudience?: string; keyMessage?: string } | null {
+  let camps: any[] = [];
+  try { const v = brief?.campaigns; camps = typeof v === 'string' ? JSON.parse(v) : (v || []); } catch { camps = []; }
+  camps = (Array.isArray(camps) ? camps : []).filter((c) => c && (c.name || c.objective || c.keyMessage || c.targetAudience));
+  return camps.length === 1 ? camps[0] : null;
+}
+
 function formatCampaigns(brief: any, pieceCount: number): string[] {
   let camps: any[] = [];
   try { const v = brief?.campaigns; camps = typeof v === 'string' ? JSON.parse(v) : (v || []); } catch { camps = []; }
@@ -184,8 +192,12 @@ function buildEnglishPrompt(p: BuildArgs): string {
     if (campaignLines.length) {
       campaignLines.forEach((l) => s.push(l));
     } else {
-      if (p.brief.objective) s.push(`Objective: ${p.brief.objective}`);
-      if (p.brief.audience) s.push(`Audience: ${p.brief.audience}`);
+      const one = singleCampaign(p.brief);
+      const objective = one?.objective || p.brief.objective;
+      const audience = one?.targetAudience || p.brief.audience;
+      if (objective) s.push(`Objective: ${objective}`);
+      if (audience) s.push(`Audience: ${audience}`);
+      if (one?.keyMessage) s.push(`Key message: ${one.keyMessage}`);
       fmtArr('Pillars', p.brief.pillars);
     }
   }
@@ -284,8 +296,12 @@ function buildArabicPrompt(p: BuildArgs): string {
     if (campaignLines.length) {
       campaignLines.forEach((l) => s.push(l));
     } else {
-      if (p.brief.objective) s.push(`Objective: ${p.brief.objective}`);
-      if (p.brief.audience) s.push(`Audience: ${p.brief.audience}`);
+      const one = singleCampaign(p.brief);
+      const objective = one?.objective || p.brief.objective;
+      const audience = one?.targetAudience || p.brief.audience;
+      if (objective) s.push(`Objective: ${objective}`);
+      if (audience) s.push(`Audience: ${audience}`);
+      if (one?.keyMessage) s.push(`Key message: ${one.keyMessage}`);
       fmtArr('Pillars', p.brief.pillars);
     }
   }

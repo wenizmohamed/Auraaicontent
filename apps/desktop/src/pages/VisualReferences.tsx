@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { Image, Link as LinkIcon, Tag, FolderOpen, Plus, Search, Download, Pin, Eye, X, ExternalLink, Filter } from 'lucide-react';
-import { visualRefsApi } from '../lib/backend-api';
 import { useToast } from '../lib/toast-context';
 import { Image as LazyImage } from '../components/ui/Image';
 
@@ -18,20 +17,20 @@ interface VisualRef {
 
 const STATIONS = ['All', 'Lebanon', 'Abu Dhabi', 'Investigations', 'Clips'];
 
-const SEED_REFS: VisualRef[] = [
-  { id: '1', imageUrl: 'https://picsum.photos/seed/ref1/600/400', sourceUrl: 'https://dribbble.com/shots/example1', tags: ['editorial', 'dark', 'luxury'], collection: 'Brand Identity', station: 'Abu Dhabi', topicId: '', uploadedBy: 'Sarah J.', createdAt: new Date().toISOString() },
-  { id: '2', imageUrl: 'https://picsum.photos/seed/ref2/400/600', sourceUrl: 'https://behance.net/gallery/example2', tags: ['vibrant', 'social', 'youth'], collection: 'Social Media', station: 'Clips', topicId: '', uploadedBy: 'AURA Team', createdAt: new Date().toISOString() },
-  { id: '3', imageUrl: 'https://picsum.photos/seed/ref3/500/400', sourceUrl: 'https://pinterest.com/pin/example3', tags: ['investigative', 'bold', 'red'], collection: 'News Graphics', station: 'Investigations', topicId: '', uploadedBy: 'Elena R.', createdAt: new Date().toISOString() },
-  { id: '4', imageUrl: 'https://picsum.photos/seed/ref4/600/500', sourceUrl: 'https://unsplash.com/photos/example4', tags: ['landscape', 'mediterranean', 'warm'], collection: 'Brand Identity', station: 'Lebanon', topicId: '', uploadedBy: 'Sarah J.', createdAt: new Date().toISOString() },
-  { id: '5', imageUrl: 'https://picsum.photos/seed/ref5/400/400', sourceUrl: 'https://dribbble.com/shots/example5', tags: ['minimal', 'clean', 'typography'], collection: 'Social Media', station: 'All', topicId: '', uploadedBy: 'AURA Team', createdAt: new Date().toISOString() },
-  { id: '6', imageUrl: 'https://picsum.photos/seed/ref6/500/700', sourceUrl: 'https://behance.net/gallery/example6', tags: ['gradient', 'abstract', 'dark'], collection: 'News Graphics', station: 'Investigations', topicId: '', uploadedBy: 'Elena R.', createdAt: new Date().toISOString() },
-];
 
+// References live in this browser. The page used to show six placeholder
+// images (picsum, credited to invented people); those are filtered out of
+// anything saved before, so only real references remain.
+const isPlaceholder = (r: VisualRef) => /picsum\.photos\/seed\/ref\d/.test(r.imageUrl || '');
 function getRefs(): VisualRef[] {
-  const stored = localStorage.getItem('auracontent_visual_refs');
-  return stored ? JSON.parse(stored) : SEED_REFS;
+  try {
+    const stored = localStorage.getItem('auracontent_visual_refs');
+    return stored ? (JSON.parse(stored) as VisualRef[]).filter((r) => !isPlaceholder(r)) : [];
+  } catch { return []; }
 }
-function saveRefs(r: VisualRef[]) { localStorage.setItem('auracontent_visual_refs', JSON.stringify(r)); }
+function saveRefs(r: VisualRef[]) {
+  try { localStorage.setItem('auracontent_visual_refs', JSON.stringify(r)); } catch { /* storage full */ }
+}
 
 export default function VisualReferences() {
   const [refs, setRefs] = useState<VisualRef[]>(getRefs);
@@ -74,18 +73,18 @@ export default function VisualReferences() {
     setShowAdd(false);
   };
 
-  const { success: toastOk, error: toastErr } = useToast();
+  const { success: toastOk } = useToast();
 
+  // References are added in this browser, so they are removed here too (the
+  // server never had them: its delete always answered "not found").
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this visual reference?')) return;
-    try {
-      await visualRefsApi.delete(id);
-      toastOk('Reference deleted');
-    } catch (err: any) {
-      toastErr(err?.message || 'Delete failed');
-      return;
-    }
-    setRefs(prev => prev.filter(r => r.id !== id));
+    setRefs(prev => {
+      const next = prev.filter(r => r.id !== id);
+      saveRefs(next);
+      return next;
+    });
+    toastOk('Reference deleted');
   };
 
   return (

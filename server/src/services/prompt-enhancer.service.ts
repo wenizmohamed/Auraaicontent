@@ -466,7 +466,7 @@ async function brandContext(clientId?: string, orgId?: string): Promise<string> 
     const [client, kit] = await Promise.all([
       db.client.findUnique({
         where: { id: clientId, orgId },
-        include: { briefs: { select: { tone: true, visualLookFeel: true }, orderBy: { month: 'asc' }, take: 1 } },
+        include: { briefs: { select: { tone: true, visualLookFeel: true }, orderBy: { updatedAt: 'desc' }, take: 1 } },
       }),
       db.brandKit.findFirst({
         where: { clientId, orgId },

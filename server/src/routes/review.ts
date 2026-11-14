@@ -21,7 +21,7 @@ export async function reviewRoutes(app: FastifyInstance) {
       return reply.status(errStatus(err)).send({ error: errMessage(err) });
     }
     const { expiresInDays } = (request.body as { expiresInDays?: number }) || {};
-    const decodedMonth = decodeURIComponent(month);
+    const decodedMonth = month; // Fastify already decoded the path param
 
     const calendarMonth = await exactThenVariants(decodedMonth, (m) => db.calendarMonth.findFirst({ where: { orgId, clientId, month: m } }));
     if (!calendarMonth) return reply.status(404).send({ error: 'Calendar month not found' });

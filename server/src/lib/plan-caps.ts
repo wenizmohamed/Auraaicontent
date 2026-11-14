@@ -71,7 +71,7 @@ const KIND_TO_FIELD: Record<string, keyof PlanLimits> = {
 export async function enforceQuota(orgId: string, kind: string): Promise<QuotaResult> {
   const org = await db.organization.findUnique({ where: { id: orgId }, select: { plan: true, status: true } });
   if (!org) return { ok: false, reason: 'Organization not found' };
-  if (org.status === 'canceled') return { ok: false, reason: 'Subscription canceled', upgradeUrl: '/billing' };
+  if (org.status === 'canceled') return { ok: false, reason: 'Subscription canceled', upgradeUrl: '/settings/billing' };
 
   const { plan, known } = resolvePlan(org.plan);
   if (!known) return unknownPlanPass(orgId, org.plan, plan);
@@ -92,7 +92,7 @@ export async function enforceQuota(orgId: string, kind: string): Promise<QuotaRe
       used,
       cap,
       plan,
-      upgradeUrl: '/billing',
+      upgradeUrl: '/settings/billing',
     };
   }
   return { ok: true, used, cap, plan };
@@ -105,7 +105,7 @@ export async function assertSeatAvailable(orgId: string): Promise<QuotaResult> {
   if (!known) return unknownPlanPass(orgId, org.plan, plan);
   const cap = PLAN_LIMITS[plan].seats;
   const used = await db.orgMembership.count({ where: { orgId } });
-  if (used >= cap) return { ok: false, reason: `Seat cap reached (${used}/${cap})`, used, cap, plan, upgradeUrl: '/billing' };
+  if (used >= cap) return { ok: false, reason: `Seat cap reached (${used}/${cap})`, used, cap, plan, upgradeUrl: '/settings/billing' };
   return { ok: true, used, cap, plan };
 }
 
@@ -116,7 +116,7 @@ export async function assertClientSlotAvailable(orgId: string): Promise<QuotaRes
   if (!known) return unknownPlanPass(orgId, org.plan, plan);
   const cap = PLAN_LIMITS[plan].maxClients;
   const used = await db.client.count({ where: { orgId } });
-  if (used >= cap) return { ok: false, reason: `Client cap reached (${used}/${cap})`, used, cap, plan, upgradeUrl: '/billing' };
+  if (used >= cap) return { ok: false, reason: `Client cap reached (${used}/${cap})`, used, cap, plan, upgradeUrl: '/settings/billing' };
   return { ok: true, used, cap, plan };
 }
 

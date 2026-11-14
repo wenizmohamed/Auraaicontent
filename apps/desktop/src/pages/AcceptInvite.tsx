@@ -91,7 +91,7 @@ export default function AcceptInvite() {
         {/* Wordmark */}
         <div className="flex items-center gap-2 mb-6">
           <div className="w-9 h-9 rounded-xl overflow-hidden border" style={{ borderColor: 'color-mix(in srgb, var(--color-accent) 40%, transparent)' }}>
-            <img src="./auracontent-dna.jpg" alt="AURA" className="w-full h-full object-cover" />
+            <img src="/auracontent-dna.jpg" alt="AURA" className="w-full h-full object-cover" />
           </div>
           <span className="text-sm font-black tracking-tight" style={{ color: 'var(--color-fg)' }}>AURA</span>
         </div>

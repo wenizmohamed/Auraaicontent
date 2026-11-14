@@ -201,7 +201,6 @@ export async function buildApp() {
           textModel: process.env.VERTEX_TEXT_MODEL || 'gemini-4-argon',
           imageModel: process.env.VERTEX_IMAGE_MODEL || 'gemini-3-pro-image',
           analysisModel: process.env.VERTEX_ANALYSIS_MODEL || 'gemini-4-carbon',
-          project: process.env.VERTEX_PROJECT || 'hubz-510406',
           location: process.env.VERTEX_LOCATION || 'us',
           baseURL: process.env.VERTEX_HOST || 'https://aiplatform.googleapis.com',
           role: 'high-availability failover (Google text/agent/analysis for AURA + Nano Banana Pro & Nano Banana 2.1)',

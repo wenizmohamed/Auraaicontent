@@ -79,7 +79,7 @@ export async function runComplianceCheck(
 ): Promise<ComplianceResult> {
   const strict = opts.strict !== false;
   const [brief, client] = await Promise.all([
-    db.clientBrief.findFirst({ where: { clientId, orgId } }).catch(() => null),
+    db.clientBrief.findFirst({ where: { clientId, orgId }, orderBy: { updatedAt: 'desc' } }).catch(() => null),
     db.client.findFirst({ where: { id: clientId, orgId }, select: { industry: true } }).catch(() => null),
   ]);
   const result = await aiRouter.text(
@@ -153,7 +153,7 @@ export async function scorePost(orgId: string, postId: string, userId?: string):
   });
   if (!post) throw new Error('Post not found');
   const clientId = post.calendarMonth?.clientId ?? null;
-  const brief = clientId ? await db.clientBrief.findFirst({ where: { clientId, orgId }, select: { tone: true, audience: true, objective: true } }).catch(() => null) : null;
+  const brief = clientId ? await db.clientBrief.findFirst({ where: { clientId, orgId }, orderBy: { updatedAt: 'desc' }, select: { tone: true, audience: true, objective: true } }).catch(() => null) : null;
 
   const ctx = [
     brief?.tone ? `Brand tone: ${brief.tone}` : '',

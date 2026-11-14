@@ -125,9 +125,11 @@ function isStaff(): boolean {
 // dashboard even though the user is allowlisted (2026-07-04: "team and
 // admin both go to the dashboard"). This gate asks the server first and
 // only redirects on a settled "no".
-function EmailGate({ allow, children }: { allow: string[]; children: React.ReactNode }) {
+function EmailGate({ allow, allowRoles, children }: { allow: string[]; allowRoles?: string[]; children: React.ReactNode }) {
   const [email, setEmail] = useState<string | null>(getCallerEmail());
-  const [settled, setSettled] = useState<boolean>(!!email);
+  const [orgRole, setOrgRole] = useState<string | null>(null);
+  // A role check needs the membership from /auth/me, so it always waits for it.
+  const [settled, setSettled] = useState<boolean>(!!email && !allowRoles);
   useEffect(() => {
     if (settled) return;
     let alive = true;
@@ -136,13 +138,15 @@ function EmailGate({ allow, children }: { allow: string[]; children: React.React
         if (!alive) return;
         try { localStorage.setItem('auracontent_verified_email', u.email); } catch { /* private mode */ }
         setEmail(u.email);
+        setOrgRole(u.memberships?.find((m) => m.orgId === u.activeOrgId)?.role ?? null);
         setSettled(true);
       })
       .catch(() => { if (alive) setSettled(true); /* unauth → AuthGate handles */ });
     return () => { alive = false; };
   }, [settled]);
   if (!settled) return null;
-  return email && allow.includes(email.toLowerCase())
+  const roleOk = !!orgRole && !!allowRoles?.includes(orgRole);
+  return (email && allow.includes(email.toLowerCase())) || roleOk
     ? <>{children}</>
     : <Navigate to="/" replace />;
 }
@@ -837,7 +841,7 @@ export default function App() {
               <Route path="/admin" element={<EmailGate allow={ADMIN_CONSOLE_EMAILS}><Admin /></EmailGate>} />
               <Route path="/agent" element={<Agent />} />
               <Route path="/settings/billing" element={<Billing />} />
-              <Route path="/settings/members" element={<EmailGate allow={TEAM_ADMIN_EMAILS}><Members /></EmailGate>} />
+              <Route path="/settings/members" element={<EmailGate allow={TEAM_ADMIN_EMAILS} allowRoles={['OWNER', 'ADMIN']}><Members /></EmailGate>} />
               <Route path="/invite/:token" element={<AcceptInvite />} />
               <Route path="/reset-password/:token" element={<ResetPassword />} />
               {/* Catch-all → bounce to Dashboard. Beats rendering blank for any

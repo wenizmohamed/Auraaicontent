@@ -122,7 +122,7 @@ describe('over cap with BILLING_ENFORCE=1: blocked', () => {
     expect(decision.used).toBe(20);
     expect(decision.cap).toBe(20);
     expect(decision.reason).toContain('20/20');
-    expect(decision.upgradeUrl).toBe('/billing');
+    expect(decision.upgradeUrl).toBe('/settings/billing');
     expect(warnLines().join('\n')).toContain('BLOCKED');
   });
 
@@ -272,7 +272,7 @@ describe('capGuard preHandler', () => {
     await capGuard('clients', 'client.create')({ orgId: ORG } as never, reply as never);
 
     expect(reply.code).toBe(402);
-    expect(reply.payload).toMatchObject({ code: 'PLAN_LIMIT_REACHED', cap: 'clients', used: 20, limit: 20, upgradeUrl: '/billing' });
+    expect(reply.payload).toMatchObject({ code: 'PLAN_LIMIT_REACHED', cap: 'clients', used: 20, limit: 20, upgradeUrl: '/settings/billing' });
   });
 
   it('does not touch the reply when enforcement is off', async () => {

@@ -82,7 +82,7 @@ export const tool = defineTool<Args, SwitchResult>({
 
     checkAbort(ctx.signal);
 
-    const briefsInclude = { briefs: { orderBy: { month: 'asc' as const }, take: 1 } };
+    const briefsInclude = { briefs: { orderBy: { updatedAt: 'desc' as const }, take: 1 } };
     const client = hasId
       ? await ctx.prisma.client.findUnique({
           where: { id: args.clientId as string, orgId: ctx.orgId },

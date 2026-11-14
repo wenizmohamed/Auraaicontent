@@ -33,14 +33,6 @@ interface DesignSource {
 const STATIONS = ['All', 'Lebanon', 'Abu Dhabi', 'Investigations', 'Clips'];
 const CATEGORIES = ['All', 'gradient', 'pattern', 'overlay', 'palette', 'photo'];
 
-const SEED_TEXTURES: Texture[] = [
-  { id: '1', name: 'Deep Ocean Gradient', imageUrl: 'https://picsum.photos/seed/tex1/400/300', tags: ['dark', 'ocean', 'blue'], station: 'Lebanon', category: 'gradient', linkedTopics: [], createdAt: new Date().toISOString() },
-  { id: '2', name: 'Sand Dunes Pattern', imageUrl: 'https://picsum.photos/seed/tex2/400/300', tags: ['warm', 'desert', 'gold'], station: 'Abu Dhabi', category: 'pattern', linkedTopics: [], createdAt: new Date().toISOString() },
-  { id: '3', name: 'Neon Grid Overlay', imageUrl: 'https://picsum.photos/seed/tex3/400/300', tags: ['neon', 'tech', 'purple'], station: 'Investigations', category: 'overlay', linkedTopics: [], createdAt: new Date().toISOString() },
-  { id: '4', name: 'Minimal White Texture', imageUrl: 'https://picsum.photos/seed/tex4/400/300', tags: ['clean', 'minimal', 'white'], station: 'Clips', category: 'photo', linkedTopics: [], createdAt: new Date().toISOString() },
-  { id: '5', name: 'Sunset Palette', imageUrl: 'https://picsum.photos/seed/tex5/400/300', tags: ['warm', 'sunset', 'orange'], station: 'Lebanon', category: 'palette', linkedTopics: [], createdAt: new Date().toISOString() },
-  { id: '6', name: 'Urban Concrete', imageUrl: 'https://picsum.photos/seed/tex6/400/300', tags: ['urban', 'rough', 'gray'], station: 'Abu Dhabi', category: 'photo', linkedTopics: [], createdAt: new Date().toISOString() },
-];
 
 const SEED_SOURCES: DesignSource[] = [
   { id: '1', name: 'Dribbble Inspiration', url: 'https://dribbble.com', platform: 'Dribbble', tags: ['ui', 'branding'], station: 'All' },
@@ -48,9 +40,12 @@ const SEED_SOURCES: DesignSource[] = [
   { id: '3', name: 'Pinterest Brand Board', url: 'https://pinterest.com', platform: 'Pinterest', tags: ['mood', 'lifestyle'], station: 'Lebanon' },
 ];
 
+// Placeholder textures (picsum) used to ship as defaults; they are filtered out.
 function getTextures(): Texture[] {
-  const stored = localStorage.getItem('auracontent_textures');
-  return stored ? JSON.parse(stored) : SEED_TEXTURES;
+  try {
+    const stored = localStorage.getItem('auracontent_textures');
+    return stored ? (JSON.parse(stored) as Texture[]).filter((t) => !/picsum\.photos\/seed\/tex\d/.test(t.imageUrl || '')) : [];
+  } catch { return []; }
 }
 function saveTextures(t: Texture[]) { localStorage.setItem('auracontent_textures', JSON.stringify(t)); }
 function getSources(): DesignSource[] {

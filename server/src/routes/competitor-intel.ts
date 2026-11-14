@@ -13,6 +13,7 @@ import { db } from '../db/prisma.js';
 import { errStatus, errMessage } from '../services/providers/errors.js';
 import { assertPublicHttpUrl } from '../services/upscale.service.js';
 import { safeFetch } from '../lib/safe-fetch.js';
+import { historyService } from '../services/history.service.js';
 
 async function fetchPageText(url: string, timeoutMs = 8000): Promise<string | null> {
   try {
@@ -48,7 +49,7 @@ export async function competitorIntelRoutes(app: FastifyInstance) {
       if (clientId) {
         const client = await db.client.findFirst({
           where: { id: clientId, orgId: request.orgId! },
-          select: { name: true, industry: true, briefs: { select: { audience: true, objective: true, tone: true }, orderBy: { month: 'asc' }, take: 1 } },
+          select: { name: true, industry: true, briefs: { select: { audience: true, objective: true, tone: true }, orderBy: { updatedAt: 'desc' }, take: 1 } },
         });
         if (client) {
           const cb = client.briefs?.[0];
@@ -77,6 +78,19 @@ export async function competitorIntelRoutes(app: FastifyInstance) {
         strengths?: unknown;
         opportunities?: unknown;
       } | null | undefined;
+      historyService.record({
+        orgId: request.orgId!,
+        userId: request.user?.userId,
+        clientId: clientId || undefined,
+        type: 'text',
+        surface: 'competitor_intel',
+        prompt: `[competitor-intel] ${competitor.trim()}${website ? ` (${website})` : ''}`,
+        outputText: String(out?.summary ?? '').slice(0, 20000),
+        provider: result.provider,
+        model: result.model,
+        latencyMs: result.latencyMs,
+        metadata: { grounded: !!pageText },
+      });
       return {
         competitor: competitor.trim(),
         website: website || null,

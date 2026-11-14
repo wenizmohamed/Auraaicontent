@@ -13,13 +13,13 @@ export const clientService = {
     const rows = await db.client.findMany({
       where: { orgId },
       orderBy: { createdAt: 'desc' },
-      include: { briefs: { select: { id: true }, orderBy: { month: 'asc' }, take: 1 } },
+      include: { briefs: { select: { id: true }, orderBy: { updatedAt: 'desc' }, take: 1 } },
     });
     return rows.map((c: any) => ({ ...c, brief: c.briefs?.[0] ?? null }));
   },
 
   async getById(orgId: string, id: string) {
-    const client = await db.client.findUnique({ where: { id, orgId }, include: { briefs: { orderBy: { month: 'asc' }, take: 1 } } });
+    const client = await db.client.findUnique({ where: { id, orgId }, include: { briefs: { orderBy: { updatedAt: 'desc' }, take: 1 } } });
     if (client) (client as any).brief = (client as any).briefs?.[0] ?? null;
     return client ?? null;
   },

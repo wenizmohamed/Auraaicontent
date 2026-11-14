@@ -17,7 +17,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
     try {
       const [totalClients, withBrief] = await Promise.all([
         db.client.count({ where: { orgId } }),
-        db.clientBrief.count({ where: { orgId } }),
+        db.client.count({ where: { orgId, briefs: { some: {} } } }),
       ]);
 
       const liveMonthFilter = { orgId, calendarMonth: { isArchived: false, isTest: false } };

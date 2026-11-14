@@ -111,7 +111,7 @@ export async function researchRoutes(app: FastifyInstance) {
     const client = await db.client.findUnique({
       where: { id: clientId, orgId: request.orgId },
       include: {
-        briefs: { orderBy: { month: 'asc' }, take: 1 },
+        briefs: { orderBy: { updatedAt: 'desc' }, take: 1 },
         knowledgeItems: { select: { title: true, type: true, textContent: true }, take: 40 },
         calendarMonths: {
           orderBy: { createdAt: 'desc' },
