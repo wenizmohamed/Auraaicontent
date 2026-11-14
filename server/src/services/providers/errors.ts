@@ -130,7 +130,7 @@ export function isSafetyBlock(msg: string): boolean {
   // FALSE POSITIVES on benign marketing prompts (they clear on a plain re-run),
   // but they arrive wrapped in a 400 so they must be recognised as safety (not
   // a hard bad-request) to be retried across providers + re-attempted.
-  return /safety|blocked|content.?filter|policy|prohibited|child|photorealistic|inappropriate|input\s+blocked|declined this content|could not be processed|sensitive.?content|real.?human.?face/i.test(msg);
+  return /safety|blocked|content.?filter|sensitive.?content|real.?human.?face|policy|prohibited|child|photorealistic|inappropriate|input\s+blocked|declined this content|could not be processed/i.test(msg);
 }
 
 // Provider billing exhaustion (credits gone / monthly spend cap hit) is a
@@ -278,7 +278,7 @@ export class AllProvidersFailedError extends Error {
       const linkHint = links.length ? ` Top up: ${links.join(' or ')}.` : '';
       msg = `Out of ${task} credits on every provider (${providerNames}).${linkHint}`;
     } else if (allRateLimited) {
-      msg = `All AI providers rate-limited for ${task}. Wait ~60s and retry — if it persists, your provider plan may be exhausted (Gemini: https://aistudio.google.com/usage · xAI: https://console.x.ai/).`;
+      msg = `All AI providers rate-limited for ${task}. Wait ~60s and retry — if it persists, your provider plan may be exhausted (Google AI Studio: https://aistudio.google.com/usage · xAI: https://console.x.ai/).`;
     } else if (allSafetyBlocked) {
       // Surface the actual block reason from the last provider so the user
       // can adjust the source material. Most provider errors include "Sorry,

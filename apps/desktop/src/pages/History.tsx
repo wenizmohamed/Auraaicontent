@@ -13,6 +13,7 @@ import { Image as ImageIcon, Video, FileText, Search, Palette, Wand2, Sparkles, 
 import { historyApi, type GenerationSummary, type GenerationType } from '../lib/backend-api';
 import { EmptyState } from '../components/ui/EmptyState';
 import { toast } from 'sonner';
+import { brandModel, brandProvider } from '../lib/brand-names';
 
 const TYPE_TABS: Array<{ id: GenerationType | 'all'; label: string; icon: any }> = [
   { id: 'all',              label: 'All',          icon: Sparkles },
@@ -315,7 +316,7 @@ export default function History() {
                         </p>
                         <div className="flex items-center justify-between text-[10px]" style={{ color: 'var(--color-fg-subtle)' }}>
                           <span>{formatRelative(item.createdAt)}</span>
-                          {item.provider && <span className="font-mono">{item.provider}</span>}
+                          {item.provider && <span className="font-mono">{brandProvider(item.provider)}</span>}
                         </div>
                       </div>
                     </motion.button>
@@ -418,8 +419,8 @@ export default function History() {
                 )}
 
                 <div className="grid grid-cols-2 gap-3 text-xs" style={{ color: 'var(--color-fg-muted)' }}>
-                  {previewing.provider && <div><span style={{ color: 'var(--color-fg-subtle)' }}>Provider:</span> <span className="font-mono">{previewing.provider}</span></div>}
-                  {previewing.model && <div><span style={{ color: 'var(--color-fg-subtle)' }}>Model:</span> <span className="font-mono">{previewing.model}</span></div>}
+                  {previewing.provider && <div><span style={{ color: 'var(--color-fg-subtle)' }}>Provider:</span> <span className="font-mono">{brandProvider(previewing.provider)}</span></div>}
+                  {previewing.model && <div><span style={{ color: 'var(--color-fg-subtle)' }}>Model:</span> <span className="font-mono">{brandModel(previewing.model)}</span></div>}
                   {previewing.latencyMs != null && <div><span style={{ color: 'var(--color-fg-subtle)' }}>Latency:</span> {previewing.latencyMs}ms</div>}
                   {previewing.client && <div><span style={{ color: 'var(--color-fg-subtle)' }}>Client:</span> {previewing.client.name}</div>}
                 </div>

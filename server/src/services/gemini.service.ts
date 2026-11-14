@@ -68,7 +68,7 @@ export async function generateText(
   const client = getClient();
   const response = await client.models.generateContent({ model, contents: prompt });
   const text = response.text;
-  if (!text) throw new Error(`Gemini returned empty response (model: ${model})`);
+  if (!text) throw new Error(`AURA returned an empty response`);
   return text;
 }
 
@@ -91,7 +91,7 @@ export async function generateJson<T>(
   } catch {
     const match = text.match(/[\[{][\s\S]*[\]}]/);
     if (match) return JSON.parse(match[0]) as T;
-    throw new Error(`Failed to parse JSON from Gemini (model: ${model}). Raw: ${text.slice(0, 200)}`);
+    throw new Error(`AURA returned text that is not valid JSON. Raw: ${text.slice(0, 200)}`);
   }
 }
 
@@ -171,7 +171,7 @@ export async function embedText(text: string, ctx?: EmbedContext): Promise<numbe
   try {
     client = getClient();
   } catch {
-    throw new GeminiUnavailableError('Gemini API key not configured. Knowledge embedding requires Gemini.');
+    throw new GeminiUnavailableError('AURA memory is not configured: knowledge embedding needs the Google AI Studio key.');
   }
   try {
     let response;
@@ -193,7 +193,7 @@ export async function embedText(text: string, ctx?: EmbedContext): Promise<numbe
       }
     }
     const embedding = response.embeddings?.[0]?.values;
-    if (!embedding?.length) throw new Error('Gemini returned empty embedding');
+    if (!embedding?.length) throw new Error('AURA memory returned an empty embedding');
     if (EMBED_CACHE.size >= EMBED_CACHE_MAX) EMBED_CACHE.delete(EMBED_CACHE.keys().next().value!);
     EMBED_CACHE.set(key, { vec: embedding, at: Date.now() });
     recordEmbedUsage(text, ctx); // meter the (real, non-cached) embedding call
@@ -228,15 +228,15 @@ export async function embedText(text: string, ctx?: EmbedContext): Promise<numbe
     //     drained balance. Judge on the status and on the specific phrases.
     const status = err?.status ?? err?.statusCode ?? err?.code;
     if (status === 429 || /rate.?limit|too many requests|exceeded your current quota|\b429\b/i.test(msg)) {
-      throw new GeminiUnavailableError('Gemini rate-limited. Knowledge embedding temporarily unavailable.');
+      throw new GeminiUnavailableError('AURA memory is rate-limited. Knowledge embedding is paused for a moment.');
     }
     if (status === 402 || /payment.?required|prepayment|insufficient.?(credit|balance|funds)|\b402\b/i.test(msg)) {
-      throw new GeminiUnavailableError('Gemini credits depleted. Top up the Google AI Studio balance to resume knowledge embedding.');
+      throw new GeminiUnavailableError('AURA memory is out of credit. Top up the Google AI Studio balance to resume knowledge embedding.');
     }
     if (/403|permission|denied/i.test(msg)) {
-      throw new GeminiUnavailableError('Gemini permission denied. Check the API key.');
+      throw new GeminiUnavailableError('AURA memory was refused access. Check the Google AI Studio key.');
     }
-    throw new GeminiUnavailableError(`Gemini embedding failed: ${msg.slice(0, 150)}`);
+    throw new GeminiUnavailableError(`AURA memory embedding failed: ${msg.slice(0, 150)}`);
   }
 }
 
@@ -255,7 +255,7 @@ export async function embedText(text: string, ctx?: EmbedContext): Promise<numbe
 export async function embedBatch(texts: string[], ctx?: EmbedContext): Promise<number[][]> {
   if (!texts.length) return [];
   const key = env.GEMINI_API_KEY;
-  if (!key) throw new GeminiUnavailableError('Gemini API key not configured. Knowledge embedding requires Gemini.');
+  if (!key) throw new GeminiUnavailableError('AURA memory is not configured: knowledge embedding needs the Google AI Studio key.');
 
   const model = MODELS.embedding;
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:batchEmbedContents?key=${key}`;
@@ -284,7 +284,7 @@ export async function embedBatch(texts: string[], ctx?: EmbedContext): Promise<n
       });
     } catch (err: any) {
       if (attempt === MAX_ATTEMPTS - 1) {
-        throw new GeminiUnavailableError(`Gemini batch embedding failed: ${err?.message || String(err)}`);
+        throw new GeminiUnavailableError(`AURA memory batch embedding failed: ${err?.message || String(err)}`);
       }
       await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
       continue;
@@ -312,18 +312,18 @@ export async function embedBatch(texts: string[], ctx?: EmbedContext): Promise<n
     // which contains the word "billing" — so a body-text regex for /billing/i
     // misreads a RATE LIMIT as a drained balance. Judge on the STATUS first.
     if (status === 429 || /rate.?limit|too many requests/i.test(body)) {
-      throw new GeminiUnavailableError('Gemini rate-limited. Knowledge embedding temporarily unavailable.');
+      throw new GeminiUnavailableError('AURA memory is rate-limited. Knowledge embedding is paused for a moment.');
     }
     if (status === 402 || /payment.?required|prepayment|insufficient.?(credit|balance|funds)/i.test(body)) {
-      throw new GeminiUnavailableError('Gemini credits depleted. Top up the Google AI Studio balance to resume knowledge embedding.');
+      throw new GeminiUnavailableError('AURA memory is out of credit. Top up the Google AI Studio balance to resume knowledge embedding.');
     }
-    throw new GeminiUnavailableError(`Gemini batch embedding failed (HTTP ${status}): ${body.replace(/\s+/g, ' ').slice(0, 150)}`);
+    throw new GeminiUnavailableError(`AURA memory batch embedding failed (HTTP ${status}): ${body.replace(/\s+/g, ' ').slice(0, 150)}`);
   }
 
   const body = await response.json() as { embeddings?: { values: number[] }[] };
   const vectors = body.embeddings || [];
   if (vectors.length !== texts.length) {
-    throw new GeminiUnavailableError(`Gemini batch embedding returned ${vectors.length} vectors for ${texts.length} inputs.`);
+    throw new GeminiUnavailableError(`AURA memory batch embedding returned ${vectors.length} vectors for ${texts.length} inputs.`);
   }
   recordEmbedUsage(texts.join('\n').slice(0, 20000), ctx);
   return vectors.map(v => v.values);

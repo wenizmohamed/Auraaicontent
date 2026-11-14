@@ -78,7 +78,8 @@ export async function creativeVideoWorker(j: Job): Promise<any> {
   const m: string = j.data.model || '';
   const expectedSec = (!m || /wan|happyhorse|vidu/i.test(m)) ? 170
     : /omni/i.test(m) ? 55
-    : /minimax|hailuo|seedance/i.test(m) ? 95
+    : /seedance/i.test(m) ? 95
+    : /minimax|hailuo/i.test(m) ? 95
     : /grok/i.test(m) ? 110
     : 80;
   const stepPct = 85 / (expectedSec / 3); // 10% -> 95% across expectedSec

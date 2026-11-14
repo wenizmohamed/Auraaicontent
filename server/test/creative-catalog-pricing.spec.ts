@@ -68,7 +68,7 @@ describe('picker catalog and cost meter agree', () => {
     // to their own provider and never reach DashScope. Video entries carry no
     // provider at all — the server picks the provider from the id — so their
     // ids must be one the provider recognises.
-    const alibabaIds = ids.filter((id) => !/^(gemini|veo|omni|grok|nano-banana|imagen|MiniMax-|image-01|dola-seedream-|seedream-|dreamina-seedance-|seedance-)/i.test(id));
+    const alibabaIds = ids.filter((id) => !/^(gemini|veo|omni|grok|nano-banana|imagen|MiniMax-|image-01|dreamina-seedance-|seedance-|dola-seedream-|seedream-)/i.test(id));
     const foreign = alibabaIds.filter(
       (id) => !/^(qwen-image|z-image|wan[\d.]+-image|wan[\d.]+-(video|t2v|i2v|r2v|videoedit)|happyhorse-[\d.]+-(t2v|i2v|r2v|video-edit)|vidu\/)/i.test(id),
     );
@@ -178,7 +178,7 @@ describe('picker catalog and cost meter agree', () => {
       }
       // 4K is the 2K rate for the Alibaba engines (the model tops out at 2K);
       // the server has no ":4k" row for them, so the 2K row is the check.
-      if (id.startsWith('qwen-image') && Math.abs(Number(k4) - Number(k2)) > 1e-9) {
+      if ((id.startsWith('qwen-image') || id.startsWith('dola-seedream-')) && Math.abs(Number(k4) - Number(k2)) > 1e-9) {
         mismatches.push(`${target}: 4K entry (${k4}) must equal the 2K entry (${k2})`);
       }
     }

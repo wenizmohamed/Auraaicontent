@@ -11,6 +11,7 @@ import {
   Type, AlignLeft, FileText, MousePointerClick, ThumbsUp,
 } from 'lucide-react';
 import { copywritingApi, memoryApi } from '../lib/backend-api';
+import { brandProvider } from '../lib/brand-names';
 import { useClients } from '../lib/client-context';
 import { usePersistentDraft } from '../lib/use-persistent-draft';
 import { FeatureCard } from '../components/ui';
@@ -290,7 +291,7 @@ export default function Copywriting() {
                       ? `Grounded on ${meta.groundingChunks} brand doc${meta.groundingChunks > 1 ? 's' : ''}`
                       : 'No brand docs. Generic copy'}
                   </span>
-                  <span>{meta.provider} · {(meta.latencyMs / 1000).toFixed(1)}s</span>
+                  <span>{brandProvider(meta.provider)} · {(meta.latencyMs / 1000).toFixed(1)}s</span>
                 </div>
               )}
             </div>

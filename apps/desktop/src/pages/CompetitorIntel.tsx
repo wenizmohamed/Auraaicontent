@@ -7,6 +7,7 @@ import { Radar, Search, Sparkles, Target, TrendingUp, Lightbulb, Loader2 } from 
 import { useClients } from '../lib/client-context';
 import { useToast } from '../lib/toast-context';
 import { competitorIntelApi, type CompetitorAnalysis } from '../lib/backend-api';
+import { brandProvider } from '../lib/brand-names';
 import { motionBase } from '../lib/motion';
 
 export default function CompetitorIntel() {
@@ -69,7 +70,7 @@ export default function CompetitorIntel() {
             <div className="flex items-center justify-between mb-2">
               <h2 className="font-semibold text-fg">{result.competitor}</h2>
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-bg border border-border-subtle text-fg-subtle">
-                {result.grounded ? 'grounded on site' : 'model read'} · {result.provider}
+                {result.grounded ? 'grounded on site' : 'model read'} · {brandProvider(result.provider)}
               </span>
             </div>
             <p className="text-sm text-fg-muted leading-relaxed">{result.analysis.summary}</p>

@@ -33,8 +33,8 @@ interface Result {
 export const tool = defineTool<Args, Result>({
   name: 'prompt_improve',
   description:
-    'Rewrite or expand a creative idea into a studio-grade image, edit, or video prompt using AURA Creative Director (Gemini 4 Carbon). ' +
-    'Automatically matches the dialect of the target engine (Gemini 3 Pro Image, Nano Banana 2.1, MiniMax H3-Image 4K, Qwen Image 3.0 Pro, Wan 2.7 Image Pro, Wan 3.0 Prime, MiniMax H3 2K, Gemini Omni 1.2, Grok). ' +
+    'Rewrite or expand a creative idea into a studio-grade image, edit, or video prompt using AURA Creative Director. ' +
+    'Automatically matches the dialect of the target engine (AURA Image Pro, AURA Image, MiniMax H3-Image 4K, Qwen Image 3.0 Pro, Wan 2.7 Image Pro, Wan 3.0 Prime, MiniMax H3 2K, AURA Omni 1.2, Grok). ' +
     'Set variants=true when the user asks for 3 creative prompt options without generating media yet.',
   input_schema: {
     type: 'object',
@@ -82,7 +82,7 @@ export const tool = defineTool<Args, Result>({
     const targetProvider = pinnedModel ? engineForModel(pinnedModel) : autoPick!.provider;
 
     await ctx.emit('agent:thought', {
-      text: `AURA Prompt Director (Gemini 4 Carbon) -> optimizing ${mode} prompt for ${targetProvider}/${targetModel}`,
+      text: `AURA Prompt Director -> optimizing ${mode} prompt for ${targetProvider}/${targetModel}`,
       at: new Date().toISOString(),
     });
 

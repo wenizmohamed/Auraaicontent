@@ -115,7 +115,7 @@ describe('every offered engine gets a dialect', () => {
   for (const section of VIDEO_SECTIONS) {
     for (const o of explicitEngines(section)) {
       it(`${section}: ${o.value} has a video dialect`, () => {
-        const d = engineDialect('text-to-video', 'dashscope', o.model);
+        const d = engineDialect('text-to-video', engineForModel(o.model), o.model);
         expect(d.length).toBeGreaterThan(0);
         expect(d).toContain('ENGINE NOTES');
       });

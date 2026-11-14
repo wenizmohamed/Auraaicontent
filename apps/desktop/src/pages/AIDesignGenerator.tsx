@@ -5,6 +5,7 @@ import { designApi } from '../lib/backend-api';
 import { useClients } from '../lib/client-context';
 import { usePersistentDraft } from '../lib/use-persistent-draft';
 import { FeatureCard } from '../components/ui';
+import { brandProvider } from '../lib/brand-names';
 
 interface DesignBriefResult {
   conceptIdea?: string;
@@ -223,7 +224,7 @@ export default function AIDesignGenerator() {
               >
                 <Copy className="w-4 h-4" /> Copy JSON
               </button>
-              {brief.provider && <span className="text-[10px] text-zinc-700">via {brief.provider}</span>}
+              {brief.provider && <span className="text-[10px] text-zinc-700">via {brandProvider(brief.provider)}</span>}
             </div>
 
             {brief.conceptIdea && (

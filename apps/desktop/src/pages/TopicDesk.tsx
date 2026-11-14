@@ -986,10 +986,10 @@ export default function TopicDesk() {
 
             {/* AI Provider Toggle */}
             <div className="flex items-center bg-white/5 border border-white/10 rounded-xl overflow-hidden">
-              {(['gemini', 'claude'] as AIProvider[]).map(p => (
+              {(['gemini'] as AIProvider[]).map(p => (
                 <button key={p} onClick={() => setAIProvider(p)}
                   className={`px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider transition-all ${aiProvider === p ? 'bg-violet-500/20 text-violet-400' : 'text-zinc-600 hover:text-zinc-400'}`}>
-                  {p === 'gemini' ? '✦ Gemini 4 Argon' : '◆ Gemini 4 Carbon'}
+                  {'✦ AURA'}
                 </button>
               ))}
             </div>

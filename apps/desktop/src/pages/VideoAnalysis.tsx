@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, Upload, Video as VideoIcon, Sparkles, FileText, AlertCircle, Link as LinkIcon, X } from 'lucide-react';
 import { analyzeApi, assetsApi } from '../lib/backend-api';
 import { useClients } from '../lib/client-context';
+import { brandProvider } from '../lib/brand-names';
 
 interface AnalysisResult {
   summary: string;
@@ -194,7 +195,7 @@ export default function VideoAnalysis() {
             <div className="bg-[#0c0c0c] border border-white/[0.06] rounded-2xl p-5">
               <h3 className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold mb-2">Summary</h3>
               <p className="text-sm text-zinc-300 leading-relaxed">{result.summary}</p>
-              {result.provider && <p className="text-[10px] text-zinc-700 mt-2">via {result.provider}</p>}
+              {result.provider && <p className="text-[10px] text-zinc-700 mt-2">via {brandProvider(result.provider)}</p>}
             </div>
           )}
 

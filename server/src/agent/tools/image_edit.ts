@@ -60,7 +60,7 @@ async function readImageBytes(urlOrPath: string, signal: AbortSignal): Promise<{
 export const tool = defineTool<Args, Result>({
   name: 'image_edit',
   description:
-    'Edit, retouch, restyle, or composite an existing gallery image via AURA Creative Router (Gemini 3 Pro Image, Nano Banana 2.1, ByteDance Dola Seedream 5.5 RGBA, Qwen Image 3.0 Pro, MiniMax H3-Image 4K, Wan 2.7 Image Pro). ' +
+    'Edit, retouch, restyle, or composite an existing gallery image via AURA Creative Router (AURA Image Pro, AURA Image, ByteDance Dola Seedream 5.5 RGBA, Qwen Image 3.0 Pro, MiniMax H3-Image 4K, Wan 2.7 Image Pro). ' +
     'Pass assetId from asset_search or a previous image_generate call (or sourceUrl), plus optional referenceAssetIds for multi-image character or product consistency. ' +
     'Saves the edited image to /uploads/, creates an Asset row when a client is active, and emits an agent:artifact preview.',
   input_schema: {

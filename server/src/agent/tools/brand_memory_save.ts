@@ -94,7 +94,7 @@ export const tool = defineTool<Args, Result>({
   name: 'brand_memory_save',
   description:
     'Save a permanent Brand Kit learning, visual style rule, character/mascot specification, hex color palette, or DO-NOT correction to the client Memory layer so every future prompt, chat, and agent run remembers it. ' +
-    'When imageUrl or assetId is supplied, inspects the visual with Gemini 4 Carbon vision (extracting public preview images when available) and stores a tagged Brand Kit reference asset in the Gallery.',
+    'When imageUrl or assetId is supplied, inspects the visual with AURA vision (extracting public preview images when available) and stores a tagged Brand Kit reference asset in the Gallery.',
   input_schema: {
     type: 'object',
     properties: {

@@ -135,9 +135,9 @@ const PROVIDERS: Record<AiProviderName, AiProvider> = {
 // request only reaches hop 2 if hop 1 fails, and so on.
 const CHAIN: Record<string, AiProviderName[]> = {
   text: ['gemini', 'vertex', 'dashscope', 'byteplus', 'xai', 'moonshot', 'minimax', 'anthropic'],
-  image: ['gemini', 'byteplus', 'dashscope', 'minimax', 'vertex', 'xai'],
-  image_edit: ['gemini', 'byteplus', 'dashscope', 'minimax', 'vertex', 'xai'],
-  analysis: ['gemini', 'vertex', 'byteplus', 'dashscope', 'xai', 'anthropic'],
+  image: ['gemini', 'dashscope', 'byteplus', 'minimax', 'vertex', 'xai'],
+  image_edit: ['gemini', 'dashscope', 'byteplus', 'minimax', 'vertex', 'xai'],
+  analysis: ['gemini', 'vertex', 'dashscope', 'byteplus', 'xai', 'anthropic'],
   video: ['dashscope', 'byteplus', 'minimax', 'gemini', 'xai'],
 };
 

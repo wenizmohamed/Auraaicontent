@@ -18,12 +18,12 @@ interface Props {
 }
 
 const PROVIDER_LABELS: Record<string, { label: string; tier: 'primary' | 'fallback' | 'tertiary' }> = {
-  gemini:    { label: 'Gemini 4', tier: 'primary' },
-  google:    { label: 'Gemini 4', tier: 'primary' },
+  gemini:    { label: 'AURA', tier: 'primary' },
+  google:    { label: 'AURA', tier: 'primary' },
   vertex:    { label: 'Vertex',   tier: 'primary' },
   dashscope: { label: 'Alibaba',   tier: 'primary' },
-  byteplus:  { label: 'ByteDance', tier: 'primary' },
   minimax:   { label: 'MiniMax',   tier: 'primary' },
+  byteplus:  { label: 'ByteDance', tier: 'primary' },
   grok:      { label: 'Grok',     tier: 'fallback' },
   xai:       { label: 'Grok',     tier: 'fallback' },
   kimi:      { label: 'Kimi',     tier: 'tertiary' },

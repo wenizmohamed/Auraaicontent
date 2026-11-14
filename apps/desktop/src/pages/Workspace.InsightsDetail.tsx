@@ -12,6 +12,7 @@ import { useNavigate } from 'react-router-dom';
 import { ExternalLink, Loader2, BarChart3 } from 'lucide-react';
 import { dashboardApi, type DashboardStats, type AiStats } from '../lib/backend-api';
 import { Badge, Button, EmptyState, Separator } from '../components/ui';
+import { brandProvider } from '../lib/brand-names';
 
 export default function InsightsDetail({ pieceId: slug }: { pieceId: string }) {
   const navigate = useNavigate();
@@ -128,7 +129,7 @@ export default function InsightsDetail({ pieceId: slug }: { pieceId: string }) {
           <tbody>
             {ai.providers.map((p) => (
               <tr key={p.provider} className="border-t" style={{ borderColor: 'var(--color-border-subtle)', color: 'var(--color-fg)' }}>
-                <td className="py-1.5">{p.provider}</td>
+                <td className="py-1.5">{brandProvider(p.provider)}</td>
                 <td className="font-mono">{p.calls}</td>
                 <td className="font-mono">{p.errors}</td>
                 <td className="font-mono">{Math.round(p.avgLatencyMs)}</td>

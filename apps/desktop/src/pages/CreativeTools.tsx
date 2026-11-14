@@ -20,6 +20,7 @@ import {
   Link2, Copy, Clock, ThumbsUp, ThumbsDown, Maximize2,
 } from 'lucide-react';
 import { creativeApi } from '../lib/backend-api';
+import { brandEngine } from '../lib/brand-names';
 import { useClients } from '../lib/client-context';
 import { readJson } from '../lib/safe-storage';
 import { motionUI, motionBase } from '../lib/motion';
@@ -174,20 +175,20 @@ const PROMPT_REWRITE_LEVELS = [
   {
     v: 'raw' as const,
     label: 'Raw',
-    plain: 'Your wording is kept. Gemini 4 Carbon only translates to English if needed and adds technical negatives.',
+    plain: 'Your wording is kept. AURA only translates to English if needed and adds technical negatives.',
     hint: 'Keep your wording. Only translate for the engine (for example Arabic to English for video) and add technical negatives. Never reinterprets your idea.',
   },
   {
     v: 'medium' as const,
-    label: '✨ Carbon Pro',
-    plain: 'Gemini 4 Carbon Creative Director rewrites your idea for the selected engine while preserving exact copy, #HEX colors, and single-slide framing.',
-    hint: 'Full Gemini 4 Carbon rewrite into an engine-native studio prompt (composition, optics, lighting, audio, and exact copy/hex fidelity).',
+    label: '✨ Pro',
+    plain: 'AURA rewrites your idea for the selected engine while preserving exact copy, #HEX colors, and single-slide framing.',
+    hint: 'Full AURA rewrite into an engine-native studio prompt (composition, optics, lighting, audio, and exact copy/hex fidelity).',
   },
   {
     v: 'high' as const,
-    label: 'Carbon Max',
-    plain: 'Gemini 4 Carbon pushes art direction to maximum specificity: camera rig, Kelvin lighting, micro-textures, and color story.',
-    hint: 'Maximum Gemini 4 Carbon art-direction detail across composition, lighting ratios, surface textures, and palette.',
+    label: 'Max',
+    plain: 'AURA pushes art direction to maximum specificity: camera rig, Kelvin lighting, micro-textures, and color story.',
+    hint: 'Maximum AURA art-direction detail across composition, lighting ratios, surface textures, and palette.',
   },
 ];
 
@@ -621,7 +622,7 @@ export default function CreativeTools() {
         generatedUrl = first.assetUrl || first.url || '';
         setResultUrl(generatedUrl);
         setSavedAssetId(first.assetId || null);
-        setProvider(first.model ? `${first.provider}/${first.model}` : (first.provider || ''));
+        setProvider(brandEngine(first.provider, first.model));
         setLastEnhanced(first.enhancedPrompt || '');
         setGenId(first.generationId || null);
         setExtraResults(ok.slice(1).map((o: any) => ({ url: o.assetUrl || o.url || '', assetId: o.assetId || null })));
@@ -643,7 +644,7 @@ export default function CreativeTools() {
         generatedUrl = out.assetUrl || out.url || '';
         setResultUrl(generatedUrl);
         setSavedAssetId(out.assetId || null);
-        setProvider(out.model ? `${out.provider}/${out.model}` : (out.provider || ''));
+        setProvider(brandEngine(out.provider, out.model));
         setLastEnhanced(out.enhancedPrompt || '');
         setGenId(out.generationId || null);
       } else {
@@ -716,7 +717,7 @@ export default function CreativeTools() {
           if (job.status === 'completed') {
             generatedUrl = job.result?.url || '';
             setResultUrl(generatedUrl);
-            setProvider(job.result?.model ? `${job.result.provider}/${job.result.model}` : (job.result?.provider || ''));
+            setProvider(brandEngine(job.result?.provider, job.result?.model));
             setLastEnhanced(job.result?.enhancedPrompt || '');
             setGenId(job.result?.generationId || null);
             break;
@@ -1187,18 +1188,18 @@ export default function CreativeTools() {
               type="button"
               onClick={handleImprovePrompt}
               disabled={!prompt.trim() || improving || loading}
-              title="Gemini 4 Carbon writes three distinct studio directions for the engine you picked."
+              title="AURA writes three distinct studio directions for the engine you picked."
               className="flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider hover:bg-[color:var(--color-info-subtle)] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
               style={{ borderColor: 'var(--color-info)', background: 'var(--color-info-subtle)', color: 'var(--color-info)' }}
             >
               {improving
                 ? <Loader2 className="w-3 h-3 animate-spin" />
                 : <PenTool className="w-3 h-3" />}
-              {improving ? 'Carbon thinking...' : 'Suggest 3 directions · Carbon'}
+              {improving ? 'AURA is thinking...' : 'Suggest 3 directions'}
             </button>
           </div>
           <p className="text-[10px] mb-2" style={{ color: 'var(--color-fg-muted)' }}>
-            Gemini 4 Carbon writes 3 engine-native takes preserving your exact copy and #HEX palette. Nothing renders until you pick one.
+            AURA writes 3 engine-native takes preserving your exact copy and #HEX palette. Nothing renders until you pick one.
           </p>
           <div className="relative">
             <textarea
@@ -2012,7 +2013,7 @@ export default function CreativeTools() {
                     type="button"
                     disabled={upscaling !== null}
                     onClick={() => setUpscaleAi(v => !v)}
-                    title={upscaleAi ? 'AI detail: regenerates with real added detail via our models (Gemini/Qwen), then scales. Slower, sharper' : 'Fast: instant Lanczos resample (no new detail)'}
+                    title={upscaleAi ? 'AI detail: regenerates with real added detail via AURA, then scales. Slower, sharper' : 'Fast: instant Lanczos resample (no new detail)'}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all disabled:opacity-50 ${
                       upscaleAi ? '' : 'bg-white/[0.03] text-zinc-400 border-white/[0.06] hover:border-white/[0.12]'
                     }`}

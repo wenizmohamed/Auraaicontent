@@ -160,7 +160,7 @@ function Sparkline({ data, color, height = 32, width = 100 }: { data: number[]; 
 }
 
 const PROVIDER_META: Record<string, { label: string; color: (d: boolean) => string; bg: (d: boolean) => string }> = {
-  gemini: { label: 'Gemini 4', color: (d) => d ? 'text-blue-400' : 'text-blue-600', bg: (d) => d ? 'bg-blue-500/10' : 'bg-blue-50' },
+  gemini: { label: 'AURA', color: (d) => d ? 'text-blue-400' : 'text-blue-600', bg: (d) => d ? 'bg-blue-500/10' : 'bg-blue-50' },
   // Vertex AI is the Google Cloud route to the same Gemini models. It gets
   // its own teal so the dashboard shows WHICH Google endpoint ran.
   vertex: { label: 'Vertex AI', color: (d) => d ? 'text-teal-400' : 'text-teal-600', bg: (d) => d ? 'bg-teal-500/10' : 'bg-teal-50' },
@@ -246,7 +246,7 @@ const WALKTHROUGH_STEPS: Array<{
   {
     icon: Wand2,
     title: '5. Creative Tools',
-    description: 'Generate images, edit existing frames, and make videos with sound. Gemini 4 Carbon rewrites your prompt for the engine: Gemini 3 Pro Image, MiniMax H3, Wan 3.0 Prime, Qwen Image 3.0 Pro or Grok Imagine 2.0.',
+    description: 'Generate images, edit existing frames, and make videos with sound. AURA rewrites your prompt for the engine: AURA Image Pro, Seedream 5.5, Seedance 2.5, MiniMax H3, Wan 3.0 Prime, Qwen Image 3.0 Pro or Grok Imagine 2.0.',
     href: '/creative',
     cta: 'Open Studio',
     color: (d) => d ? 'text-pink-400' : 'text-pink-600',
@@ -1082,15 +1082,15 @@ export default function Dashboard() {
             <ul className={`space-y-2 text-[12.5px] ${textPrimary}`}>
               <li className="flex items-start gap-2">
                 <span className="mt-1.5 h-1 w-1 rounded-full flex-shrink-0" style={{ background: 'var(--color-accent)' }} />
-                <span><span className="font-semibold">AURA Agent &amp; Chat:</span> Powered by Google Gemini 4 Argon (19 autonomous tools) with Vertex AI Gemini 4 Argon failover.</span>
+                <span><span className="font-semibold">AURA Agent &amp; Chat:</span> AURA plans each task and runs 19 tools, with a backup route if the main engine is down.</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="mt-1.5 h-1 w-1 rounded-full flex-shrink-0" style={{ background: 'var(--color-accent)' }} />
-                <span><span className="font-semibold">Creative Studio:</span> Gemini 4 Carbon rewrites each prompt for the engine that runs it: Dreamina Seedance 2.5, Dola Seedream 5.5, Gemini 3 Pro Image, MiniMax H3, Wan 3.0 Prime, Qwen Image 3.0 Pro or Grok Imagine 2.0.</span>
+                <span><span className="font-semibold">Creative Studio:</span> AURA rewrites each prompt for the engine that runs it: Dreamina Seedance 2.5, Dola Seedream 5.5, AURA Image Pro, MiniMax H3, Wan 3.0 Prime, Qwen Image 3.0 Pro or Grok Imagine 2.0.</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="mt-1.5 h-1 w-1 rounded-full flex-shrink-0" style={{ background: 'var(--color-accent)' }} />
-                <span><span className="font-semibold">Multi-Engine Chain:</span> Automatic failover across Gemini 4, Vertex AI, ByteDance ModelArk, Alibaba, MiniMax, Grok 4.7, and Kimi K3.1 Pro.</span>
+                <span><span className="font-semibold">Multi-Engine Chain:</span> Automatic failover across AURA, Vertex AI, ByteDance ModelArk, Alibaba, MiniMax, Grok 4.7, and Kimi K3.1 Pro.</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="mt-1.5 h-1 w-1 rounded-full flex-shrink-0" style={{ background: 'var(--color-accent)' }} />

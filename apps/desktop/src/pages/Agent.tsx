@@ -80,11 +80,11 @@ export default function Agent() {
             className="rounded-md px-2 py-0.5 font-mono text-[11px] font-semibold"
             style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}
           >
-            Gemini 4 Argon · 19 Tools
+            AURA · 19 Tools
           </span>
         </div>
         <p className="mt-1 text-[13px]" style={{ color: 'var(--color-fg-muted)' }}>
-          Autonomous content-ops and creative studio orchestration powered by Google Gemini 4 Argon. Preview plans or replay full multi-tool session traces.
+          AURA plans the work, runs the tools and checks the result. Preview plans or replay full multi-tool session traces.
         </p>
       </div>
 

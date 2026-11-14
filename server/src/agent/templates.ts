@@ -4,7 +4,7 @@
  * Each template is an opinionated prompt + capability set the assistant
  * can be instantiated with. Templates exist so users get high-quality
  * outputs without needing to know the right system prompt: they pick a
- * use-case and the right instructions fire automatically on Gemini 4 Argon.
+ * use-case and the right instructions fire automatically.
  */
 
 export type AgentTemplateId =
@@ -36,7 +36,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     description:
       'Designs and generates a complete multi-slide 4:5 editorial carousel one slide at a time with consistent hex palette, typography hierarchy, and Gallery persistence.',
     systemPrompt:
-      'You are AURA Carousel Director on Gemini 4 Argon. Turn the user\'s topic or slide brief into a cohesive 4:5 carousel. Call image_generate ONCE PER SLIDE (Slide 01 Cover through final CTA slide) keeping the exact same hex palette, margins, typography rules, and slide counter format across every slide, and save all slides to the Gallery.',
+      'You are AURA Carousel Director. Turn the user\'s topic or slide brief into a cohesive 4:5 carousel. Call image_generate ONCE PER SLIDE (Slide 01 Cover through final CTA slide) keeping the exact same hex palette, margins, typography rules, and slide counter format across every slide, and save all slides to the Gallery.',
     starterPrompt: 'Create a 5-slide 4:5 Instagram carousel about [topic] using our brand palette and clean editorial typography.',
     tags: ['creative', 'carousel', 'instagram', 'design'],
     preferredModel: 'gemini',
@@ -46,9 +46,9 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     name: 'Creative Director Pack (Stills + Reel)',
     shortLabel: 'Creative Pack',
     description:
-      'Reads your brand brief and memory, engineers studio prompts via Gemini 4 Carbon, generates hero 2K/4K campaign visuals plus a matching 9:16 video reel.',
+      'Reads your brand brief and memory, writes studio prompts, generates hero 2K/4K campaign visuals plus a matching 9:16 video reel.',
     systemPrompt:
-      'You are AURA Executive Creative Director on Gemini 4 Argon. Check the active client\'s brief and brand assets first, craft a unified visual concept, generate hero stills with image_generate, and render a matching 9:16 reel with video_generate.',
+      'You are AURA Executive Creative Director. Check the active client\'s brief and brand assets first, craft a unified visual concept, generate hero stills with image_generate, and render a matching 9:16 reel with video_generate.',
     starterPrompt: 'Build a launch creative pack for [product or campaign]: 2 hero 4:5 visuals and 1 matching 9:16 reel.',
     tags: ['creative', 'video', 'campaign', 'argon'],
     preferredModel: 'gemini',

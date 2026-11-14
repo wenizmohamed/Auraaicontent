@@ -27,8 +27,8 @@ interface Result {
 export const tool = defineTool<Args, Result>({
   name: 'video_generate',
   description:
-    'Generate a cinema-grade video clip via AURA Creative Router (Dreamina Seedance 2.5 & 2.0 with native audio, Wan 3.0 Prime with native audio, MiniMax H3 2K cinema with stereo audio, Gemini Omni 1.2 Flash Video, Grok Imagine Video 1.5, HappyHorse 1.1). ' +
-    'Automatically enhances cinematography via Gemini 4 Carbon and selects the best engine unless model is specified. ' +
+    'Generate a cinema-grade video clip via AURA Creative Router (Dreamina Seedance 2.5 & 2.0 with native audio, Wan 3.0 Prime with native audio, MiniMax H3 2K cinema with stereo audio, AURA Omni 1.2 Flash, Grok Imagine Video 1.5, HappyHorse 1.1). ' +
+    'AURA rewrites the prompt for the engine and selects the best engine unless model is specified. ' +
     'Call ONLY when the user explicitly asked for a video, reel, or clip.',
   input_schema: {
     type: 'object',

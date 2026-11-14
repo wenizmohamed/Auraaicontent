@@ -5,6 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import { toast } from 'sonner';
 import { io, type Socket } from 'socket.io-client';
 import { assistantApi, agentApi, getApiUrl, type ChatMessage, type AgentTemplateSummary } from '../lib/backend-api';
+import { brandModel } from '../lib/brand-names';
 import { useClients } from '../lib/client-context';
 import { useNavigate } from 'react-router-dom';
 import { Z } from '../lib/z-index';
@@ -95,7 +96,7 @@ const TOOL_LABELS: Record<string, string> = {
   client_switch: 'Switching client',
   image_generate: 'Generating an image',
   image_edit: 'Editing the image',
-  prompt_improve: 'Engineering studio prompt (Carbon)',
+  prompt_improve: 'Engineering studio prompt',
   brand_memory_save: 'Saving to Brand Memory',
   competitor_scrape: 'Scanning competitors',
   visual_search: 'Finding reference visuals',
@@ -173,8 +174,8 @@ function summarizeToolResult(tool: string, result: unknown): string {
       return r.url ? 'Edited image saved to the gallery' : 'Image edited';
     case 'prompt_improve':
       return Array.isArray(r.variants) && r.variants.length > 0
-        ? `${r.variants.length} studio prompt directions crafted with Gemini 4 Carbon`
-        : 'Studio prompt engineered with Gemini 4 Carbon';
+        ? `${r.variants.length} studio prompt directions written by AURA`
+        : 'Studio prompt written by AURA';
     case 'brand_memory_save':
       return r.savedAssetId
         ? 'Saved to Brand Memory + archived reference in Gallery'
@@ -238,12 +239,12 @@ function newSessionUid(): string {
 const PROVIDER_TIERS: Record<string, { label: string; tint: string; ring: string }> = {
   anthropic: { label: 'Claude',  tint: 'color-mix(in srgb, var(--color-accent) 16%, transparent)', ring: 'var(--color-accent)' },
   claude:    { label: 'Claude',  tint: 'color-mix(in srgb, var(--color-accent) 16%, transparent)', ring: 'var(--color-accent)' },
-  gemini:    { label: 'Gemini 4 Argon', tint: 'color-mix(in srgb, var(--color-accent) 15%, transparent)', ring: 'var(--color-accent)' },
-  google:    { label: 'Gemini 4 Argon', tint: 'color-mix(in srgb, var(--color-accent) 15%, transparent)', ring: 'var(--color-accent)' },
-  vertex:    { label: 'Vertex · Gemini 4', tint: 'color-mix(in srgb, var(--color-accent) 14%, transparent)', ring: 'var(--color-accent)' },
-  dashscope: { label: 'Alibaba', tint: 'color-mix(in srgb, var(--color-accent) 14%, transparent)', ring: 'var(--color-accent)' },
-  byteplus:  { label: 'ByteDance', tint: 'color-mix(in srgb, var(--color-success) 14%, transparent)', ring: 'var(--color-success)' },
-  minimax:   { label: 'MiniMax', tint: 'color-mix(in srgb, var(--color-accent) 14%, transparent)', ring: 'var(--color-accent)' },
+  gemini:    { label: 'AURA', tint: 'color-mix(in srgb, var(--color-accent) 15%, transparent)', ring: 'var(--color-accent)' },
+  google:    { label: 'AURA', tint: 'color-mix(in srgb, var(--color-accent) 15%, transparent)', ring: 'var(--color-accent)' },
+  vertex:    { label: 'AURA (Vertex)', tint: 'color-mix(in srgb, var(--color-accent) 14%, transparent)', ring: 'var(--color-accent)' },
+  dashscope: { label: 'Alibaba',   tint: 'color-mix(in srgb, var(--color-accent) 14%, transparent)', ring: 'var(--color-accent)' },
+  minimax:   { label: 'MiniMax',   tint: 'color-mix(in srgb, var(--color-accent) 14%, transparent)', ring: 'var(--color-accent)' },
+  byteplus:  { label: 'ByteDance', tint: 'color-mix(in srgb, var(--color-accent) 14%, transparent)', ring: 'var(--color-accent)' },
   grok:      { label: 'Grok',    tint: 'color-mix(in srgb, var(--color-fg) 8%, transparent)',     ring: 'var(--color-fg-muted)' },
   xai:       { label: 'Grok',    tint: 'color-mix(in srgb, var(--color-fg) 8%, transparent)',     ring: 'var(--color-fg-muted)' },
   kimi:      { label: 'Kimi',    tint: 'color-mix(in srgb, var(--color-fg) 6%, transparent)',     ring: 'var(--color-fg-subtle)' },
@@ -1101,7 +1102,7 @@ export default function AuraContentAssistant() {
                   AURA
                   <span className="text-[9px] font-bold uppercase tracking-wider rounded px-1.5 py-0.5"
                     style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>
-                    {mode === 'agent' ? 'Agent · Gemini 4 Argon' : 'Chat · Gemini 4 Argon'}
+                    {mode === 'agent' ? 'Agent' : 'Chat'}
                   </span>
                 </p>
                 <p className="text-[10px] text-fg-subtle truncate">
@@ -1154,7 +1155,7 @@ export default function AuraContentAssistant() {
                   <div className="w-14 h-14 rounded-2xl overflow-hidden border border-accent/20 mb-3 shadow-[0_0_30px_-8px_rgba(245,158,11,0.3)]">
                     <img src="./auracontent-dna.jpg" alt="AURA" className="w-full h-full object-cover" />
                   </div>
-                  <p className="text-sm text-fg-muted mb-1 font-medium">I'm AURA on Gemini 4 Argon.</p>
+                  <p className="text-sm text-fg-muted mb-1 font-medium">I'm AURA.</p>
                   <p className="text-xs text-fg-subtle mb-4">Your autonomous Creative Director: carousels, 4K stills, cinema reels, brand memory, and full calendars.</p>
 
                   {/* Starter jobs: real work the agent runs end to end.
@@ -1634,10 +1635,8 @@ function MessageRow({ message, isLast, onRetry, renderAction, onOpenLink }: Mess
 function friendlyModelLabel(provider?: string, model?: string): string | null {
   const m = (model || '').replace(/^google\//i, '').toLowerCase();
   const isVertex = (provider || '').toLowerCase() === 'vertex';
-  if (m.includes('gemini-4-argon')) return isVertex ? 'Vertex · Gemini 4 Argon' : 'Gemini 4 Argon';
-  if (m.includes('gemini-4-carbon')) return isVertex ? 'Vertex · Gemini 4 Carbon' : 'Gemini 4 Carbon';
-  if (m.includes('gemini-4-hydrogen')) return isVertex ? 'Vertex · Gemini 4 Hydrogen' : 'Gemini 4 Hydrogen';
-  if (m.includes('gemini-3.8-flash')) return 'Gemini 3.8 Flash';
+  // Google engines show their AURA names (lib/brand-names.ts).
+  if (/^gemini|nano-banana|omni|veo/.test(m)) return isVertex ? `${brandModel(m)} (Vertex)` : brandModel(m);
   if (m.includes('qwen3.8-max')) return 'Qwen 3.8 Max';
   if (m.includes('grok-4.7')) return 'Grok 4.7';
   if (m.includes('kimi-k3.1')) return 'Kimi K3.1 Pro';
