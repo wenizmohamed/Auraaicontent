@@ -256,6 +256,9 @@ export type DialectKey =
   | 'omni-video'
   | 'hailuo-h3'
   | 'vidu'
+  | 'seedream'
+  | 'seedance'
+  | 'seedance-v1'
   | 'none';
 
 export const DIALECT_HINTS: Record<DialectKey, string> = {
@@ -273,6 +276,9 @@ export const DIALECT_HINTS: Record<DialectKey, string> = {
   'omni-video': 'Prompt written for Gemini Omni Video. Flowing cinematic motion, camera optics, and physical realism.',
   'hailuo-h3': 'Prompt written for MiniMax H3. Native 2K cinema motion, human micro-expressions, and synchronized stereo sound.',
   vidu: 'Prompt written for Vidu. Numbered beats for one advertising cut.',
+  seedream: 'Prompt written for ByteDance Seedream. Studio lighting and lens, any copy quoted exactly, and a transparent background when you ask for one.',
+  seedance: 'Prompt written for ByteDance Seedance 2.5 and 2.0. Shot-by-shot camera moves and cuts, with the sound described.',
+  'seedance-v1': 'Prompt written for ByteDance Seedance 1.0. This engine makes no sound, so the prompt covers motion and camera only.',
   none: 'Prompt written for a generic engine.',
 };
 
@@ -280,6 +286,8 @@ export function dialectKeyFor(option: ModelOption, section: CreativeSection): Di
   const isVideo = section === 'text-to-video' || section === 'image-to-video' || section === 'reference-video';
   const m = (option.model || '').toLowerCase();
   if (isVideo) {
+    if (m.includes('dreamina-seedance') || m.includes('seedance-2') || m.includes('seedance-1-5')) return 'seedance';
+    if (m.includes('seedance')) return 'seedance-v1';
     if (m.includes('minimax') || m.includes('hailuo')) return 'hailuo-h3';
     if (m.includes('omni') || m.includes('veo')) return 'omni-video';
     if (m.includes('vidu')) return 'vidu';
@@ -289,6 +297,7 @@ export function dialectKeyFor(option: ModelOption, section: CreativeSection): Di
     if (m.includes('grok')) return 'grok-video';
     return 'none';
   }
+  if (m.includes('seedream')) return 'seedream';
   if (m.includes('minimax') || m === 'image-01') return 'minimax-image';
   if (m.includes('z-image')) return 'z-image';
   if (m.includes('qwen-image-2.1')) return 'qwen-image-21';

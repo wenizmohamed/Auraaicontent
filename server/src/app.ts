@@ -224,6 +224,15 @@ export async function buildApp() {
           role: 'Cinema 2K Video + Stereo Audio & Native 4K Studio Portraits (MiniMax H3, H3-Max, H3-Image 4K, Image-01)',
           rank: 4,
         },
+        byteplus: {
+          configured: !!process.env.ARK_API_KEY,
+          textModel: process.env.ARK_TEXT_MODEL || 'dola-seed-2-1-turbo-260628',
+          imageModel: process.env.ARK_IMAGE_MODEL || 'dola-seedream-5-5-261028',
+          videoModel: process.env.ARK_VIDEO_MODEL || 'dreamina-seedance-2-5-260628',
+          baseURL: process.env.ARK_BASE_URL || 'https://ark.ap-southeast.bytepluses.com/api/v3',
+          role: 'ByteDance ModelArk Cinema Video & RGBA Studio Design (Dreamina Seedance 2.5 & 2.0 1080p/4K + native audio, Dola Seedream 5.5 RGBA & Seedream 5.0 4K, Dola Seed 2.1 Turbo)',
+          rank: 5,
+        },
         grok: {
           configured: !!process.env.XAI_API_KEY,
           model: process.env.XAI_TEXT_MODEL || 'grok-4.7',
@@ -231,9 +240,9 @@ export async function buildApp() {
           videoModel: process.env.XAI_VIDEO_MODEL || 'grok-imagine-video-1.5',
           baseURL: process.env.XAI_BASE_URL || 'https://api.x.ai/v1',
           role: 'Dynamic Action Video, High-Contrast 2K Aesthetics & Fast Reasoning Fallback (Grok 4.7, Grok Imagine 2.0, Grok Video 1.5)',
-          rank: 5,
+          rank: 6,
         },
-        kimi: { ...kimiStatus(), role: 'Long-context copywriting & research fallback (Kimi K3.1 Pro Highspeed)', rank: 6 },
+        kimi: { ...kimiStatus(), role: 'Long-context copywriting & research fallback (Kimi K3.1 Pro Highspeed)', rank: 7 },
       },
     };
   });
@@ -265,6 +274,7 @@ export async function buildApp() {
       envFingerprints: {
         GEMINI_API_KEY: fingerprint('GEMINI_API_KEY'),
         VERTEX_API_KEY: fingerprint('VERTEX_API_KEY'),
+        ARK_API_KEY: fingerprint('ARK_API_KEY'),
         XAI_API_KEY: fingerprint('XAI_API_KEY'),
         MOONSHOT_API_KEY: fingerprint('MOONSHOT_API_KEY'),
         DATABASE_URL: fingerprint('DATABASE_URL'),

@@ -5,6 +5,7 @@ import { vertexProvider } from './vertex.provider.js';
 import { anthropicProvider, anthropicApiKey } from './anthropic.provider.js';
 import { moonshotProvider } from './moonshot.provider.js';
 import { minimaxProvider } from './minimax.provider.js';
+import { byteplusProvider } from './byteplus.provider.js';
 import { isRetryableAiError, isSafetyBlock, AllProvidersFailedError, AiCancelledError, abortReasonText, throwIfCancelled, type ProviderFailure } from './errors.js';
 import { filterAvailable, recordSuccess, recordFailure, getCircuitSnapshot } from './circuit-breaker.js';
 import type { AiProvider, AiProviderName, AiTask, AiTelemetryEntry, AnalysisRequest, ImageRequest, ProviderResult, TextRequest, VideoRequest } from './types.js';
@@ -126,17 +127,18 @@ const PROVIDERS: Record<AiProviderName, AiProvider> = {
   anthropic: anthropicProvider,
   moonshot: moonshotProvider,
   minimax: minimaxProvider,
+  byteplus: byteplusProvider,
 };
 
 // Per-task fallback chain (order = preference). getPrimary() above picks
 // the first hop; the rest of the list is the standby order ("rotation"): a
 // request only reaches hop 2 if hop 1 fails, and so on.
 const CHAIN: Record<string, AiProviderName[]> = {
-  text: ['gemini', 'vertex', 'dashscope', 'xai', 'moonshot', 'minimax', 'anthropic'],
-  image: ['gemini', 'dashscope', 'minimax', 'vertex', 'xai'],
-  image_edit: ['gemini', 'dashscope', 'minimax', 'vertex', 'xai'],
-  analysis: ['gemini', 'vertex', 'dashscope', 'xai', 'anthropic'],
-  video: ['dashscope', 'minimax', 'gemini', 'xai'],
+  text: ['gemini', 'vertex', 'dashscope', 'byteplus', 'xai', 'moonshot', 'minimax', 'anthropic'],
+  image: ['gemini', 'dashscope', 'byteplus', 'minimax', 'vertex', 'xai'],
+  image_edit: ['gemini', 'dashscope', 'byteplus', 'minimax', 'vertex', 'xai'],
+  analysis: ['gemini', 'vertex', 'dashscope', 'byteplus', 'xai', 'anthropic'],
+  video: ['dashscope', 'byteplus', 'minimax', 'gemini', 'xai'],
 };
 
 // A provider is usable only when its credential is configured — keeps a
@@ -151,6 +153,7 @@ function providerAvailable(name: AiProviderName): boolean {
     case 'vertex': return !!process.env.VERTEX_API_KEY;
     case 'moonshot': return !!process.env.MOONSHOT_API_KEY;
     case 'minimax': return !!process.env.MINIMAX_API_KEY;
+    case 'byteplus': return !!process.env.ARK_API_KEY;
     default: return false;
   }
 }

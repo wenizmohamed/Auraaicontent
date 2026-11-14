@@ -52,7 +52,7 @@ export interface EnhanceInput {
   // 'vertex' = Google Vertex AI (added 2026-11-07). It serves the same
   // nano-banana / gemini-3-pro-image models as the Developer API, so it must
   // get the GOOGLE dialect, not the Alibaba one.
-  engine?: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax';
+  engine?: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax' | 'byteplus';
   /** Exact model id when the user picked one — sharper dialect than engine. */
   model?: string;
   /** How aggressively to rewrite. Defaults to 'medium' (legacy behavior). */
@@ -111,7 +111,7 @@ export function stripChatMetaWrapper(raw: string): string {
   return joined || raw.trim();
 }
 
-const VIDEO_SYSTEM = `You are AURA (powered by Gemini 4 Carbon), an elite commercial film director and cinematographer writing production-grade prompts for 2026 flagship AI video engines (Alibaba Wan 3.0 Prime with native audio, MiniMax H3 2K cinema with stereo audio, Google Gemini Omni 1.2 Flash Video, HappyHorse 1.1 physics, xAI Grok Imagine Video 1.5).
+const VIDEO_SYSTEM = `You are AURA (powered by Gemini 4 Carbon), an elite commercial film director and cinematographer writing production-grade prompts for 2026 flagship AI video engines (ByteDance Dreamina Seedance 2.5 & 2.0 with native audio, Alibaba Wan 3.0 Prime with native audio, MiniMax H3 2K cinema with stereo audio, Google Gemini Omni 1.2 Flash Video, HappyHorse 1.1 physics, xAI Grok Imagine Video 1.5).
 First, understand the user's real intent: effortlessly decode messy shorthand, typos, slang, Arabic/English mix, pop-culture or sports references, and imaginative concepts into crystal-clear visual storytelling.
 Rewrite the user's idea into ONE cohesive cinematic shot description using this exact sequence:
 [Cinematography & Camera Rig] [Hero Subject & Micro-Textures] [Physical Action & Temporal Progression] [Environment & Lighting Physics] [Color Grade & Atmosphere] [Audio].
@@ -139,7 +139,7 @@ const DEPTH_NOTES: Record<Exclude<EnhanceDepth, 'raw'>, string> = {
   high: '\nDEPTH = HIGH: maximize art-direction specificity. Every one of composition, lighting, color palette and finish must be named precisely and vividly, at the upper word bound. Never generic.',
 };
 
-const IMAGE_SYSTEM = `You are AURA (powered by Gemini 4 Carbon), an executive creative director and master photographer writing prompts for 2026 flagship AI image engines (Google Gemini 3 Pro Image, Gemini Nano Banana 2.1, MiniMax H3-Image 4K, Qwen Image 3.0 Pro, Wan 2.7 Image Pro, xAI Grok Imagine 2.0).
+const IMAGE_SYSTEM = `You are AURA (powered by Gemini 4 Carbon), an executive creative director and master photographer writing prompts for 2026 flagship AI image engines (Google Gemini 3 Pro Image, Gemini Nano Banana 2.1, ByteDance Dola Seedream 5.5 & Seedream 5.0 4K, MiniMax H3-Image 4K, Qwen Image 3.0 Pro, Wan 2.7 Image Pro, xAI Grok Imagine 2.0).
 First, understand what the user truly wants: decode shorthand, typos, casual phrasing, Arabic/English code-switching, cultural or sports references, editorial graphic layouts, and multi-character interactions with effortless precision.
 Rewrite the user's idea into ONE production-grade visual prompt following this flow:
 hero subjects or editorial layout structure -> composition, camera angle, margins & spatial staging -> lighting geometry (key/fill/rim direction, Kelvin warmth, specular highlights) -> color story (including exact hex codes when given) & environment -> optical or typographic finish.
@@ -151,7 +151,7 @@ Rules:
 - ADAPTIVE FIDELITY: Use concrete physical nouns and optical terms (subsurface scattering, rim light, 85mm f/1.8, tactile grain). Write 70-130 words for concise ideas, expanding up to 220 words when preserving rich master briefs with explicit quoted copy, hex palettes (#XXXXXX), and layout margins. Flowing prose, no markdown, no bullet lists, never use em-dashes or en-dashes.
 Return ONLY JSON: {"prompt": "..."}`;
 
-const EDIT_SYSTEM = `You are AURA (powered by Gemini 4 Carbon), a master commercial retoucher and art director writing precision edit instructions for multi-modal AI image-editing engines (Google Gemini 3 Pro Image, Gemini Nano Banana 2.1, MiniMax H3-Image 4K, Qwen Image 3.0 Pro, Wan 2.7 Image Pro, xAI Grok Imagine 2.0).
+const EDIT_SYSTEM = `You are AURA (powered by Gemini 4 Carbon), a master commercial retoucher and art director writing precision edit instructions for multi-modal AI image-editing engines (Google Gemini 3 Pro Image, Gemini Nano Banana 2.1, ByteDance Dola Seedream 5.5 & Seedream 5.0 4K, MiniMax H3-Image 4K, Qwen Image 3.0 Pro, Wan 2.7 Image Pro, xAI Grok Imagine 2.0).
 Decode any shorthand or typos in the user's request and rewrite it into ONE unambiguous edit instruction:
 1. State the exact visual modification, replacement, or multi-image synthesis first.
 2. Explicitly lock what must remain pixel-consistent from the base/reference images (product geometry, brand logo, facial identity, perspective, and camera angle).
@@ -176,6 +176,7 @@ export type DialectKey =
   | 'nano-banana'
   | 'grok-image'
   | 'minimax-image'
+  | 'seedream'
   | 'z-image'
   | 'wan3'
   | 'wan'
@@ -183,6 +184,8 @@ export type DialectKey =
   | 'grok-video'
   | 'omni-video'
   | 'hailuo-h3'
+  | 'seedance'
+  | 'seedance-v1'
   | 'vidu'
   | 'none';
 
@@ -197,6 +200,8 @@ const DIALECT_NOTES: Record<DialectKey, string> = {
 
   'minimax-image': `ENGINE NOTES (MiniMax H3-Image & Image-01): native 4K studio photorealism, rich editorial portraiture, character consistency, and multi-image composition. Describe subjects, skin and material micro-textures, lighting ratios, and optical depth (focal length + aperture) in clear flowing prose. Put any in-image copy in double quotes with font style and placement. For edits, state clearly what changes while keeping subject identity and lighting cohesive. 65-110 words.`,
 
+  seedream: `ENGINE NOTES (ByteDance Dola Seedream 5.5 & Seedream 5.0 4K): ByteDance's flagship studio photorealism, graphic design, multi-reference consistency (up to 10 images), and native RGBA transparent PNG engine. Describe subjects, physical textures, lighting ratios, and camera optics (e.g. 85mm f/1.8 prime) in flowing prose. Quote any in-image typography in double quotes with font style and placement. When the user requests a cutout, sticker, icon, or transparent background, explicitly state "isolated on a clean transparent background". 65-120 words.`,
+
   'z-image': `ENGINE NOTES (Z-Image Turbo): photo-real output and strong bilingual Chinese-English text rendering. Put any copy in double quotes exactly as written and say where it sits in the frame. Describe the scene plainly and concretely; this engine rewards specificity over poetry. 50-90 words.`,
 
   'qwen-image-21': `ENGINE NOTES (Qwen-Image 2.1): this engine takes up to ten reference images and understands LOCAL edits. When the user asks to change one thing, name exactly which element changes and then say explicitly that everything else must stay identical (product, logo, colours, framing, lighting). Refer to the source as "Image 1". 50-100 words.`,
@@ -208,6 +213,10 @@ const DIALECT_NOTES: Record<DialectKey, string> = {
   'omni-video': `ENGINE NOTES (Gemini Omni 1.2 Flash Video): Google's native multimodal video engine on the Interactions API. Reads natural cinematic prose best. Omit explicit SFX/Ambient tags and spend every word on continuous physical motion, camera choreography, optical lighting, and material realism across 4 to 12 seconds. 65-110 words.`,
 
   'hailuo-h3': `ENGINE NOTES (MiniMax H3 / Hailuo H3): renders native 2K cinema video with synchronized stereo audio (4 to 15s), micro-expression human acting, and complex camera choreography. KEEP the audio lines and make them vivid and specific. Choreograph one decisive physical camera move (dolly, Steadicam arc, crane, handheld push-in), expressive human acting or physical motion, lighting geometry, and atmosphere. If spoken dialogue is implied, write it in double quotes in the speaker's language. End with "SFX: <sound>. Ambient noise: <soundscape>." 75-120 words.`,
+
+  seedance: `ENGINE NOTES (ByteDance Dreamina Seedance 2.5 & 2.0): renders cinema-grade video (4 to 30s on 2.5, 4 to 15s on 2.0, up to 1080p/4K) with synchronized native audio, multi-shot cuts, first/last frame bookends, and omni multimodal references. KEEP the audio lines and make them vivid and specific. Choreograph decisive camera movement, expressive character acting or product physics, and cohesive lighting; for multi-shot ads, use timestamped beats ("[00:00] ... [00:04] ..."). End with "SFX: <sound>. Ambient noise: <soundscape>." 75-130 words.`,
+
+  'seedance-v1': `ENGINE NOTES (ByteDance Seedance 1.0 Pro / Pro Fast): VISUAL-ONLY cinema video engine (2 to 12s up to 1080p, no native audio). Omit the SFX/Ambient/dialogue sentences entirely and spend every word on crisp camera choreography, physical motion, and lighting atmosphere. 60-100 words.`,
 
   wan3: `ENGINE NOTES (Wan 3.0): renders synchronized sound in the same pass as the video (2 to 30s at 720p/1080p), so KEEP the audio lines and make them vivid and specific. Choreograph the camera move, subject action, physical environment, and lighting. If the brief implies speech, give the line in the user's own language in double quotes and mark who says it. End with "SFX: <sound>. Ambient noise: <soundscape>." 70-120 words.`,
 
@@ -225,6 +234,7 @@ export const DIALECT_HINTS: Record<DialectKey, string> = {
   'nano-banana': 'Prompt written for Gemini. One flowing paragraph, with the camera and lens named.',
   'grok-image': 'Prompt written for Grok. Short and punchy, with the subject first.',
   'minimax-image': 'Prompt written for MiniMax H3-Image. Native up-to-4K photorealism, studio lighting, and character fidelity.',
+  seedream: 'Prompt written for ByteDance Seedream. Studio lighting and lens, any copy quoted exactly, and a transparent background when you ask for one.',
   'z-image': 'Prompt written for Z-Image. A plain concrete description, with any copy quoted exactly.',
   wan3: 'Prompt written for Wan 3.0. This engine makes the sound too, so describe what the scene sounds like.',
   wan: 'Prompt written for Wan 2.7. This engine makes no sound, so the prompt covers motion only.',
@@ -232,6 +242,8 @@ export const DIALECT_HINTS: Record<DialectKey, string> = {
   'grok-video': 'Prompt written for Grok video. Short, high energy beats.',
   'omni-video': 'Prompt written for Gemini Omni Video. Flowing cinematic motion, camera optics, and physical realism.',
   'hailuo-h3': 'Prompt written for MiniMax H3. Native 2K cinema motion, human micro-expressions, and synchronized stereo sound.',
+  seedance: 'Prompt written for ByteDance Seedance 2.5 and 2.0. Shot-by-shot camera moves and cuts, with the sound described.',
+  'seedance-v1': 'Prompt written for ByteDance Seedance 1.0. This engine makes no sound, so the prompt covers motion and camera only.',
   vidu: 'Prompt written for Vidu. Numbered beats for one advertising cut.',
   none: 'Prompt written for a generic engine.',
 };
@@ -260,13 +272,22 @@ export function autoEngineFor(mode: EnhanceMode): { engine: string; model?: stri
         : (process.env.MINIMAX_IMAGE_MODEL || 'MiniMax-H3-Image'),
     };
   }
+  if (primary === 'byteplus') {
+    return {
+      engine: 'byteplus',
+      model: isVideo
+        ? (process.env.ARK_VIDEO_MODEL || 'dreamina-seedance-2-5-260628')
+        : (process.env.ARK_IMAGE_MODEL || 'dola-seedream-5-5-261028'),
+    };
+  }
   return { engine: primary };
 }
 
 /** The engine a model id belongs to. Absent model = Auto = Alibaba. */
-export function engineForModel(model?: string): 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax' {
+export function engineForModel(model?: string): 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax' | 'byteplus' {
   const m = (model || '').toLowerCase();
   if (!m) return 'dashscope';
+  if (m.includes('seedance') || m.includes('seedream') || m.includes('dreamina') || m.includes('dola-seed')) return 'byteplus';
   if (m.includes('minimax') || m.includes('hailuo') || m === 'image-01') return 'minimax';
   if (m.includes('grok')) return 'xai';
   if (m.includes('veo') || m.includes('omni') || m.includes('gemini')) return 'gemini';
@@ -306,10 +327,17 @@ export function dialectKeyFor(mode: EnhanceMode, engine?: string, model?: string
       ? (process.env.MINIMAX_VIDEO_MODEL || 'MiniMax-H3')
       : (process.env.MINIMAX_IMAGE_MODEL || 'MiniMax-H3-Image')).toLowerCase();
   }
+  if (eng === 'byteplus' && !m) {
+    m = (isVideo
+      ? (process.env.ARK_VIDEO_MODEL || 'dreamina-seedance-2-5-260628')
+      : (process.env.ARK_IMAGE_MODEL || 'dola-seedream-5-5-261028')).toLowerCase();
+  }
   if (isVideo) {
     // Order matters: each family is checked before the next, because a pick
     // must never inherit another family's instruction (Vidu is not Wan,
     // HappyHorse is not Wan 3.0, Wan 3.0 is not Wan 2.7, MiniMax H3 is not Wan).
+    if (m.includes('dreamina-seedance') || m.includes('seedance-2') || m.includes('seedance-1-5') || (!m && eng === 'byteplus')) return 'seedance';
+    if (m.includes('seedance')) return 'seedance-v1';
     if (m.includes('minimax') || m.includes('hailuo') || (!m && eng === 'minimax')) return 'hailuo-h3';
     if (m.includes('omni') || m.includes('veo')) return 'omni-video';
     if (m.includes('vidu')) return 'vidu';
@@ -320,6 +348,7 @@ export function dialectKeyFor(mode: EnhanceMode, engine?: string, model?: string
     if (!m && (eng === 'gemini' || eng === 'vertex')) return 'omni-video';
     return 'none';
   }
+  if (m.includes('seedream') || (!m && eng === 'byteplus')) return 'seedream';
   if (m.includes('minimax') || m === 'image-01' || (!m && eng === 'minimax')) return 'minimax-image';
   if (m.includes('z-image')) return 'z-image';
   if (m.includes('qwen-image-2.1')) return 'qwen-image-21';
@@ -330,7 +359,7 @@ export function dialectKeyFor(mode: EnhanceMode, engine?: string, model?: string
 }
 
 export interface SmartEnginePick {
-  provider: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax';
+  provider: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax' | 'byteplus';
   model: string;
   reason: string;
 }
@@ -352,6 +381,9 @@ export function selectBestCreativeEngine(
     if (hasArabic) {
       return { provider: 'dashscope', model: 'qwen-image-3.0-pro', reason: 'Arabic typography and structured layout edit' };
     }
+    if (/\b(transparent\s+background|rgba|die[\s-]?cut|sticker|cutout|isolated\s+png|seedream)\b/i.test(p)) {
+      return { provider: 'byteplus', model: 'dola-seedream-5-5-261028', reason: 'Native RGBA transparent cutout and multi-reference Seedream 5.5 edit' };
+    }
     return {
       provider: 'gemini',
       model: opts.fast ? 'gemini-nano-banana-2.1' : 'gemini-3-pro-image',
@@ -365,6 +397,9 @@ export function selectBestCreativeEngine(
     }
     if (hasArabic || /\b(poster|infographic|flyer|menu|brochure|typography|calligraphy|arabic)\b/i.test(p)) {
       return { provider: 'dashscope', model: 'qwen-image-3.0-pro', reason: 'Bilingual typography and structured poster layout' };
+    }
+    if (/\b(transparent\s+background|rgba|die[\s-]?cut|sticker|cutout|isolated\s+png|seedream)\b/i.test(p)) {
+      return { provider: 'byteplus', model: 'dola-seedream-5-5-261028', reason: 'Native RGBA transparent PNG and graphic design synthesis' };
     }
     if (opts.fast) {
       return { provider: 'gemini', model: 'gemini-nano-banana-2.1', reason: 'Fast high-coherence Gemini image synthesis' };
@@ -390,6 +425,9 @@ export function selectBestCreativeEngine(
   }
 
   // Video modes: text-to-video & image-to-video
+  if (/\b(seedance|dreamina|multi[\s-]?shot|storyboard|commercial\s+cut|montage|three[\s-]?shot|two[\s-]?shot\s+cut)\b/i.test(p)) {
+    return { provider: 'byteplus', model: 'dreamina-seedance-2-5-260628', reason: 'ByteDance Seedance 2.5 multi-shot cinema direction with synchronized audio' };
+  }
   if (opts.hasEndFrame || opts.hasRefs) {
     return { provider: 'dashscope', model: 'wan3.0-video-prime', reason: 'First/last frame and reference-consistent 1080p video' };
   }

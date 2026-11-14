@@ -91,7 +91,7 @@ const RETRYABLE_PATTERNS = [
  * falls through; a 403/400 that describes the REQUEST does not.
  */
 export const PROVIDER_CREDENTIAL_PROBLEM =
-  /subscription_not_found|no active subscription|subscription.{0,30}(not found|expired|inactive|unavailable)|no available (account|channel|subscription|upstream)|group.{0,20}unavailable|account.{0,20}unavailable|access to model denied|access denied, please make sure your account is in good standing|accessdenied\.unpurchased|arrearage|not eligible|eligibility|has either used all available credits|has reached its monthly spending limit|invalid authentication|invalid.?api.?key|incorrect.?api.?key|api_key_invalid|permission_denied|does not have access|api keys are not supported|expected oauth|当前不在此\s*Key\s*的可用目录中|not in.{0,20}available.{0,20}catalog/i;
+  /subscription_not_found|no active subscription|subscription.{0,30}(not found|expired|inactive|unavailable)|no available (account|channel|subscription|upstream)|group.{0,20}unavailable|account.{0,20}unavailable|access to model denied|access denied, please make sure your account is in good standing|accessdenied\.unpurchased|arrearage|accountoverdue|modelnotopen|has not activated the model|not eligible|eligibility|has either used all available credits|has reached its monthly spending limit|invalid authentication|invalid.?api.?key|incorrect.?api.?key|api_key_invalid|permission_denied|does not have access|api keys are not supported|expected oauth|当前不在此\s*Key\s*的可用目录中|not in.{0,20}available.{0,20}catalog/i;
 
 /**
  * Subset of credential/subscription/billing failures that apply to the ENTIRE
@@ -130,7 +130,7 @@ export function isSafetyBlock(msg: string): boolean {
   // FALSE POSITIVES on benign marketing prompts (they clear on a plain re-run),
   // but they arrive wrapped in a 400 so they must be recognised as safety (not
   // a hard bad-request) to be retried across providers + re-attempted.
-  return /safety|blocked|content.?filter|policy|prohibited|child|photorealistic|inappropriate|input\s+blocked|declined this content|could not be processed/i.test(msg);
+  return /safety|blocked|content.?filter|sensitive.?content|real.?human.?face|policy|prohibited|child|photorealistic|inappropriate|input\s+blocked|declined this content|could not be processed/i.test(msg);
 }
 
 // Provider billing exhaustion (credits gone / monthly spend cap hit) is a
@@ -266,6 +266,7 @@ export class AllProvidersFailedError extends Error {
       xai: 'https://console.x.ai/',
       moonshot: 'https://platform.moonshot.cn/console',
       minimax: 'https://platform.minimax.io/console/home',
+      byteplus: 'https://console.byteplus.com/finance/overview',
     };
 
     let msg: string;

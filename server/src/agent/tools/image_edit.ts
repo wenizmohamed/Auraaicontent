@@ -60,7 +60,7 @@ async function readImageBytes(urlOrPath: string, signal: AbortSignal): Promise<{
 export const tool = defineTool<Args, Result>({
   name: 'image_edit',
   description:
-    'Edit, retouch, restyle, or composite an existing gallery image via AURA Creative Router (Gemini 3 Pro Image, Nano Banana 2.1, Qwen Image 3.0 Pro, MiniMax H3-Image 4K, Wan 2.7 Image Pro). ' +
+    'Edit, retouch, restyle, or composite an existing gallery image via AURA Creative Router (Gemini 3 Pro Image, Nano Banana 2.1, ByteDance Dola Seedream 5.5 & Seedream 5.0 4K, Qwen Image 3.0 Pro, MiniMax H3-Image 4K, Wan 2.7 Image Pro). ' +
     'Pass assetId from asset_search or a previous image_generate call (or sourceUrl), plus optional referenceAssetIds for multi-image character or product consistency. ' +
     'Saves the edited image to /uploads/, creates an Asset row when a client is active, and emits an agent:artifact preview.',
   input_schema: {
@@ -81,7 +81,7 @@ export const tool = defineTool<Args, Result>({
       },
       model: {
         type: 'string',
-        description: 'Optional engine override (gemini-3-pro-image, gemini-nano-banana-2.1, qwen-image-3.0-pro, MiniMax-H3-Image, wan2.7-image-pro)',
+        description: 'Optional engine override (gemini-3-pro-image, gemini-nano-banana-2.1, dola-seedream-5-5-261028, seedream-5-0-260128, qwen-image-3.0-pro, MiniMax-H3-Image, wan2.7-image-pro)',
       },
       name: {
         type: 'string',

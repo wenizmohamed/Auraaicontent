@@ -18,13 +18,13 @@ async function prepareVideoPrompt(j: Job): Promise<{
   negativePrompt?: string;
   enhancedPrompt: string | null;
   effectiveModel?: string;
-  effectiveProvider?: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax';
+  effectiveProvider?: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax' | 'byteplus';
 }> {
   const d = j.data;
   const videoMode = d.imageBase64 || d.startImageBase64 ? 'image-to-video' : 'text-to-video';
   const hasRefs = Array.isArray(d.referenceImages) && d.referenceImages.length > 0;
   const pinnedModel: string | undefined = d.model;
-  const pinnedProvider: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax' | undefined = d.provider;
+  const pinnedProvider: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax' | 'byteplus' | undefined = d.provider;
   const autoPick = (!pinnedModel && !pinnedProvider)
     ? selectBestCreativeEngine(videoMode, d.originalPrompt || d.prompt || '', {
         fast: d.tier === 'draft',
@@ -78,6 +78,7 @@ export async function creativeVideoWorker(j: Job): Promise<any> {
   const m: string = j.data.model || '';
   const expectedSec = (!m || /wan|happyhorse|vidu/i.test(m)) ? 170
     : /omni/i.test(m) ? 55
+    : /seedance/i.test(m) ? 95
     : /minimax|hailuo/i.test(m) ? 95
     : /grok/i.test(m) ? 110
     : 80;

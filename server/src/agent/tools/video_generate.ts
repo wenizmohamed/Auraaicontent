@@ -27,7 +27,7 @@ interface Result {
 export const tool = defineTool<Args, Result>({
   name: 'video_generate',
   description:
-    'Generate a cinema-grade video clip via AURA Creative Router (Wan 3.0 Prime with native audio, MiniMax H3 2K cinema with stereo audio, Gemini Omni 1.2 Flash Video, Grok Imagine Video 1.5, HappyHorse 1.1). ' +
+    'Generate a cinema-grade video clip via AURA Creative Router (ByteDance Dreamina Seedance 2.5 & 2.0 with native audio, Wan 3.0 Prime with native audio, MiniMax H3 2K cinema with stereo audio, Gemini Omni 1.2 Flash Video, Grok Imagine Video 1.5, HappyHorse 1.1). ' +
     'Automatically enhances cinematography via Gemini 4 Carbon and selects the best engine unless model is specified. ' +
     'Call ONLY when the user explicitly asked for a video, reel, or clip.',
   input_schema: {
@@ -38,7 +38,7 @@ export const tool = defineTool<Args, Result>({
       durationSeconds: { type: 'integer', description: 'Clip length in seconds, 4 to 15. Defaults to 6' },
       tier: { type: 'string', enum: ['draft', 'hd'], description: 'Which engine class: hd (the default) uses the flagship engines, draft a fast engine for a quick preview. It does not set the resolution' },
       resolution: { type: 'string', enum: ['720p', '1080p'], description: 'Defaults to 720p. Use 1080p only when the user asks for 1080p, Full HD or final quality: it costs about twice as much per second' },
-      model: { type: 'string', description: 'Optional engine override (wan3.0-video-prime, MiniMax-H3, MiniMax-H3-Max, gemini-omni-1.2-flash, grok-imagine-video-1.5, happyhorse-1.1-t2v)' },
+      model: { type: 'string', description: 'Optional engine override (dreamina-seedance-2-5-260628, dreamina-seedance-2-0-260128, wan3.0-video-prime, MiniMax-H3, MiniMax-H3-Max, gemini-omni-1.2-flash, grok-imagine-video-1.5, happyhorse-1.1-t2v)' },
       clientId: { type: 'string', description: 'Override active client; falls back to session clientId' },
     },
     required: ['prompt'],
