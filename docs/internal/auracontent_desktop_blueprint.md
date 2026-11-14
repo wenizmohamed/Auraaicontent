@@ -1,4 +1,4 @@
-# RADIX AI Content Planner — Technical Blueprint
+# AURACONTENT AI Content Planner — Technical Blueprint
 
 ## Goal
 Build a **desktop-first internal content operations app** with a **secure web preview portal** for clients.
@@ -140,7 +140,7 @@ External clients use only a preview link to:
 # 4) Repo structure
 
 ```text
-radix-ai-content-planner/
+auracontent-ai-content-planner/
 ├─ apps/
 │  ├─ desktop/
 │  │  ├─ electron/
@@ -465,7 +465,7 @@ DESKTOP_WEB_URL=http://localhost:3000
 JWT_SECRET=change-me
 
 # database
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/radix_planner
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/auracontent_planner
 REDIS_URL=redis://localhost:6379
 
 # storage
@@ -770,7 +770,7 @@ They get a tokenized review URL.
 ```text
 Desktop user clicks “Create Review Link”
 → backend creates ReviewLink token
-→ returns URL: https://preview.radix.app/review/<token>
+→ returns URL: https://preview.auracontent.app/review/<token>
 → client opens URL in browser
 → preview app fetches review payload by token
 ```
@@ -999,7 +999,7 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: radix_planner
+      POSTGRES_DB: auracontent_planner
     ports:
       - '5432:5432'
     volumes:

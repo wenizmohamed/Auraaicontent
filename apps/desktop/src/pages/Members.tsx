@@ -14,7 +14,7 @@ type Role = 'ADMIN' | 'EDITOR' | 'VIEWER';
 
 function decodeOrg(): { orgId: string | null; orgRole: string | null; userId: string | null } {
   try {
-    const tok = localStorage.getItem('radix_auth_token');
+    const tok = localStorage.getItem('auracontent_auth_token');
     if (!tok) return { orgId: null, orgRole: null, userId: null };
     const payload = JSON.parse(atob(tok.split('.')[1]));
     return { orgId: payload.orgId ?? null, orgRole: payload.orgRole ?? null, userId: payload.userId ?? null };
@@ -92,8 +92,8 @@ export default function Members() {
       await orgsApi.removeMember(orgId, m.user.id);
       // If you removed yourself, your access just evaporated — bounce to login.
       if (m.user.id === callerUserId) {
-        localStorage.removeItem('radix_auth_token');
-        localStorage.removeItem('radix_refresh_token');
+        localStorage.removeItem('auracontent_auth_token');
+        localStorage.removeItem('auracontent_refresh_token');
         window.location.href = '/';
         return;
       }

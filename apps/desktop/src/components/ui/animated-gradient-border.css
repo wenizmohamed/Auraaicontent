@@ -1,6 +1,6 @@
 /* AnimatedGradientBorder — conic accent ring with token colors. */
 
-.radix-agb {
+.auracontent-agb {
   position: relative;
   border-radius: var(--agb-radius);
   padding: var(--agb-thickness);
@@ -8,7 +8,7 @@
   overflow: hidden;
 }
 
-.radix-agb::before {
+.auracontent-agb::before {
   content: '';
   position: absolute;
   inset: -50%;
@@ -22,16 +22,16 @@
     var(--color-accent-subtle) 300deg,
     var(--color-accent) 360deg
   );
-  animation: radix-agb-rotate var(--agb-duration) linear infinite;
+  animation: auracontent-agb-rotate var(--agb-duration) linear infinite;
   opacity: 0.55;
   transition: opacity 200ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.radix-agb:hover::before {
+.auracontent-agb:hover::before {
   opacity: 0.85;
 }
 
-.radix-agb-inner {
+.auracontent-agb-inner {
   position: relative;
   z-index: 1;
   border-radius: calc(var(--agb-radius) - var(--agb-thickness));
@@ -40,13 +40,13 @@
   width: 100%;
 }
 
-@keyframes radix-agb-rotate {
+@keyframes auracontent-agb-rotate {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .radix-agb::before {
+  .auracontent-agb::before {
     animation: none;
   }
 }

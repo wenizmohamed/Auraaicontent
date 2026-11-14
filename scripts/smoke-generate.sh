@@ -7,10 +7,10 @@ set -euo pipefail
 
 BASE=${1:-http://localhost:8080}
 EMAIL="mohamed@radixmedia.ae"
-PASS="Radix2026"
+PASS="AuraContent2026"
 MONTH="Smoke Test $(date +%s)"
 
-echo "=== RADIX GENERATION SMOKE TEST ==="
+echo "=== AURACONTENT GENERATION SMOKE TEST ==="
 echo "Target: $BASE"
 echo ""
 

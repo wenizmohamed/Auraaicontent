@@ -1,7 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 const defaultApiBaseUrl = 'http://127.0.0.1:8080';
-const apiBaseUrl = (process.env.RADIX_API_URL || defaultApiBaseUrl).replace(/\/+$/, '');
+const apiBaseUrl = (process.env.AURACONTENT_API_URL || defaultApiBaseUrl).replace(/\/+$/, '');
 
 contextBridge.exposeInMainWorld('electron', {
   platform: process.platform,

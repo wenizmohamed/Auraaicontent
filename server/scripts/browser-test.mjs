@@ -32,7 +32,7 @@ const ctx = await browser.newContext({
 
 // Inject auth token into localStorage before any page loads
 await ctx.addInitScript((tok) => {
-  localStorage.setItem('radix_auth_token', tok);
+  localStorage.setItem('auracontent_auth_token', tok);
 }, TOKEN);
 
 for (const theme of ['dark', 'light']) {
@@ -57,13 +57,13 @@ for (const theme of ['dark', 'light']) {
       await page.goto(`${BASE}${p.path}`, { waitUntil: 'networkidle', timeout: 20000 });
       // Set theme
       await page.evaluate((t) => {
-        localStorage.setItem('radix_theme', t);
+        localStorage.setItem('auracontent_theme', t);
         document.documentElement.classList.remove('light', 'dark');
         document.documentElement.classList.add(t);
       }, theme);
       await page.waitForTimeout(800); // let theme apply
       // Screenshot
-      const fname = `/tmp/radix-${p.name}-${theme}.png`;
+      const fname = `/tmp/auracontent-${p.name}-${theme}.png`;
       await page.screenshot({ path: fname, fullPage: true });
       // Body text length sanity + root content
       const bodyText = await page.evaluate(() => document.body.innerText.length);

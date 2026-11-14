@@ -14,7 +14,7 @@ export interface ClientKB {
   complianceNotes: string;
 }
 
-const STORAGE_KEY = 'radix_clients_kb';
+const STORAGE_KEY = 'auracontent_clients_kb';
 
 // Pre-loaded Al Fardan Exchange data from real docs
 export const AL_FARDAN_KB: ClientKB = {

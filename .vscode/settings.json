@@ -35,13 +35,13 @@
 
   "sqltools.connections": [
     {
-      "name": "Radix V2 VPS",
+      "name": "AuraContent V2 VPS",
       "driver": "PostgreSQL",
       "previewLimit": 50,
       "server": "srv1494206.hstgr.cloud",
       "port": 5432,
-      "database": "radix_planner",
-      "username": "radix",
+      "database": "auracontent_planner",
+      "username": "auracontent",
       "askForPassword": true,
       "connectionTimeout": 30
     }
@@ -54,12 +54,12 @@
   "rest-client.environmentVariables": {
     "local": {
       "baseUrl": "http://127.0.0.1:8080",
-      "email": "smoke@radix.local",
+      "email": "smoke@auracontent.local",
       "password": "smoke-test-pw-2026"
     },
     "vps": {
       "baseUrl": "https://srv1494206.hstgr.cloud",
-      "email": "smoke@radix.local",
+      "email": "smoke@auracontent.local",
       "password": "smoke-test-pw-2026"
     }
   }

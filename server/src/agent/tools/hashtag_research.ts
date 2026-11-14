@@ -234,7 +234,7 @@ export const tool = defineTool<Args, Result>({
           mergedTagCount = merged.length;
           await ctx.emit('agent:artifact', {
             path: `post/${row.id}`,
-            mimeType: 'application/x-radix-post',
+            mimeType: 'application/x-auracontent-post',
             preview: merged.join(' '),
             at: new Date().toISOString(),
           });

@@ -199,7 +199,7 @@ export const tool = defineTool<Args, Result>({
         nextVersion = updated.version;
         await ctx.emit('agent:artifact', {
           path: `post/${updated.id}`,
-          mimeType: 'application/x-radix-post',
+          mimeType: 'application/x-auracontent-post',
           preview: caption.slice(0, 140),
           at: new Date().toISOString(),
         });

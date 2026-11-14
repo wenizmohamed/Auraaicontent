@@ -1,8 +1,8 @@
 {
-  "name": "@radix/desktop",
+  "name": "@auracontent/desktop",
   "version": "1.0.0",
   "private": true,
-  "author": "Radix Media <digital@radixmedia.ae>",
+  "author": "AuraContent <digital@radixmedia.ae>",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
@@ -23,8 +23,8 @@
     "electron:pack": "vite build && electron-builder --dir"
   },
   "build": {
-    "appId": "ae.radixmedia.contentplanner",
-    "productName": "RADIX AI Content Planner",
+    "appId": "com.auracontnt.contentplanner",
+    "productName": "AuraContent",
     "directories": {
       "output": "release"
     },
@@ -42,10 +42,10 @@
           ]
         }
       ],
-      "icon": "public/radix-icon.png"
+      "icon": "public/auracontent-icon.png"
     },
     "portable": {
-      "artifactName": "RADIX-Content-Planner-Portable-v2.exe"
+      "artifactName": "AuraContent-Planner-Portable-v2.exe"
     }
   },
   "dependencies": {

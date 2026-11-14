@@ -35,7 +35,7 @@ interface ContentPiece {
 
 // ─── Constants ───────────────────────────────────────────────────────
 
-const STORAGE_KEY = 'radix_content_pieces';
+const STORAGE_KEY = 'auracontent_content_pieces';
 
 const STATIONS: Station[] = ['Lebanon', 'Abu Dhabi', 'Investigations', 'Clips'];
 const STATUSES: PieceStatus[] = ['Draft', 'In Design', 'In Review', 'Approved', 'Published'];
@@ -76,7 +76,7 @@ const STATION_COLORS: Record<Station, StationStyle> = {
 
 // Legacy localStorage readers — kept only for one-time migration on first load.
 // After pieces are bulk-imported to the backend, the localStorage key is wiped.
-const MIGRATION_DONE_KEY = 'radix_content_pieces_migrated';
+const MIGRATION_DONE_KEY = 'auracontent_content_pieces_migrated';
 
 function loadLegacyPieces(): ContentPiece[] {
   try {

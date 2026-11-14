@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.."
 TOK=$(node -e "
 import jwt from 'jsonwebtoken';
 import 'dotenv/config';
-console.log(jwt.sign({ userId: 'e2e-test', email: 'e2e@radix.local' }, process.env.JWT_SECRET, { expiresIn: '10m' }));
+console.log(jwt.sign({ userId: 'e2e-test', email: 'e2e@auracontent.local' }, process.env.JWT_SECRET, { expiresIn: '10m' }));
 ")
 BASE="http://127.0.0.1:8080"
 H_AUTH="Authorization: Bearer $TOK"
@@ -19,7 +19,7 @@ fail() { echo "  ✗ $1  $2"; FAIL=$((FAIL+1)); ERRS+=("$1: $2"); }
 
 step() { echo ""; echo "──── $1 ────"; }
 
-DBQ() { sudo -u postgres psql radix_planner -tAc "$1"; }
+DBQ() { sudo -u postgres psql auracontent_planner -tAc "$1"; }
 
 # ─── 1. Pick a test client ────────────────────────────────────────
 step "Setup: pick test client"

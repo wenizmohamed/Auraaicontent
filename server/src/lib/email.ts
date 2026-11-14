@@ -5,11 +5,11 @@
 //
 // To activate real delivery:
 //   1. Sign up at https://resend.com (free tier ≥ 100/day, no card)
-//   2. Verify a sender domain (e.g. radixmedia.ae)
-//   3. Add to /opt/radix-v2/server/.env:
+//   2. Verify a sender domain (e.g. example.com)
+//   3. Add to /opt/auracontent-v2/server/.env:
 //        RESEND_API_KEY=re_xxx
-//        EMAIL_FROM="AURA <invites@radixmedia.ae>"
-//   4. pm2 restart radix-api
+//        EMAIL_FROM="AURA <invites@example.com>"
+//   4. pm2 restart auracontent-api
 
 export interface SendEmailArgs {
   to: string;
@@ -30,7 +30,7 @@ const FROM_DEFAULT = 'AURA <onboarding@resend.dev>';
 // Modern app-only sending via OAuth2 client-credentials → Graph /sendMail.
 // This is the only supported M365 path since Basic-Auth SMTP was disabled
 // (2026-03-01). Configure with MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET
-// and MS_MAIL_FROM (a real/shared mailbox, e.g. noreply@radixmediamena.com).
+// and MS_MAIL_FROM (a real/shared mailbox, e.g. noreply@example.com).
 let graphToken: { value: string; expiresAt: number } | null = null;
 
 async function getGraphToken(): Promise<string> {

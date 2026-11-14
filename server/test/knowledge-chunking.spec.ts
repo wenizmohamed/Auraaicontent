@@ -53,7 +53,7 @@ import { embedText } from '../src/services/gemini.service.js';
 import { knowledgeService } from '../src/services/knowledge.service.js';
 import { embedKnowledgeItem } from '../src/workers/embeddings.worker.js';
 
-const ORG = 'org_radix_media';
+const ORG = 'org_auracontent';
 const ITEM = 'item-1';
 const VEC = new Array(3072).fill(0.01);
 

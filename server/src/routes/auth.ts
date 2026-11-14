@@ -312,7 +312,7 @@ export async function authRoutes(app: FastifyInstance) {
     const passwordHash = await bcrypt.hash(password, 12);
 
     // Email-domain → org auto-join rule. Comma-separated DOMAIN:ORG_ID:ROLE
-    // entries in env. Example: "radixmediamena.com:org_radix_media:EDITOR"
+    // entries in env. Example: "example.com:org_xxxxxxxx:EDITOR"
     // When the new user's email matches a configured domain, skip personal-org
     // creation and add them straight to the existing tenant.
     function lookupDomainOrg(addr: string): { orgId: string; role: string } | null {
@@ -492,7 +492,7 @@ export async function authRoutes(app: FastifyInstance) {
       data: { userId: user.id, tokenHash, expiresAt, userAgent: meta.userAgent, ip: meta.ip },
     });
 
-    const baseUrl = process.env.RADIX_APP_BASE_URL || process.env.PUBLIC_APP_URL || 'https://srv1494206.hstgr.cloud';
+    const baseUrl = process.env.AURACONTENT_APP_BASE_URL || process.env.PUBLIC_APP_URL || 'https://srv1494206.hstgr.cloud';
     const resetUrl = `${baseUrl}/reset-password/${raw}`;
 
     // Fire-and-forget. If RESEND_API_KEY is unset this logs the URL to pm2 so

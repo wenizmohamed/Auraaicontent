@@ -10,13 +10,13 @@
                                  │ HTTPS + Socket.IO
                                  ▼
                    ┌────────────────────────────┐
-                   │  nginx (radix.synapseai-labs.com)
+                   │  nginx (auracontnt.com)     │
                    │  Let's Encrypt SSL          │
                    └─────────────┬──────────────┘
                                  │ proxy_pass
                                  ▼
    ┌─────────────────────────────────────────────────┐
-   │  radix-api (Fastify + Prisma + TypeScript)       │
+   │  auracontent-api (Fastify + Prisma + TypeScript)       │
    │  ┌────────────────────────────────────────────┐  │
    │  │ Auth: JWT { userId, email, orgId, orgRole } │  │
    │  │ Routes: 19 modules (clients, calendar, …)   │  │
@@ -96,14 +96,14 @@ Every successful provider call writes one `UsageEvent` row with `costUsd` comput
 
 | What | Where |
 |---|---|
-| Server source | `/opt/radix-v2/server/src/` |
-| Server build | `/opt/radix-v2/server/dist/` |
-| Frontend dist | `/opt/radix-v2/frontend/dist/` |
-| Source repo | `/opt/radixcontent/` |
-| Env (do not commit) | `/opt/radix-v2/server/.env` |
+| Server source | `/opt/auracontent-v2/server/src/` |
+| Server build | `/opt/auracontent-v2/server/dist/` |
+| Frontend dist | `/opt/auracontent-v2/frontend/dist/` |
+| Source repo | `/opt/auracontent/` |
+| Env (do not commit) | `/opt/auracontent-v2/server/.env` |
 | Backups | `/opt/backups/` |
-| nginx config | `/etc/nginx/sites-enabled/radix` |
-| SSL certs | `/etc/letsencrypt/live/radix.synapseai-labs.com/` |
+| nginx config | `/etc/nginx/sites-enabled/auracontent` |
+| SSL certs | `/etc/letsencrypt/live/auracontnt.com/` |
 
 ## Future evolution
 - Move workers from in-process to BullMQ (Redis-backed, multi-process).

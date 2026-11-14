@@ -29,7 +29,7 @@ export default function AcceptInvite() {
   const [accepting, setAccepting] = useState(false);
   const [done, setDone] = useState(false);
 
-  const isLoggedIn = !!localStorage.getItem('radix_auth_token');
+  const isLoggedIn = !!localStorage.getItem('auracontent_auth_token');
 
   useEffect(() => {
     if (!token) { setError('Missing invitation token'); setLoading(false); return; }
@@ -60,8 +60,8 @@ export default function AcceptInvite() {
   // (and lock) the address so it matches the invite the backend checks against.
   function stashInvite() {
     try {
-      localStorage.setItem('radix.pendingInvite', token!);
-      if (preview?.email) localStorage.setItem('radix.inviteEmail', preview.email);
+      localStorage.setItem('auracontent.pendingInvite', token!);
+      if (preview?.email) localStorage.setItem('auracontent.inviteEmail', preview.email);
     } catch { /* ignore */ }
   }
 
@@ -90,7 +90,7 @@ export default function AcceptInvite() {
         {/* Wordmark */}
         <div className="flex items-center gap-2 mb-6">
           <div className="w-9 h-9 rounded-xl overflow-hidden border" style={{ borderColor: 'color-mix(in srgb, var(--color-accent) 40%, transparent)' }}>
-            <img src="./radix-dna.jpg" alt="AURA" className="w-full h-full object-cover" />
+            <img src="./auracontent-dna.jpg" alt="AURA" className="w-full h-full object-cover" />
           </div>
           <span className="text-sm font-black tracking-tight" style={{ color: 'var(--color-fg)' }}>AURA</span>
         </div>

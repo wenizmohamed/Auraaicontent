@@ -193,7 +193,7 @@ model Client {
   @@index([orgId])
 }
 
-// External-integration API keys. Plaintext key (sk-radix-{32}) is only ever
+// External-integration API keys. Plaintext key (sk-auracontent-{32}) is only ever
 // returned at creation time; only the bcrypt hash + 12-char prefix live in
 // Postgres. Scope is per-Client — agencies issue separate keys per workspace
 // instead of one master key. Revocation is soft (revokedAt) so audit trails
@@ -222,7 +222,7 @@ model ApiKey {
 // calendar output).  A ContentPiece is a produced deliverable: a reel, image,
 // story, article that's assigned to a station + assignee with a deadline + review
 // status.  Pre-2026-04-24 this lived entirely in browser localStorage
-// (radix_content_pieces) — rating P1, now backend-persisted.
+// (auracontent_content_pieces) — rating P1, now backend-persisted.
 model ContentPiece {
   id             String   @id @default(cuid())
   orgId          String
@@ -746,8 +746,8 @@ model UsageEvent {
 // ─────────────────────────────────────────────────────────────────────
 // PlatformConnection — OAuth-based connector to a third-party platform
 // (Meta IG Business, TikTok Business, LinkedIn). Tokens are encrypted
-// at rest via lib/secrets.ts (AES-256-GCM with RADIX_INTEGRATION_KEY).
-// Scoped to (orgId, clientId) — each Radix client (brand) connects its
+// at rest via lib/secrets.ts (AES-256-GCM with AURACONTENT_INTEGRATION_KEY).
+// Scoped to (orgId, clientId) — each AuraContent client (brand) connects its
 // own platform accounts independently.
 // ─────────────────────────────────────────────────────────────────────
 model PlatformConnection {

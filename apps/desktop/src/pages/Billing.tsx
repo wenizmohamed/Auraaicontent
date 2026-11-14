@@ -1,7 +1,7 @@
 /**
  * Billing — three-tier hairline pricing surface.
  *
- * HextaUI-pattern cards adapted to radixcontent semantic tokens. Hairline
+ * HextaUI-pattern cards adapted to auracontent semantic tokens. Hairline
  * border, accent on the recommended tier (border + Check icon), single CTA
  * per tier. Hover lift via framer-motion. Manage-subscription row beneath.
  *

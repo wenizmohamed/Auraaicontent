@@ -30,8 +30,8 @@ async function main() {
   console.log('[seed] starting…');
 
   // Demo users
-  const admin = await upsertUser('demo-admin@radix.local', 'Demo Admin', 'admin', 'demoAdmin2026!');
-  const member = await upsertUser('demo-member@radix.local', 'Demo Member', 'member', 'demoMember2026!');
+  const admin = await upsertUser('demo-admin@auracontent.local', 'Demo Admin', 'admin', 'demoAdmin2026!');
+  const member = await upsertUser('demo-member@auracontent.local', 'Demo Member', 'member', 'demoMember2026!');
   console.log(`[seed] users: ${admin.email}, ${member.email}`);
 
   // Al Fardan demo client

@@ -52,7 +52,7 @@ interface Topic {
 // Constants
 // ---------------------------------------------------------------------------
 
-const STORAGE_KEY = 'radix_topics';
+const STORAGE_KEY = 'auracontent_topics';
 
 // Markets/desks (2026-07-14, Habiba): expanded from Lebanon-only to the full
 // GCC + MENA set + the two editorial desks. Focus text lives in ai.ts MARKET_FOCUS.

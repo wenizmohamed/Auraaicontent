@@ -1,4 +1,4 @@
-# Radix AI Content Planner — Repo Operating Protocol
+# AuraContent AI Content Planner — Repo Operating Protocol
 
 Read this before touching anything. This repo is worked by **two Claude Code
 instances** and they collide if they ignore the rules below.
@@ -6,7 +6,7 @@ instances** and they collide if they ignore the rules below.
 ## The two hands
 
 1. **VPS-resident Claude Code** — runs on the Hostinger VPS (`187.77.158.177`,
-   "Ubuntu 24.04 with Claude Code"), cwd `/opt/radixcontent`. Commits as author `root`.
+   "Ubuntu 24.04 with Claude Code"), cwd `/opt/auracontent`. Commits as author `root`.
 2. **Windows-side Claude Code** — runs on the operator's machine, edits this repo
    over SSH or a local clone.
 
@@ -53,21 +53,21 @@ served a stale `dist/`. Do not repeat this.
 
 ## Deploy architecture — two checkouts, do not confuse them
 
-- `/opt/radixcontent` — the **git checkout**. Edit and build here.
-- `/opt/radix-v2/server/dist` + `/opt/radix-v2/frontend/dist` — what is **actually
-  served**. pm2 process `radix-api` runs from `/opt/radix-v2`. nginx serves the
-  frontend dist. Public domain: `radix.synapseai-labs.com`.
+- `/opt/auracontent` — the **git checkout**. Edit and build here.
+- `/opt/auracontent-v2/server/dist` + `/opt/auracontent-v2/frontend/dist` — what is **actually
+  served**. pm2 process `auracontent-api` runs from `/opt/auracontent-v2`. nginx serves the
+  frontend dist. Public domain: `auracontnt.com`.
 
 Deploy steps:
 - **Backend:** `bash scripts/deploy-backend.sh` (pull → npm install → build →
   rsync dist → pm2 restart → health check). Never hand-copy dist files.
-- **Frontend:** `cd apps/desktop && npm run build && rsync -a --delete dist/ /opt/radix-v2/frontend/dist/`
+- **Frontend:** `cd apps/desktop && npm run build && rsync -a --delete dist/ /opt/auracontent-v2/frontend/dist/`
 
 ## Verify before claiming — non-negotiable
 
 "deployed" / "fixed" / "done" / "live" require fresh command output proving it,
 in the same turn:
-- After a deploy, `curl -s https://radix.synapseai-labs.com/api/health` must
+- After a deploy, `curl -s https://auracontnt.com/api/health` must
   return `{"status":"ok",...}`.
 - After a build, the build command must have exited 0.
 - After an endpoint fix, hit the endpoint and show the HTTP code.

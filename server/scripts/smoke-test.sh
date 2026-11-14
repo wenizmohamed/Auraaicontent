@@ -9,7 +9,7 @@ cd "$(dirname "$0")/.."
 TOK=$(node -e "
 import jwt from 'jsonwebtoken';
 import 'dotenv/config';
-console.log(jwt.sign({ userId: 'smoke-test', email: 'smoke@radix.local' }, process.env.JWT_SECRET, { expiresIn: '5m' }));
+console.log(jwt.sign({ userId: 'smoke-test', email: 'smoke@auracontent.local' }, process.env.JWT_SECRET, { expiresIn: '5m' }));
 ")
 
 BASE="http://127.0.0.1:8080"
@@ -29,7 +29,7 @@ check() {
   fi
 }
 
-echo "=== Radix smoke test $(date) ==="
+echo "=== AuraContent smoke test $(date) ==="
 check "Health"                   "/api/health"
 check "Providers status"         "/api/providers/status"
 check "Dashboard stats"          "/api/dashboard/stats"

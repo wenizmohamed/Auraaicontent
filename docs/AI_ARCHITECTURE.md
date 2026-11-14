@@ -1,11 +1,11 @@
-# Radix AI Architecture — Agent, Fallback, RAG/Memory, and Creative Tools
+# AuraContent AI Architecture — Agent, Fallback, RAG/Memory, and Creative Tools
 
-> Living reference for how Radix routes every AI call: the two stacks, the
+> Living reference for how AuraContent routes every AI call: the two stacks, the
 > provider fallback chain, the RAG + learned-memory + brand grounding layer,
 > the agent tools, and the Creative Tools image/video pipeline.
 >
 > **Secrets:** this doc references keys by their `.env` variable NAME only.
-> Actual values live in `/opt/radix-v2/server/.env` (never committed). Do not
+> Actual values live in `/opt/auracontent-v2/server/.env` (never committed). Do not
 > paste raw keys into this file.
 >
 > Last verified against code + `.env`: 2026-07-09.
@@ -14,7 +14,7 @@
 
 ## 1. Two AI stacks (know which one you're in)
 
-Radix runs **two parallel AI stacks**. They do NOT share code — a fix in one
+AuraContent runs **two parallel AI stacks**. They do NOT share code — a fix in one
 does not apply to the other.
 
 | Stack | File | Used by | Fallback chain | Enrichment |
@@ -160,7 +160,7 @@ to the model's attention. All three are best-effort (no-op on failure / empty).
   `reasoning_content` before emitting `content`. Pass `max_tokens ≥ 1024`;
   `chatText()` falls back to `reasoning_content` when `content` is empty.
 - **Assistant persona/route:** `routes/assistant.ts` (`POST /assistant/chat`) —
-  `RADIX_PERSONA`, two-pass action dispatch (action JSON → execute → summarize),
+  `AURACONTENT_PERSONA`, two-pass action dispatch (action JSON → execute → summarize),
   manual RAG grounding (line ~344).
 - **Agent loop:** `agent/loop.ts` + `agent/content-agent.ts`.
 
@@ -218,8 +218,8 @@ optional `role: content | style | character`).
 
 ## 5. Provider → model matrix
 
-> **Source of truth = the PROD env `/opt/radix-v2/server/.env`, NOT the
-> git-source `/opt/radixcontent/server/.env`.** The two diverge (prod is hand-
+> **Source of truth = the PROD env `/opt/auracontent-v2/server/.env`, NOT the
+> git-source `/opt/auracontent/server/.env`.** The two diverge (prod is hand-
 > tuned; git-source carries aspirational/stale model ids). Values below
 > re-verified live against the running prod env on 2026-11-07 — every engine
 > was probed with a real generation call, and every rate comes from the

@@ -18,7 +18,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 
 // Must be set before src/config/env.ts is evaluated (it throws on missing
 // required vars). Stubbed so other spec files see their original values back.
-vi.stubEnv('DATABASE_URL', process.env.DATABASE_URL || 'postgresql://radix:radix@127.0.0.1:5432/radix_test');
+vi.stubEnv('DATABASE_URL', process.env.DATABASE_URL || 'postgresql://auracontent:auracontent@127.0.0.1:5432/auracontent_test');
 vi.stubEnv('JWT_SECRET', process.env.JWT_SECRET || 'auth-session-spec-secret');
 vi.stubEnv('ALLOW_PUBLIC_REGISTER', 'true'); // bypass the prod signup gate
 vi.stubEnv('AUTO_ORG_DOMAINS', ''); // force the personal-org branch

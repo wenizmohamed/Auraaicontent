@@ -148,7 +148,7 @@ const defaultState: StoreState = {
   imageHistory: [],
   // Posts are NOT cached locally anymore.  CalendarPost is backend-truth via
   // calendarApi.getMonth/listMonths.  Caching here caused ghost-posts after
-  // archive/delete (LRN-2026-04-23 — the radix_calendar_posts cache survived
+  // archive/delete (LRN-2026-04-23 — the auracontent_calendar_posts cache survived
   // backend resets and the merge logic re-hydrated stale data).
   posts: [],
   activityLogs: [],
@@ -156,7 +156,7 @@ const defaultState: StoreState = {
   error: null,
   currentBrief: null,
   campaignContent: [],
-  contentBriefs: readJson('radix_content_briefs', []),
+  contentBriefs: readJson('auracontent_content_briefs', []),
 };
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
@@ -182,7 +182,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }));
       // One-time cleanup: drop the legacy ghost-post cache so users on old
       // browsers stop seeing phantom posts after backend resets.
-      try { localStorage.removeItem('radix_calendar_posts'); } catch { /* ignore */ }
+      try { localStorage.removeItem('auracontent_calendar_posts'); } catch { /* ignore */ }
     } catch (error: any) {
       setState(prev => ({ ...prev, isLoading: false, error: error.message }));
     }
@@ -193,7 +193,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     // Re-sync contentBriefs from localStorage on window focus (prevents stale data)
     const onFocus = () => {
       try {
-        const fresh = readJson('radix_content_briefs', []);
+        const fresh = readJson('auracontent_content_briefs', []);
         setState(prev => ({ ...prev, contentBriefs: fresh }));
       } catch {}
     };
@@ -344,7 +344,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const addContentBrief = (brief: ContentBrief) => {
     setState(prev => {
       const updated = [brief, ...prev.contentBriefs];
-      localStorage.setItem('radix_content_briefs', JSON.stringify(updated));
+      localStorage.setItem('auracontent_content_briefs', JSON.stringify(updated));
       return { ...prev, contentBriefs: updated };
     });
   };
@@ -352,7 +352,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const updateContentBrief = (id: string, updates: Partial<ContentBrief>) => {
     setState(prev => {
       const updated = prev.contentBriefs.map(b => b.id === id ? { ...b, ...updates } : b);
-      localStorage.setItem('radix_content_briefs', JSON.stringify(updated));
+      localStorage.setItem('auracontent_content_briefs', JSON.stringify(updated));
       return { ...prev, contentBriefs: updated };
     });
   };

@@ -1,5 +1,5 @@
 {
-  "name": "@radix/server",
+  "name": "@auracontent/server",
   "version": "1.0.0",
   "private": true,
   "type": "module",

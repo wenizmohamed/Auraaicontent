@@ -94,4 +94,4 @@ Dashboard-scope rule honored: org-wide, not current-client only.
 - **C:** meter shows org month-to-date matching a direct `UsageEvent` SUM; per-model admin table sums to totals.
 
 ## Rollout
-Behind no flag for accuracy fixes (pure correctness). Tiering ships default-draft so cost drops immediately; HD is opt-in. Build in `/opt/radixcontent` (git), deploy to `/opt/radix-v2` per CLAUDE.md, smoke test, verify behaviorally.
+Behind no flag for accuracy fixes (pure correctness). Tiering ships default-draft so cost drops immediately; HD is opt-in. Build in `/opt/auracontent` (git), deploy to `/opt/auracontent-v2` per CLAUDE.md, smoke test, verify behaviorally.

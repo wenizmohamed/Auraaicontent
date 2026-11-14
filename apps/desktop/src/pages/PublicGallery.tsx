@@ -6,7 +6,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { galleryShareApi, type ShareAsset, type AssetFeedbackRec } from '../lib/backend-api';
 
-const NAME_KEY = 'radix_gallery_reviewer_name';
+const NAME_KEY = 'auracontent_gallery_reviewer_name';
 const assetUrl = (u: string) => galleryShareApi.downloadUrl(u);
 
 export default function PublicGallery() {

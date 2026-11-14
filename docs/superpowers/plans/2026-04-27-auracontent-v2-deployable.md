@@ -1,8 +1,8 @@
-# Radix V2 — Fully Deployable Implementation Plan
+# AuraContent V2 — Fully Deployable Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Take Radix V2 from "deployed-with-gaps" (HEAD `afd6c7f`, 18/18 smoke green) to all P0 acceptance criteria GREEN per `docs/deployment-acceptance.md`.
+**Goal:** Take AuraContent V2 from "deployed-with-gaps" (HEAD `afd6c7f`, 18/18 smoke green) to all P0 acceptance criteria GREEN per `docs/deployment-acceptance.md`.
 
 **Architecture:** Three parallel work-streams (zod sweep + JWT rotation + CI/devops) executed in one arc, then sequential verify → security pentest → deploy with runbook. Multi-tenancy migration is explicitly OUT OF SCOPE here (deferred per the design doc — `docs/multi-tenancy/proposed-migration.sql` will land as a separate plan when 2nd agency on horizon).
 
@@ -28,14 +28,14 @@
 | `server/test/typography-regression.test.ts` | create | Computed-style gate (P6) |
 | `.github/workflows/ci.yml` | create | PR + push: typecheck + lint + audit + vitest on ephemeral docker-compose |
 | `.github/workflows/smoke-prod.yml` | create | Scheduled-only: 18 smoke tests against live VPS |
-| `docker-compose.ci.yml` | create | Ephemeral postgres + redis + radix-api for CI |
+| `docker-compose.ci.yml` | create | Ephemeral postgres + redis + auracontent-api for CI |
 | `scripts/deploy.sh` | create | Idempotent end-to-end deploy: build → tar → npm install → migrate → reload → smoke |
 | `scripts/rollback.sh` | create | `<commit-sha>` arg → checkout + redeploy + smoke |
 | `scripts/rotate-jwt.sh` | create | Generate 64-char JWT_SECRET + atomic .env swap + revoke RefreshTokens + reload |
 | `docs/runbooks/secrets-rotation.md` | create | S9 rotation playbook |
 | `docs/runbooks/data-subject-deletion.md` | create | O8 GDPR deletion playbook |
-| `docs/nginx/radix.conf` | create | Snapshot of `/etc/nginx/sites-enabled/radix` |
-| `docs/nginx/zz-radix-perf-security.conf` | create | Snapshot of perf+security overlay |
+| `docs/nginx/auracontent.conf` | create | Snapshot of `/etc/nginx/sites-enabled/auracontent` |
+| `docs/nginx/zz-auracontent-perf-security.conf` | create | Snapshot of perf+security overlay |
 | `docs/security/pentest-2026-04-27.md` | create (Phase 6) | Output of /recon + /pentest + /webhack + /bypass + /hack |
 | `docs/perf/lighthouse-2026-04-27.json` | create (Phase 5) | Captured Lighthouse run |
 
@@ -58,7 +58,7 @@ set -euo pipefail
 
 if [[ -z "${SSH_KEY:-}" ]]; then SSH_KEY="$HOME/.ssh/radix_vps"; fi
 HOST="root@srv1494206.hstgr.cloud"
-ENV_PATH="/opt/radix-v2/server/.env"
+ENV_PATH="/opt/auracontent-v2/server/.env"
 
 NEW=$(openssl rand -base64 48 | tr -d '\n')
 [[ ${#NEW} -ge 64 ]] || { echo "ERR: openssl produced < 64 chars"; exit 1; }
@@ -68,8 +68,8 @@ ssh -i "$SSH_KEY" "$HOST" "
   cp '$ENV_PATH' '${ENV_PATH}.bak.\$(date +%s)'
   sed -i.tmp 's|^JWT_SECRET=.*|JWT_SECRET=$NEW|' '$ENV_PATH'
   awk -F= '/^JWT_SECRET=/{print length(\$2)}' '$ENV_PATH' | grep -qE '^(6[4-9]|[7-9][0-9]|[1-9][0-9][0-9])$'
-  PGPASSWORD=\$(awk -F= '/^DB_PASSWORD=/{print \$2}' '$ENV_PATH') psql -h 127.0.0.1 -U radix -d radix_planner -c 'UPDATE \"RefreshToken\" SET \"revokedAt\" = NOW() WHERE \"revokedAt\" IS NULL'
-  pm2 reload radix-api --update-env
+  PGPASSWORD=\$(awk -F= '/^DB_PASSWORD=/{print \$2}' '$ENV_PATH') psql -h 127.0.0.1 -U auracontent -d auracontent_planner -c 'UPDATE \"RefreshToken\" SET \"revokedAt\" = NOW() WHERE \"revokedAt\" IS NULL'
+  pm2 reload auracontent-api --update-env
   rm -f '${ENV_PATH}.tmp'
 "
 echo "JWT rotated. All RefreshTokens revoked. Users must re-login."
@@ -80,7 +80,7 @@ echo "JWT rotated. All RefreshTokens revoked. Users must re-login."
 Run:
 ```bash
 chmod +x scripts/rotate-jwt.sh
-ssh -i ~/.ssh/radix_vps root@srv1494206.hstgr.cloud "awk -F= '/^JWT_SECRET=/{print length(\$2)}' /opt/radix-v2/server/.env"
+ssh -i ~/.ssh/radix_vps root@srv1494206.hstgr.cloud "awk -F= '/^JWT_SECRET=/{print length(\$2)}' /opt/auracontent-v2/server/.env"
 ```
 Expected: prints `26` (current pre-rotation length).
 
@@ -93,8 +93,8 @@ Expected: prints `JWT rotated. All RefreshTokens revoked.` + the post-length ech
 
 Run:
 ```bash
-ssh -i ~/.ssh/radix_vps root@srv1494206.hstgr.cloud "awk -F= '/^JWT_SECRET=/{print length(\$2)}' /opt/radix-v2/server/.env"
-curl -s -o /dev/null -w "%{http_code}\n" -X POST -H "Content-Type: application/json" -d '{"email":"demo-admin@radix.local","password":"demoAdmin2026!"}' https://srv1494206.hstgr.cloud/api/auth/login
+ssh -i ~/.ssh/radix_vps root@srv1494206.hstgr.cloud "awk -F= '/^JWT_SECRET=/{print length(\$2)}' /opt/auracontent-v2/server/.env"
+curl -s -o /dev/null -w "%{http_code}\n" -X POST -H "Content-Type: application/json" -d '{"email":"demo-admin@auracontent.local","password":"demoAdmin2026!"}' https://srv1494206.hstgr.cloud/api/auth/login
 ```
 Expected: ≥ 64 + HTTP 200 (login still works with new secret).
 
@@ -114,12 +114,12 @@ Expected: ≥ 64 + HTTP 200 (login still works with new secret).
 
 ## DB_PASSWORD, GEMINI_API_KEY, XAI_API_KEY, MOONSHOT_API_KEY
 
-Rotate via Hostinger / Google Cloud Console / xAI dashboard. Update `/opt/radix-v2/server/.env` then `pm2 reload radix-api --update-env`. Test with `curl /api/health` afterward.
+Rotate via Hostinger / Google Cloud Console / xAI dashboard. Update `/opt/auracontent-v2/server/.env` then `pm2 reload auracontent-api --update-env`. Test with `curl /api/health` afterward.
 ```
 
 ```bash
 git add scripts/rotate-jwt.sh docs/runbooks/secrets-rotation.md
-git commit -m "feat(radix-v2): JWT_SECRET 64-char rotation script + secrets runbook (S1, S9)"
+git commit -m "feat(auracontent-v2): JWT_SECRET 64-char rotation script + secrets runbook (S1, S9)"
 ```
 
 ---
@@ -169,7 +169,7 @@ Expected: 18/18 pass.
 
 ```bash
 git add server/src/lib/parseOr400.ts server/src/routes/auth.ts
-git commit -m "refactor(radix-v2): extract parseOr400 helper from auth.ts (S2 prep)"
+git commit -m "refactor(auracontent-v2): extract parseOr400 helper from auth.ts (S2 prep)"
 ```
 
 ### Task 3: Zod sweep — `briefs.ts`
@@ -234,7 +234,7 @@ Expected: 0 type errors + 18/18 smoke pass.
 
 ```bash
 git add server/src/routes/briefs.ts
-git commit -m "feat(radix-v2): zod sweep briefs.ts (S2 1/6)"
+git commit -m "feat(auracontent-v2): zod sweep briefs.ts (S2 1/6)"
 ```
 
 ### Task 4: Zod sweep — `calendar.ts`
@@ -300,7 +300,7 @@ Expected: `0`.
 ```bash
 cd server && npx tsc --noEmit && SMOKE_BASE_URL=https://srv1494206.hstgr.cloud npx vitest run
 git add server/src/routes/calendar.ts
-git commit -m "feat(radix-v2): zod sweep calendar.ts (S2 2/6)"
+git commit -m "feat(auracontent-v2): zod sweep calendar.ts (S2 2/6)"
 ```
 
 ### Task 5: Zod sweep — `clients.ts`
@@ -343,7 +343,7 @@ Expected: `0`.
 ```bash
 cd server && npx tsc --noEmit && SMOKE_BASE_URL=https://srv1494206.hstgr.cloud npx vitest run
 git add server/src/routes/clients.ts
-git commit -m "feat(radix-v2): zod sweep clients.ts (S2 3/6)"
+git commit -m "feat(auracontent-v2): zod sweep clients.ts (S2 3/6)"
 ```
 
 ### Task 6: Zod sweep — `creative.ts`
@@ -400,7 +400,7 @@ Expected: `0`.
 ```bash
 cd server && npx tsc --noEmit && SMOKE_BASE_URL=https://srv1494206.hstgr.cloud npx vitest run
 git add server/src/routes/creative.ts
-git commit -m "feat(radix-v2): zod sweep creative.ts (S2 4/6)"
+git commit -m "feat(auracontent-v2): zod sweep creative.ts (S2 4/6)"
 ```
 
 ### Task 7: Zod sweep — `exports.ts`
@@ -433,7 +433,7 @@ Expected: `0`.
 ```bash
 cd server && npx tsc --noEmit && SMOKE_BASE_URL=https://srv1494206.hstgr.cloud npx vitest run
 git add server/src/routes/exports.ts
-git commit -m "feat(radix-v2): zod sweep exports.ts (S2 5/6)"
+git commit -m "feat(auracontent-v2): zod sweep exports.ts (S2 5/6)"
 ```
 
 ### Task 8: Zod sweep — `review.ts`
@@ -466,7 +466,7 @@ Expected: `0`.
 ```bash
 cd server && npx tsc --noEmit && SMOKE_BASE_URL=https://srv1494206.hstgr.cloud npx vitest run
 git add server/src/routes/review.ts
-git commit -m "feat(radix-v2): zod sweep review.ts (S2 6/6)"
+git commit -m "feat(auracontent-v2): zod sweep review.ts (S2 6/6)"
 ```
 
 ### Task 9: ESLint rule — ban `any` at route boundary
@@ -526,7 +526,7 @@ Expected: 0 errors. (If errors, missed an `as any` somewhere — fix and re-run.
 
 ```bash
 git add server/.eslintrc.cjs server/package.json server/package-lock.json
-git commit -m "chore(radix-v2): ESLint rule banning any/ts-ignore at src/routes (S2)"
+git commit -m "chore(auracontent-v2): ESLint rule banning any/ts-ignore at src/routes (S2)"
 ```
 
 ---
@@ -565,7 +565,7 @@ Expected: 18/18.
 
 ```bash
 git add server/package*.json apps/desktop/package*.json
-git commit -m "chore(radix-v2): npm audit pass — 0 high/critical findings (S10)"
+git commit -m "chore(auracontent-v2): npm audit pass — 0 high/critical findings (S10)"
 ```
 
 ---
@@ -587,11 +587,11 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: radix
+      POSTGRES_USER: auracontent
       POSTGRES_PASSWORD: ci_only_not_secret
-      POSTGRES_DB: radix_planner
+      POSTGRES_DB: auracontent_planner
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U radix -d radix_planner"]
+      test: ["CMD-SHELL", "pg_isready -U auracontent -d auracontent_planner"]
       interval: 2s
       timeout: 2s
       retries: 30
@@ -602,12 +602,12 @@ services:
       interval: 2s
       timeout: 2s
       retries: 30
-  radix-api:
+  auracontent-api:
     build:
       context: .
       dockerfile: Dockerfile.ci
     environment:
-      DATABASE_URL: "postgres://radix:ci_only_not_secret@postgres:5432/radix_planner"
+      DATABASE_URL: "postgres://auracontent:ci_only_not_secret@postgres:5432/auracontent_planner"
       REDIS_URL: "redis://redis:6379"
       JWT_SECRET: "ci_only_64char_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
       NODE_ENV: production
@@ -657,7 +657,7 @@ Cleanup: `docker compose -f docker-compose.ci.yml down -v`.
 
 ```bash
 git add docker-compose.ci.yml Dockerfile.ci
-git commit -m "feat(radix-v2): ephemeral docker-compose stack for CI smoke (R6)"
+git commit -m "feat(auracontent-v2): ephemeral docker-compose stack for CI smoke (R6)"
 ```
 
 ### Task 12: GitHub Actions PR-level CI
@@ -705,13 +705,13 @@ jobs:
         with: { node-version: '22', cache: 'npm', cache-dependency-path: 'server/package-lock.json' }
       - name: Spin up ephemeral stack
         run: docker compose -f docker-compose.ci.yml up --build -d
-      - name: Wait for radix-api ready
+      - name: Wait for auracontent-api ready
         run: |
           for i in $(seq 1 30); do
             if curl -fs http://localhost:8080/api/health; then exit 0; fi
             sleep 2
           done
-          echo "radix-api never became healthy"; exit 1
+          echo "auracontent-api never became healthy"; exit 1
       - name: Install + run smoke
         run: cd server && npm ci && SMOKE_BASE_URL=http://localhost:8080 npx vitest run
       - name: Tear down
@@ -724,7 +724,7 @@ jobs:
 Run:
 ```bash
 git add .github/workflows/ci.yml
-git commit -m "feat(radix-v2): GitHub Actions PR-level CI on ephemeral stack (R6)"
+git commit -m "feat(auracontent-v2): GitHub Actions PR-level CI on ephemeral stack (R6)"
 git push origin million-dollar-hardening
 gh pr create --draft --title "ci: ephemeral CI smoke" --body "Verify the workflow runs."
 ```
@@ -767,7 +767,7 @@ jobs:
 
 ```bash
 git add .github/workflows/smoke-prod.yml
-git commit -m "feat(radix-v2): scheduled prod-smoke workflow every 4h (R6)"
+git commit -m "feat(auracontent-v2): scheduled prod-smoke workflow every 4h (R6)"
 git push
 gh workflow run smoke-prod.yml
 ```
@@ -798,7 +798,7 @@ describe('contract: /v2 Bearer surface', () => {
   });
 
   it('GET /v2/client with junk Bearer → 401 + envelope shape', async () => {
-    const r = await fetch(`${BASE}/v2/client`, { headers: { Authorization: 'Bearer sk-radix-deadbeefdeadbeefdeadbeefdeadbeef' } });
+    const r = await fetch(`${BASE}/v2/client`, { headers: { Authorization: 'Bearer sk-auracontent-deadbeefdeadbeefdeadbeefdeadbeef' } });
     expect(r.status).toBe(401);
     const body = await r.json() as { ok: boolean; error: string };
     expect(body.ok).toBe(false);
@@ -806,7 +806,7 @@ describe('contract: /v2 Bearer surface', () => {
   });
 
   it('GET /v2/calendars with junk Bearer → 401', async () => {
-    const r = await fetch(`${BASE}/v2/calendars`, { headers: { Authorization: 'Bearer sk-radix-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' } });
+    const r = await fetch(`${BASE}/v2/calendars`, { headers: { Authorization: 'Bearer sk-auracontent-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' } });
     expect(r.status).toBe(401);
   });
 });
@@ -847,7 +847,7 @@ Expected: 24/24 pass (18 existing + 6 new).
 
 ```bash
 git add server/test/v2-and-api-keys.test.ts
-git commit -m "test(radix-v2): 6 contract tests for /v2 + /api/api-keys 401 paths (S3)"
+git commit -m "test(auracontent-v2): 6 contract tests for /v2 + /api/api-keys 401 paths (S3)"
 ```
 
 ### Task 15: Typography regression test (P6)
@@ -893,7 +893,7 @@ Expected: 2/2.
 
 ```bash
 git add server/test/typography-regression.test.ts
-git commit -m "test(radix-v2): regression gate for Libre Bodoni + Public Sans typography (P6)"
+git commit -m "test(auracontent-v2): regression gate for Libre Bodoni + Public Sans typography (P6)"
 ```
 
 ### Task 16: Lighthouse measurement on `/login` AND authed `/dashboard`
@@ -943,7 +943,7 @@ Note: lighthouse can't authenticate via JWT directly; for P7, run via Chrome Dev
 
 ```bash
 git add scripts/lighthouse.sh docs/perf/
-git commit -m "perf(radix-v2): Lighthouse measurement script + baseline capture (P1-P3, P7)"
+git commit -m "perf(auracontent-v2): Lighthouse measurement script + baseline capture (P1-P3, P7)"
 ```
 
 ---
@@ -969,7 +969,7 @@ Capture: per-OWASP-category findings (Injection, Broken Auth, Sensitive Data Exp
 
 - [ ] **Step 3: /webhack**
 
-Run skill: `/webhack https://srv1494206.hstgr.cloud full-attack-chain --auth demo-admin@radix.local:demoAdmin2026!`
+Run skill: `/webhack https://srv1494206.hstgr.cloud full-attack-chain --auth demo-admin@auracontent.local:demoAdmin2026!`
 Capture: auth bypass attempts, IDOR on /api/clients/:id, path-traversal on /api/assets/:id/download, JWT manipulation, /v2 envelope leakage.
 
 - [ ] **Step 4: /bypass**
@@ -985,7 +985,7 @@ Capture: any tooling output (nuclei, nikto-equivalent).
 - [ ] **Step 6: Write the report**
 
 ```markdown
-# Pentest Report — Radix V2 — 2026-04-27
+# Pentest Report — AuraContent V2 — 2026-04-27
 
 **Target:** https://srv1494206.hstgr.cloud (production single-tenant deployment)
 **HEAD at test:** afd6c7f (+ Phase 1-5 commits from this plan)
@@ -1027,7 +1027,7 @@ Loop until gate passes.
 
 ```bash
 git add docs/security/pentest-2026-04-27.md
-git commit -m "security(radix-v2): own-infra OWASP pentest report — 0 Critical / 0 High (S4)"
+git commit -m "security(auracontent-v2): own-infra OWASP pentest report — 0 Critical / 0 High (S4)"
 ```
 
 ---
@@ -1051,7 +1051,7 @@ set -euo pipefail
 DRY_RUN="${DRY_RUN:-}"
 SSH_KEY="${SSH_KEY:-$HOME/.ssh/radix_vps}"
 HOST="${HOST:-root@srv1494206.hstgr.cloud}"
-ROOT="${ROOT:-/opt/radix-v2}"
+ROOT="${ROOT:-/opt/auracontent-v2}"
 
 run() {
   echo "+ $*"
@@ -1084,13 +1084,13 @@ echo "▶ Prisma migrate deploy"
 ssh_run "cd $ROOT/server && npx prisma migrate deploy"
 
 echo "▶ pm2 reload"
-ssh_run "pm2 reload radix-api --update-env"
+ssh_run "pm2 reload auracontent-api --update-env"
 
 echo "▶ Smoke"
 sleep 3
 if [[ -z "$DRY_RUN" ]]; then
-  cd server && SMOKE_BASE_URL=https://srv1494206.hstgr.cloud npx vitest run | tee /tmp/radix-smoke-output.txt
-  grep -E "Tests\s+(\d+) passed" /tmp/radix-smoke-output.txt | grep -qv "0 passed" || { echo "✗ smoke failed"; exit 1; }
+  cd server && SMOKE_BASE_URL=https://srv1494206.hstgr.cloud npx vitest run | tee /tmp/auracontent-smoke-output.txt
+  grep -E "Tests\s+(\d+) passed" /tmp/auracontent-smoke-output.txt | grep -qv "0 passed" || { echo "✗ smoke failed"; exit 1; }
 fi
 
 echo "✓ Deploy complete"
@@ -1110,7 +1110,7 @@ Expected: all steps green, smoke 24+/24+ pass at the end.
 
 ```bash
 git add scripts/deploy.sh
-git commit -m "feat(radix-v2): scripts/deploy.sh end-to-end idempotent runbook (O1)"
+git commit -m "feat(auracontent-v2): scripts/deploy.sh end-to-end idempotent runbook (O1)"
 ```
 
 ### Task 19: `scripts/rollback.sh` revert-to-sha runbook
@@ -1155,28 +1155,28 @@ Note: don't actually rollback prod for this verification — just confirm the sc
 
 ```bash
 git add scripts/rollback.sh
-git commit -m "feat(radix-v2): scripts/rollback.sh git-sha-driven revert + redeploy (O2)"
+git commit -m "feat(auracontent-v2): scripts/rollback.sh git-sha-driven revert + redeploy (O2)"
 ```
 
 ### Task 20: Snapshot nginx config into git
 
 **Files:**
-- Create: `docs/nginx/radix.conf`
-- Create: `docs/nginx/zz-radix-perf-security.conf`
+- Create: `docs/nginx/auracontent.conf`
+- Create: `docs/nginx/zz-auracontent-perf-security.conf`
 
 - [ ] **Step 1: Pull current configs**
 
 Run:
 ```bash
-ssh -i ~/.ssh/radix_vps root@srv1494206.hstgr.cloud 'cat /etc/nginx/sites-enabled/radix' > docs/nginx/radix.conf
-ssh -i ~/.ssh/radix_vps root@srv1494206.hstgr.cloud 'cat /etc/nginx/conf.d/zz-radix-perf-security.conf' > docs/nginx/zz-radix-perf-security.conf
+ssh -i ~/.ssh/radix_vps root@srv1494206.hstgr.cloud 'cat /etc/nginx/sites-enabled/auracontent' > docs/nginx/auracontent.conf
+ssh -i ~/.ssh/radix_vps root@srv1494206.hstgr.cloud 'cat /etc/nginx/conf.d/zz-auracontent-perf-security.conf' > docs/nginx/zz-auracontent-perf-security.conf
 ```
 
 - [ ] **Step 2: Verify normalized diff is empty (proof for O6)**
 
 Run:
 ```bash
-diff -u <(grep -v '^\s*#\|^\s*$' docs/nginx/radix.conf) <(ssh -i ~/.ssh/radix_vps root@srv1494206.hstgr.cloud "grep -v '^\s*#\|^\s*\$' /etc/nginx/sites-enabled/radix")
+diff -u <(grep -v '^\s*#\|^\s*$' docs/nginx/auracontent.conf) <(ssh -i ~/.ssh/radix_vps root@srv1494206.hstgr.cloud "grep -v '^\s*#\|^\s*\$' /etc/nginx/sites-enabled/auracontent")
 ```
 Expected: empty (no diff).
 
@@ -1184,7 +1184,7 @@ Expected: empty (no diff).
 
 ```bash
 git add docs/nginx/
-git commit -m "ops(radix-v2): nginx config snapshots in git + normalized-diff proof (O6)"
+git commit -m "ops(auracontent-v2): nginx config snapshots in git + normalized-diff proof (O6)"
 ```
 
 ### Task 21: pm2-logrotate + 30-day retention
@@ -1218,7 +1218,7 @@ Append a section to `docs/runbooks/secrets-rotation.md` (or create `docs/runbook
 
 ```bash
 git add docs/runbooks/
-git commit -m "ops(radix-v2): document pm2-logrotate install + retention policy (O7)"
+git commit -m "ops(auracontent-v2): document pm2-logrotate install + retention policy (O7)"
 ```
 
 ---
@@ -1249,7 +1249,7 @@ Edit `docs/deployment-acceptance.md` and change each P0 row's "Current" cell to 
 
 ```bash
 git add docs/deployment-acceptance.md
-git commit -m "docs(radix-v2): mark all P0 acceptance criteria GREEN — fully deployable"
+git commit -m "docs(auracontent-v2): mark all P0 acceptance criteria GREEN — fully deployable"
 git tag v1.0.0-deployable -m "All P0 acceptance criteria GREEN per docs/deployment-acceptance.md"
 git push origin million-dollar-hardening --tags
 ```
@@ -1293,11 +1293,11 @@ git push origin million-dollar-hardening --tags
 
 - [ ] **Step 1: Set on VPS**
 
-Run: `ssh -i ~/.ssh/radix_vps root@srv1494206.hstgr.cloud 'pm2 restart radix-api --max-memory-restart 800M && pm2 save'`
+Run: `ssh -i ~/.ssh/radix_vps root@srv1494206.hstgr.cloud 'pm2 restart auracontent-api --max-memory-restart 800M && pm2 save'`
 
 - [ ] **Step 2: Verify**
 
-Run: `ssh -i ~/.ssh/radix_vps root@srv1494206.hstgr.cloud 'pm2 show radix-api | grep -i memory'`
+Run: `ssh -i ~/.ssh/radix_vps root@srv1494206.hstgr.cloud 'pm2 show auracontent-api | grep -i memory'`
 Expected: shows `800M`.
 
 ### Task 21c: Postgres daily pg_dump cron (R5)
@@ -1305,14 +1305,14 @@ Expected: shows `800M`.
 - [ ] **Step 1: Write backup script**
 
 ```bash
-# scripts/vps-backup-cron.sh (deployed to /opt/radix-v2/scripts/backup.sh on VPS)
+# scripts/vps-backup-cron.sh (deployed to /opt/auracontent-v2/scripts/backup.sh on VPS)
 #!/usr/bin/env bash
 set -euo pipefail
-DEST=/opt/radix-v2/backups
+DEST=/opt/auracontent-v2/backups
 mkdir -p "$DEST"
 DATE=$(date +%F)
-PGPASSWORD=$(awk -F= '/^DB_PASSWORD=/{print $2}' /opt/radix-v2/server/.env) \
-  pg_dump -h 127.0.0.1 -U radix radix_planner | gzip > "$DEST/${DATE}.sql.gz"
+PGPASSWORD=$(awk -F= '/^DB_PASSWORD=/{print $2}' /opt/auracontent-v2/server/.env) \
+  pg_dump -h 127.0.0.1 -U auracontent auracontent_planner | gzip > "$DEST/${DATE}.sql.gz"
 find "$DEST" -name '*.sql.gz' -mtime +14 -delete
 ```
 
@@ -1320,20 +1320,20 @@ find "$DEST" -name '*.sql.gz' -mtime +14 -delete
 
 Run:
 ```bash
-scp -i ~/.ssh/radix_vps scripts/vps-backup-cron.sh root@srv1494206.hstgr.cloud:/opt/radix-v2/scripts/backup.sh
-ssh -i ~/.ssh/radix_vps root@srv1494206.hstgr.cloud 'chmod +x /opt/radix-v2/scripts/backup.sh && (crontab -l 2>/dev/null; echo "0 3 * * * /opt/radix-v2/scripts/backup.sh") | sort -u | crontab -'
+scp -i ~/.ssh/radix_vps scripts/vps-backup-cron.sh root@srv1494206.hstgr.cloud:/opt/auracontent-v2/scripts/backup.sh
+ssh -i ~/.ssh/radix_vps root@srv1494206.hstgr.cloud 'chmod +x /opt/auracontent-v2/scripts/backup.sh && (crontab -l 2>/dev/null; echo "0 3 * * * /opt/auracontent-v2/scripts/backup.sh") | sort -u | crontab -'
 ```
 
 - [ ] **Step 3: Test it runs**
 
-Run: `ssh -i ~/.ssh/radix_vps root@srv1494206.hstgr.cloud '/opt/radix-v2/scripts/backup.sh && ls -la /opt/radix-v2/backups/'`
+Run: `ssh -i ~/.ssh/radix_vps root@srv1494206.hstgr.cloud '/opt/auracontent-v2/scripts/backup.sh && ls -la /opt/auracontent-v2/backups/'`
 Expected: today's `.sql.gz` file present, < 24h ago.
 
 - [ ] **Step 4: Commit**
 
 ```bash
 git add scripts/vps-backup-cron.sh
-git commit -m "ops(radix-v2): daily pg_dump cron + 14-day retention (R5)"
+git commit -m "ops(auracontent-v2): daily pg_dump cron + 14-day retention (R5)"
 ```
 
 ### Task 22b: Health endpoint surfaces queue/db/redis quantitative state (O3)
@@ -1403,7 +1403,7 @@ Expected: 0 errors.
 
 ```bash
 git add server/src/app.ts server/src/workers/queue.ts
-git commit -m "feat(radix-v2): /api/health/details surfaces quantitative queue/db/redis state (O3)"
+git commit -m "feat(auracontent-v2): /api/health/details surfaces quantitative queue/db/redis state (O3)"
 ```
 
 ### Task 22c: Slack-webhook 5xx alerting (O4)
@@ -1423,7 +1423,7 @@ app.setErrorHandler(async (err, request, reply) => {
     fetch(SLACK, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: `🔴 radix-api 5xx: ${err.message}\n${request.method} ${request.url}` }),
+      body: JSON.stringify({ text: `🔴 auracontent-api 5xx: ${err.message}\n${request.method} ${request.url}` }),
     }).catch(() => {});
   }
   reply.status(err.statusCode ?? 500).send({ error: err.message });
@@ -1443,7 +1443,7 @@ SLACK_ALERT_WEBHOOK_URL=
 ```bash
 cd server && npx tsc --noEmit
 git add server/src/app.ts server/.env.example
-git commit -m "feat(radix-v2): Slack webhook on 5xx errors (O4 — Sentry deferred)"
+git commit -m "feat(auracontent-v2): Slack webhook on 5xx errors (O4 — Sentry deferred)"
 ```
 
 ### Task 22d: GDPR data-subject deletion runbook + script (O8)
@@ -1464,7 +1464,7 @@ USER_ID="${1:?usage: delete-user.sh <userId>}"
 
 ssh -i "${SSH_KEY:-$HOME/.ssh/radix_vps}" root@srv1494206.hstgr.cloud "
   set -euo pipefail
-  PGPASSWORD=\$(awk -F= '/^DB_PASSWORD=/{print \$2}' /opt/radix-v2/server/.env) psql -h 127.0.0.1 -U radix -d radix_planner <<EOF
+  PGPASSWORD=\$(awk -F= '/^DB_PASSWORD=/{print \$2}' /opt/auracontent-v2/server/.env) psql -h 127.0.0.1 -U auracontent -d auracontent_planner <<EOF
 BEGIN;
 DELETE FROM \"RefreshToken\" WHERE \"userId\" = '$USER_ID';
 DELETE FROM \"AuditLog\" WHERE \"userId\" = '$USER_ID';
@@ -1505,11 +1505,11 @@ echo "✓ User $USER_ID purged"
 Run:
 ```bash
 chmod +x scripts/delete-user.sh
-ssh -i ~/.ssh/radix_vps root@srv1494206.hstgr.cloud "PGPASSWORD=\$(awk -F= '/^DB_PASSWORD=/{print \$2}' /opt/radix-v2/server/.env) psql -h 127.0.0.1 -U radix -d radix_planner -tAc \"SELECT id FROM \\\"User\\\" WHERE email='demo-member@radix.local'\""
+ssh -i ~/.ssh/radix_vps root@srv1494206.hstgr.cloud "PGPASSWORD=\$(awk -F= '/^DB_PASSWORD=/{print \$2}' /opt/auracontent-v2/server/.env) psql -h 127.0.0.1 -U auracontent -d auracontent_planner -tAc \"SELECT id FROM \\\"User\\\" WHERE email='demo-member@auracontent.local'\""
 # Capture the userId, then:
 ./scripts/delete-user.sh <captured-id>
 # Re-seed:
-ssh -i ~/.ssh/radix_vps root@srv1494206.hstgr.cloud 'cd /opt/radix-v2/server && node dist/prisma/seed.js'
+ssh -i ~/.ssh/radix_vps root@srv1494206.hstgr.cloud 'cd /opt/auracontent-v2/server && node dist/prisma/seed.js'
 ```
 Expected: deletion ran without orphan errors; reseed re-created demo-member.
 
@@ -1517,7 +1517,7 @@ Expected: deletion ran without orphan errors; reseed re-created demo-member.
 
 ```bash
 git add scripts/delete-user.sh docs/runbooks/data-subject-deletion.md
-git commit -m "ops(radix-v2): GDPR data-subject deletion runbook + script (O8)"
+git commit -m "ops(auracontent-v2): GDPR data-subject deletion runbook + script (O8)"
 ```
 
 ---

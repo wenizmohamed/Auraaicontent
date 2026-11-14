@@ -11,7 +11,7 @@ import 'driver.js/dist/driver.css';
 
 // .v2 bumped 2026-05-27 with the IA redesign (grouped sidebar +
 // Strategy/Create/Distribute split). Existing users re-see the tour once.
-const STORAGE_KEY = 'radix.onboarding.completed.v2';
+const STORAGE_KEY = 'auracontent.onboarding.completed.v2';
 
 interface RunOpts {
   orgId: string;
@@ -47,7 +47,7 @@ export function runOnboardingTour({ orgId, force = false }: RunOpts) {
   const d = driver({
     showProgress: true,
     overlayColor: 'rgba(0,0,0,0.65)',
-    popoverClass: 'radix-driver-popover',
+    popoverClass: 'auracontent-driver-popover',
     nextBtnText: 'Next →',
     prevBtnText: '← Back',
     doneBtnText: 'Done',

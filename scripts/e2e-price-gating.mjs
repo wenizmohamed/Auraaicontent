@@ -15,7 +15,7 @@
  *
  * Run on the server (it mints tokens with the local JWT secret):
  *   node scripts/e2e-price-gating.mjs
- *   PROD_DIR=/opt/radix-v2/server BASE=https://radixcontent.com node scripts/e2e-price-gating.mjs
+ *   PROD_DIR=/opt/auracontent-v2/server BASE=https://auracontnt.com node scripts/e2e-price-gating.mjs
  *
  * Exits 0 when every assertion passes, 1 on the first failure.
  */
@@ -32,9 +32,16 @@ try {
   process.exit(1);
 }
 
-const PROD_DIR = process.env.PROD_DIR || '/opt/radix-v2/server';
-const BASE = process.env.BASE || 'https://radixcontent.com';
-const ORG = process.env.E2E_ORG_ID || 'org_radix_media';
+const PROD_DIR = process.env.PROD_DIR || '/opt/auracontent-v2/server';
+const BASE = process.env.BASE || 'https://auracontnt.com';
+const ORG = process.env.E2E_ORG_ID || primaryOrgId();
+
+/** The workspace the server treats as primary when PRIMARY_ORG_IDS is unset:
+ *  the oldest organisation. Read from the prod DB so no org id is hardcoded. */
+function primaryOrgId() {
+  const url = execFileSync('bash', ['-c', `grep '^DATABASE_URL=' ${PROD_DIR}/.env | cut -d= -f2- | tr -d '"'`], { encoding: 'utf8' }).trim();
+  return execFileSync('psql', [url, '-X', '-t', '-A', '-c', 'SELECT id FROM "Organization" ORDER BY "createdAt" LIMIT 1'], { encoding: 'utf8' }).trim();
+}
 
 /** Mint a JWT with the server's own signer so the test uses real auth. */
 function mintToken({ userId, email, role, orgRole }) {
@@ -79,7 +86,7 @@ async function inspectAs(browser, label, token) {
   // and drop to the login screen, which would make every "sees no price"
   // assertion below pass for the wrong reason.
   await context.addInitScript((t) => {
-    try { localStorage.setItem('radix_auth_token', t); } catch { /* private mode */ }
+    try { localStorage.setItem('auracontent_auth_token', t); } catch { /* private mode */ }
   }, token);
   const page = await context.newPage();
 

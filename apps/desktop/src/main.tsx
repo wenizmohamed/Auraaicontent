@@ -22,13 +22,13 @@ if (import.meta.env.DEV) {
 window.onerror = (msg, source, line, col, err) => {
   const crash = { msg: String(msg), source, line, col, stack: err?.stack, time: new Date().toISOString() };
   console.error('[CRASH]', crash);
-  try { localStorage.setItem('radix_last_crash', JSON.stringify(crash)); } catch {}
+  try { localStorage.setItem('auracontent_last_crash', JSON.stringify(crash)); } catch {}
 };
 
 window.onunhandledrejection = (e) => {
   const crash = { msg: String(e.reason?.message || e.reason), stack: e.reason?.stack, time: new Date().toISOString() };
   console.error('[UNHANDLED REJECTION]', crash);
-  try { localStorage.setItem('radix_last_crash', JSON.stringify(crash)); } catch {}
+  try { localStorage.setItem('auracontent_last_crash', JSON.stringify(crash)); } catch {}
 };
 
 // Every page is a lazy chunk and deploys replace dist/ with `rsync --delete`,
@@ -37,7 +37,7 @@ window.onunhandledrejection = (e) => {
 // script failed") and lands on the crash screen. Reload once onto the new
 // build instead. The session flag stops a reload loop if an asset is really
 // missing; it clears after a healthy boot so a later deploy is covered too.
-const CHUNK_RELOAD_FLAG = 'radix_chunk_reload';
+const CHUNK_RELOAD_FLAG = 'auracontent_chunk_reload';
 window.addEventListener('vite:preloadError', (event) => {
   try {
     if (sessionStorage.getItem(CHUNK_RELOAD_FLAG)) return;
@@ -59,7 +59,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
   componentDidCatch(error: Error, info: any) {
     const crash = { msg: error.message, stack: error.stack, component: info?.componentStack, time: new Date().toISOString() };
     console.error('[REACT CRASH]', crash);
-    try { localStorage.setItem('radix_last_crash', JSON.stringify(crash)); } catch {}
+    try { localStorage.setItem('auracontent_last_crash', JSON.stringify(crash)); } catch {}
   }
 
   render() {

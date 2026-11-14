@@ -77,7 +77,7 @@ interface AgentAction {
 }
 
 // Fields executeAction reads from the model-emitted action params (see the
-// ACTIONS list in RADIX_PERSONA). Not validated at runtime.
+// ACTIONS list in AURACONTENT_PERSONA). Not validated at runtime.
 interface ActionParams {
   name?: string;
   industry?: string;
@@ -97,7 +97,7 @@ interface ActionParams {
 
 // ─── System Prompt ───────────────────────────────────────────────
 
-const RADIX_PERSONA = `You are **AURA**. The AI assistant inside AURA Content Planner, a premium content planning tool for agencies and brands.
+const AURACONTENT_PERSONA = `You are **AURA**. The AI assistant inside AURA Content Planner, a premium content planning tool for agencies and brands.
 
 PERSONALITY:
 - Sharp, direct, and efficient. Like a senior content strategist at a top Dubai agency
@@ -456,7 +456,7 @@ export async function assistantRoutes(app: FastifyInstance) {
       } catch { /* best-effort */ }
     }
 
-    let systemPrompt = RADIX_PERSONA + clientContext;
+    let systemPrompt = AURACONTENT_PERSONA + clientContext;
 
     // RAG grounding — the assistant runs on chat.ts (not aiRouter), so it must
     // run the SAME enrichers itself or it stays blind to the client's Knowledge

@@ -29,7 +29,7 @@ export async function reviewRoutes(app: FastifyInstance) {
     // Use the live app domain (srv1494206.hstgr.cloud) — NOT the decommissioned
     // synapseai-labs.com in the legacy PREVIEW_URL, which only resolves via a
     // fragile 301 and breaks every client review link if it ever lapses.
-    const reviewUrl = `${env.RADIX_APP_BASE_URL}/review/${link.token}`;
+    const reviewUrl = `${env.AURACONTENT_APP_BASE_URL}/review/${link.token}`;
     return reply.status(201).send({
       token: link.token,
       url: reviewUrl,

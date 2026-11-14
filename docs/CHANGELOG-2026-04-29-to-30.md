@@ -155,7 +155,7 @@ in a comment block at the top of the workflow step in `ci.yml`.
 | Frontend bundle build         | `static` job                   | Required                            |
 | Bundle-size budget            | `static` job                   | ≤250 KB gzipped (current 127.83 KB) |
 | Chromatic                     | `static` job                   | Skipped if token unset              |
-| Smoke (radix-api + postgres)  | `smoke` job                    | Required                            |
+| Smoke (auracontent-api + postgres)  | `smoke` job                    | Required                            |
 | Tenancy spec (19 tests)       | `server/tests/tenancy.spec.ts` | Required, passing                   |
 
 ### A11y lint warning budget
@@ -169,7 +169,7 @@ to pages — use semantic tokens.
 
 ### Multi-tenancy
 
-- `RADIX_TENANT_GUARD=throw` mode is on. Every backend route now
+- `AURACONTENT_TENANT_GUARD=throw` mode is on. Every backend route now
   scopes by `orgId`.
 - Invitations + email + role + remove flows live in the UI.
 - Tenancy spec (19 tests) is a CI gate — adding a route that doesn't

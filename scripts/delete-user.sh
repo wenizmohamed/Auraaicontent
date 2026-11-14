@@ -17,10 +17,10 @@ HOST="${HOST:-root@srv1494206.hstgr.cloud}"
 
 ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$HOST" "
   set -euo pipefail
-  ENV_FILE=/opt/radix-v2/server/.env
+  ENV_FILE=/opt/auracontent-v2/server/.env
   DB_URL=\$(awk -F= '/^DATABASE_URL=/{ sub(/^DATABASE_URL=/, \"\"); print }' \"\$ENV_FILE\" | tr -d '\"')
   DB_PASS=\$(printf '%s' \"\$DB_URL\" | sed -E 's|^postgres(ql)?://[^:]+:([^@]+)@.*$|\\2|')
-  PGPASSWORD=\"\$DB_PASS\" psql -h 127.0.0.1 -U radix -d radix_planner <<EOF
+  PGPASSWORD=\"\$DB_PASS\" psql -h 127.0.0.1 -U auracontent -d auracontent_planner <<EOF
 BEGIN;
 DELETE FROM \"RefreshToken\" WHERE \"userId\" = '$USER_ID';
 DELETE FROM \"AuditLog\" WHERE \"userId\" = '$USER_ID';

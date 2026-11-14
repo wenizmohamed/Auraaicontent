@@ -3,7 +3,7 @@
 //
 // Resolution order:
 //   1. explicit VITE_API_URL build env (highest priority)
-//   2. localStorage override (radix_api_url) — picked at runtime by the
+//   2. localStorage override (auracontent_api_url) — picked at runtime by the
 //      cascade below when a candidate comes back healthy
 //   3. desktop runtime → cascade [local, VPS] with 2s probe
 //   4. dev mode → http://127.0.0.1:8080 (vite dev server proxy target)
@@ -13,7 +13,7 @@ const PRODUCTION_VPS_URL = 'https://srv1494206.hstgr.cloud';
 function computeCandidates(): string[] {
   const explicit = import.meta.env.VITE_API_URL as string | undefined;
   if (explicit) return [explicit];
-  const stored = typeof window !== 'undefined' ? localStorage.getItem('radix_api_url') : null;
+  const stored = typeof window !== 'undefined' ? localStorage.getItem('auracontent_api_url') : null;
   const runtimeHint = typeof window !== 'undefined' && window.electron?.isDesktop
     ? window.electron.apiBaseUrl || null
     : null;
@@ -50,38 +50,38 @@ async function pickHealthyBackend(timeoutMs = 2000): Promise<string | null> {
   for (const candidate of computeCandidates()) {
     if (await probeHealthy(candidate, timeoutMs)) {
       API_URL = candidate;
-      try { localStorage.setItem('radix_api_url', candidate); } catch {}
+      try { localStorage.setItem('auracontent_api_url', candidate); } catch {}
       return candidate;
     }
   }
   return null;
 }
 
-let authToken: string | null = localStorage.getItem('radix_auth_token');
-let refreshToken: string | null = localStorage.getItem('radix_refresh_token');
+let authToken: string | null = localStorage.getItem('auracontent_auth_token');
+let refreshToken: string | null = localStorage.getItem('auracontent_refresh_token');
 
 export function setAuthToken(token: string) {
   authToken = token;
-  localStorage.setItem('radix_auth_token', token);
+  localStorage.setItem('auracontent_auth_token', token);
   // New session → drop the previous user's verified-email cache until the
   // next /auth/me confirms who this token belongs to.
-  localStorage.removeItem('radix_verified_email');
+  localStorage.removeItem('auracontent_verified_email');
 }
 
 export function setRefreshToken(token: string | null) {
   refreshToken = token;
-  if (token) localStorage.setItem('radix_refresh_token', token);
-  else localStorage.removeItem('radix_refresh_token');
+  if (token) localStorage.setItem('auracontent_refresh_token', token);
+  else localStorage.removeItem('auracontent_refresh_token');
 }
 
 export function clearAuthToken() {
   authToken = null;
   refreshToken = null;
-  localStorage.removeItem('radix_auth_token');
-  localStorage.removeItem('radix_refresh_token');
+  localStorage.removeItem('auracontent_auth_token');
+  localStorage.removeItem('auracontent_refresh_token');
   // Verified-email cache (admin/team gates) must not outlive the session —
   // a stale value would grant the NEXT login's UI gates the OLD user's email.
-  localStorage.removeItem('radix_verified_email');
+  localStorage.removeItem('auracontent_verified_email');
 }
 
 // Signal back to the app that the session is done (refresh expired / reuse
@@ -1047,6 +1047,8 @@ export interface AdminMetrics {
 }
 export interface AdminOrg {
   id: string; name: string; slug: string; plan: string; status: string;
+  /** The primary workspace: the server refuses to delete it. */
+  primary?: boolean;
   stripeCustomerId: string | null; createdAt: string;
   seats: number; clients: number; calendars: number; mrr: number;
 }
@@ -1418,5 +1420,5 @@ export function getApiUrl(): string {
  * dropdown).  Clears any cached probe winner so next probe re-runs. */
 export function setApiUrl(url: string) {
   API_URL = url;
-  try { localStorage.setItem('radix_api_url', url); } catch {}
+  try { localStorage.setItem('auracontent_api_url', url); } catch {}
 }

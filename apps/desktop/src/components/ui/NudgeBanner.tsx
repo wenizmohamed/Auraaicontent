@@ -27,7 +27,7 @@ interface Props {
   dismissLabel?: string;
 }
 
-const STORAGE_KEY = 'radix.nudges.dismissed';
+const STORAGE_KEY = 'auracontent.nudges.dismissed';
 
 function isDismissed(id: string): boolean {
   try {

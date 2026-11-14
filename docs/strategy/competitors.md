@@ -2,7 +2,7 @@
 
 Scoring: ✓ = strong support, ~ = partial / unofficial, ✗ = absent.
 
-| Capability | RadixContent | Jasper | Buffer | Later | ContentStudio | Hootsuite |
+| Capability | AuraContent | Jasper | Buffer | Later | ContentStudio | Hootsuite |
 |---|---|---|---|---|---|---|
 | AI calendar generation from brief | ✓ | ✓ | ✗ | ~ | ✓ | ~ |
 | Native Arabic prompts (not just translation) | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ |

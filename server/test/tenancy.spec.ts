@@ -215,15 +215,15 @@ describe('Cross-tenant isolation', () => {
   });
 
   it('Prisma tenant guard throws on unscoped query when set to throw mode', async () => {
-    const prev = process.env.RADIX_TENANT_GUARD;
-    process.env.RADIX_TENANT_GUARD = 'throw';
+    const prev = process.env.AURACONTENT_TENANT_GUARD;
+    process.env.AURACONTENT_TENANT_GUARD = 'throw';
     try {
       await expect(
         // @ts-expect-error — intentionally calling without `where: { orgId }`
         db.client.findMany({})
       ).rejects.toThrow(/tenant-guard/);
     } finally {
-      process.env.RADIX_TENANT_GUARD = prev;
+      process.env.AURACONTENT_TENANT_GUARD = prev;
     }
   });
 

@@ -106,7 +106,7 @@ export function CommandPalette({ open, onOpenChange }: Props) {
           import('../lib/onboarding-tour').then(({ resetOnboardingTour, runOnboardingTour }) => {
             resetOnboardingTour();
             try {
-              const token = localStorage.getItem('radix.access_token');
+              const token = localStorage.getItem('auracontent.access_token');
               const payload = token ? JSON.parse(atob(token.split('.')[1])) : null;
               const orgId = payload?.orgId ?? 'anon';
               runOnboardingTour({ orgId, force: true });

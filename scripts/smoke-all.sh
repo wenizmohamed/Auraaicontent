@@ -5,9 +5,9 @@ set -euo pipefail
 
 MODE=${1:-both}
 LOCAL="http://localhost:8080"
-VPS="https://radix.synapseai-labs.com"
+VPS="https://auracontnt.com"
 EMAIL="${SMOKE_EMAIL:-mohamed.sidahmed@radixmediamena.com}"
-PASS="${SMOKE_PASS:-Radix2026}"
+PASS="${SMOKE_PASS:-AuraContent2026}"
 PASS_COUNT=0
 FAIL_COUNT=0
 
@@ -92,7 +92,7 @@ print(f'{r.get(\"provider\",\"?\")}/{r.get(\"model\",\"?\")} {r.get(\"latencyMs\
 }
 
 echo "======================================="
-echo "RADIX SMOKE TEST — $(date)"
+echo "AURACONTENT SMOKE TEST — $(date)"
 echo "======================================="
 
 if [ "$MODE" = "local" ] || [ "$MODE" = "both" ]; then

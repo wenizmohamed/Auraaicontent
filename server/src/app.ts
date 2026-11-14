@@ -156,7 +156,7 @@ export async function buildApp() {
     const frontend = process.env.FRONTEND_URL ?? 'http://localhost:3200';
     if (process.env.NODE_ENV === 'production') {
       return reply.send({
-        service: 'radix-server',
+        service: 'auracontent-server',
         version: '1.0.0',
         docs: '/api/health',
         agent: 'POST /api/agent/runs  ·  socket.io /agent',
@@ -168,7 +168,7 @@ export async function buildApp() {
   // Health check (public)
   app.get('/api/health', async () => ({
     status: 'ok',
-    service: 'radix-server',
+    service: 'auracontent-server',
     version: '1.0.0',
     timestamp: new Date().toISOString(),
   }));

@@ -10,9 +10,9 @@ services:
     # Stock postgres:16-alpine fails the migration with "type vector does not exist".
     image: pgvector/pgvector:pg16
     environment:
-      POSTGRES_USER: radix
+      POSTGRES_USER: auracontent
       POSTGRES_PASSWORD: ci_only_not_secret
-      POSTGRES_DB: radix_planner
+      POSTGRES_DB: auracontent_planner
     volumes:
       # Auto-runs `CREATE EXTENSION vector;` on first boot, before prisma
       # migrate deploy connects.
@@ -21,7 +21,7 @@ services:
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U radix -d radix_planner"]
+      test: ["CMD-SHELL", "pg_isready -U auracontent -d auracontent_planner"]
       interval: 2s
       timeout: 2s
       retries: 30
@@ -32,12 +32,12 @@ services:
       interval: 2s
       timeout: 2s
       retries: 30
-  radix-api:
+  auracontent-api:
     build:
       context: .
       dockerfile: Dockerfile.ci
     environment:
-      DATABASE_URL: "postgres://radix:ci_only_not_secret@postgres:5432/radix_planner"
+      DATABASE_URL: "postgres://auracontent:ci_only_not_secret@postgres:5432/auracontent_planner"
       REDIS_URL: "redis://redis:6379"
       JWT_SECRET: "ci_only_64char_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
       NODE_ENV: production

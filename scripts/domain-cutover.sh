@@ -8,7 +8,7 @@
 set -euo pipefail
 NEW="${1:?usage: domain-cutover.sh NEWDOMAIN [--dry-run]}"; DRY=false; [ "${2:-}" = "--dry-run" ] && DRY=true
 OLD="radixcontent.com"; VPS_IP="$(curl -s -m 10 https://api.ipify.org)"; TS="$(date +%s)"
-ENV=/opt/radix-v2/server/.env; NG=/etc/nginx/sites-enabled/radix; SENT=/opt/radix-watchdog/sentinel.sh; REPO=/opt/radixcontent
+ENV=/opt/auracontent-v2/server/.env; NG=/etc/nginx/sites-enabled/auracontent; SENT=/opt/auracontent-watchdog/sentinel.sh; REPO=/opt/auracontent
 run(){ echo "+ $*"; $DRY || "$@"; }
 say(){ echo; echo "== $* =="; }
 
@@ -31,7 +31,7 @@ run certbot certonly --nginx -d "$NEW" -d "www.$NEW" --non-interactive --agree-t
 
 say "nginx step 2: NEW canonical, www->apex, $OLD -> 301 NEW (old cert kept so old links keep working)"
 NGCONF="$(cat <<EOF
-# AURAAI vhosts. App body shared via /etc/nginx/snippets/radix-app.conf.
+# AURAAI vhosts. App body shared via /etc/nginx/snippets/auracontent-app.conf.
 # $(date -I): canonical domain moved $OLD -> $NEW. $OLD stays as a 301 so
 # every old link, bookmark and review-link keeps working. Do not remove it.
 server {
@@ -48,7 +48,7 @@ server {
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-    include /etc/nginx/snippets/radix-app.conf;
+    include /etc/nginx/snippets/auracontent-app.conf;
 }
 server {
     listen 443 ssl http2;
@@ -80,7 +80,7 @@ server {
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-    include /etc/nginx/snippets/radix-app.conf;
+    include /etc/nginx/snippets/auracontent-app.conf;
 }
 # ============ Legacy branded host ============
 server {
@@ -108,7 +108,7 @@ if $DRY; then echo "+ would write $NG ($(echo "$NGCONF" | wc -l) lines, canonica
 run nginx -t; run systemctl reload nginx
 
 say "prod .env: base URLs -> $NEW, CORS lists gain $NEW (old origins kept during transition)"
-for k in PREVIEW_URL RADIX_APP_BASE_URL PUBLIC_APP_URL; do run sed -i "s|^$k=.*|$k=https://$NEW|" "$ENV"; done
+for k in PREVIEW_URL AURACONTENT_APP_BASE_URL PUBLIC_APP_URL; do run sed -i "s|^$k=.*|$k=https://$NEW|" "$ENV"; done
 for k in CORS_ORIGIN HTTP_CORS_ORIGINS SOCKET_IO_CORS_ORIGINS; do run sed -i "s|^$k=|$k=https://$NEW,|" "$ENV"; done
 
 say "watchdog: sentinel probes $NEW instead of $OLD"
@@ -120,9 +120,9 @@ for f in server/src/config/env.ts server/src/routes/orgs.ts server/src/routes/au
 run sed -i "s|(radixcontent.com)|($NEW)|" "$REPO/server/src/routes/review.ts"
 
 say "backend rebuild + restart"
-run rsync -a "$REPO/server/src/" /opt/radix-v2/server/src/
-run bash -c "cd /opt/radix-v2/server && npm run build >/dev/null"
-run pm2 restart radix-api --update-env
+run rsync -a "$REPO/server/src/" /opt/auracontent-v2/server/src/
+run bash -c "cd /opt/auracontent-v2/server && npm run build >/dev/null"
+run pm2 restart auracontent-api --update-env
 run sleep 6
 
 say "verify"

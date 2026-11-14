@@ -24,7 +24,7 @@ export default function OrgSwitcher({ collapsed }: Props) {
       setMemberships(rows);
       // Read active org from JWT payload (decoded client-side, no verification needed for display).
       try {
-        const token = localStorage.getItem('radix_auth_token');
+        const token = localStorage.getItem('auracontent_auth_token');
         if (token) {
           const payload = JSON.parse(atob(token.split('.')[1]));
           if (payload?.orgId) setActiveOrgId(payload.orgId);

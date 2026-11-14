@@ -60,7 +60,7 @@ export default function MobileMenu({ navGroups, onSearch }: MobileMenuProps) {
   // Per-group expand state, persisted (matches the desktop sidebar key).
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
     try {
-      const raw = localStorage.getItem('radix.nav.groups.v1');
+      const raw = localStorage.getItem('auracontent.nav.groups.v1');
       if (raw) return JSON.parse(raw);
     } catch { /* ignore */ }
     return { today: true, strategy: true, create: true, distribute: true, settings: true };
@@ -68,7 +68,7 @@ export default function MobileMenu({ navGroups, onSearch }: MobileMenuProps) {
   const toggleGroup = (id: string) => {
     setOpenGroups(prev => {
       const next = { ...prev, [id]: !prev[id] };
-      try { localStorage.setItem('radix.nav.groups.v1', JSON.stringify(next)); } catch { /* ignore */ }
+      try { localStorage.setItem('auracontent.nav.groups.v1', JSON.stringify(next)); } catch { /* ignore */ }
       return next;
     });
   };
@@ -116,7 +116,7 @@ export default function MobileMenu({ navGroups, onSearch }: MobileMenuProps) {
         </button>
 
         <Link to="/" className="flex items-center gap-2 min-w-0 flex-1">
-          <img src="/radix-logo.jpg?v=2" alt="" aria-hidden="true" className="w-8 h-8 rounded-lg object-cover ring-1 ring-white/10" />
+          <img src="/auracontent-logo.jpg?v=2" alt="" aria-hidden="true" className="w-8 h-8 rounded-lg object-cover ring-1 ring-white/10" />
           <span className="font-display text-sm font-black tracking-[0.22em] uppercase truncate" style={{ color: 'var(--color-fg)' }}>
             AURA
           </span>
@@ -182,7 +182,7 @@ export default function MobileMenu({ navGroups, onSearch }: MobileMenuProps) {
                 style={{ borderColor: 'var(--color-border-subtle)' }}
               >
                 <div className="flex items-center gap-3">
-                  <img src="/radix-logo.jpg?v=2" alt="" aria-hidden="true" className="w-9 h-9 rounded-xl object-cover ring-1 ring-white/10" />
+                  <img src="/auracontent-logo.jpg?v=2" alt="" aria-hidden="true" className="w-9 h-9 rounded-xl object-cover ring-1 ring-white/10" />
                   <div>
                     <span className="font-display text-base font-black tracking-[0.3em] uppercase" style={{ color: 'var(--color-fg)' }}>AURA</span>
                     <div className="text-[9px] font-semibold uppercase tracking-[0.2em]" style={{ color: 'var(--color-accent)' }}>

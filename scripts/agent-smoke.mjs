@@ -31,16 +31,23 @@
  *
  * Run on the server (it mints tokens with the local JWT secret):
  *   node scripts/agent-smoke.mjs
- *   BASE=http://127.0.0.1:8080 PROD_DIR=/opt/radix-v2/server node scripts/agent-smoke.mjs
+ *   BASE=http://127.0.0.1:8080 PROD_DIR=/opt/auracontent-v2/server node scripts/agent-smoke.mjs
  *
  * Exits 0 when every assertion passes, 1 on any failure.
  */
 
 import { execFileSync } from 'node:child_process';
 
-const PROD_DIR = process.env.PROD_DIR || '/opt/radix-v2/server';
+const PROD_DIR = process.env.PROD_DIR || '/opt/auracontent-v2/server';
 const BASE = process.env.BASE || 'http://127.0.0.1:8080';
-const ORG = process.env.E2E_ORG_ID || 'org_radix_media';
+const ORG = process.env.E2E_ORG_ID || primaryOrgId();
+
+/** The workspace the server treats as primary when PRIMARY_ORG_IDS is unset:
+ *  the oldest organisation. Read from the prod DB so no org id is hardcoded. */
+function primaryOrgId() {
+  const url = execFileSync('bash', ['-c', `grep '^DATABASE_URL=' ${PROD_DIR}/.env | cut -d= -f2- | tr -d '"'`], { encoding: 'utf8' }).trim();
+  return execFileSync('psql', [url, '-X', '-t', '-A', '-c', 'SELECT id FROM "Organization" ORDER BY "createdAt" LIMIT 1'], { encoding: 'utf8' }).trim();
+}
 const RUN_TIMEOUT_MS = parseInt(process.env.RUN_TIMEOUT_MS || '180000', 10);
 const POLL_MS = 2500;
 

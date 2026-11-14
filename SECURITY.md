@@ -1,10 +1,10 @@
 # Security policy
 
-We take security seriously. RadixContent handles agency client data — campaign briefs, brand guidelines, generated content, and (post-Phase-2) Stripe billing.
+We take security seriously. AuraContent handles agency client data — campaign briefs, brand guidelines, generated content, and (post-Phase-2) Stripe billing.
 
 ## Reporting a vulnerability
 
-Email: **security@radixmedia.com** (or hadi.chehayeb345@gmail.com if the security alias hasn't been provisioned yet).
+Email: **security@auracontentmedia.com** (or hadi.chehayeb345@gmail.com if the security alias hasn't been provisioned yet).
 
 Please include:
 - A description of the issue and its potential impact
@@ -23,9 +23,9 @@ Do **not** open a public GitHub issue for a security report. Do **not** post to 
 ## Scope
 
 In scope:
-- The Fastify API (`/opt/radix-v2/server/`)
-- The desktop / web frontend (`/opt/radixcontent/apps/desktop/`)
-- The hosted instance at `radix.synapseai-labs.com`
+- The Fastify API (`/opt/auracontent-v2/server/`)
+- The desktop / web frontend (`/opt/auracontent/apps/desktop/`)
+- The hosted instance at `auracontnt.com`
 - Multi-tenancy isolation (cross-org data leaks are top priority)
 - Authentication and authorization flows
 - Stripe webhook handler (signature validation, replay protection)

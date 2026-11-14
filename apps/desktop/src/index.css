@@ -599,7 +599,7 @@ html.light [role="tab"]:focus-visible {
   letter-spacing: 0; /* naskh reads better without the Latin display tracking */
 }
 
-.driver-popover.radix-driver-popover {
+.driver-popover.auracontent-driver-popover {
   background: var(--color-bg-elevated);
   color: var(--color-fg);
   border: 1px solid var(--color-border);
@@ -607,18 +607,18 @@ html.light [role="tab"]:focus-visible {
   box-shadow: var(--shadow-4);
   font-family: var(--font-sans);
 }
-.radix-driver-popover .driver-popover-title {
+.auracontent-driver-popover .driver-popover-title {
   font-family: var(--font-display);
   color: var(--color-fg);
   font-weight: 700;
   letter-spacing: -0.02em;
 }
-.radix-driver-popover .driver-popover-description {
+.auracontent-driver-popover .driver-popover-description {
   color: var(--color-fg-muted);
   font-size: 13px;
   line-height: 1.55;
 }
-.radix-driver-popover .driver-popover-footer button {
+.auracontent-driver-popover .driver-popover-footer button {
   background: var(--color-surface-hover);
   color: var(--color-fg);
   border: 1px solid var(--color-border);
@@ -628,19 +628,19 @@ html.light [role="tab"]:focus-visible {
   padding: 6px 12px;
   text-shadow: none;
 }
-.radix-driver-popover .driver-popover-footer button.driver-popover-next-btn {
+.auracontent-driver-popover .driver-popover-footer button.driver-popover-next-btn {
   background: var(--color-accent);
   color: var(--color-fg-on-accent);
   border-color: var(--color-accent);
 }
-.radix-driver-popover .driver-popover-progress-text {
+.auracontent-driver-popover .driver-popover-progress-text {
   color: var(--color-fg-subtle);
   font-size: 11px;
 }
-.radix-driver-popover .driver-popover-arrow-side-top { border-top-color: var(--color-bg-elevated); }
-.radix-driver-popover .driver-popover-arrow-side-bottom { border-bottom-color: var(--color-bg-elevated); }
-.radix-driver-popover .driver-popover-arrow-side-left { border-left-color: var(--color-bg-elevated); }
-.radix-driver-popover .driver-popover-arrow-side-right { border-right-color: var(--color-bg-elevated); }
+.auracontent-driver-popover .driver-popover-arrow-side-top { border-top-color: var(--color-bg-elevated); }
+.auracontent-driver-popover .driver-popover-arrow-side-bottom { border-bottom-color: var(--color-bg-elevated); }
+.auracontent-driver-popover .driver-popover-arrow-side-left { border-left-color: var(--color-bg-elevated); }
+.auracontent-driver-popover .driver-popover-arrow-side-right { border-right-color: var(--color-bg-elevated); }
 
 /* AI streaming text — subtle shimmer on the trailing characters of an
    in-flight stream so the user perceives "tokens are arriving now". Wrap
@@ -748,17 +748,17 @@ html:not(.light):not(.theme-studio) .bg-white\/\[0\.06\] {
 /* ── Updates ticker (stock-market-style scrolling ribbon, 2026-07-14) ──
    Two identical track copies translate -50% for a seamless loop. Pauses on
    hover; disabled entirely under reduced-motion (content stays readable). */
-@keyframes radix-ticker {
+@keyframes auracontent-ticker {
   from { transform: translate3d(0, 0, 0); }
   to   { transform: translate3d(-50%, 0, 0); }
 }
-.radix-ticker-track {
+.auracontent-ticker-track {
   display: inline-flex;
   flex-wrap: nowrap;
-  animation: radix-ticker 60s linear infinite;
+  animation: auracontent-ticker 60s linear infinite;
   will-change: transform;
 }
-.radix-ticker-viewport:hover .radix-ticker-track { animation-play-state: paused; }
+.auracontent-ticker-viewport:hover .auracontent-ticker-track { animation-play-state: paused; }
 @media (prefers-reduced-motion: reduce) {
-  .radix-ticker-track { animation: none; }
+  .auracontent-ticker-track { animation: none; }
 }

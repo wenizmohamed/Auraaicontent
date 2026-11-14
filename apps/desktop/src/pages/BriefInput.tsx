@@ -95,7 +95,7 @@ interface OccasionEntry {
 // The calendar generation runs as a server-side job; if the user refreshes
 // mid-run we'd lose the jobId and the "generating" UI even though the job is
 // still going. Stashing it lets the page reconnect on reload.
-const ACTIVE_JOB_KEY = 'radix.activeJob.calendar';
+const ACTIVE_JOB_KEY = 'auracontent.activeJob.calendar';
 interface ActiveJob { jobId: string; clientId: string; month: string; count?: number; startedAt?: number }
 function saveActiveJob(j: ActiveJob) { try { localStorage.setItem(ACTIVE_JOB_KEY, JSON.stringify(j)); } catch { /* noop */ } }
 function clearActiveJob() { try { localStorage.removeItem(ACTIVE_JOB_KEY); } catch { /* noop */ } }
@@ -258,7 +258,7 @@ export default function BriefInput() {
   useEffect(() => {
     if (!selectedClientId || !selectedMonth) return;
     let cancelled = false;
-    const draftKey = `radix.draft.bi.${selectedClientId}.${selectedMonth}`;
+    const draftKey = `auracontent.draft.bi.${selectedClientId}.${selectedMonth}`;
     try {
       const raw = localStorage.getItem(draftKey);
       if (raw) {
@@ -309,7 +309,7 @@ export default function BriefInput() {
   // into another (A2 fix, now month-scoped).
   useEffect(() => {
     if (!selectedClientId || !selectedMonth) return;
-    const draftKey = `radix.draft.bi.${selectedClientId}.${selectedMonth}`;
+    const draftKey = `auracontent.draft.bi.${selectedClientId}.${selectedMonth}`;
     const t = setTimeout(() => {
       try {
         const hasContent = campaigns.some(c => c.name.trim()) || toneNotes.trim().length > 0 || lookFeel.trim().length > 0;
@@ -529,7 +529,7 @@ export default function BriefInput() {
       }, selectedMonth); // brief-per-month: save under THIS month
       // Brief is now persisted server-side under this month — drop the local
       // (client, month) draft so future loads hydrate from the saved brief.
-      try { localStorage.removeItem(`radix.draft.bi.${selectedClientId}.${selectedMonth}`); } catch { /* noop */ }
+      try { localStorage.removeItem(`auracontent.draft.bi.${selectedClientId}.${selectedMonth}`); } catch { /* noop */ }
 
       // 2. Generate + poll (shared helper)
       step = 'generate';

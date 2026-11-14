@@ -23,7 +23,7 @@ const ClientContext = createContext<ClientContextType | undefined>(undefined);
 
 export function ClientProvider({ children }: { children: ReactNode }) {
   const [clients, setClients] = useState<BackendClient[]>([]);
-  const [selectedClientId, setSelectedClientId] = useState<string | null>(localStorage.getItem('radix_selected_client'));
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(localStorage.getItem('auracontent_selected_client'));
   const [loading, setLoading] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -38,7 +38,7 @@ export function ClientProvider({ children }: { children: ReactNode }) {
       // Reconcile persisted selection:
       //   - If selectedClientId is missing OR refers to a deleted client, fall back to first available.
       //   - Fixes "Save brief failed: Internal Server Error" from a stale id pointing to a deleted client.
-      const persisted = localStorage.getItem('radix_selected_client');
+      const persisted = localStorage.getItem('auracontent_selected_client');
       const stillExists = persisted && data.some(c => c.id === persisted);
       if (!stillExists) {
         if (persisted) {
@@ -47,10 +47,10 @@ export function ClientProvider({ children }: { children: ReactNode }) {
         if (data.length > 0) {
           const first = data[0].id;
           setSelectedClientId(first);
-          localStorage.setItem('radix_selected_client', first);
+          localStorage.setItem('auracontent_selected_client', first);
         } else {
           setSelectedClientId(null);
-          localStorage.removeItem('radix_selected_client');
+          localStorage.removeItem('auracontent_selected_client');
         }
       } else {
         setSelectedClientId(persisted);
@@ -74,7 +74,7 @@ export function ClientProvider({ children }: { children: ReactNode }) {
     }
 
     // Try existing token — if valid, user is signed in; if not, show login screen.
-    const existingToken = localStorage.getItem('radix_auth_token');
+    const existingToken = localStorage.getItem('auracontent_auth_token');
     if (existingToken) {
       setAuthToken(existingToken);
       try {
@@ -103,7 +103,7 @@ export function ClientProvider({ children }: { children: ReactNode }) {
     // Remember-me preference is surfaced to the UI for display. The access
     // token is short-lived (1h / 7d with rememberMe); backend-api silently
     // rotates via /api/auth/refresh using the 30-day refresh token.
-    try { localStorage.setItem('radix_remember_me', rememberMe ? '1' : '0'); } catch {}
+    try { localStorage.setItem('auracontent_remember_me', rememberMe ? '1' : '0'); } catch {}
     setAuthenticated(true);
     setAuthError(null);
     await fetchAndReconcile();
@@ -113,7 +113,7 @@ export function ClientProvider({ children }: { children: ReactNode }) {
     const { token, refreshToken } = await authApi.register(email, password, name, rememberMe);
     setAuthToken(token);
     setRefreshToken(refreshToken ?? null);
-    try { localStorage.setItem('radix_remember_me', rememberMe ? '1' : '0'); } catch {}
+    try { localStorage.setItem('auracontent_remember_me', rememberMe ? '1' : '0'); } catch {}
     setAuthenticated(true);
     setAuthError(null);
     await fetchAndReconcile();
@@ -126,7 +126,7 @@ export function ClientProvider({ children }: { children: ReactNode }) {
     setAuthenticated(false);
     setClients([]);
     setSelectedClientId(null);
-    localStorage.removeItem('radix_selected_client');
+    localStorage.removeItem('auracontent_selected_client');
   }, []);
 
   // When backend-api detects refresh expiry or reuse-revocation, it fires
@@ -137,7 +137,7 @@ export function ClientProvider({ children }: { children: ReactNode }) {
       setAuthenticated(false);
       setClients([]);
       setSelectedClientId(null);
-      localStorage.removeItem('radix_selected_client');
+      localStorage.removeItem('auracontent_selected_client');
       if (reason === 'refresh-reuse') {
         setAuthError('Session revoked for security. Please log in again.');
       } else if (reason === 'refresh-expired') {
@@ -158,7 +158,7 @@ export function ClientProvider({ children }: { children: ReactNode }) {
 
   const handleSelectClient = useCallback((id: string) => {
     setSelectedClientId(id);
-    localStorage.setItem('radix_selected_client', id);
+    localStorage.setItem('auracontent_selected_client', id);
   }, []);
 
   const createClient = useCallback(async (data: { name: string; industry?: string; website?: string }) => {
@@ -183,8 +183,8 @@ export function ClientProvider({ children }: { children: ReactNode }) {
       if (selectedClientId === id) {
         const newSelected = next[0]?.id || '';
         setSelectedClientId(newSelected);
-        if (newSelected) localStorage.setItem('radix_selected_client', newSelected);
-        else localStorage.removeItem('radix_selected_client');
+        if (newSelected) localStorage.setItem('auracontent_selected_client', newSelected);
+        else localStorage.removeItem('auracontent_selected_client');
       }
       return next;
     });

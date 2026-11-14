@@ -1,4 +1,4 @@
-# RADIX AI Content Planner — Debug Log
+# AURACONTENT AI Content Planner — Debug Log
 **Date:** April 6, 2026
 **Version:** v2 (commit e483a39)
 
@@ -46,7 +46,7 @@
 ### MEDIUM: Icon JPG instead of PNG
 - **Files:** `electron/main.cjs`, `package.json`
 - **Problem:** Electron/NSIS need PNG, not JPG
-- **Fix:** All icon refs → `radix-icon.png`
+- **Fix:** All icon refs → `auracontent-icon.png`
 
 ### LOW: Calendar had duplicate content generation
 - **File:** `src/pages/ContentCalendar.tsx`
@@ -81,4 +81,4 @@
 ## Build Verification
 - Vite build: PASS (8.2s)
 - Electron builder: PASS (portable exe 104MB)
-- GitHub push: PASS (wenizmohamed/radix-ai-content-planner)
+- GitHub push: PASS (wenizmohamed/auracontent-ai-content-planner)
