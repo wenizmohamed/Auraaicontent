@@ -2,7 +2,8 @@ import { defineTool } from '../tool-types.js';
 import { scopedClientId } from './client-scope.js';
 import { aiRouter } from '../../services/providers/ai-router.js';
 import { historyService } from '../../services/history.service.js';
-import { enhanceCreativePrompt, engineForModel, selectBestCreativeEngine } from '../../services/prompt-enhancer.service.js';
+import { enhanceCreativePrompt, engineForModel } from '../../services/prompt-enhancer.service.js';
+import { directEngine } from '../../services/engine-director.service.js';
 
 interface Args {
   prompt: string;
@@ -55,7 +56,9 @@ export const tool = defineTool<Args, Result>({
     const tier = args.tier === 'draft' ? 'draft' : 'hd';
     // 720p unless the user asked for 1080p (Weni 2026-11-14).
     const resolution: '720p' | '1080p' = args.resolution === '1080p' ? '1080p' : '720p';
-    const autoPick = !pinnedModel ? selectBestCreativeEngine('text-to-video', args.prompt, { fast: tier === 'draft' }) : null;
+    const autoPick = !pinnedModel
+      ? await directEngine({ mode: 'text-to-video', prompt: args.prompt, fast: tier === 'draft', durationSeconds: requested, resolution, orgId: ctx.orgId, userId: ctx.userId ?? undefined, clientId })
+      : null;
     const effectiveModel = pinnedModel || autoPick!.model;
     const maxAllowedDur = /seedance-2-5|wan3/i.test(effectiveModel) ? 30 : 15;
     const durationSeconds = Math.min(Math.max(requested, 4), maxAllowedDur);

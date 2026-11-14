@@ -365,9 +365,11 @@ export interface SmartEnginePick {
 }
 
 /**
- * AURA's per-prompt Creative Director router. Inspects the user's intent,
- * language, layout density, subject complexity, and motion requirements to pick
- * the highest-performing engine when the user leaves the picker on Auto.
+ * Rule-based engine picker. On Auto, AURA's engine director
+ * (engine-director.service.ts) reads the whole prompt and decides; this is
+ * its fallback when the director cannot answer, and it is held to the same
+ * limits there. Grok is never picked on Auto (Weni 2026-11-14); it stays in
+ * the manual picker and as the last fallback in the provider chain.
  */
 export function selectBestCreativeEngine(
   mode: EnhanceMode,
@@ -404,9 +406,6 @@ export function selectBestCreativeEngine(
     if (opts.fast) {
       return { provider: 'gemini', model: 'gemini-nano-banana-2.1', reason: 'Fast AURA Image synthesis' };
     }
-    if (/\b(neon|cyberpunk|synthwave|vaporwave|street\s*art|graffiti|dark\s*noir)\b/i.test(p) && opts.quality !== 'ultra') {
-      return { provider: 'xai', model: 'grok-imagine-image-2.0', reason: 'Punchy high-contrast 2K aesthetic' };
-    }
     if (
       /\b(perfume|oud|serum|skincare|cosmetic|macro\s+shot|condensation\s+droplets|luxury\s+bottle|watch\s+dial)\b/i.test(p)
       && !/"[^"]+"/.test(p)
@@ -425,7 +424,11 @@ export function selectBestCreativeEngine(
   }
 
   // Video modes: text-to-video & image-to-video
-  if (/\b(seedance|dreamina|multi[\s-]?shot|storyboard|commercial\s+cut|montage|three[\s-]?shot|two[\s-]?shot\s+cut)\b/i.test(p)) {
+  // Timed beats ("[00:00] ... [00:03] ...") or numbered shots/scenes are a
+  // multi-shot sequence even when no keyword says so.
+  const timedBeats = (p.match(/\[\s*\d{1,2}:\d{2}\s*\]|(?:^|\n)\s*\d{1,2}:\d{2}\b/g) || []).length >= 2;
+  const numberedShots = /\b(shot|scene)\s*1\b[\s\S]*\b(shot|scene)\s*2\b/i.test(p);
+  if (timedBeats || numberedShots || /\b(seedance|dreamina|multi[\s-]?shot|storyboard|commercial\s+cut|montage|three[\s-]?shot|two[\s-]?shot\s+cut)\b/i.test(p)) {
     return { provider: 'byteplus', model: 'dreamina-seedance-2-5-260628', reason: 'ByteDance Seedance 2.5 multi-shot cinema direction with synchronized audio' };
   }
   if (opts.hasEndFrame || opts.hasRefs) {
@@ -436,9 +439,6 @@ export function selectBestCreativeEngine(
   }
   if (/\b(monologue|talking\s+head|lip[\s-]?sync|micro[\s-]?expression|facial\s+expression|emotional\s+close[\s-]?up|actor\s+delivering|presenter\s+speaking)\b/i.test(p)) {
     return { provider: 'minimax', model: 'MiniMax-H3', reason: 'Native 2K human acting, micro-expressions, and stereo audio' };
-  }
-  if (/\b(whip[\s-]?pan|car\s+chase|drift|fpv|drone\s+dive|parkour|explosion|high[\s-]?speed)\b/i.test(p) && mode === 'text-to-video') {
-    return { provider: 'xai', model: 'grok-imagine-video-1.5', reason: 'High-energy 1080p dynamic action cinematography' };
   }
   if (
     mode === 'text-to-video'

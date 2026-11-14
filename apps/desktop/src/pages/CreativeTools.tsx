@@ -21,6 +21,11 @@ import {
 } from 'lucide-react';
 import { creativeApi } from '../lib/backend-api';
 import { brandEngine } from '../lib/brand-names';
+
+/** The Auto pick the server returns, reduced to what the result caption shows. */
+function auraPickNote(p: { name?: string; reason?: string } | null | undefined): { name: string; reason: string } | null {
+  return p && p.name && p.reason ? { name: p.name, reason: p.reason } : null;
+}
 import { useClients } from '../lib/client-context';
 import { readJson } from '../lib/safe-storage';
 import { motionUI, motionBase } from '../lib/motion';
@@ -352,6 +357,8 @@ export default function CreativeTools() {
   const [imageCount, setImageCount] = useState(1);
   const [extraResults, setExtraResults] = useState<{ url: string; assetId: string | null }[]>([]);
   const [provider, setProvider] = useState('');
+  // On Auto, which engine AURA picked and why (from the server's auraPick).
+  const [auraPick, setAuraPick] = useState<{ name: string; reason: string } | null>(null);
   const [improving, setImproving] = useState(false);
   const cancelledRef = useRef(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -393,7 +400,7 @@ export default function CreativeTools() {
     setSavedAssetId(null);
     setExtraResults([]); setLastEnhanced('');
     setGenId(null); setVoted(null); setUpscaled(null); setUpscaling(null);
-    setProvider('');
+    setProvider(''); setAuraPick(null);
     setProgress(0);
     // A pending improve preview/picker was written for the previous mode's
     // prompt grammar (video prompts end in SFX/Ambient lines) — never carry it
@@ -542,7 +549,7 @@ export default function CreativeTools() {
       cancelledRef.current = false;
       setLoading(true); setError(''); setErrorCode(null);
       setResultUrl(''); setSavedAssetId(null); setExtraResults([]); setLastEnhanced('');
-      setGenId(null); setVoted(null); setUpscaled(null); setProvider(''); setProgress(0);
+      setGenId(null); setVoted(null); setUpscaled(null); setProvider(''); setAuraPick(null); setProgress(0);
       const ticker = setInterval(() => { if (!cancelledRef.current) setProgress(p => Math.min(90, +(p + 3).toFixed(1))); }, upscaleAi ? 1200 : 400);
       try {
         const r = await creativeApi.upscale({
@@ -577,7 +584,7 @@ export default function CreativeTools() {
     setSavedAssetId(null);
     setExtraResults([]); setLastEnhanced('');
     setGenId(null); setVoted(null); setUpscaled(null); setUpscaling(null);
-    setProvider('');
+    setProvider(''); setAuraPick(null);
     setProgress(0);
 
     let generatedUrl = '';
@@ -623,6 +630,7 @@ export default function CreativeTools() {
         setResultUrl(generatedUrl);
         setSavedAssetId(first.assetId || null);
         setProvider(brandEngine(first.provider, first.model));
+        setAuraPick(auraPickNote(first?.auraPick));
         setLastEnhanced(first.enhancedPrompt || '');
         setGenId(first.generationId || null);
         setExtraResults(ok.slice(1).map((o: any) => ({ url: o.assetUrl || o.url || '', assetId: o.assetId || null })));
@@ -645,6 +653,7 @@ export default function CreativeTools() {
         setResultUrl(generatedUrl);
         setSavedAssetId(out.assetId || null);
         setProvider(brandEngine(out.provider, out.model));
+        setAuraPick(auraPickNote(out?.auraPick));
         setLastEnhanced(out.enhancedPrompt || '');
         setGenId(out.generationId || null);
       } else {
@@ -718,6 +727,7 @@ export default function CreativeTools() {
             generatedUrl = job.result?.url || '';
             setResultUrl(generatedUrl);
             setProvider(brandEngine(job.result?.provider, job.result?.model));
+        setAuraPick(auraPickNote(job.result?.auraPick));
             setLastEnhanced(job.result?.enhancedPrompt || '');
             setGenId(job.result?.generationId || null);
             break;
@@ -1503,7 +1513,7 @@ export default function CreativeTools() {
                       }
                     }
                     setResultUrl(asset.url);
-                    setProvider('');
+                    setProvider(''); setAuraPick(null);
                     setError('');
                   }}
                   className="group relative shrink-0 rounded-lg overflow-hidden border border-white/10 hover:border-[color:var(--color-accent)] transition-all"
@@ -1952,6 +1962,11 @@ export default function CreativeTools() {
                   </span>
                 )}
                 {provider && <span className="text-[10px] text-zinc-600">via {provider}</span>}
+                {auraPick && (
+                  <span className="text-[10px] max-w-[46ch] truncate" style={{ color: 'var(--color-fg-muted)' }} title={auraPick.reason}>
+                    AURA picked {auraPick.name}: {auraPick.reason}
+                  </span>
+                )}
                 {modeDef.outputType === 'image' && (
                   <>
                     <button

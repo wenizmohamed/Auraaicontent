@@ -5,7 +5,8 @@ import { safeFetch, UnsafeUrlError } from '../../lib/safe-fetch.js';
 import { aiRouter } from '../../services/providers/ai-router.js';
 import { storageService } from '../../services/storage.service.js';
 import { historyService } from '../../services/history.service.js';
-import { enhanceCreativePrompt, engineForModel, selectBestCreativeEngine } from '../../services/prompt-enhancer.service.js';
+import { enhanceCreativePrompt, engineForModel } from '../../services/prompt-enhancer.service.js';
+import { directEngine } from '../../services/engine-director.service.js';
 
 type AspectRatio = '1:1' | '4:5' | '9:16' | '16:9';
 
@@ -142,7 +143,9 @@ export const tool = defineTool<Args, Result>({
     }
 
     const pinnedModel = typeof args.model === 'string' && args.model.trim() ? args.model.trim() : undefined;
-    const autoPick = !pinnedModel ? selectBestCreativeEngine('image-edit', args.prompt, { hasRefs: refs.length > 0 }) : null;
+    const autoPick = !pinnedModel
+      ? await directEngine({ mode: 'image-edit', prompt: args.prompt, hasRefs: refs.length > 0, orgId: ctx.orgId, userId: ctx.userId ?? undefined, clientId })
+      : null;
     const effectiveModel = pinnedModel || autoPick!.model;
     const effectiveProvider = pinnedModel ? engineForModel(pinnedModel) : autoPick!.provider;
 

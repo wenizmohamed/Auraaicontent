@@ -7,7 +7,8 @@ import { aiRouter } from '../services/providers/ai-router.js';
 import { historyService } from '../services/history.service.js';
 import { errMessage } from '../services/providers/errors.js';
 import { updateJob, type Job } from './queue.js';
-import { enhanceCreativePrompt, engineForModel, selectBestCreativeEngine, SAFE_ZONE_HINT } from '../services/prompt-enhancer.service.js';
+import { enhanceCreativePrompt, engineForModel, SAFE_ZONE_HINT } from '../services/prompt-enhancer.service.js';
+import { directEngine, type EnginePick } from '../services/engine-director.service.js';
 import { getStylePack } from '../services/style-packs.js';
 
 // Builds the prompt the engine will see. Runs here (not in the HTTP route)
@@ -17,6 +18,7 @@ async function prepareVideoPrompt(j: Job): Promise<{
   genPrompt: string;
   negativePrompt?: string;
   enhancedPrompt: string | null;
+  auraPick?: EnginePick | null;
   effectiveModel?: string;
   effectiveProvider?: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax' | 'byteplus';
 }> {
@@ -25,11 +27,18 @@ async function prepareVideoPrompt(j: Job): Promise<{
   const hasRefs = Array.isArray(d.referenceImages) && d.referenceImages.length > 0;
   const pinnedModel: string | undefined = d.model;
   const pinnedProvider: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax' | 'byteplus' | undefined = d.provider;
+  // Auto: AURA reads the prompt, judges its complexity and picks the engine,
+  // within the clip length, resolution, references and end frame asked for.
   const autoPick = (!pinnedModel && !pinnedProvider)
-    ? selectBestCreativeEngine(videoMode, d.originalPrompt || d.prompt || '', {
+    ? await directEngine({
+        mode: videoMode,
+        prompt: d.originalPrompt || d.prompt || '',
         fast: d.tier === 'draft',
         hasRefs,
         hasEndFrame: Boolean(d.endImageBase64),
+        durationSeconds: typeof d.durationSeconds === 'number' ? d.durationSeconds : undefined,
+        resolution: d.resolution,
+        orgId: d.orgId, userId: d.userId ?? undefined, clientId: d.clientId || undefined,
       })
     : null;
   const effectiveModel = pinnedModel || autoPick?.model;
@@ -40,6 +49,7 @@ async function prepareVideoPrompt(j: Job): Promise<{
       genPrompt: d.prompt,
       negativePrompt: d.negativePrompt,
       enhancedPrompt: d.enhancedPrompt || null,
+      auraPick: autoPick,
       effectiveModel,
       effectiveProvider,
     };
@@ -71,7 +81,7 @@ async function prepareVideoPrompt(j: Job): Promise<{
   const genPrompt = (enhancedPrompt ?? (d.safeZone ? `${prompt}\n\n${SAFE_ZONE_HINT}` : prompt)) + packTail;
   const negativePrompt = [autoNegative, typeof d.userNegative === 'string' ? d.userNegative : '']
     .filter((sv) => sv && sv.trim()).join(', ').slice(0, 500) || undefined;
-  return { genPrompt, negativePrompt, enhancedPrompt, effectiveModel, effectiveProvider };
+  return { genPrompt, negativePrompt, enhancedPrompt, auraPick: autoPick, effectiveModel, effectiveProvider };
 }
 
 export async function creativeVideoWorker(j: Job): Promise<any> {
@@ -89,7 +99,8 @@ export async function creativeVideoWorker(j: Job): Promise<any> {
     updateJob(j.id, { progress: Math.round(p * 10) / 10 });
   }, 3000);
   try {
-    const { genPrompt, negativePrompt, enhancedPrompt, effectiveModel, effectiveProvider } = await prepareVideoPrompt(j);
+    const { genPrompt, negativePrompt, enhancedPrompt, auraPick, effectiveModel, effectiveProvider } = await prepareVideoPrompt(j);
+    const pickView = auraPick ? { model: auraPick.model, name: auraPick.name, reason: auraPick.reason, complexity: auraPick.complexity ?? null, decidedBy: auraPick.decidedBy } : null;
     // 720p unless the job asked for 1080p (the route already defaults it).
     const effectiveRes = j.data.resolution || '720p';
     const result = await aiRouter.video(
@@ -135,6 +146,7 @@ export async function creativeVideoWorker(j: Job): Promise<any> {
         mode: j.data.imageBase64 ? 'image-to-video' : 'text-to-video',
         jobId: j.id,
         enhancedPrompt,
+        auraPick: pickView,
       },
     });
     return {
@@ -143,6 +155,7 @@ export async function creativeVideoWorker(j: Job): Promise<any> {
       url: result.output.url,
       enhancedPrompt,
       generationId,
+      auraPick: pickView,
     };
   } catch (err) {
     await historyService.record({

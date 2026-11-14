@@ -17,9 +17,15 @@ export interface ChangelogEntry {
 const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-11-14',
+    tag: 'improved',
+    title: 'On Auto, AURA reads your whole prompt and picks the engine',
+    body: 'Leave the picker on Auto and AURA reads the whole prompt, judges how complex the job is and picks the engine for it. Simple images and clips go to a cheaper engine. Exact text, transparent backgrounds, portraits, product close-ups, several shots or people talking go to the engine built for them. A single word no longer decides: a timed four-beat sequence now goes to Seedance 2.5 instead of Grok. The engine AURA picked, and why, shows under each result. Grok stays in the model list when you want it.',
+  },
+  {
+    date: '2026-11-14',
     tag: 'new',
     title: 'ByteDance Seedream and Seedance join AURAAI',
-    body: 'AURA now works with ByteDance models in Creative Studio and Agent Mode. Pick Dola Seedream 5.5, Seedream 5.0 (4K), Seedream 5.0 Pro or Seedream 5.0 Flash for images and edits, and Dreamina Seedance 2.5, Seedance 2.0, Seedance 2.0 Fast, Seedance 2.0 Mini or Seedance 1.0 Pro Fast for video. On Auto, an image prompt that asks for a transparent background, a sticker or a die-cut goes to Seedream 5.5, which returns a real transparent PNG, and a video prompt that asks for a multi-shot cut, a storyboard or a montage goes to Seedance 2.5.',
+    body: 'AURA now works with ByteDance models in Creative Studio and Agent Mode. Pick Dola Seedream 5.5, Seedream 5.0 (4K), Seedream 5.0 Pro or Seedream 5.0 Flash for images and edits, and Dreamina Seedance 2.5, Seedance 2.0, Seedance 2.0 Fast, Seedance 2.0 Mini or Seedance 1.0 Pro Fast for video. On Auto, AURA sends transparent backgrounds and stickers to Seedream 5.5, which returns a real transparent PNG, and clips with several shots to Seedance 2.5.',
   },
   {
     date: '2026-11-13',

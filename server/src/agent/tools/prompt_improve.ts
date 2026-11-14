@@ -4,11 +4,11 @@ import {
   enhanceCreativePrompt,
   enhanceCreativeVariants,
   engineForModel,
-  selectBestCreativeEngine,
   type EnhanceDepth,
   type EnhanceMode,
 } from '../../services/prompt-enhancer.service.js';
 import { historyService } from '../../services/history.service.js';
+import { directEngine } from '../../services/engine-director.service.js';
 
 interface Args {
   prompt: string;
@@ -77,7 +77,9 @@ export const tool = defineTool<Args, Result>({
     const clientId = await scopedClientId(ctx, args.clientId);
     const mode: EnhanceMode = args.mode || 'text-to-image';
     const pinnedModel = typeof args.model === 'string' && args.model.trim() ? args.model.trim() : undefined;
-    const autoPick = !pinnedModel ? selectBestCreativeEngine(mode, args.prompt) : null;
+    const autoPick = !pinnedModel
+      ? await directEngine({ mode, prompt: args.prompt, orgId: ctx.orgId, userId: ctx.userId ?? undefined, clientId })
+      : null;
     const targetModel = pinnedModel || autoPick!.model;
     const targetProvider = pinnedModel ? engineForModel(pinnedModel) : autoPick!.provider;
 

@@ -7,7 +7,7 @@ import { moonshotProvider } from './moonshot.provider.js';
 import { minimaxProvider } from './minimax.provider.js';
 import { byteplusProvider } from './byteplus.provider.js';
 import { isRetryableAiError, isSafetyBlock, AllProvidersFailedError, AiCancelledError, abortReasonText, throwIfCancelled, type ProviderFailure } from './errors.js';
-import { filterAvailable, recordSuccess, recordFailure, getCircuitSnapshot } from './circuit-breaker.js';
+import { filterAvailable, recordSuccess, recordFailure, getCircuitSnapshot, isProviderOpen } from './circuit-breaker.js';
 import type { AiProvider, AiProviderName, AiTask, AiTelemetryEntry, AnalysisRequest, ImageRequest, ProviderResult, TextRequest, VideoRequest } from './types.js';
 import { db } from '../../db/prisma.js';
 import { computeCostUsd, isPriced, billableOutputTokens, DEFAULT_VIDEO_DURATION_S } from '../../lib/ai-pricing.js';
@@ -144,6 +144,12 @@ const CHAIN: Record<string, AiProviderName[]> = {
 // A provider is usable only when its credential is configured — keeps a
 // keyless DashScope (or xAI) out of the chain so it can't throw a
 // non-retryable "key not set" and break the fallback.
+/** Can this provider take a `task` call right now: key configured and its
+ *  breaker not open. AURA's engine director only offers engines that pass. */
+export function canRoute(name: AiProviderName, task: AiTask): boolean {
+  return providerAvailable(name) && !isProviderOpen(name, task);
+}
+
 function providerAvailable(name: AiProviderName): boolean {
   switch (name) {
     case 'anthropic': return !!anthropicApiKey();

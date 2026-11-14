@@ -11,7 +11,13 @@ import { db } from '../db/prisma.js';
 import { searchPinterest, searchPinterestMulti, fetchPinterestImageBase64 } from '../services/pinterest.service.js';
 import { historyService } from '../services/history.service.js';
 import { sanitizePrompt, validatePrompt } from '../middleware/sanitize.js';
-import { enhanceCreativePrompt, enhanceCreativeVariants, engineForModel, selectBestCreativeEngine, SAFE_ZONE_HINT, type EnhanceMode, type EnhanceDepth, type EnhanceVariant } from '../services/prompt-enhancer.service.js';
+import { enhanceCreativePrompt, enhanceCreativeVariants, engineForModel, SAFE_ZONE_HINT, type EnhanceMode, type EnhanceDepth, type EnhanceVariant } from '../services/prompt-enhancer.service.js';
+import { directEngine, type EnginePick } from '../services/engine-director.service.js';
+
+// What the client is told about an Auto pick (shown under the result).
+function pickView(p: EnginePick | null) {
+  return p ? { model: p.model, name: p.name, reason: p.reason, complexity: p.complexity ?? null, decidedBy: p.decidedBy } : null;
+}
 import { getStylePack, listStylePacks } from '../services/style-packs.js';
 import { recordMemory } from '../services/memory.service.js';
 import { upscaleImage } from '../services/upscale.service.js';
@@ -33,10 +39,13 @@ export async function creativeRoutes(app: FastifyInstance) {
     if (!v.valid) return reply.status(400).send({ error: v.error });
     const prompt = sanitizePrompt(rawPrompt);
     const stylePack = getStylePack(stylePackId);
-    const autoPick = (!provider && !model) ? selectBestCreativeEngine('text-to-image', prompt, { quality }) : null;
+    const effectiveSize = imageSize || '2K';
+    // Auto: AURA reads the prompt, judges its complexity and picks the engine.
+    const autoPick = (!provider && !model)
+      ? await directEngine({ mode: 'text-to-image', prompt, quality, imageSize: effectiveSize, orgId: request.orgId, userId: request.user?.userId, clientId: clientId || undefined })
+      : null;
     const effectiveProvider = provider || autoPick?.provider;
     const effectiveModel = (typeof model === 'string' && model.trim() ? model.trim() : undefined) || autoPick?.model;
-    const effectiveSize = imageSize || '2K';
 
     let enhancedPrompt: string | null = null;
     if (enhance !== false) {
@@ -90,7 +99,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         provider: result.provider,
         model: result.model,
         latencyMs: result.latencyMs,
-        metadata: { aspectRatio, quality, mode: 'text-to-image', assetId: savedAsset?.id || null, enhancedPrompt },
+        metadata: { aspectRatio, quality, mode: 'text-to-image', assetId: savedAsset?.id || null, enhancedPrompt, auraPick: pickView(autoPick) },
       });
       return {
         provider: result.provider,
@@ -103,6 +112,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         assetUrl: finalUrl,
         enhancedPrompt,
         generationId,
+        auraPick: pickView(autoPick),
       };
     } catch (err) {
       await historyService.record({
@@ -134,7 +144,9 @@ export async function creativeRoutes(app: FastifyInstance) {
             .slice(0, 8)
             .map((r) => ({ base64: r.base64, mimeType: r.mimeType, ...(r.role ? { role: r.role } : {}) }))
         : undefined;
-      const autoPick = (!provider && !model) ? selectBestCreativeEngine('image-edit', prompt, { hasRefs: !!refs?.length }) : null;
+      const autoPick = (!provider && !model)
+        ? await directEngine({ mode: 'image-edit', prompt, hasRefs: !!refs?.length, orgId: request.orgId, userId: request.user?.userId, clientId: clientId || undefined })
+        : null;
       const effectiveProvider = provider || autoPick?.provider;
       const effectiveModel = (typeof model === 'string' && model.trim() ? model.trim() : undefined) || autoPick?.model;
       let enhancedPrompt: string | null = null;
@@ -179,7 +191,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         provider: result.provider,
         model: result.model,
         latencyMs: result.latencyMs,
-        metadata: { aspectRatio, mode: 'image-edit', assetId: savedAsset?.id || null, enhancedPrompt },
+        metadata: { aspectRatio, mode: 'image-edit', assetId: savedAsset?.id || null, enhancedPrompt, auraPick: pickView(autoPick) },
       });
       return {
         provider: result.provider, model: result.model,
@@ -189,6 +201,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         assetUrl: finalUrl,
         enhancedPrompt,
         generationId,
+        auraPick: pickView(autoPick),
       };
     } catch (err) {
       await historyService.record({
@@ -446,7 +459,9 @@ export async function creativeRoutes(app: FastifyInstance) {
     const validDepths: EnhanceDepth[] = ['raw', 'low', 'medium', 'high'];
     const enhanceDepth: EnhanceDepth = validDepths.includes(depth as EnhanceDepth) ? (depth as EnhanceDepth) : 'medium';
     const trimmedModel = typeof model === 'string' && model.trim() ? model.trim() : undefined;
-    const autoPick = (!provider && !trimmedModel) ? selectBestCreativeEngine(enhanceMode, prompt, { hasRefs: Boolean(hasRefs) }) : null;
+    const autoPick = (!provider && !trimmedModel)
+      ? await directEngine({ mode: enhanceMode, prompt, hasRefs: Boolean(hasRefs), orgId: request.orgId, userId: request.user?.userId, clientId: clientId || undefined })
+      : null;
 
     try {
       const enhanceInput = {
@@ -509,6 +524,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         provider: result.provider,
         model: result.model,
         latencyMs: result.latencyMs,
+        auraPick: pickView(autoPick),
       };
     } catch (err) {
       return sendAiError(reply, err, 'Prompt improver failed');

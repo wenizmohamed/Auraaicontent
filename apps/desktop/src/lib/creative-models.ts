@@ -157,7 +157,7 @@ export const TEXT_TO_IMAGE_MODELS: ModelOption[] = [
   // The Auto hints describe selectBestCreativeEngine (server/src/services/
   // prompt-enhancer.service.ts) word for word: a keyword match on the prompt,
   // NOT a model call. Change one, change the other.
-  { value: 'auto', label: 'Auto', hint: 'AURA picks the engine from your words: Seedream 5.5 for transparent backgrounds and stickers, Qwen Image 3.0 Pro for Arabic and posters, Wan 2.7 Image Pro for luxury product close-ups, MiniMax H3-Image for portraits, Grok Imagine 2.0 for neon and street styles, AURA Image Pro for the rest.' },
+  { value: 'auto', label: 'Auto', hint: 'AURA reads your whole prompt, judges how complex it is and picks the engine: Qwen Image 3.0 Pro for exact text and Arabic, Seedream 5.5 for transparent backgrounds, Wan 2.7 Image Pro for product close-ups, MiniMax H3-Image for portraits, AURA Image Pro for crowded scenes and carousels, a cheaper engine for simple images.' },
   GEMINI_IMAGE_ULTRA, GEMINI_IMAGE,
   SEEDREAM_55, SEEDREAM_50_4K, SEEDREAM_50_PRO, SEEDREAM_50_FLASH,
   MINIMAX_H3_IMAGE, MINIMAX_H3_IMAGE_FAST, MINIMAX_IMAGE_01,
@@ -166,7 +166,7 @@ export const TEXT_TO_IMAGE_MODELS: ModelOption[] = [
 ];
 
 export const IMAGE_EDIT_MODELS: ModelOption[] = [
-  { value: 'auto', label: 'Auto', hint: 'AURA picks the engine from your instruction: Seedream 5.5 for transparent cutouts, Qwen Image 3.0 Pro when it contains Arabic, AURA Image Pro for everything else.' },
+  { value: 'auto', label: 'Auto', hint: 'AURA reads your instruction, judges how complex it is and picks the engine: Qwen Image 3.0 Pro when text in the image changes, Seedream 5.5 for transparent cutouts, AURA Image Pro when a face, logo or product must stay identical, a cheaper engine for simple edits.' },
   GEMINI_IMAGE_ULTRA, GEMINI_IMAGE,
   SEEDREAM_55, SEEDREAM_50_4K, SEEDREAM_50_PRO, SEEDREAM_50_FLASH,
   MINIMAX_H3_IMAGE, MINIMAX_H3_IMAGE_FAST, MINIMAX_IMAGE_01,
@@ -258,17 +258,17 @@ const GROK_VIDEO_15_LITE: ModelOption = {
 };
 
 export const TEXT_TO_VIDEO_MODELS: ModelOption[] = [
-  { value: 'auto', label: 'Auto', hint: 'AURA picks the engine from your words: Seedance 2.5 for multi-shot cuts and storyboards, MiniMax H3 for people talking on camera, Grok Imagine Video 1.5 for fast action, AURA Omni 1.2 Flash for animals and nature without sound, Wan 3.0 Prime with sound for the rest.', perSec: 0.127199, perSec1080: 0.254399, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
+  { value: 'auto', label: 'Auto', hint: 'AURA reads your whole prompt, judges how complex it is and picks the engine: Seedance 2.5 for timed beats and several shots, MiniMax H3 for people talking on camera, Wan 3.0 Prime for single shots with sound, Seedance 2.0 Mini for simple short clips, AURA Omni 1.2 Flash for nature without sound.', perSec: 0.127199, perSec1080: 0.254399, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
   SEEDANCE_25, SEEDANCE_20, SEEDANCE_20_FAST, SEEDANCE_20_MINI, WAN3_PRIME, WAN3, MINIMAX_H3_VIDEO, MINIMAX_H3_MAX_VIDEO, OMNI_12_FLASH, OMNI_11_FLASH, GROK_VIDEO_15, GROK_VIDEO_15_LITE, HH_T2V, SEEDANCE_10_FAST,
 ];
 
 export const IMAGE_TO_VIDEO_MODELS: ModelOption[] = [
-  { value: 'auto', label: 'Auto', hint: 'AURA picks the engine from your words: Seedance 2.5 for multi-shot cuts and storyboards, MiniMax H3 for people talking on camera, Wan 3.0 Prime with sound for the rest and whenever you add an end frame.', perSec: 0.127199, perSec1080: 0.254399, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
+  { value: 'auto', label: 'Auto', hint: 'AURA reads your prompt and picks the engine: Seedance 2.5 for several shots, MiniMax H3 for people talking on camera, Wan 3.0 Prime with sound for the rest and whenever you add an end frame.', perSec: 0.127199, perSec1080: 0.254399, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
   SEEDANCE_25, SEEDANCE_20, SEEDANCE_20_FAST, SEEDANCE_20_MINI, WAN3_PRIME, WAN3, MINIMAX_H3_VIDEO, MINIMAX_H3_MAX_VIDEO, OMNI_12_FLASH, OMNI_11_FLASH, GROK_VIDEO_15, GROK_VIDEO_15_LITE, HH_I2V, SEEDANCE_10_FAST,
 ];
 
 export const REFERENCE_VIDEO_MODELS: ModelOption[] = [
-  { value: 'auto', label: 'Auto', hint: 'Wan 3.0 Prime reference mode keeps your exact product across the clip, with Dreamina Seedance 2.5, MiniMax H3 and HappyHorse 1.1 on standby.', perSec: 0.127199, perSec1080: 0.254399, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
+  { value: 'auto', label: 'Auto', hint: 'AURA keeps your exact product across the clip: Wan 3.0 Prime for a single shot, Seedance 2.5 or 2.0 when the clip has several shots.', perSec: 0.127199, perSec1080: 0.254399, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
   SEEDANCE_25, SEEDANCE_20, SEEDANCE_20_FAST, SEEDANCE_20_MINI, WAN3_PRIME, WAN3, MINIMAX_H3_VIDEO, HH_R2V,
 ];
 

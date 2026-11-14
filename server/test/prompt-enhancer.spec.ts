@@ -270,11 +270,8 @@ describe('AURA selectBestCreativeEngine smart routing', () => {
     });
   });
 
-  it('routes neon/cyberpunk aesthetics to grok-imagine-image-2.0', () => {
-    expect(selectBestCreativeEngine('text-to-image', 'Cyberpunk neon alley in Tokyo rain')).toMatchObject({
-      provider: 'xai',
-      model: 'grok-imagine-image-2.0',
-    });
+  it('never picks Grok on Auto, even for neon/cyberpunk styles (Weni 2026-11-14)', () => {
+    expect(selectBestCreativeEngine('text-to-image', 'Cyberpunk neon alley in Tokyo rain').provider).not.toBe('xai');
   });
 
   it('routes luxury macro product prompts without text to wan2.7-image-pro', () => {
@@ -291,11 +288,14 @@ describe('AURA selectBestCreativeEngine smart routing', () => {
     });
   });
 
-  it('routes dynamic FPV/action video prompts to grok-imagine-video-1.5', () => {
-    expect(selectBestCreativeEngine('text-to-video', 'FPV drone dive chasing a drift car through mountain hairpins')).toMatchObject({
-      provider: 'xai',
-      model: 'grok-imagine-video-1.5',
-    });
+  it('never picks Grok on Auto for action video either', () => {
+    expect(selectBestCreativeEngine('text-to-video', 'FPV drone dive chasing a drift car through mountain hairpins').provider).not.toBe('xai');
+  });
+
+  it('treats timed beats as a multi-shot sequence (the padel prompt that went to Grok on a lone "whip pan")', () => {
+    const padel = '[00:00] Medium close-up, athlete grips racket. [00:03] Dynamic whip pan tracks ball across net. [00:06] Slow-motion freeze at glass impact. [00:09] Rapid zoom out to Dubai skyline.';
+    expect(selectBestCreativeEngine('text-to-video', padel)).toMatchObject({ provider: 'byteplus', model: 'dreamina-seedance-2-5-260628' });
+    expect(selectBestCreativeEngine('text-to-video', 'Shot 1: the cup. Shot 2: the pour.').model).toBe('dreamina-seedance-2-5-260628');
   });
 
   it('routes silent organic animal/nature clips to gemini-omni-1.2-flash and audio/default cinema clips to wan3.0-video-prime', () => {
