@@ -11,14 +11,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ExternalLink, Loader2 } from 'lucide-react';
 import { calendarApi } from '../lib/backend-api';
+import { parseCalendarMonth, calendarMonthLabel } from '../lib/month';
 import { useClients } from '../lib/client-context';
 import { Badge, Button, EmptyState, Separator } from '../components/ui';
 
 function parseMonthLabel(month: string): { date: Date; label: string } {
-  const [y, m] = month.split('-').map((n) => parseInt(n, 10));
-  const date = new Date(y || new Date().getFullYear(), (m || 1) - 1, 1);
-  const label = date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
-  return { date, label };
+  // Rows store either "2026-06" or "June 2026"; one parser handles both.
+  const date = parseCalendarMonth(month);
+  return { date, label: calendarMonthLabel(month) };
 }
 
 export default function CalendarDetail({ pieceId: monthSlug }: { pieceId: string }) {

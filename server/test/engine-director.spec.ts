@@ -116,6 +116,17 @@ describe('directEngine', () => {
     expect(router.text).toHaveBeenCalledTimes(1);
   });
 
+  it('identical requests that start together share one AURA decision', async () => {
+    let release: (v: unknown) => void = () => {};
+    router.text.mockReturnValue(new Promise((r) => { release = r; }));
+    const input = { mode: 'text-to-image' as const, prompt: 'Three variations of a red apple' };
+    const all3 = Promise.all([directEngine(input), directEngine(input), directEngine(input)]);
+    release({ output: { engine: 'qwen-image-3.0-pro', complexity: 'simple', reason: 'Simple still.' } });
+    const picks = await all3;
+    expect(router.text).toHaveBeenCalledTimes(1);
+    expect(new Set(picks.map((p) => p.model)).size).toBe(1);
+  });
+
   it('accepts a JSON string reply as well as an object', async () => {
     router.text.mockResolvedValue({ output: JSON.stringify({ engine: 'MiniMax-H3', complexity: 'standard', reason: 'A presenter speaks to camera.' }) });
     const pick = await directEngine({ mode: 'text-to-video', prompt: 'A presenter explains the new menu to camera' });

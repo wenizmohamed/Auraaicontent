@@ -355,7 +355,8 @@ export default function CreativeTools() {
   // B2: generate several at once (text-to-image). First result is the primary
   // (drives download/attach/calendar); the rest show as "more variations".
   const [imageCount, setImageCount] = useState(1);
-  const [extraResults, setExtraResults] = useState<{ url: string; assetId: string | null }[]>([]);
+  // Each variation is its own request: keep its engine caption and AURA's pick with it.
+  const [extraResults, setExtraResults] = useState<{ url: string; assetId: string | null; provider: string; auraPick: { name: string; reason: string } | null }[]>([]);
   const [provider, setProvider] = useState('');
   // On Auto, which engine AURA picked and why (from the server's auraPick).
   const [auraPick, setAuraPick] = useState<{ name: string; reason: string } | null>(null);
@@ -630,10 +631,10 @@ export default function CreativeTools() {
         setResultUrl(generatedUrl);
         setSavedAssetId(first.assetId || null);
         setProvider(brandEngine(first.provider, first.model));
-        setAuraPick(auraPickNote(first?.auraPick));
+        setAuraPick(auraPickNote(first.auraPick));
         setLastEnhanced(first.enhancedPrompt || '');
         setGenId(first.generationId || null);
-        setExtraResults(ok.slice(1).map((o: any) => ({ url: o.assetUrl || o.url || '', assetId: o.assetId || null })));
+        setExtraResults(ok.slice(1).map((o: any) => ({ url: o.assetUrl || o.url || '', assetId: o.assetId || null, provider: brandEngine(o.provider, o.model), auraPick: auraPickNote(o.auraPick) })));
       } else if (mode === 'image-edit') {
         const out = await creativeApi.editImage({
           prompt: prompt.trim(),
@@ -653,7 +654,7 @@ export default function CreativeTools() {
         setResultUrl(generatedUrl);
         setSavedAssetId(out.assetId || null);
         setProvider(brandEngine(out.provider, out.model));
-        setAuraPick(auraPickNote(out?.auraPick));
+        setAuraPick(auraPickNote(out.auraPick));
         setLastEnhanced(out.enhancedPrompt || '');
         setGenId(out.generationId || null);
       } else {
@@ -727,7 +728,7 @@ export default function CreativeTools() {
             generatedUrl = job.result?.url || '';
             setResultUrl(generatedUrl);
             setProvider(brandEngine(job.result?.provider, job.result?.model));
-        setAuraPick(auraPickNote(job.result?.auraPick));
+            setAuraPick(auraPickNote(job.result?.auraPick));
             setLastEnhanced(job.result?.enhancedPrompt || '');
             setGenId(job.result?.generationId || null);
             break;
@@ -2106,7 +2107,7 @@ export default function CreativeTools() {
                 <button
                   key={i}
                   type="button"
-                  onClick={() => { setResultUrl(r.url); setSavedAssetId(r.assetId); }}
+                  onClick={() => { setResultUrl(r.url); setSavedAssetId(r.assetId); setProvider(r.provider); setAuraPick(r.auraPick); }}
                   title="Make this the primary result (for download / attach)"
                   className="rounded-xl overflow-hidden border border-white/[0.06] bg-black hover:border-[color:var(--color-accent)] transition-colors"
                 >

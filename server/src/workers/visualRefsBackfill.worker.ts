@@ -13,6 +13,7 @@
 import { db } from '../db/prisma.js';
 import { visualSearchService } from '../services/visual-search.service.js';
 import { type Job, updateJob } from './queue.js';
+import { exactThenVariants } from '../lib/month.js';
 
 const SEARCH_CONCURRENCY = 4;
 
@@ -35,8 +36,8 @@ export async function visualRefsBackfillWorker(job: Job): Promise<{
 
   updateJob(job.id, { progress: 5 });
 
-  const calMonth = await db.calendarMonth.findFirst({
-    where: { orgId, clientId, month },
+  const calMonth = await exactThenVariants(month, (m) => db.calendarMonth.findFirst({
+    where: { orgId, clientId, month: m },
     include: {
       posts: {
         select: {
@@ -46,7 +47,7 @@ export async function visualRefsBackfillWorker(job: Job): Promise<{
         },
       },
     },
-  });
+  }));
   if (!calMonth) throw new Error('Calendar month not found');
 
   const candidates = calMonth.posts.filter(

@@ -6,6 +6,7 @@ import { assertClientInOrg } from '../lib/tenant.js';
 import { createJob, processJob } from '../workers/queue.js';
 import { exportWorker } from '../workers/export.worker.js';
 import { auditService } from '../services/audit.service.js';
+import { exactThenVariants } from '../lib/month.js';
 
 export async function exportRoutes(app: FastifyInstance) {
 
@@ -27,9 +28,9 @@ export async function exportRoutes(app: FastifyInstance) {
       return reply.status(errStatus(e, 404)).send({ error: errMessage(e) });
     }
 
-    const calendarMonth = await db.calendarMonth.findFirst({
-      where: { clientId, month: decodedMonth, orgId: request.orgId },
-    });
+    const calendarMonth = await exactThenVariants(decodedMonth, (m) => db.calendarMonth.findFirst({
+      where: { clientId, month: m, orgId: request.orgId },
+    }));
     if (!calendarMonth) return reply.status(404).send({ error: 'Calendar month not found' });
 
     const job = createJob('export', { orgId: request.orgId, clientId, calendarMonthId: calendarMonth.id, type });

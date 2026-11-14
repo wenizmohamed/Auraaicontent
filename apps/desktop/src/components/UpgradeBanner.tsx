@@ -16,7 +16,8 @@ import { motionUI } from '../lib/motion';
 import { orgsApi } from '../lib/backend-api';
 import { AnimatedGradientBorder } from './ui/AnimatedGradientBorder';
 
-const FREE_PLAN_VALUES = new Set(['', 'free', 'trial', 'FREE', 'TRIAL', 'starter', 'STARTER']);
+// Starter is a paid plan ($49), so it is not on this list.
+const FREE_PLAN_VALUES = new Set(['', 'free', 'trial']);
 const SESSION_DISMISS_KEY = 'auracontent:upgrade-banner:dismissed';
 
 function getActiveOrgId(): string | null {
@@ -50,7 +51,7 @@ export function UpgradeBanner() {
     return () => { cancelled = true; };
   }, []);
 
-  const isFree = plan != null && FREE_PLAN_VALUES.has(plan);
+  const isFree = plan != null && FREE_PLAN_VALUES.has(plan.toLowerCase());
   if (!isFree || dismissed) return null;
 
   return (

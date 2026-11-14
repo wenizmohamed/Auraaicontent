@@ -8,7 +8,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { invitationsApi, type InvitePreview, orgsApi } from '../lib/backend-api';
+import { invitationsApi, type InvitePreview, orgsApi, setAuthToken } from '../lib/backend-api';
 import { useTheme } from '../lib/theme-context';
 import { t } from '../i18n';
 import { Mail, Building2, AlertCircle, Check, LogIn, UserPlus, Calendar, Sparkles, Users } from 'lucide-react';
@@ -46,7 +46,8 @@ export default function AcceptInvite() {
       const r = await invitationsApi.accept(token);
       // Switch the active org so the next call lands in the new tenant
       // and a fresh JWT carries the new orgId.
-      try { await orgsApi.switch(r.orgId); } catch { /* user can manually switch later */ }
+      // Keep the new token: without it the reload still carries the old org.
+      try { const s = await orgsApi.switch(r.orgId); if (s?.token) setAuthToken(s.token); } catch { /* user can manually switch later */ }
       setDone(true);
       setTimeout(() => { window.location.href = '/'; }, 1200);
     } catch (e: any) {

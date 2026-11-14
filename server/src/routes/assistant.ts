@@ -19,6 +19,7 @@ import { enrichWithKnowledge } from '../lib/knowledge-enricher.js';
 import { enrichWithMemory } from '../lib/memory-enricher.js';
 import { enrichWithBrandKit } from '../lib/brand-kit-enricher.js';
 import { enhanceCreativePrompt } from '../services/prompt-enhancer.service.js';
+import { exactThenVariants, monthVariants } from '../lib/month.js';
 
 // A non-system chat turn passed to the LLM: plain text, or (user only) an
 // OpenAI multimodal parts array.
@@ -211,7 +212,7 @@ async function executeAction(orgId: string, action: string, params: ActionParams
       if (!clientId) return { error: 'No client selected' };
       const month = params?.month || new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });
       const count = params?.count || 18;
-      const existing = await db.calendarMonth.findFirst({ where: { orgId, clientId, month } });
+      const existing = await db.calendarMonth.findFirst({ where: { orgId, clientId, month: { in: monthVariants(month) } } });
       if (existing) return { error: `Calendar for "${month}" already exists. Delete it first.`, existingId: existing.id };
       const job = createJob('generate-month', { orgId, clientId, month, pieceCount: count });
       processJob(job.id, generateMonthWorker);
@@ -248,10 +249,10 @@ async function executeAction(orgId: string, action: string, params: ActionParams
         });
         return months.map((m) => ({ month: m.month, status: m.status, postCount: m._count.posts }));
       }
-      const cal = await db.calendarMonth.findFirst({
-        where: { orgId, clientId, month },
+      const cal = await exactThenVariants(month, (m) => db.calendarMonth.findFirst({
+        where: { orgId, clientId, month: m },
         include: { posts: { select: { id: true, title: true, platform: true, status: true, caption: true } } },
-      });
+      }));
       if (!cal) return { error: `No calendar found for "${month}"` };
       return {
         month: cal.month,
@@ -295,7 +296,7 @@ async function executeAction(orgId: string, action: string, params: ActionParams
       if (!clientId) return { error: 'No client selected' };
       const month = params?.month;
       if (!month) return { error: 'month is required' };
-      const cal = await db.calendarMonth.findFirst({ where: { orgId, clientId, month } });
+      const cal = await exactThenVariants(month, (m) => db.calendarMonth.findFirst({ where: { orgId, clientId, month: m } }));
       if (!cal) return { error: `No calendar found for "${month}"` };
       await db.calendarPost.deleteMany({ where: { orgId, calendarMonthId: cal.id } });
       await db.calendarMonth.delete({ where: { id: cal.id, orgId } });

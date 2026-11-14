@@ -2,6 +2,7 @@ import { chatStream } from '../../services/llm/chat.js';
 import { defineTool } from '../tool-types.js';
 import { scopedClientId } from './client-scope.js';
 import type { NormalizedBrief } from './brief_analyze.js';
+import { monthLabel, monthVariants } from '../../lib/month.js';
 
 // Tool LLM rides the Gemini → Grok → Kimi fallback chain.
 const DEFAULT_PIECE_COUNT = 18;
@@ -247,14 +248,14 @@ export const tool = defineTool<Args, Result>({
     assertNotAborted(ctx.signal);
     const { calendarMonthId, postIds } = await ctx.prisma.$transaction(async (tx: any) => {
       const existing = await tx.calendarMonth.findFirst({
-        where: { orgId: ctx.orgId, clientId: args.clientId, month: args.month, isTest: false },
+        where: { orgId: ctx.orgId, clientId: args.clientId, month: { in: monthVariants(args.month) }, isTest: false },
         select: { id: true },
       });
       const month = existing ?? await tx.calendarMonth.create({
         data: {
           orgId: ctx.orgId,
           clientId: args.clientId,
-          month: args.month,
+          month: monthLabel(args.month),
           status: 'draft',
           isTest: false,
         },

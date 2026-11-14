@@ -1,6 +1,7 @@
 import { defineTool } from '../tool-types.js';
 import { scopedClientId } from './client-scope.js';
 import type { Piece } from './pieces_generate.js';
+import { monthLabel, monthVariants } from '../../lib/month.js';
 
 interface Args {
   clientId: string;
@@ -116,15 +117,17 @@ export const tool = defineTool<Args, Result>({
       return hay.includes('avoid weekend') || hay.includes('no weekend') || hay.includes('weekdays only');
     })();
 
+    // Reuse the month in either stored format; new months use the label the
+    // calendar screen writes ("October 2026"), so both sides see one calendar.
     const existing = await ctx.prisma.calendarMonth.findFirst({
-      where: { orgId: ctx.orgId, clientId: args.clientId, month: args.month, isTest: false },
+      where: { orgId: ctx.orgId, clientId: args.clientId, month: { in: monthVariants(args.month) }, isTest: false },
     });
 
     const calendarMonth = existing ?? await ctx.prisma.calendarMonth.create({
       data: {
         orgId: ctx.orgId,
         clientId: args.clientId,
-        month: args.month,
+        month: monthLabel(args.month),
         status: 'draft',
         isTest: false,
       },

@@ -24,6 +24,7 @@ import {
 } from '../lib/backend-api';
 import { useClients } from '../lib/client-context';
 import { EmptyState, SkeletonRow, Badge, cn } from '../components/ui';
+import { calendarMonthLabel } from '../lib/month';
 
 /**
  * Premium ambient glow layer — a soft accent radial bloom anchored to a
@@ -258,11 +259,7 @@ function CalendarList({ activeId, onPick }: { activeId?: string; onPick: (month:
       <ul className="divide-y" style={{ borderColor: 'var(--color-border-subtle)' }}>
         {months.map((m) => {
           const isActive = m.month === activeId;
-          const label = (() => {
-            const [y, mo] = m.month.split('-').map((n) => parseInt(n, 10));
-            const d = new Date(y || new Date().getFullYear(), (mo || 1) - 1, 1);
-            return d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
-          })();
+          const label = calendarMonthLabel(m.month);
           return (
             <li key={m.id}>
               <WorkspaceRow

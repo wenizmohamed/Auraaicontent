@@ -7,7 +7,7 @@ import {
   Image as ImageIcon, Video, Search, Palette, FolderOpen, Sparkles,
   UserCircle, CreditCard, ShieldCheck, Brain, Settings,
   CalendarDays, Lightbulb, Compass, Sun, Moon,
-  Plug, History as HistoryIcon, Bot, Telescope, RotateCcw
+  Plug, History as HistoryIcon, Bot, Telescope, RotateCcw, Radio
 } from 'lucide-react';
 import { useTheme } from '../lib/theme-context';
 import { useClients } from '../lib/client-context';
@@ -68,6 +68,7 @@ export function CommandPalette({ open, onOpenChange }: Props) {
       { id: 'nav-brand-kit',  group: 'Strategy',   label: 'Brand Kit',         hint: 'Logos, colors, fonts, voice',  icon: Palette,         perform: go('/brand-kit'),         keywords: ['identity','tokens','style guide'] },
       { id: 'nav-knowledge',  group: 'Strategy',   label: 'Memory',            hint: 'Brand knowledge + learnings',  icon: Brain,           perform: go('/memory'),            keywords: ['rag','docs','context','knowledge','learnings'] },
       { id: 'nav-research',   group: 'Strategy',   label: 'Research',          hint: 'Web + market research',        icon: Telescope,       perform: go('/research'),          keywords: ['intel','web','sources'] },
+      { id: 'nav-competitor', group: 'Strategy',   label: 'Competitor Intel',  hint: 'What competitors post',        icon: Radio,           perform: go('/competitor-intel'),  keywords: ['competitors','listening','rivals'] },
       { id: 'nav-topics',     group: 'Strategy',   label: 'Topic Desk',        hint: 'Trending topics + ideas',      icon: Compass,         perform: go('/topics'),            keywords: ['trends','ideation'] },
 
       // ── Create ──────────────────────────────────────────────────────
@@ -106,7 +107,8 @@ export function CommandPalette({ open, onOpenChange }: Props) {
           import('../lib/onboarding-tour').then(({ resetOnboardingTour, runOnboardingTour }) => {
             resetOnboardingTour();
             try {
-              const token = localStorage.getItem('auracontent.access_token');
+              // The session token lives under auracontent_auth_token (lib/backend-api).
+              const token = localStorage.getItem('auracontent_auth_token');
               const payload = token ? JSON.parse(atob(token.split('.')[1])) : null;
               const orgId = payload?.orgId ?? 'anon';
               runOnboardingTour({ orgId, force: true });

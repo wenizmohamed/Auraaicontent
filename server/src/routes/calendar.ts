@@ -12,6 +12,7 @@ import { runComplianceCheck, scorePost } from '../services/content-quality.servi
 import { reviewService } from '../services/review.service.js';
 import { capturePostLearning } from '../lib/learning-signals.js';
 import { capGuard } from '../lib/plan-caps.js';
+import { exactThenVariants, monthVariants } from '../lib/month.js';
 
 export async function calendarRoutes(app: FastifyInstance) {
 
@@ -34,7 +35,7 @@ export async function calendarRoutes(app: FastifyInstance) {
     // Block duplicate month generation. Even soft-archived months count
     // because @@unique([clientId, month]) blocks insert. The error message
     // MUST contain "already exists" so the frontend conflict modal triggers.
-    const existing = await db.calendarMonth.findFirst({ where: { orgId, clientId, month } });
+    const existing = await db.calendarMonth.findFirst({ where: { orgId, clientId, month: { in: monthVariants(month) } } });
     if (existing) {
       const msg = existing.isArchived
         ? `Calendar for "${month}" already exists (archived). Delete and regenerate, or restore from Archived.`
@@ -118,8 +119,8 @@ export async function calendarRoutes(app: FastifyInstance) {
     }
     const decodedMonth = decodeURIComponent(month);
 
-    const calendarMonth = await db.calendarMonth.findFirst({
-      where: { orgId, clientId, month: decodedMonth },
+    const calendarMonth = await exactThenVariants(decodedMonth, (m) => db.calendarMonth.findFirst({
+      where: { orgId, clientId, month: m },
       include: {
         posts: {
           orderBy: { date: 'asc' },
@@ -130,7 +131,7 @@ export async function calendarRoutes(app: FastifyInstance) {
         },
       },
       orderBy: { createdAt: 'desc' },
-    });
+    }));
 
     if (!calendarMonth) return reply.status(404).send({ error: 'Calendar month not found' });
     return calendarMonth;
@@ -149,7 +150,7 @@ export async function calendarRoutes(app: FastifyInstance) {
     const decodedMonth = decodeURIComponent(month);
     const isHard = hard === 'true' || hard === '1';
 
-    const all = await db.calendarMonth.findMany({ where: { orgId, clientId, month: decodedMonth } });
+    const all = await exactThenVariants(decodedMonth, (m) => db.calendarMonth.findMany({ where: { orgId, clientId, month: m } }));
     if (all.length === 0) return reply.status(404).send({ error: 'Calendar month not found' });
 
     if (isHard) {
@@ -188,7 +189,7 @@ export async function calendarRoutes(app: FastifyInstance) {
       return reply.status(errStatus(err)).send({ error: errMessage(err) });
     }
     const decodedMonth = decodeURIComponent(month);
-    const all = await db.calendarMonth.findMany({ where: { orgId, clientId, month: decodedMonth, isArchived: true } });
+    const all = await exactThenVariants(decodedMonth, (m) => db.calendarMonth.findMany({ where: { orgId, clientId, month: m, isArchived: true } }));
     if (all.length === 0) return reply.status(404).send({ error: 'No archived months to restore' });
     for (const m of all) {
       await db.calendarMonth.update({ where: { id: m.id, orgId }, data: { isArchived: false, archivedAt: null } });
@@ -341,7 +342,7 @@ export async function calendarRoutes(app: FastifyInstance) {
       return reply.status(errStatus(err)).send({ error: errMessage(err) });
     }
     const decodedMonth = decodeURIComponent(month);
-    const cm = await db.calendarMonth.findFirst({ where: { orgId, clientId, month: decodedMonth }, select: { id: true } });
+    const cm = await exactThenVariants(decodedMonth, (m) => db.calendarMonth.findFirst({ where: { orgId, clientId, month: m }, select: { id: true } }));
     if (!cm) return reply.status(404).send({ error: `No calendar exists for "${decodedMonth}". Generate it first, then add custom posts.` });
     const b = (request.body as {
       platform?: string; date?: string; title?: string; pillar?: string; format?: string;

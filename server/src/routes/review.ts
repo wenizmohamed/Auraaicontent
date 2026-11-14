@@ -6,6 +6,7 @@ import { reviewService } from '../services/review.service.js';
 import { env } from '../config/env.js';
 import { assertClientInOrg } from '../lib/tenant.js';
 import { auditService } from '../services/audit.service.js';
+import { exactThenVariants } from '../lib/month.js';
 
 export async function reviewRoutes(app: FastifyInstance) {
 
@@ -22,7 +23,7 @@ export async function reviewRoutes(app: FastifyInstance) {
     const { expiresInDays } = (request.body as { expiresInDays?: number }) || {};
     const decodedMonth = decodeURIComponent(month);
 
-    const calendarMonth = await db.calendarMonth.findFirst({ where: { orgId, clientId, month: decodedMonth } });
+    const calendarMonth = await exactThenVariants(decodedMonth, (m) => db.calendarMonth.findFirst({ where: { orgId, clientId, month: m } }));
     if (!calendarMonth) return reply.status(404).send({ error: 'Calendar month not found' });
 
     const link = await reviewService.createLink(orgId, clientId, calendarMonth.id, expiresInDays);

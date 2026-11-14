@@ -230,9 +230,10 @@ function Layout({ children }: { children: React.ReactNode }) {
     const clear = () => { try { localStorage.removeItem('auracontent.pendingInvite'); localStorage.removeItem('auracontent.inviteEmail'); } catch { /* ignore */ } };
     (async () => {
       try {
-        const { invitationsApi, orgsApi } = await import('./lib/backend-api');
+        const { invitationsApi, orgsApi, setAuthToken } = await import('./lib/backend-api');
         const r = await invitationsApi.accept(token!);
-        try { await orgsApi.switch(r.orgId); } catch { /* user can switch manually */ }
+        // Keep the new token: without it the reload still carries the old org.
+        try { const s = await orgsApi.switch(r.orgId); if (s?.token) setAuthToken(s.token); } catch { /* user can switch manually */ }
         clear();
         if (!cancelled) window.location.href = '/';
       } catch {

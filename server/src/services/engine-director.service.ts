@@ -171,13 +171,16 @@ function buildUserMessage(input: DirectEngineInput, candidates: EngineCandidate[
 const CACHE_TTL_MS = 15 * 60 * 1000;
 const CACHE_MAX = 300;
 const cache = new Map<string, { at: number; pick: EnginePick }>();
+// Identical requests that start together (Creative Studio fires one request
+// per variation in parallel) share one decision: one AURA call, one model.
+const inflight = new Map<string, Promise<EnginePick>>();
 
 function cacheKey(input: DirectEngineInput, candidates: EngineCandidate[]): string {
   return [input.mode, input.hasRefs ? 1 : 0, input.hasEndFrame ? 1 : 0, input.durationSeconds || '', input.resolution || '',
     input.imageSize || '', input.fast ? 1 : 0, input.quality || '', candidates.map((c) => c.id).join(','), input.prompt.trim()].join('|');
 }
 
-export function clearEngineDirectorCache(): void { cache.clear(); }
+export function clearEngineDirectorCache(): void { cache.clear(); inflight.clear(); }
 
 /** The rule picker, held to the same limits and list as AURA. */
 function rulesPick(input: DirectEngineInput, candidates: EngineCandidate[]): EnginePick {
@@ -217,7 +220,19 @@ export async function directEngine(input: DirectEngineInput): Promise<EnginePick
   const key = cacheKey(input, candidates);
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.pick;
+  const pending = inflight.get(key);
+  if (pending) return pending;
 
+  const run = decide(input, candidates, key);
+  inflight.set(key, run);
+  try {
+    return await run;
+  } finally {
+    inflight.delete(key);
+  }
+}
+
+async function decide(input: DirectEngineInput, candidates: EngineCandidate[], key: string): Promise<EnginePick> {
   try {
     const result = await aiRouter.text(
       {
