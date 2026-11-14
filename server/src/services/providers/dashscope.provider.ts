@@ -574,9 +574,14 @@ async function generateVideoOnModel(
   if (!dl.ok) throw new AiProviderError('dashscope', 'video', `${model} video download ${dl.status}`, dl.status);
   const buf = Buffer.from(await dl.arrayBuffer());
   const { fileUrl } = await storageService.saveFile(buf, `${model.replace(/[^a-z0-9.]+/gi, '-')}-${Date.now()}.mp4`, 'video/mp4');
+  // Bill the length that was rendered: each engine clamps the request to its
+  // own range (Wan 3.0 2-30s, HappyHorse 3-15s, Wan 2.7 3-10s) and defaults to
+  // 5s, so the caller's number (or the router's 8s guess) can be wrong.
+  const rendered = Number((parameters as { duration?: unknown }).duration);
   return {
     provider: 'dashscope', model: billedModelId(model, resolution), latencyMs: Date.now() - start, fallbackUsed: false,
     output: { url: fileUrl },
+    ...(Number.isFinite(rendered) && rendered > 0 ? { durationSeconds: rendered } : {}),
   };
 }
 

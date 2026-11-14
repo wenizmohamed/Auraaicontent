@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { errStatus, errMessage } from '../services/providers/errors.js';
-import { authGuard, denyViewer } from '../middleware/auth.js';
+import { authGuard, denyViewer, requireOrgRole } from '../middleware/auth.js';
 import { knowledgeService } from '../services/knowledge.service.js';
 import { storageService } from '../services/storage.service.js';
 import { embedKnowledgeItem } from '../workers/embeddings.worker.js';
@@ -122,7 +122,7 @@ export async function knowledgeRoutes(app: FastifyInstance) {
   // an embedding-provider outage (429/402) saved chunks without vectors and
   // left them invisible to RAG. Owner/admin only — it is a bulk write over
   // the org's whole knowledge base.
-  app.post('/knowledge/embed-backfill', { preHandler: denyViewer }, async (request, reply) => {
+  app.post('/knowledge/embed-backfill', { preHandler: requireOrgRole('OWNER', 'ADMIN') }, async (request, reply) => {
     const orgId = request.orgId!;
     const body = (request.body as { clientId?: string }) || {};
     let clientId: string | undefined;
@@ -155,7 +155,7 @@ export async function knowledgeRoutes(app: FastifyInstance) {
   // it, sanitising any HTML that was stored raw. This is the repair for the
   // 2026-11-05 corpus state (800-token chunks + raw HTML/CSS + 86% of chunks
   // never embedded). Owner/admin only.
-  app.post('/knowledge/rechunk', { preHandler: denyViewer }, async (request, reply) => {
+  app.post('/knowledge/rechunk', { preHandler: requireOrgRole('OWNER', 'ADMIN') }, async (request, reply) => {
     const orgId = request.orgId!;
     const body = (request.body as { clientId?: string; limit?: number }) || {};
     let clientId: string | undefined;

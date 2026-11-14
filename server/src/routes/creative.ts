@@ -1,5 +1,5 @@
 import { errStatus, errMessage } from '../services/providers/errors.js';
-import { FastifyInstance } from 'fastify';
+import { FastifyInstance, type FastifyReply } from 'fastify';
 import type { Prisma } from '@prisma/client';
 import { authGuard } from '../middleware/auth.js';
 import { aiRouter, getAiTelemetry } from '../services/providers/ai-router.js';
@@ -23,6 +23,15 @@ import { recordMemory } from '../services/memory.service.js';
 import { upscaleImage } from '../services/upscale.service.js';
 import { assertVideoDailyGuardrail } from '../lib/budget.js';
 import { capGuard } from '../lib/plan-caps.js';
+import { assertClientInOrg } from '../lib/tenant.js';
+
+// A clientId in the body must belong to the caller's org before it is written
+// onto an Asset or a history row (2026-11-14 access audit).
+async function clientInOrg(clientId: unknown, orgId: string | undefined, reply: FastifyReply): Promise<boolean> {
+  if (!clientId) return true;
+  try { await assertClientInOrg(String(clientId), orgId); return true; }
+  catch (e) { reply.status(errStatus(e, 404)).send({ error: errMessage(e) }); return false; }
+}
 
 // B3 — social safe-zone: appended to the prompt when the user toggles it on, so
 // generated creative keeps the top/bottom platform-UI bands clear (Reels/Stories
@@ -37,6 +46,7 @@ export async function creativeRoutes(app: FastifyInstance) {
     const { prompt: rawPrompt, aspectRatio, clientId, quality, model, provider, safeZone, imageSize, enhance, depth, stylePackId, useBrandKit } = request.body as { prompt: string; aspectRatio?: string; clientId?: string; quality?: 'standard' | 'ultra'; model?: string; provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax' | 'byteplus'; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K'; enhance?: boolean; depth?: 'raw' | 'low' | 'medium' | 'high'; stylePackId?: string; useBrandKit?: boolean };
     const v = validatePrompt(rawPrompt);
     if (!v.valid) return reply.status(400).send({ error: v.error });
+    if (!(await clientInOrg(clientId, request.orgId, reply))) return;
     const prompt = sanitizePrompt(rawPrompt);
     const stylePack = getStylePack(stylePackId);
     const effectiveSize = imageSize || '2K';
@@ -134,6 +144,7 @@ export async function creativeRoutes(app: FastifyInstance) {
   app.post('/creative/images/edit', { preHandler: capGuard('ai.image', 'image.edit') }, async (request, reply) => {
     const { prompt: rawEditPrompt, imageBase64, mimeType, aspectRatio, clientId, model, provider, referenceImages, safeZone, imageSize, enhance, depth, useBrandKit } = request.body as { prompt?: string; imageBase64?: string; mimeType?: string; aspectRatio?: string; clientId?: string; model?: string; provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax' | 'byteplus'; referenceImages?: { base64: string; mimeType: string; role?: 'content' | 'style' | 'character' }[]; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K'; enhance?: boolean; depth?: 'raw' | 'low' | 'medium' | 'high'; useBrandKit?: boolean };
     if (!rawEditPrompt || !imageBase64) return reply.status(400).send({ error: 'prompt and imageBase64 are required' });
+    if (!(await clientInOrg(clientId, request.orgId, reply))) return;
     const ev = validatePrompt(rawEditPrompt);
     if (!ev.valid) return reply.status(400).send({ error: ev.error });
     const prompt = sanitizePrompt(rawEditPrompt);
@@ -233,6 +244,7 @@ export async function creativeRoutes(app: FastifyInstance) {
       format?: unknown; mode?: unknown; model?: unknown; provider?: unknown; clientId?: string;
     }) || {};
     if (!imageBase64 && !sourceUrl) return reply.status(400).send({ error: 'imageBase64 or sourceUrl is required' });
+    if (!(await clientInOrg(clientId, request.orgId, reply))) return;
     try {
       const result = await upscaleImage({
         base64: imageBase64, mimeType, sourceUrl,
@@ -325,6 +337,7 @@ export async function creativeRoutes(app: FastifyInstance) {
       model?: string; provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax' | 'byteplus'; enhance?: boolean; depth?: 'raw' | 'low' | 'medium' | 'high'; stylePackId?: string; useBrandKit?: boolean;
     };
     if (!prompt) return reply.status(400).send({ error: 'prompt is required' });
+    if (!(await clientInOrg(clientId, request.orgId, reply))) return;
     {
       const vv = validatePrompt(prompt);
       if (!vv.valid) return reply.status(400).send({ error: vv.error });
@@ -453,6 +466,7 @@ export async function creativeRoutes(app: FastifyInstance) {
     }
     const iv = validatePrompt(rawImp);
     if (!iv.valid) return reply.status(400).send({ error: iv.error });
+    if (!(await clientInOrg(clientId, request.orgId, reply))) return;
     const prompt = sanitizePrompt(rawImp);
     const validModes: EnhanceMode[] = ['text-to-image', 'image-edit', 'text-to-video', 'image-to-video'];
     const enhanceMode: EnhanceMode = validModes.includes(mode as EnhanceMode) ? (mode as EnhanceMode) : 'text-to-image';
@@ -557,6 +571,7 @@ export async function creativeRoutes(app: FastifyInstance) {
     if (!Array.isArray(queries) || queries.length === 0) {
       return reply.status(400).send({ error: 'queries array is required' });
     }
+    if (!(await clientInOrg(clientId, request.orgId, reply))) return;
     try {
       const results = await searchPinterestMulti(queries, perQuery || 6);
 

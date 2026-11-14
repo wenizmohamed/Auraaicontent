@@ -93,7 +93,7 @@ export interface UsageMeta {
   clientId?: string;
   jobId?: string;
 }
-function persistChatUsage(meta: UsageMeta | undefined, model: string, provider: ProviderName, p?: number, reportedC?: number, t?: number) {
+function persistChatUsage(meta: UsageMeta | undefined, model: string, provider: ProviderName, p?: number, reportedC?: number, t?: number, estimated = false) {
   // Gemini's OpenAI-compatible completion_tokens leaves out the thinking
   // tokens Google bills as output; only total_tokens carries them. The agent
   // (Argon) and chat run through here, so without this every thinking turn
@@ -118,7 +118,7 @@ function persistChatUsage(meta: UsageMeta | undefined, model: string, provider: 
       units: t ?? 0,
       costUsd: computeCostUsd(modelKey, p, c, 1),
       ref: meta.jobId ?? meta.clientId ?? null,
-      metadata: { model: modelKey, task: 'text', provider, priced, promptTokens: p, completionTokens: c, surface: 'chat', ...(priced ? {} : { unpricedModel: modelKey }) },
+      metadata: { model: modelKey, task: 'text', provider, priced, promptTokens: p, completionTokens: c, surface: 'chat', ...(priced ? {} : { unpricedModel: modelKey }), ...(estimated ? { usageEstimated: true } : {}) },
     },
   }).catch((err: any) => {
     console.warn('[chat] usage persist failed:', err?.message || err);
@@ -511,20 +511,24 @@ export async function chatStream(
   const wrapped: AsyncIterable<ChatCompletionChunk> = {
     async *[Symbol.asyncIterator]() {
       let usage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | undefined;
+      let streamedChars = 0;
       try {
         for await (const chunk of upstream) {
           if ((chunk as any).usage) usage = (chunk as any).usage;
+          streamedChars += String((chunk as any).choices?.[0]?.delta?.content || '').length;
           yield chunk;
         }
       } finally {
-        persistChatUsage(
-          options?.meta,
-          out.model,
-          out.provider,
-          usage?.prompt_tokens,
-          usage?.completion_tokens,
-          usage?.total_tokens,
-        );
+        if (usage) {
+          persistChatUsage(options?.meta, out.model, out.provider, usage.prompt_tokens, usage.completion_tokens, usage.total_tokens);
+        } else {
+          // Stopped before the provider sent its usage chunk: estimate at about
+          // 4 characters a token and flag it, so the row is never a fake $0.
+          const promptChars = JSON.stringify(params.messages || []).length;
+          const p = Math.ceil(promptChars / 4);
+          const c = Math.ceil(streamedChars / 4);
+          persistChatUsage(options?.meta, out.model, out.provider, p, c, p + c, true);
+        }
       }
     },
   };

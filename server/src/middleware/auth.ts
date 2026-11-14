@@ -2,6 +2,7 @@ import { FastifyRequest, FastifyReply } from 'fastify';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { env } from '../config/env.js';
+import { db } from '../db/prisma.js';
 
 export interface JwtPayload {
   userId: string;
@@ -75,6 +76,60 @@ export async function authGuard(request: FastifyRequest, reply: FastifyReply) {
     request.orgId = payload.orgId;
   } catch {
     return reply.status(401).send({ error: 'Invalid or expired token' });
+  }
+
+  // The token is not the authority on membership: a removed member must lose
+  // access now, not when a 7-day token expires, and a changed role applies at
+  // once (found 2026-11-14). Read from the DB, cached for 30s.
+  const role = await membershipRole(request.user.userId, request.orgId);
+  if (role === null) {
+    return reply.status(401).send({ error: 'You are no longer a member of this workspace. Sign in again.', requireLogin: true });
+  }
+  if (role) request.user = { ...request.user, orgRole: role };
+
+  // VIEWER is read-only everywhere on the server, not only on screen.
+  if (request.user.orgRole === 'VIEWER' && !READ_METHODS.has(request.method)) {
+    const path = (request.url || '').split('?')[0];
+    if (!VIEWER_WRITE_ALLOWED.some((p) => path.startsWith(p))) {
+      return reply.status(403).send({ error: 'Your role is read-only for this organization' });
+    }
+  }
+}
+
+const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+// Writes a read-only member still needs: their own session and profile,
+// accepting an invite, org routes (they check the DB role themselves), and
+// chatting with the assistant (its write actions check the role separately).
+const VIEWER_WRITE_ALLOWED = ['/api/auth/', '/api/invitations/', '/api/orgs/', '/api/assistant/chat', '/api/assistant/conversation'];
+
+const MEMBERSHIP_TTL_MS = 30_000;
+const membershipCache = new Map<string, { role: string | null; at: number }>();
+
+/**
+ * The member's current role in the org: a role string, null when they are
+ * no longer a member, or undefined when the lookup failed (callers then fall
+ * back to the token rather than locking everyone out during a DB blip).
+ */
+export async function membershipRole(userId: string, orgId: string): Promise<string | null | undefined> {
+  const key = `${userId}:${orgId}`;
+  const hit = membershipCache.get(key);
+  if (hit && Date.now() - hit.at < MEMBERSHIP_TTL_MS) return hit.role;
+  try {
+    const m = await db.orgMembership.findUnique({ where: { userId_orgId: { userId, orgId } }, select: { role: true } });
+    const role = m?.role ? String(m.role) : null;
+    if (membershipCache.size > 10_000) membershipCache.clear();
+    membershipCache.set(key, { role, at: Date.now() });
+    return role;
+  } catch (e) {
+    console.warn(`[auth] membership check failed, using the token role: ${String((e as Error)?.message || e).slice(0, 120)}`);
+    return undefined;
+  }
+}
+
+/** Drop cached membership after a removal or role change so it applies at once. */
+export function invalidateMembership(userId: string, orgId?: string): void {
+  for (const key of [...membershipCache.keys()]) {
+    if (key.startsWith(`${userId}:`) && (!orgId || key === `${userId}:${orgId}`)) membershipCache.delete(key);
   }
 }
 

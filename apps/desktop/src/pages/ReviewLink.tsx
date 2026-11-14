@@ -61,8 +61,6 @@ interface ReviewMonth {
 interface ReviewPayload {
   client: { name?: string | null; slug?: string | null; industry?: string | null; logoUrl?: string | null } | null;
   month: ReviewMonth | null;
-  linkId: string;
-  orgId: string;
 }
 
 class ReviewError extends Error {

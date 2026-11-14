@@ -3,6 +3,8 @@ import { authGuard } from '../middleware/auth.js';
 import { aiRouter } from '../services/providers/ai-router.js';
 import { sendAiError } from '../services/providers/errors.js';
 import { historyService } from '../services/history.service.js';
+import { assertClientInOrg } from '../lib/tenant.js';
+import { errStatus, errMessage } from '../services/providers/errors.js';
 
 interface AnalyzeVideoBody {
   videoUrl?: string;
@@ -42,6 +44,10 @@ export async function analyzeRoutes(app: FastifyInstance) {
     const { videoUrl, prompt, clientId } = (request.body as AnalyzeVideoBody) || {};
     if (!videoUrl || typeof videoUrl !== 'string' || !videoUrl.trim()) {
       return reply.status(400).send({ error: 'videoUrl is required' });
+    }
+    if (clientId) {
+      try { await assertClientInOrg(String(clientId), request.orgId); }
+      catch (e) { return reply.status(errStatus(e, 404)).send({ error: errMessage(e) }); }
     }
 
     // Block adult/violent content — this is a client-facing agency tool

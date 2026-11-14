@@ -58,6 +58,10 @@ export async function reviewRoutes(app: FastifyInstance) {
 
     const { authorName, comment, status } = request.body as { authorName: string; comment: string; status?: string };
     if (!authorName || !comment) return reply.status(400).send({ error: 'authorName and comment are required' });
+    // Public endpoint: the text also feeds the client's memory, so cap it.
+    if (String(authorName).length > 120 || String(comment).length > 4000) {
+      return reply.status(400).send({ error: 'Comment is too long (4000 characters at most).' });
+    }
 
     // Verify postId belongs to the link's calendar (defense in depth — token
     // grants approval rights only for its own month).

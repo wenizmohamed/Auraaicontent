@@ -15,7 +15,7 @@ import {
   type ServerToClientEvents,
 } from './events.js';
 import { runContentAgent, cancelContentAgent } from '../agent/content-agent.js';
-import { verifyToken, type JwtPayload } from '../middleware/auth.js';
+import { verifyToken, membershipRole, type JwtPayload } from '../middleware/auth.js';
 
 let io: SocketIOServer<ClientToServerEvents, ServerToClientEvents> | null = null;
 
@@ -124,6 +124,16 @@ export async function attachRealtime(app: FastifyInstance) {
       if (!orgId) {
         await emitAndPersist(sessionUid, 'agent:error', {
           message: 'Socket token missing org scope. Re-login',
+          at: new Date().toISOString(),
+        });
+        return;
+      }
+      // The socket was authorized once at connect; check membership and role
+      // again for every run (removed members and read-only VIEWERs cannot run).
+      const role = user?.userId ? await membershipRole(user.userId, orgId) : undefined;
+      if (role === null || (role ?? user?.orgRole) === 'VIEWER') {
+        await emitAndPersist(sessionUid, 'agent:error', {
+          message: role === null ? 'You are no longer a member of this workspace. Sign in again.' : 'Your role is read-only for this workspace.',
           at: new Date().toISOString(),
         });
         return;

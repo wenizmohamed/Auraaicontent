@@ -9,9 +9,10 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import type { Prisma } from '@prisma/client';
 import { db } from '../db/prisma.js';
 import { authGuard } from '../middleware/auth.js';
+import { auditService } from '../services/audit.service.js';
 
 function staffEmails(): Set<string> {
-  return new Set((process.env.STAFF_EMAILS || '').split(',').map((s) => s.trim()).filter(Boolean));
+  return new Set((process.env.STAFF_EMAILS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean));
 }
 
 async function staffGuard(request: FastifyRequest, reply: FastifyReply) {
@@ -97,6 +98,16 @@ export async function adminRoutes(app: FastifyInstance) {
     if (!org) return reply.status(404).send({ error: 'Workspace not found' });
     await db.organization.delete({ where: { id: orgId } });   // cascades to all org data
     console.warn(`[admin] workspace DELETED: "${org.name}" (${orgId}) by ${request.user?.email}`);
+    if (request.orgId) {
+      auditService.log({
+        orgId: request.orgId,
+        userId: request.user?.userId,
+        action: 'admin.org-delete',
+        entityType: 'Organization',
+        entityId: orgId,
+        payload: { name: org.name, by: request.user?.email },
+      });
+    }
     return { ok: true, deleted: org };
   });
 

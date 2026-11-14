@@ -106,6 +106,14 @@ export async function runModelLadder<T>(
         // of the same provider; bubble straight out so ai-router hops to the next provider.
         break;
       }
+      // The provider refused the user's INPUT (e.g. BytePlus
+      // InputImageSensitiveContentDetected): every sibling model reads the same
+      // input and refuses it too (seen 2026-11-14: three Seedance rungs in a row).
+      // Hand over to the next provider instead. Output refusals still try the
+      // next model, since a fresh render can pass.
+      if (/Input(Image|Text|Video|Audio)?SensitiveContentDetected/i.test(msg)) {
+        break;
+      }
       if (!retryable || isLast) {
         // Either fatal (don't waste calls on the rest of the ladder), or last model in ladder
         if (!retryable) {

@@ -453,7 +453,8 @@ export async function calendarRoutes(app: FastifyInstance) {
     if (!comment || !comment.trim()) return reply.status(400).send({ error: 'comment is required' });
     const authorName = request.user?.email || 'Team';
     // reuse the review service so the note also feeds the memory learn-loop
-    const created = await reviewService.addComment(request.orgId!, postId, authorName, comment.trim(), status || 'note');
+    // Team notes are internal: source 'team' keeps them off the public review link.
+    const created = await reviewService.addComment(request.orgId!, postId, authorName, comment.trim(), status || 'note', 'team');
     return created;
   });
 

@@ -79,9 +79,13 @@ export async function historyRoutes(app: FastifyInstance) {
   app.get('/history/:id', async (request, reply) => {
     const orgId = request.orgId!;
     const { id } = request.params as { id: string };
+    // Named fields only: costUsd is owner/admin/accounting data.
     const row = await db.generation.findFirst({
       where: { id, orgId },
-      include: {
+      select: {
+        id: true, type: true, surface: true, prompt: true, outputUrl: true, outputText: true,
+        thumbnailUrl: true, provider: true, model: true, status: true, error: true,
+        latencyMs: true, metadata: true, createdAt: true, clientId: true, userId: true,
         client: { select: { id: true, name: true, logoUrl: true } },
         user: { select: { id: true, name: true } },
       },

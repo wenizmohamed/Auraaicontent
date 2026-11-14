@@ -159,6 +159,9 @@ CRITICAL: When responding as plain text, do NOT wrap it in JSON. Just write natu
 
 // ─── Action Executor ─────────────────────────────────────────────
 
+// Actions that change data or spend money; a read-only member cannot run them.
+const VIEWER_BLOCKED_ACTIONS = new Set(['create_client', 'generate_content', 'delete_calendar', 'update_post', 'research', 'improve_prompt']);
+
 async function executeAction(orgId: string, action: string, params: ActionParams, clientId: string | null, userId?: string): Promise<unknown> {
   switch (action) {
     case 'list_clients':
@@ -530,8 +533,10 @@ export async function assistantRoutes(app: FastifyInstance) {
           const actionName = parsed.action;
           const actionParams = parsed.params || {};
 
-          // Execute the action
-          const actionResult = await executeAction(orgId, actionName, actionParams, clientId || null, userId);
+          // Execute the action. A VIEWER can chat and read, never change or spend.
+          const actionResult = request.user?.orgRole === 'VIEWER' && VIEWER_BLOCKED_ACTIONS.has(actionName)
+            ? { error: 'Your role is read-only for this workspace.' }
+            : await executeAction(orgId, actionName, actionParams, clientId || null, userId);
 
           actionTaken = { type: actionName, params: actionParams, result: actionResult };
 

@@ -17,7 +17,7 @@ import { FastifyInstance, type FastifyRequest, type FastifyReply } from 'fastify
 import type { OrgRole } from '@prisma/client';
 import crypto from 'crypto';
 import { db } from '../db/prisma.js';
-import { authGuard, type JwtPayload } from '../middleware/auth.js';
+import { authGuard, invalidateMembership, type JwtPayload } from '../middleware/auth.js';
 import { sendEmail, inviteEmailHtml, inviteEmailText } from '../lib/email.js';
 import { auditService } from '../services/audit.service.js';
 import { capGuard } from '../lib/plan-caps.js';
@@ -302,6 +302,7 @@ export async function orgsRoutes(app: FastifyInstance) {
       // forces a re-login, and the next token they get carries the new role.
       await revokeUserRefreshTokens(tx, userId);
     });
+    invalidateMembership(userId, orgId); // the new role applies on their next request
     auditService.log({
       orgId,
       userId: caller.userId,
@@ -363,6 +364,7 @@ export async function orgsRoutes(app: FastifyInstance) {
       // lifetime unless we cut their sessions here.
       await revokeUserRefreshTokens(tx, userId);
     });
+    invalidateMembership(userId, orgId); // their access ends on the next request
 
     return { success: true };
   });

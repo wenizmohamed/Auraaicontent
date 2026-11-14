@@ -251,8 +251,8 @@ export async function buildApp() {
   // Returns SHA-256 fingerprints of secret prefixes; staff-only to prevent
   // anyone from confirming a leaked-key prefix matches the live key.
   app.get('/api/health/details', { preHandler: [authGuard] }, async (request, reply) => {
-    const allowed = new Set((process.env.STAFF_EMAILS || '').split(',').map((s) => s.trim()).filter(Boolean));
-    const email = request.user?.email;
+    const allowed = new Set((process.env.STAFF_EMAILS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean));
+    const email = request.user?.email?.toLowerCase();
     if (allowed.size === 0 || !email || !allowed.has(email)) {
       return reply.status(403).send({ error: 'Staff only' });
     }
@@ -352,6 +352,13 @@ export async function buildApp() {
   // user-visible 500. Runs daily after a 5s warmup. (RES-2, after the
   // gemini-3.1-flash-lite-preview deprecation incident.)
   startGeminiModelValidator();
+  // Memory rows stored while embeddings were down get embedded once, shortly
+  // after boot (off the request path, never blocks startup).
+  setTimeout(() => {
+    import('./services/memory.service.js')
+      .then((m) => m.backfillMemoryEmbeddings())
+      .catch((e) => console.warn('[memory] backfill failed to start:', e?.message || e));
+  }, 90_000).unref();
 
   // Log which engine "Auto" resolves to for prompts. The prompt enhancer
   // writes for a SPECIFIC engine (whether the audio lines are kept or dropped

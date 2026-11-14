@@ -13,6 +13,7 @@
 // an org-wide learning that applies to every client.
 
 import { db } from '../db/prisma.js';
+import { Prisma } from '@prisma/client';
 import { embedText } from './gemini.service.js';
 import { bm25Score, buildDocs, tokenize } from './lexical-retrieval.service.js';
 
@@ -86,6 +87,35 @@ function cosineSimilarity(a: number[], b: number[]): number {
   }
   const denom = Math.sqrt(magA) * Math.sqrt(magB);
   return denom === 0 ? 0 : dot / denom;
+}
+
+// ─── backfill ────────────────────────────────────────────────────
+// recordMemory keeps a lesson even when embedding fails, but nothing ever came
+// back for those rows: semantic recall never found them (10 rows on prod,
+// 2026-11-14). This embeds them once the provider answers again. Best-effort,
+// bounded, safe to run repeatedly.
+export async function backfillMemoryEmbeddings(limit = 50): Promise<{ scanned: number; embedded: number }> {
+  const rows = await db.memory.findMany({
+    where: { embedding: { equals: Prisma.DbNull } },
+    select: { id: true, orgId: true, clientId: true, userId: true, content: true },
+    orderBy: { createdAt: 'asc' },
+    take: limit,
+  });
+  let embedded = 0;
+  for (const r of rows) {
+    try {
+      const vec = await embedText(r.content.slice(0, 8000), { orgId: r.orgId, userId: r.userId ?? undefined, clientId: r.clientId ?? undefined });
+      if (!Array.isArray(vec) || vec.length === 0) continue;
+      await db.memory.update({ where: { id: r.id }, data: { embedding: vec } });
+      embedded += 1;
+    } catch (err: any) {
+      // Provider still down: stop and try again on the next run.
+      console.warn('[memory] backfill paused:', String(err?.message || err).slice(0, 120));
+      break;
+    }
+  }
+  if (rows.length) console.log(`[memory] embedding backfill: ${embedded}/${rows.length} rows embedded`);
+  return { scanned: rows.length, embedded };
 }
 
 // ─── record ──────────────────────────────────────────────────────

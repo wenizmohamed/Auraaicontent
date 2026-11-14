@@ -66,22 +66,37 @@ export const reviewService = {
       select: { name: true, slug: true, industry: true, logoUrl: true },
     });
 
+    // The review link is public: return only what the client reviews. Team
+    // notes (source 'team') and internal fields (rationale, research queries,
+    // scheduling state, org ids) stay inside the app.
     const month = await db.calendarMonth.findUnique({
       where: { id: link.calendarMonthId, orgId },
-      include: {
+      select: {
+        id: true,
+        month: true,
+        status: true,
         posts: {
           orderBy: { date: 'asc' },
-          include: { comments: { orderBy: { createdAt: 'asc' } } },
+          select: {
+            id: true, date: true, title: true, pillar: true, platform: true, format: true,
+            hook: true, keyMessage: true, caption: true, cta: true, hashtags: true,
+            visualDirection: true, timing: true, status: true, metadata: true,
+            comments: {
+              where: { source: 'client' },
+              orderBy: { createdAt: 'asc' },
+              select: { id: true, authorName: true, comment: true, status: true, createdAt: true },
+            },
+          },
         },
       },
     });
 
-    return { client, month, linkId: link.id, orgId: link.orgId };
+    return { client, month };
   },
 
-  async addComment(orgId: string, postId: string, authorName: string, comment: string, status?: string) {
+  async addComment(orgId: string, postId: string, authorName: string, comment: string, status?: string, source: 'client' | 'team' = 'client') {
     const created = await db.postComment.create({
-      data: { orgId, postId, authorName, source: 'client', comment, status: status || 'note' },
+      data: { orgId, postId, authorName, source, comment, status: status || 'note' },
     });
     // Learn from the feedback (fire-and-forget — never delay/break the comment).
     if (comment?.trim()) void captureCommentLearning(orgId, postId, comment, status);

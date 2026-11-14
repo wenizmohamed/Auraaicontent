@@ -1,3 +1,5 @@
+import { safeFetch } from '../lib/safe-fetch.js';
+
 // Source verification (Habiba feedback 2026-07-14): "some research source
 // links are incorrect or not relevant". Research sources were model-emitted
 // (and the prompt even invited inventing them), so many 404'd or didn't exist.
@@ -17,24 +19,17 @@ async function checkOne(url: string, timeoutMs: number): Promise<boolean> {
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
   } catch { return false; }
 
-  // HEAD first (cheap); some servers reject HEAD → fall back to a ranged GET.
-  const attempt = async (method: 'HEAD' | 'GET'): Promise<number | null> => {
-    try {
-      const res = await fetch(url, {
-        method,
-        redirect: 'follow',
-        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AURABot/1.0)', ...(method === 'GET' ? { Range: 'bytes=0-1024' } : {}) },
-        signal: AbortSignal.timeout(timeoutMs),
-      });
-      return res.status;
-    } catch { return null; }
-  };
-
-  let status = await attempt('HEAD');
-  if (status === null || status === 405 || status === 501 || status === 403) status = await attempt('GET');
-  if (status === null) return false;
-  // Treat 2xx/3xx as live. 401/403 = exists-but-gated (keep — real URL). 404/410/5xx = drop.
-  return (status >= 200 && status < 400) || status === 401 || status === 403;
+  // These URLs come from a model, so the request goes through safeFetch: it
+  // refuses private, loopback and cloud-metadata addresses at connect time and
+  // re-checks every redirect (2026-11-14 access audit: this used raw fetch).
+  try {
+    const r = await safeFetch(parsed.toString(), { timeoutMs, maxBytes: 2 * 1024 * 1024, accept: 'text/html,*/*' });
+    // 2xx/3xx = live; 401/403 = exists but gated (keep, it is a real URL).
+    return (r.status >= 200 && r.status < 400) || r.status === 401 || r.status === 403;
+  } catch (e) {
+    // A page too big to read in full still exists; anything else is dead or refused.
+    return /Response (too large|exceeded)/.test(String((e as Error)?.message || ''));
+  }
 }
 
 /** Verify sources concurrently. dropDead (default true) removes unreachable

@@ -141,7 +141,7 @@ Then assign the ONE model from the list that serves that brief best for its pric
 
 Reply with JSON only:
 {"brief": {"subject": "", "text_in_image": "", "shots": 1, "people_speaking": false, "sound": "", "must_match": "", "style": ""}, "complexity": "simple" | "standard" | "complex", "engine": "<id from the list>", "reason": "<one plain sentence, at most 16 words>"}
-The reason names what in THIS prompt decided (for example "four timed shots with sound", "Arabic prices on a menu", "one subject and no text, so a cheaper model"). Do not start it with the model name, do not praise the model, no dashes.`;
+The reason names what in THIS prompt decided (for example "four timed shots with sound", "Arabic prices on a menu", "one subject and no text, so a cheaper model"). Do not start it with the model name, do not praise the model, never mention prices or dollar amounts, no dashes.`;
 
 function buildUserMessage(input: DirectEngineInput, candidates: EngineCandidate[]): string {
   const video = VIDEO_MODES.includes(input.mode);
@@ -194,7 +194,10 @@ function rulesPick(input: DirectEngineInput, candidates: EngineCandidate[]): Eng
 }
 
 function cleanReason(s: unknown): string {
-  return String(s || '').replace(/[‒-―]/g, ',').replace(/\s+/g, ' ').trim().slice(0, 200);
+  // Reasons reach every role; prices are owner/admin/accounting only, so any
+  // dollar figure the model mentions is cut out.
+  return String(s || '')
+    .replace(/\s*\(?\$\s?\d[\d.,]*(\s*(per|\/)\s*(second|image|s|img))?\)?/gi, '').replace(/[‒-―]/g, ',').replace(/\s+/g, ' ').trim().slice(0, 200);
 }
 
 /** Shown after "AURA picked <name>:", so a reason that opens with the name drops it. */

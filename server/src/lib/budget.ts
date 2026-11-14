@@ -56,8 +56,9 @@ export class OrgBudgetExceededError extends Error {
   readonly code = 'org_budget_exceeded';
   constructor(public readonly state: BudgetState) {
     super(
-      `Org ${state.orgId} has reached its monthly AI budget ` +
-      `($${state.used.toFixed(2)} / $${state.limit.toFixed(2)})`,
+      // Shown to every role: no dollar figures (prices are owner/admin/accounting
+      // only). The amounts stay on `state` for logs and admin screens.
+      'This workspace has reached its monthly AI budget. Ask an owner or admin to raise it.',
     );
     this.name = 'OrgBudgetExceededError';
   }
@@ -78,7 +79,7 @@ export class VideoDailyCapError extends Error {
   readonly statusCode = 402;
   readonly code = 'video_daily_cap';
   constructor(public readonly usedToday: number, public readonly cap: number) {
-    super(`Daily video budget reached ($${usedToday.toFixed(2)} / $${cap.toFixed(2)}). Resets at 00:00 UTC.`);
+    super("Today's video budget is used up. It resets at 00:00 UTC.");
     this.name = 'VideoDailyCapError';
   }
 }

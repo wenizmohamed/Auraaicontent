@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Calendar, FileText, Layers, Wand2, ArrowRight, Activity, CheckCircle2, Zap, Clock, ArrowUpRight, BarChart3, Users, Database, Sparkles, TrendingUp, TrendingDown, AlertTriangle, Cpu, ShieldCheck, Gauge, ChevronDown, ChevronUp, Building2, Image as ImageIcon, Video as VideoIcon, Search, Palette, Bot, BookOpen, Radio, Bell, Lightbulb, DollarSign } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useClients } from '../lib/client-context';
-import { dashboardApi, authApi, changelogApi, type DashboardStats, type AiStats, type DashboardInsights, type ActivityEntry, type ChangelogEntry } from '../lib/backend-api';
+import { dashboardApi, authApi, changelogApi, usageApi, type DashboardStats, type AiStats, type DashboardInsights, type ActivityEntry, type ChangelogEntry } from '../lib/backend-api';
 import { useTheme } from '../lib/theme-context';
 import { greeting } from '../lib/greeting';
 import { t } from '../i18n';
@@ -96,21 +96,6 @@ function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return String(n);
-}
-
-// Rough cost estimation per provider (input+output blended USD per 1M tokens)
-const PROVIDER_COST_PER_M: Record<string, number> = {
-  gemini: 5.0,      // Gemini 4 Argon / Carbon blended ~$5/M
-  vertex: 5.0,      // Vertex AI serves Gemini 4 Argon / Carbon
-  dashscope: 1.65,  // Qwen 3.8 Max input ~$1.65/M on the Alibaba catalog
-  byteplus: 1.5,    // BytePlus ModelArk Dola Seed / Seedream / Seedance
-  minimax: 1.5,     // MiniMax M3 / H3 blended
-  xai: 3.0,         // Grok 4.7 ~$3/M
-  moonshot: 1.0,    // Kimi K3.1 Pro Highspeed ~$1/M
-};
-
-function estimateCostUsd(providerStats: { provider: string; totalTokens: number }[]): number {
-  return providerStats.reduce((sum, p) => sum + (p.totalTokens / 1_000_000) * (PROVIDER_COST_PER_M[p.provider] || 2), 0);
 }
 
 function formatUsd(n: number): string {
@@ -378,6 +363,9 @@ export default function Dashboard() {
   const isDark = effectiveTheme !== 'light';
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [aiStats, setAiStats] = useState<AiStats | null>(null);
+  // Month-to-date AI spend from the meter (UsageEvent). The old tile estimated
+  // from a 500-call in-memory buffer and showed video and image spend as $0.
+  const [monthCost, setMonthCost] = useState<number | null>(null);
   const [insights, setInsights] = useState<DashboardInsights | null>(null);
   const [activity, setActivity] = useState<ActivityEntry[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -417,6 +405,14 @@ export default function Dashboard() {
       .then((me) => setUserName(me?.name ?? null))
       .catch(() => setUserName(null));
   }, [authenticated]);
+
+  // The pricing flag can arrive after login, so this runs on its own.
+  useEffect(() => {
+    if (!authenticated || !canSeePricing) return;
+    usageApi.currentOrg()
+      .then((u) => setMonthCost(u.monthToDate.costUsd))
+      .catch(() => setMonthCost(null));
+  }, [authenticated, canSeePricing]);
 
   const currentDate = new Date().toLocaleDateString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
@@ -941,13 +937,13 @@ export default function Dashboard() {
                     <div className={`text-base font-bold tabular-nums ${textPrimary}`}>{formatTokens(aiStats.totalTokens)}</div>
                     <p className={`text-[10px] font-medium ${isDark ? 'text-zinc-500' : 'text-slate-600'}`}>Tokens</p>
                   </div>
-                  {canSeePricing && (
+                  {canSeePricing && monthCost !== null && (
                     <div className={`rounded-xl p-3 border ${isDark ? 'bg-emerald-500/[0.05] border-emerald-500/15' : 'bg-emerald-50 border-emerald-300'}`}>
                       <div className={`text-base font-bold tabular-nums flex items-center gap-0.5 ${'text-[color:var(--color-success)]'}`}>
                         <DollarSign className="w-3 h-3" />
-                        <span>{formatUsd(estimateCostUsd(aiStats.providers)).replace('$', '')}</span>
+                        <span>{formatUsd(monthCost).replace('$', '')}</span>
                       </div>
-                      <p className={`text-[10px] font-medium ${'text-[color:var(--color-success)]'}`}>Est. cost</p>
+                      <p className={`text-[10px] font-medium ${'text-[color:var(--color-success)]'}`}>AI cost this month</p>
                     </div>
                   )}
                   <div className={`rounded-xl p-3 border ${isDark ? 'bg-white/[0.03] border-white/[0.04]' : 'bg-slate-100 border-slate-300'}`}>

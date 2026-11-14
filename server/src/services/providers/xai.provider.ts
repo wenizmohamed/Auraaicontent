@@ -259,10 +259,12 @@ export const xaiProvider: AiProvider = {
     let usedRes = '1080p';
     const ladderResult = await runModelLadder('xai', 'video', ladder, async (entry) => {
       const isLite = entry.model.includes('lite');
+      // The base grok-imagine-video is priced at 480p and 720p only.
+      const capped720 = isLite || entry.model === 'grok-imagine-video';
       const rawRes = req.resolution === '4k' ? '1080p' : req.resolution;
       const effectiveRes = rawRes
-        ? (rawRes === '1080p' && isLite ? '720p' : rawRes)
-        : (isLite ? '720p' : '1080p');
+        ? (rawRes === '1080p' && capped720 ? '720p' : rawRes)
+        : (capped720 ? '720p' : '1080p');
       usedRes = effectiveRes;
       const data = await xaiFetch('/videos/generations', {
         model: entry.model, prompt: cleanedPrompt,
