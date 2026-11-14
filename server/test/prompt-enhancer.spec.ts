@@ -80,6 +80,10 @@ describe('engine resolution', () => {
     expect(engineForModel('MiniMax-H3-Max')).toBe('minimax');
     expect(engineForModel('MiniMax-H3-Image')).toBe('minimax');
     expect(engineForModel('image-01')).toBe('minimax');
+    expect(engineForModel('dreamina-seedance-2-5-260628')).toBe('byteplus');
+    expect(engineForModel('seedance-1-0-pro-fast-251015')).toBe('byteplus');
+    expect(engineForModel('dola-seedream-5-5-261028')).toBe('byteplus');
+    expect(engineForModel('seedream-5-0-260128')).toBe('byteplus');
     // Absent model = Auto = the Alibaba primary.
     expect(engineForModel(undefined)).toBe('dashscope');
     expect(engineForModel('')).toBe('dashscope');
@@ -111,7 +115,7 @@ describe('every offered engine gets a dialect', () => {
   for (const section of VIDEO_SECTIONS) {
     for (const o of explicitEngines(section)) {
       it(`${section}: ${o.value} has a video dialect`, () => {
-        const d = engineDialect('text-to-video', 'dashscope', o.model);
+        const d = engineDialect('text-to-video', engineForModel(o.model), o.model);
         expect(d.length).toBeGreaterThan(0);
         expect(d).toContain('ENGINE NOTES');
       });

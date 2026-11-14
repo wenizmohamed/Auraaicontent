@@ -24,8 +24,8 @@ export type CreativeSection =
   | 'image-to-video'
   | 'reference-video';
 
-export type Vendor = 'Alibaba' | 'Google' | 'xAI' | 'MiniMax';
-export type ProviderName = 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax';
+export type Vendor = 'Alibaba' | 'Google' | 'xAI' | 'MiniMax' | 'ByteDance';
+export type ProviderName = 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax' | 'byteplus';
 
 export interface ModelOption {
   /** Picker id. 'auto' = AURA decides. */
@@ -67,6 +67,8 @@ const TIERED_IMAGE_RATES: Record<string, { '1K': number; '2K': number; '4K': num
   'gemini-nano-banana-2.1': { '1K': 0.034, '2K': 0.050, '4K': 0.113 },
   'gemini-3-pro-image': { '1K': 0.134, '2K': 0.134, '4K': 0.24 },
   'grok-imagine-image-2.0': { '1K': 0.04, '2K': 0.06, '4K': 0.06 },
+  'dola-seedream-5-5-261028': { '1K': 0.02, '2K': 0.035, '4K': 0.035 },
+  'dola-seedream-5-0-pro-260628': { '1K': 0.045, '2K': 0.09, '4K': 0.09 },
 };
 
 function tierFor(o: ModelOption): { '1K': number; '2K': number; '4K': number } | undefined {
@@ -130,34 +132,81 @@ const MINIMAX_IMAGE_01: ModelOption = {
   hint: 'Ultra-economy stills and character-consistent reference framing.',
   provider: 'minimax', model: 'image-01', perImage: 0.0035, maxSize: '2K',
 };
+const SEEDREAM_55: ModelOption = {
+  value: 'dola-seedream-5-5', label: 'Dola Seedream 5.5', vendor: 'ByteDance',
+  hint: 'ByteDance flagship 2K studio photography, rich typography, multi-image edits, and real RGBA transparent PNG cutouts.',
+  provider: 'byteplus', model: 'dola-seedream-5-5-261028', perImage: 0.02, maxSize: '2K',
+};
+const SEEDREAM_50_4K: ModelOption = {
+  value: 'seedream-5-0-4k', label: 'Seedream 5.0 (4K)', vendor: 'ByteDance',
+  hint: 'Native up-to-4K commercial stills, sharp product detail, and multi-reference edits at one flat rate.',
+  provider: 'byteplus', model: 'seedream-5-0-260128', perImage: 0.035, maxSize: '4K',
+};
+const SEEDREAM_50_PRO: ModelOption = {
+  value: 'dola-seedream-5-0-pro', label: 'Dola Seedream 5.0 Pro', vendor: 'ByteDance',
+  hint: 'Precision multi-round graphic design, complex layouts, and multi-image composition up to 2K.',
+  provider: 'byteplus', model: 'dola-seedream-5-0-pro-260628', perImage: 0.045, maxSize: '2K',
+};
+const SEEDREAM_50_FLASH: ModelOption = {
+  value: 'dola-seedream-5-0-flash', label: 'Dola Seedream 5.0 Flash', vendor: 'ByteDance',
+  hint: 'Fast ByteDance commercial stills and single-image RGBA cutouts.',
+  provider: 'byteplus', model: 'dola-seedream-5-0-flash-260915', perImage: 0.018, maxSize: '2K',
+};
 
 export const TEXT_TO_IMAGE_MODELS: ModelOption[] = [
   // The Auto hints describe selectBestCreativeEngine (server/src/services/
   // prompt-enhancer.service.ts) word for word: a keyword match on the prompt,
   // NOT a model call. Change one, change the other.
-  { value: 'auto', label: 'Auto', hint: 'AURA picks the engine from your words: Qwen Image 3.0 Pro for Arabic and posters, Wan 2.7 Image Pro for luxury product close-ups, MiniMax H3-Image for portraits, Grok Imagine 2.0 for neon and street styles, Gemini 3 Pro Image for the rest.' },
+  { value: 'auto', label: 'Auto', hint: 'AURA picks the engine from your words: Seedream 5.5 for transparent backgrounds and stickers, Qwen Image 3.0 Pro for Arabic and posters, Wan 2.7 Image Pro for luxury product close-ups, MiniMax H3-Image for portraits, Grok Imagine 2.0 for neon and street styles, Gemini 3 Pro Image for the rest.' },
   GEMINI_IMAGE_ULTRA, GEMINI_IMAGE,
+  SEEDREAM_55, SEEDREAM_50_4K, SEEDREAM_50_PRO, SEEDREAM_50_FLASH,
   MINIMAX_H3_IMAGE, MINIMAX_H3_IMAGE_FAST, MINIMAX_IMAGE_01,
   QWEN_IMAGE, WAN27_IMAGE_PRO, WAN27_IMAGE,
   GROK_IMAGE_2,
 ];
 
 export const IMAGE_EDIT_MODELS: ModelOption[] = [
-  { value: 'auto', label: 'Auto', hint: 'AURA picks the engine from your instruction: Qwen Image 3.0 Pro when it contains Arabic, Gemini 3 Pro Image for everything else.' },
+  { value: 'auto', label: 'Auto', hint: 'AURA picks the engine from your instruction: Seedream 5.5 for transparent cutouts, Qwen Image 3.0 Pro when it contains Arabic, Gemini 3 Pro Image for everything else.' },
   GEMINI_IMAGE_ULTRA, GEMINI_IMAGE,
+  SEEDREAM_55, SEEDREAM_50_4K, SEEDREAM_50_PRO, SEEDREAM_50_FLASH,
   MINIMAX_H3_IMAGE, MINIMAX_H3_IMAGE_FAST, MINIMAX_IMAGE_01,
   QWEN_IMAGE, WAN27_IMAGE_PRO, WAN27_IMAGE,
   GROK_IMAGE_2,
 ];
 
 export const UPSCALE_MODELS: ModelOption[] = [
-  { value: 'auto', label: 'Auto', hint: 'The detail pass runs on Gemini 3 Pro Image first, with Qwen Image 3.0 Pro and MiniMax H3-Image on standby.' },
-  QWEN_IMAGE, MINIMAX_H3_IMAGE, MINIMAX_H3_IMAGE_FAST, WAN27_IMAGE_PRO, WAN27_IMAGE,
-  GEMINI_IMAGE, GEMINI_IMAGE_ULTRA, GROK_IMAGE_2, MINIMAX_IMAGE_01,
+  { value: 'auto', label: 'Auto', hint: 'The detail pass runs on Gemini 3 Pro Image first, with Seedream 5.0 (4K), Qwen Image 3.0 Pro and MiniMax H3-Image on standby.' },
+  SEEDREAM_50_4K, SEEDREAM_55, QWEN_IMAGE, MINIMAX_H3_IMAGE, MINIMAX_H3_IMAGE_FAST, WAN27_IMAGE_PRO, WAN27_IMAGE,
+  GEMINI_IMAGE, GEMINI_IMAGE_ULTRA, GROK_IMAGE_2, SEEDREAM_50_FLASH, MINIMAX_IMAGE_01,
 ];
 
 // ─── Video ──────────────────────────────────────────────────────
 
+const SEEDANCE_25: ModelOption = {
+  value: 'dreamina-seedance-2-5', label: 'Dreamina Seedance 2.5', vendor: 'ByteDance',
+  hint: 'ByteDance flagship cinema engine. Multi-shot cuts, native stereo sound, start/end frame, and up to 10 reference images. 4 to 30s.',
+  model: 'dreamina-seedance-2-5-260628', perSec: 0.231, perSec1080: 0.569, minSeconds: 4, maxSeconds: 30, supports1080: true, tier: 'hd',
+};
+const SEEDANCE_20: ModelOption = {
+  value: 'dreamina-seedance-2-0', label: 'Dreamina Seedance 2.0', vendor: 'ByteDance',
+  hint: 'Multi-shot cinema storytelling with synchronized stereo sound, start/end frame, and product reference locking. 4 to 15s.',
+  model: 'dreamina-seedance-2-0-260128', perSec: 0.15, perSec1080: 0.37, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd',
+};
+const SEEDANCE_20_FAST: ModelOption = {
+  value: 'dreamina-seedance-2-0-fast', label: 'Dreamina Seedance 2.0 Fast', vendor: 'ByteDance',
+  hint: 'High-speed Seedance 2.0 720p cinema renders with synchronized sound and reference support. 4 to 15s.',
+  model: 'dreamina-seedance-2-0-fast-260128', perSec: 0.12, perSec1080: 0.12, minSeconds: 4, maxSeconds: 15, supports1080: false, tier: 'draft',
+};
+const SEEDANCE_20_MINI: ModelOption = {
+  value: 'dreamina-seedance-2-0-mini', label: 'Dreamina Seedance 2.0 Mini', vendor: 'ByteDance',
+  hint: 'Economy Seedance 2.0 720p clips with native sound and multi-reference consistency. 4 to 15s.',
+  model: 'dreamina-seedance-2-0-mini-260615', perSec: 0.08, perSec1080: 0.08, minSeconds: 4, maxSeconds: 15, supports1080: false, tier: 'draft',
+};
+const SEEDANCE_10_FAST: ModelOption = {
+  value: 'seedance-1-0-pro-fast', label: 'Seedance 1.0 Pro Fast', vendor: 'ByteDance',
+  hint: 'Ultra-low-cost silent motion drafts up to 1080p for rapid camera and layout tests. 4 to 12s.',
+  model: 'seedance-1-0-pro-fast-251015', perSec: 0.02, perSec1080: 0.048, minSeconds: 4, maxSeconds: 12, supports1080: true, tier: 'draft',
+};
 const WAN3_PRIME: ModelOption = {
   value: 'wan3.0-video-prime', label: 'Wan 3.0 Prime', vendor: 'Alibaba',
   hint: 'Fastest: a 4s clip in about 30s. Up to 30s with native sound. Text, first/last frame, or product references.',
@@ -209,18 +258,18 @@ const GROK_VIDEO_15_LITE: ModelOption = {
 };
 
 export const TEXT_TO_VIDEO_MODELS: ModelOption[] = [
-  { value: 'auto', label: 'Auto', hint: 'AURA picks the engine from your words: MiniMax H3 for people talking on camera, Grok Imagine Video 1.5 for fast action, Gemini Omni 1.2 Flash for animals and nature without sound, Wan 3.0 Prime with sound for the rest.', perSec: 0.127199, perSec1080: 0.254399, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
-  WAN3_PRIME, WAN3, MINIMAX_H3_VIDEO, MINIMAX_H3_MAX_VIDEO, OMNI_12_FLASH, OMNI_11_FLASH, GROK_VIDEO_15, GROK_VIDEO_15_LITE, HH_T2V,
+  { value: 'auto', label: 'Auto', hint: 'AURA picks the engine from your words: Seedance 2.5 for multi-shot cuts and storyboards, MiniMax H3 for people talking on camera, Grok Imagine Video 1.5 for fast action, Gemini Omni 1.2 Flash for animals and nature without sound, Wan 3.0 Prime with sound for the rest.', perSec: 0.127199, perSec1080: 0.254399, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
+  SEEDANCE_25, SEEDANCE_20, SEEDANCE_20_FAST, SEEDANCE_20_MINI, WAN3_PRIME, WAN3, MINIMAX_H3_VIDEO, MINIMAX_H3_MAX_VIDEO, OMNI_12_FLASH, OMNI_11_FLASH, GROK_VIDEO_15, GROK_VIDEO_15_LITE, HH_T2V, SEEDANCE_10_FAST,
 ];
 
 export const IMAGE_TO_VIDEO_MODELS: ModelOption[] = [
-  { value: 'auto', label: 'Auto', hint: 'AURA picks the engine from your words: MiniMax H3 for people talking on camera, Wan 3.0 Prime with sound for the rest and whenever you add an end frame.', perSec: 0.127199, perSec1080: 0.254399, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
-  WAN3_PRIME, WAN3, MINIMAX_H3_VIDEO, MINIMAX_H3_MAX_VIDEO, OMNI_12_FLASH, OMNI_11_FLASH, GROK_VIDEO_15, GROK_VIDEO_15_LITE, HH_I2V,
+  { value: 'auto', label: 'Auto', hint: 'AURA picks the engine from your words: Seedance 2.5 for multi-shot cuts and storyboards, MiniMax H3 for people talking on camera, Wan 3.0 Prime with sound for the rest and whenever you add an end frame.', perSec: 0.127199, perSec1080: 0.254399, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
+  SEEDANCE_25, SEEDANCE_20, SEEDANCE_20_FAST, SEEDANCE_20_MINI, WAN3_PRIME, WAN3, MINIMAX_H3_VIDEO, MINIMAX_H3_MAX_VIDEO, OMNI_12_FLASH, OMNI_11_FLASH, GROK_VIDEO_15, GROK_VIDEO_15_LITE, HH_I2V, SEEDANCE_10_FAST,
 ];
 
 export const REFERENCE_VIDEO_MODELS: ModelOption[] = [
-  { value: 'auto', label: 'Auto', hint: 'Wan 3.0 Prime reference mode keeps your exact product across the clip, with MiniMax H3 and HappyHorse 1.1 on standby.', perSec: 0.127199, perSec1080: 0.254399, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
-  WAN3_PRIME, WAN3, MINIMAX_H3_VIDEO, HH_R2V,
+  { value: 'auto', label: 'Auto', hint: 'Wan 3.0 Prime reference mode keeps your exact product across the clip, with Dreamina Seedance 2.5, MiniMax H3 and HappyHorse 1.1 on standby.', perSec: 0.127199, perSec1080: 0.254399, minSeconds: 4, maxSeconds: 15, supports1080: true, tier: 'hd' },
+  SEEDANCE_25, SEEDANCE_20, SEEDANCE_20_FAST, SEEDANCE_20_MINI, WAN3_PRIME, WAN3, MINIMAX_H3_VIDEO, HH_R2V,
 ];
 
 export const MODELS_BY_SECTION: Record<CreativeSection, ModelOption[]> = {

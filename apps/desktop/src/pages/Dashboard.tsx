@@ -104,6 +104,7 @@ const PROVIDER_COST_PER_M: Record<string, number> = {
   vertex: 5.0,      // Vertex AI serves Gemini 4 Argon / Carbon
   dashscope: 1.65,  // Qwen 3.8 Max input ~$1.65/M on the Alibaba catalog
   minimax: 1.5,     // MiniMax M3 / H3 blended
+  byteplus: 1.5,    // ByteDance Dola Seed 2.1 Turbo / Seedream / Seedance blended
   xai: 3.0,         // Grok 4.7 ~$3/M
   moonshot: 1.0,    // Kimi K3.1 Pro Highspeed ~$1/M
 };
@@ -244,7 +245,7 @@ const WALKTHROUGH_STEPS: Array<{
   {
     icon: Wand2,
     title: '5. Creative Tools',
-    description: 'Generate images, edit existing frames, and make videos with sound. Gemini 4 Carbon rewrites your prompt for the engine: Gemini 3 Pro Image, MiniMax H3, Wan 3.0 Prime, Qwen Image 3.0 Pro or Grok Imagine 2.0.',
+    description: 'Generate images, edit existing frames, and make videos with sound. Gemini 4 Carbon rewrites your prompt for the engine: Gemini 3 Pro Image, Seedream 5.5, Seedance 2.5, MiniMax H3, Wan 3.0 Prime, Qwen Image 3.0 Pro or Grok Imagine 2.0.',
     href: '/creative',
     cta: 'Open Studio',
     color: (d) => d ? 'text-pink-400' : 'text-pink-600',

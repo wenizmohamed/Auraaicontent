@@ -614,6 +614,7 @@ export const byteplusProvider: AiProvider = {
 
     let billedSuffix = '';
     let taskUsage: any;
+    let actualDuration = Math.round(req.durationSeconds || 6);
 
     const run = await runModelLadder('byteplus', 'video', ladder, async (entry) => {
       const m = entry.model.toLowerCase();
@@ -669,6 +670,7 @@ export const byteplusProvider: AiProvider = {
       const maxDur = is25 ? 30 : is20 ? 15 : 12;
       const minDur = is10 ? 2 : 4;
       const duration = Math.min(Math.max(Math.round(req.durationSeconds || 6), minDur), maxDur);
+      actualDuration = duration;
 
       let apiResolution: '720p' | '1080p' | '4k' = '720p';
       if (is720MaxOnly) {
@@ -685,60 +687,75 @@ export const byteplusProvider: AiProvider = {
         billedSuffix = '';
       }
 
-      const payload: Record<string, unknown> = {
-        model: entry.model,
-        content,
-        resolution: apiResolution,
-        duration,
-        ratio,
-        watermark: false,
+      const submitAndPoll = async (promptOverride?: string): Promise<string> => {
+        const attemptContent = promptOverride
+          ? [{ type: 'text', text: promptOverride }, ...content.slice(1)]
+          : content;
+        const payload: Record<string, unknown> = {
+          model: entry.model,
+          content: attemptContent,
+          resolution: apiResolution,
+          duration,
+          ratio,
+          watermark: false,
+        };
+        if (is25 || is20) payload.generate_audio = true;
+        if (is25 && usedOmniRefs) payload.omni_reference_task_type = 'reference';
+
+        const submitted = await arkFetch('/contents/generations/tasks', payload, {
+          timeoutMs: 60000,
+          signal: req.signal,
+          task: 'video',
+        });
+
+        const taskId = submitted?.id || submitted?.task_id;
+        if (!taskId) {
+          throw new AiProviderError('byteplus', 'video', `${entry.model} submit missing id: ${JSON.stringify(submitted).slice(0, 200)}`, 502);
+        }
+
+        const deadline = Date.now() + VIDEO_BUDGET_MS;
+        while (Date.now() < deadline) {
+          throwIfCancelled(req.signal, 'video');
+          await new Promise((r) => setTimeout(r, 5000));
+          throwIfCancelled(req.signal, 'video');
+
+          const poll = await arkFetch(
+            `/contents/generations/tasks/${encodeURIComponent(String(taskId))}`,
+            undefined,
+            { method: 'GET', timeoutMs: 30000, signal: req.signal, task: 'video' },
+          );
+
+          const status = String(poll?.status || '').toLowerCase();
+          if (status === 'succeeded' || status === 'success') {
+            const remoteUrl = poll?.content?.video_url || poll?.content?.url || poll?.video_url;
+            if (!remoteUrl) {
+              throw new AiProviderError('byteplus', 'video', `${entry.model} succeeded without video_url`, 502);
+            }
+            taskUsage = poll?.usage;
+            return String(remoteUrl);
+          }
+          if (status === 'failed' || status === 'fail' || status === 'canceled' || status === 'cancelled' || status === 'expired') {
+            const errCode = poll?.error?.code || '';
+            const errMsg = poll?.error?.message || status;
+            const combined = `${errCode}${errCode && errMsg ? ': ' : ''}${errMsg}`;
+            if (isArkSafetyError(combined)) {
+              throw new AiProviderError('byteplus', 'video', `${entry.model} video (safety policy): ${combined.slice(0, 220)}`, 422);
+            }
+            throw new AiProviderError('byteplus', 'video', `${entry.model} video ${status}: ${combined.slice(0, 220)}`, 502);
+          }
+        }
+        throw new AiProviderError('byteplus', 'video', `${entry.model} poll timeout after ${Math.round(VIDEO_BUDGET_MS / 1000)}s`, 504);
       };
-      if (is25 || is20) payload.generate_audio = true;
-      if (is25 && usedOmniRefs) payload.omni_reference_task_type = 'reference';
 
-      const submitted = await arkFetch('/contents/generations/tasks', payload, {
-        timeoutMs: 60000,
-        signal: req.signal,
-        task: 'video',
-      });
-
-      const taskId = submitted?.id || submitted?.task_id;
-      if (!taskId) {
-        throw new AiProviderError('byteplus', 'video', `${entry.model} submit missing id: ${JSON.stringify(submitted).slice(0, 200)}`, 502);
-      }
-
-      const deadline = Date.now() + VIDEO_BUDGET_MS;
-      while (Date.now() < deadline) {
-        throwIfCancelled(req.signal, 'video');
-        await new Promise((r) => setTimeout(r, 5000));
-        throwIfCancelled(req.signal, 'video');
-
-        const poll = await arkFetch(
-          `/contents/generations/tasks/${encodeURIComponent(String(taskId))}`,
-          undefined,
-          { method: 'GET', timeoutMs: 30000, signal: req.signal, task: 'video' },
-        );
-
-        const status = String(poll?.status || '').toLowerCase();
-        if (status === 'succeeded' || status === 'success') {
-          const remoteUrl = poll?.content?.video_url || poll?.content?.url || poll?.video_url;
-          if (!remoteUrl) {
-            throw new AiProviderError('byteplus', 'video', `${entry.model} succeeded without video_url`, 502);
-          }
-          taskUsage = poll?.usage;
-          return String(remoteUrl);
+      try {
+        return await submitAndPoll();
+      } catch (firstErr: any) {
+        if ((is25 || is20) && /OutputAudioSensitiveContentDetected/i.test(String(firstErr?.message || ''))) {
+          console.warn(`[byteplus/video] ${entry.model} hit OutputAudioSensitiveContentDetected on seed 1; retrying same model with clean foley constraint`);
+          return await submitAndPoll(`${cleanedPrompt} Pure instrumental and environmental foley audio only, zero background voices.`);
         }
-        if (status === 'failed' || status === 'fail' || status === 'canceled' || status === 'cancelled' || status === 'expired') {
-          const errCode = poll?.error?.code || '';
-          const errMsg = poll?.error?.message || status;
-          const combined = `${errCode}${errCode && errMsg ? ': ' : ''}${errMsg}`;
-          if (isArkSafetyError(combined)) {
-            throw new AiProviderError('byteplus', 'video', `${entry.model} video (safety policy): ${combined.slice(0, 220)}`, 422);
-          }
-          throw new AiProviderError('byteplus', 'video', `${entry.model} video ${status}: ${combined.slice(0, 220)}`, 502);
-        }
+        throw firstErr;
       }
-      throw new AiProviderError('byteplus', 'video', `${entry.model} poll timeout after ${Math.round(VIDEO_BUDGET_MS / 1000)}s`, 504);
     });
 
     // Persist MP4 locally (transcoding 10-bit HEVC -> 8-bit H.264 yuv420p when needed)
@@ -766,6 +783,7 @@ export const byteplusProvider: AiProvider = {
       latencyMs: Date.now() - start,
       fallbackUsed: false,
       output: { url: finalUrl },
+      durationSeconds: actualDuration,
       ...extractUsage(taskUsage),
     };
   },

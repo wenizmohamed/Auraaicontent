@@ -511,9 +511,9 @@ export const apiKeysApi = {
 // ─── Creative ────────────────────────────────────────────────────
 
 export const creativeApi = {
-  generateImage: (data: { prompt: string; aspectRatio?: string; clientId?: string; model?: string; provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax'; quality?: 'standard' | 'ultra'; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K'; enhance?: boolean; depth?: 'raw' | 'low' | 'medium' | 'high'; stylePackId?: string; useBrandKit?: boolean }) =>
+  generateImage: (data: { prompt: string; aspectRatio?: string; clientId?: string; model?: string; provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax' | 'byteplus'; quality?: 'standard' | 'ultra'; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K'; enhance?: boolean; depth?: 'raw' | 'low' | 'medium' | 'high'; stylePackId?: string; useBrandKit?: boolean }) =>
     request<any>('/api/creative/images/generate', { method: 'POST', body: JSON.stringify(data) }, { timeoutMs: 290000 }),  // under nginx's 300s /api/ budget; Qwen multi-reference 2K edits can pass 120s
-  editImage: (data: { prompt: string; imageBase64: string; mimeType?: string; aspectRatio?: string; clientId?: string; model?: string; provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax'; referenceImages?: { base64: string; mimeType: string; role?: 'content' | 'style' | 'character' }[]; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K'; enhance?: boolean; depth?: 'raw' | 'low' | 'medium' | 'high'; useBrandKit?: boolean }) =>
+  editImage: (data: { prompt: string; imageBase64: string; mimeType?: string; aspectRatio?: string; clientId?: string; model?: string; provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax' | 'byteplus'; referenceImages?: { base64: string; mimeType: string; role?: 'content' | 'style' | 'character' }[]; safeZone?: boolean; imageSize?: '1K' | '2K' | '4K'; enhance?: boolean; depth?: 'raw' | 'low' | 'medium' | 'high'; useBrandKit?: boolean }) =>
     request<any>('/api/creative/images/edit', { method: 'POST', body: JSON.stringify(data) }, { timeoutMs: 290000 }),  // under nginx's 300s /api/ budget; Qwen multi-reference 2K edits can pass 120s
   // Teach-the-AI thumbs (2026-07-14): records a win/miss memory for the client
   // so future enhancements/generations lean toward or away from this style.
@@ -521,7 +521,7 @@ export const creativeApi = {
     request<{ ok: boolean; memoryId: string | null }>('/api/creative/feedback', { method: 'POST', body: JSON.stringify({ generationId, liked }) }),
   // Upscaler up to 16K (2026-07-14). Source = a saved result URL (assetUrl/url)
   // or base64. Fast (sharp Lanczos) by default; ai tier when funded.
-  upscale: (data: { sourceUrl?: string; imageBase64?: string; mimeType?: string; scale?: 2 | 4 | 8; targetLongEdge?: number; format?: 'png' | 'jpeg' | 'auto'; mode?: 'fast' | 'ai'; model?: string; provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax'; clientId?: string }) =>
+  upscale: (data: { sourceUrl?: string; imageBase64?: string; mimeType?: string; scale?: 2 | 4 | 8; targetLongEdge?: number; format?: 'png' | 'jpeg' | 'auto'; mode?: 'fast' | 'ai'; model?: string; provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax' | 'byteplus'; clientId?: string }) =>
     request<{ assetUrl: string; fileUrl: string; width: number; height: number; scale: number; provider: string; format: string; bytes: number; assetId: string | null }>('/api/creative/images/upscale', { method: 'POST', body: JSON.stringify(data) }, { timeoutMs: 150000 }),
   generateVideo: (data: {
     prompt: string;
@@ -540,7 +540,7 @@ export const creativeApi = {
     negativePrompt?: string;
     referenceImages?: { base64: string; mimeType: string }[];
     model?: string;
-    provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax';
+    provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax' | 'byteplus';
     enhance?: boolean;
     depth?: 'raw' | 'low' | 'medium' | 'high';
     stylePackId?: string;
@@ -551,7 +551,7 @@ export const creativeApi = {
     request<{ packs: { id: string; name: string; tagline: string; category: string; palette: string[] }[] }>('/api/creative/style-packs'),
   getJob: (jobId: string) =>
     request<{ id: string; status: string; progress: number; result?: any; error?: string }>(`/api/creative/jobs/${jobId}`),
-  improvePrompt: (prompt: string, mode?: string, opts?: { clientId?: string; safeZone?: boolean; hasRefs?: boolean; stylePackId?: string; provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax'; model?: string; depth?: 'raw' | 'low' | 'medium' | 'high'; useBrandKit?: boolean }) =>
+  improvePrompt: (prompt: string, mode?: string, opts?: { clientId?: string; safeZone?: boolean; hasRefs?: boolean; stylePackId?: string; provider?: 'gemini' | 'xai' | 'dashscope' | 'vertex' | 'minimax' | 'byteplus'; model?: string; depth?: 'raw' | 'low' | 'medium' | 'high'; useBrandKit?: boolean }) =>
     request<{ original: string; improved: string; negativePrompt: string | null; variants?: { label: string; prompt: string; negativePrompt?: string }[]; mode: string | null; provider: string; model?: string; latencyMs: number }>(
       '/api/creative/prompt/improve',
       { method: 'POST', body: JSON.stringify({ prompt, mode, ...(opts || {}) }) },

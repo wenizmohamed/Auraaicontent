@@ -95,6 +95,14 @@ const REQUIRED_MODELS = [
   'MiniMax-H3', 'MiniMax-H3:1080p', 'MiniMax-H3:2k', 'MiniMax-H3-Max', 'MiniMax-H3-Max:480p',
   'MiniMax-H3-Image', 'MiniMax-H3-Image-Highspeed', 'image-01',
   'MiniMax-M3', 'MiniMax-M3.1-Flash',
+  // 2026-11-14: BytePlus ModelArk (ByteDance Seedance 2.5/2.0/1.0, Seedream 5.5/5.0, Dola Seed 2.1)
+  'dreamina-seedance-2-5-260628', 'dreamina-seedance-2-5-260628:480p', 'dreamina-seedance-2-5-260628:1080p',
+  'dreamina-seedance-2-0-260128', 'dreamina-seedance-2-0-260128:1080p', 'dreamina-seedance-2-0-260128:4k',
+  'dreamina-seedance-2-0-fast-260128', 'dreamina-seedance-2-0-mini-260615',
+  'seedance-1-0-pro-fast-251015', 'seedance-1-0-pro-fast-251015:1080p', 'seedance-1-0-pro-250528',
+  'dola-seedream-5-5-261028', 'dola-seedream-5-5-261028:1k', 'dola-seedream-5-5-261028:2k',
+  'dola-seedream-5-0-pro-260628', 'dola-seedream-5-0-pro-260628:1k', 'dola-seedream-5-0-pro-260628:2k',
+  'dola-seedream-5-0-flash-260915', 'seedream-5-0-260128', 'dola-seed-2-1-turbo-260628',
 ];
 
 describe('ai-pricing coverage', () => {
